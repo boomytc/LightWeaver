@@ -4,10 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { filmTask } from "./schema.ts";
-import { loadProject } from "./project.ts";
+import { createProject, loadProject } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
-import { listRecipes, loadRecipe, showRecipe } from "./recipes.ts";
+import { applyRecipe, listRecipes, loadRecipe, showRecipe } from "./recipes.ts";
 import { recipeRoot, weaverRoot } from "./paths.ts";
+import { patchScene, removeScene } from "./scenes.ts";
 
 function write(file: string, text: string): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -173,5 +174,108 @@ describe("listRecipes / loadRecipe", () => {
     assert.equal(paths.recipes, path.join(recipeRoot(), filmTask(project.film)));
     assert.ok(paths.recipes.endsWith(path.join("recipes", "study-explainer")));
     assert.notEqual(paths.recipes, recipeRoot());
+  });
+});
+
+function tempProjectRoot(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+  fs.mkdirSync(path.join(root, "library"), { recursive: true });
+  fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
+  return root;
+}
+
+describe("applyRecipe", () => {
+  it("expands taxonomy-parade stills then drops hero", () => {
+    const root = tempProjectRoot();
+    const project = createProject("demo-film", { title: "演示" }, root);
+    const { skipped } = applyRecipe(project, "taxonomy-parade", { kinds: ["alpha", "bravo"] }, weaverRoot());
+    assert.deepEqual(
+      project.film.scenes.map((scene) => scene.id),
+      ["title", "alpha", "bravo", "close"],
+    );
+    const alpha = project.film.scenes.find((scene) => scene.id === "alpha");
+    assert.equal(alpha?.kind, "still");
+    assert.equal(alpha?.still, "asset:still.alpha");
+    assert.equal(alpha?.fit, "contain");
+    assert.equal(alpha?.role, "contrast");
+    assert.equal(alpha?.lines.zh, "alpha");
+    assert.equal(alpha?.lines.en, "alpha");
+    assert.ok(project.assets.some((asset) => asset.id === "still.alpha"));
+    assert.ok(project.assets.some((asset) => asset.id === "still.bravo"));
+    assert.equal(project.film.locales.zh.output, "demo-film.mp4");
+    assert.equal("recipeId" in project.film, false);
+    assert.deepEqual(skipped, []);
+  });
+
+  it("skips existing ids and does not clobber lines", () => {
+    const root = tempProjectRoot();
+    const project = createProject("demo-film", { title: "演示" }, root);
+    applyRecipe(project, "taxonomy-parade", { kinds: ["alpha"] }, weaverRoot());
+    patchScene(project, "alpha", { lines: { zh: "真旁白", en: "real" } });
+    const { skipped } = applyRecipe(project, "taxonomy-parade", { kinds: ["alpha", "bravo"] }, weaverRoot());
+    assert.ok(skipped.includes("alpha"));
+    assert.equal(project.film.scenes.find((scene) => scene.id === "alpha")?.lines.zh, "真旁白");
+    assert.ok(project.film.scenes.some((scene) => scene.id === "bravo"));
+  });
+
+  it("rejects scene-level apply without writing", () => {
+    const root = tempProjectRoot();
+    const project = createProject("demo-film", { title: "演示" }, root);
+    assert.throws(() => applyRecipe(project, "kind-still", {}, weaverRoot()), /scene 卡按 SKILL/);
+    assert.deepEqual(
+      project.film.scenes.map((scene) => scene.id),
+      ["title", "hero", "close"],
+    );
+  });
+
+  it("rejects unknown scene kinds before writing", () => {
+    const root = tempProjectRoot();
+    write(
+      path.join(root, "recipes/study-explainer/bad-beat.md"),
+      `---
+id: bad-beat
+task: study-explainer
+level: film
+when: bad
+default_scenes:
+  - id: x
+    kind: beat
+---
+# bad
+`,
+    );
+    const project = createProject("demo-film", { title: "演示" }, root);
+    assert.throws(() => applyRecipe(project, "bad-beat", {}, root), /未知场景 kind/);
+    assert.ok(project.film.scenes.some((scene) => scene.id === "hero"));
+  });
+
+  it("adds stills before removing the seed hero", () => {
+    const root = tempProjectRoot();
+    const project = createProject("demo-film", { title: "演示" }, root);
+    assert.throws(() => removeScene(project, "hero"), /最后一场 still/);
+    applyRecipe(project, "taxonomy-parade", { kinds: ["alpha"] }, weaverRoot());
+    assert.equal(project.film.scenes.some((scene) => scene.id === "hero"), false);
+  });
+
+  it("requires --kinds for taxonomy-parade", () => {
+    const root = tempProjectRoot();
+    const project = createProject("demo-film", { title: "演示" }, root);
+    assert.throws(() => applyRecipe(project, "taxonomy-parade", {}, weaverRoot()), /需要 --kinds/);
+    assert.throws(() => applyRecipe(project, "taxonomy-parade", { kinds: [] }, weaverRoot()), /需要 --kinds/);
+  });
+
+  it("uses default_scenes for problem-then-rule and ignores kinds", () => {
+    const root = tempProjectRoot();
+    const project = createProject("demo-film", { title: "演示" }, root);
+    applyRecipe(project, "problem-then-rule", { kinds: ["nope"] }, weaverRoot());
+    assert.deepEqual(
+      project.film.scenes.map((scene) => scene.id),
+      ["title", "problem", "diagonal", "vertical", "third", "close"],
+    );
+    assert.equal(project.film.scenes.find((scene) => scene.id === "problem")?.role, "problem");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "diagonal")?.role, "rule");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "vertical")?.role, "contrast");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "third")?.role, "rule");
+    assert.equal(project.film.scenes.some((scene) => scene.id === "nope"), false);
   });
 });

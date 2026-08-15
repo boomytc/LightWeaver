@@ -1,8 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { recipeRoot, weaverRoot } from "./paths.ts";
-import { isImplementedTask, isStudyRole, type StudyRole, type TaskId } from "./schema.ts";
-import { listTasks, tryGetTask } from "./tasks/registry.ts";
+import { addScene, removeScene } from "./scenes.ts";
+import {
+  filmTask,
+  isImplementedTask,
+  isStudyRole,
+  type ProjectRecord,
+  type StudyRole,
+  type TaskId,
+} from "./schema.ts";
+import { getTask, listTasks } from "./tasks/registry.ts";
 
 export type RecipeLevel = "film" | "scene";
 
@@ -158,8 +166,6 @@ function asSceneStub(value: unknown, task: string): RecipeSceneStub | null {
   const row = value as Record<string, unknown>;
   if (typeof row.id !== "string" || !row.id) return null;
   if (typeof row.kind !== "string" || !row.kind) return null;
-  const module = tryGetTask(task);
-  if (!module?.sceneKinds.includes(row.kind)) return null;
   let role: StudyRole | undefined;
   if (row.role !== undefined) {
     if (typeof row.role !== "string" || !isStudyRole(row.role)) return null;
@@ -271,4 +277,101 @@ export function summarizeRecipe(recipe: Recipe): RecipeSummary {
     requires_kinds: recipe.requires_kinds,
     path: recipe.path,
   };
+}
+
+export type ApplyRecipeOptions = {
+  kinds?: string[];
+};
+
+/**
+ * 只编排 addScene / removeScene。
+ * 种子 hero 可能是唯一 still；必须先加新 still，再 removeScene("hero")。
+ */
+export function applyRecipe(
+  project: ProjectRecord,
+  recipeId: string,
+  options: ApplyRecipeOptions = {},
+  root = weaverRoot(),
+): { project: ProjectRecord; skipped: string[] } {
+  let recipe: Recipe;
+  try {
+    recipe = loadRecipe(recipeId, root);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.startsWith("找不到 recipe")) throw new Error(`找不到配方：${recipeId}`);
+    throw error;
+  }
+  const task = getTask(filmTask(project.film));
+  if (recipe.task !== task.id) {
+    throw new Error(`配方 ${recipe.id} 属于任务 ${recipe.task}，与片子任务 ${task.id} 不一致`);
+  }
+  if (recipe.level !== "film") {
+    throw new Error("scene 卡按 SKILL 手写一场，或并入 film 卡");
+  }
+
+  const kinds = [...new Set((options.kinds ?? []).map((item) => item.trim()).filter(Boolean))];
+  let planned: Array<{
+    id: string;
+    kind: string;
+    still?: string;
+    fit?: "cover" | "contain";
+    role?: StudyRole;
+  }>;
+
+  if (recipe.requires_kinds) {
+    if (kinds.length === 0) {
+      throw new Error(
+        `${recipe.id} 需要 --kinds（由 agent 从 kinds.ts 读入，不要让 weaver 解析 LightUI）`,
+      );
+    }
+    planned = kinds.map((id) => ({
+      id,
+      kind: "still",
+      still: `asset:still.${id}`,
+      fit: "contain",
+      role: "contrast",
+    }));
+  } else if (recipe.default_scenes?.length) {
+    planned = recipe.default_scenes.map((row) => ({
+      id: row.id,
+      kind: row.kind ?? "still",
+      still: row.still ?? `asset:still.${row.id}`,
+      fit: row.fit,
+      role: row.role,
+    }));
+  } else {
+    throw new Error(`film 卡 ${recipe.id} 缺少 default_scenes 或 requires_kinds，无法 apply`);
+  }
+
+  for (const item of planned) {
+    if (!task.sceneKinds.includes(item.kind)) {
+      throw new Error(`未知场景 kind：${item.kind}（只允许 ${task.sceneKinds.join(" / ")}）`);
+    }
+    if (item.kind !== "still") {
+      throw new Error("recipe apply 只展开 still 场（title/close 由种子创建）");
+    }
+  }
+
+  const skipped: string[] = [];
+  for (const item of planned) {
+    if (project.film.scenes.some((scene) => scene.id === item.id)) {
+      skipped.push(item.id);
+      continue;
+    }
+    addScene(project, {
+      id: item.id,
+      kind: "still",
+      still: item.still,
+      fit: item.fit,
+      role: item.role,
+    });
+  }
+
+  const hero = project.film.scenes.find((scene) => scene.id === "hero" && scene.kind === "still");
+  if (hero) {
+    const stillCount = project.film.scenes.filter((scene) => scene.kind === "still").length;
+    if (stillCount > 1) removeScene(project, "hero");
+  }
+
+  return { project, skipped };
 }

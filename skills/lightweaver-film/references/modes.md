@@ -18,7 +18,7 @@
 ## 直接跑
 
 - `project create`（参数齐）
-- `scene add`（结构已定）
+- `recipe apply`（结构已定；占位旁白阶段 3 再写）。补场才 `scene add`
 - `scene set` / `card set`（模式允许时）
 - `validate`
 - `tts`（仅 `!hasErrors`）

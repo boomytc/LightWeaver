@@ -5,7 +5,7 @@ import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { projectPaths } from "./project-paths.ts";
-import { listRecipes, loadRecipe, summarizeRecipe } from "./recipes.ts";
+import { applyRecipe, listRecipes, loadRecipe, summarizeRecipe } from "./recipes.ts";
 import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./validate.ts";
 import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
@@ -78,6 +78,8 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       kicker: { type: "string" },
       tags: { type: "string" },
       ref: { type: "string" },
+      recipe: { type: "string" },
+      kinds: { type: "string" },
     },
   });
   wantJson = Boolean(values.json);
@@ -336,7 +338,23 @@ function main(): void {
       }
       return;
     }
-    fail("用法: weaver recipe list|show");
+    if (sub === "apply") {
+      const project = requireProject(str(values, "project") ?? "");
+      const recipeId = str(values, "recipe") ?? "";
+      if (!recipeId) fail("用法: weaver recipe apply --project <id> --recipe <id> [--kinds a,b,c]");
+      const kindsRaw = str(values, "kinds");
+      const kinds = kindsRaw
+        ? kindsRaw.split(",").map((item) => item.trim()).filter(Boolean)
+        : [];
+      try {
+        const { skipped } = applyRecipe(project, recipeId, { kinds }, root);
+        print({ ...envelope(project, root), skipped });
+      } catch (error) {
+        fail(error instanceof Error ? error.message : String(error), 2);
+      }
+      return;
+    }
+    fail("用法: weaver recipe list|show|apply");
   }
 
   if (command === "validate") {
@@ -426,7 +444,7 @@ function main(): void {
 命令:
   weaver task list
   weaver project list|show|validate|create
-  weaver recipe list|show
+  weaver recipe list|show|apply
   weaver scene list|add|rm|move|set
   weaver card set
   weaver voice set

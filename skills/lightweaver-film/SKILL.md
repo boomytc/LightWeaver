@@ -61,7 +61,7 @@ description: >
 | --- | --- |
 | 找齐三层 | 先按存放图；再 `weaver project show --json` |
 | 选卡 | `npx weaver recipe list --task study-explainer`；一眼看 `recipes/study-explainer/index.md`。对上后再 `npx weaver recipe show <id>` |
-| 展开骨架 | `project create` + `scene add` / `scene rm --id hero` |
+| 展开骨架 | `recipe apply`；补场才 `scene add`。`lines[locale] === <sceneId>` 是占位，阶段 3 必须 `scene set` |
 | 手截 | `docs/conventions.md` |
 | QA | `references/qa.md` |
 | 阶段表 | `references/pipeline.md` |
@@ -74,6 +74,8 @@ npx weaver project list --json
 npx weaver project show <id> --json
 npx weaver recipe list [--task study-explainer]
 npx weaver recipe show <id>
+npx weaver recipe apply --project <id> --recipe taxonomy-parade --kinds a,b,c --json
+npx weaver recipe apply --project <id> --recipe problem-then-rule --json
 npx weaver project create <id> --task study-explainer [--title] [--source first-party] [--study-slug] [--output] [--output-en]
 npx weaver scene add --project <id> --id <scene> --kind still [--still asset:still.x] [--role contrast]
 npx weaver scene rm --project <id> --id <scene>
