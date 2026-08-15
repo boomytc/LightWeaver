@@ -11,6 +11,20 @@
 
 产品形状（理念 / 资产 / 产物 存放契约，agent 按图出片）见 [`design-placement-contract.md`](./design-placement-contract.md)。本文是任务核（TaskModule、FilmDoc、形状/媒体、CLI/HTTP），不重开。
 
+两份不要合并成一篇。改任务核（D1–D13、CRUD、形状/媒体、`isRenderable`）先改**本文**；改存放图、skill 模式/阶段、recipe、LLM 归属、Studio 产品故事，改 [`design-placement-contract.md`](./design-placement-contract.md)。核保留，当 agent 调用的确定性 job API。
+
+| 主题 | 本文（任务核） | `design-placement-contract.md` |
+| --- | --- | --- |
+| `task` / TaskModule / 循环禁令 | 拍板（D1–D2） | 继承 |
+| 形状 vs 媒体 / `hero` / `isRenderable` | 拍板（D3、D4、D10） | QA 阶段去 **调用** |
+| 一种 kind 一场、id=slug、lab 纯文本 | 拍板（D13） | recipe `taxonomy-parade` 落实 |
+| CLI / HTTP / Studio CRUD | 拍板且已实现 | 降为 job API |
+| 存放图（理念 / 资产 / 产物） | 只写了项目 layout 与 publish 边界 | **主场（P0）** |
+| Skill 作为产品、模式、阶段 | 未覆盖 | 服务于存放图 |
+| Recipe / template / composition 分层 | 未覆盖 | 方法资产，`recipes/study-explainer/` |
+| LLM 住哪里 | 未覆盖 | P6（只住 agent 进程；`weaver/` 无模型） |
+| Studio 产品故事 | 「人与 agent 同一面」偏工作台 | 改为复核面 |
+
 ---
 
 ## Overview
@@ -931,7 +945,7 @@ products/study-films/projects/sidebar-taxonomy/...
 
 ## References
 
-- LightWeaver：`AGENTS.md`、`README.md`、`docs/conventions.md`、`.gitignore`
+- LightWeaver：`AGENTS.md`、`README.md`、`docs/conventions.md`、`docs/design-placement-contract.md`（产品形状；不要与本文合并）、`.gitignore`
 - 核：`weaver/src/schema.ts`、`project.ts`、`assets.ts`、`validate.ts`、`cli.ts`、`tts.ts`、`render.ts`、`sync.ts`、`timeline.ts`、`paths.ts`
 - Studio：`products/studio/src/App.tsx`、`api.ts`、`types.ts`、`server/index.ts`、`server/jobs.ts`、`AGENTS.md`
 - 渲染 / 截图：`products/study-films/src/Root.tsx`、`compositions/StudyFilm.tsx`、`scripts/capture.mjs`（289 行）、`package.json` `capture`/`films`、`AGENTS.md`
