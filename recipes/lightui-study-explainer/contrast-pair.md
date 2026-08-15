@@ -15,6 +15,6 @@ when: |
 | dropdown | `grouped` vs `cascader` |
 | nav | `drawer` vs `overlay`；`dropdown` vs `mega`；`shrink` vs `floating` |
 | sidebar | `collapsible` vs `offcanvas`；`multilevel` vs `wheel` |
-| intent | `diagonal`（rule）vs `vertical`（contrast） |
+| intent | `diagonal`（rule）vs `project`（contrast） |
 
 不可当整片骨架。不发明新 scene kind。

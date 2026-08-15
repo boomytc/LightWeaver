@@ -7,6 +7,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const filmsRoot = path.resolve(here, "..");
 export const weaverRoot = path.resolve(filmsRoot, "../..");
 
+export function firstPartyRoot() {
+  return process.env.LIGHTWEAVER_FIRST_PARTY
+    ? path.resolve(process.env.LIGHTWEAVER_FIRST_PARTY)
+    : path.join(weaverRoot, "data/first-party");
+}
+
 export function lightuiRoot() {
   return process.env.LIGHTUI_ROOT ?? path.resolve(weaverRoot, "../LightUI");
 }

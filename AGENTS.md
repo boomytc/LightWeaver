@@ -15,9 +15,8 @@ Shared objects live in `weaver/`. Products consume that package.
 weaver/                         schema, projects, assets, CLI, jobs
 library/                        shared voices / elements / references
 recipes/                        method cards（lightui-study-explainer；怎么结合，不是媒体）
-data/projects/                  user projects (gitignored)
-products/study-films/           Remotion renderer + LightUI capture
-products/study-films/projects/  first-party LightUI films
+data/                           任务实例（gitignore）：first-party 顾客片 + 用户片 + 静帧/wav/mp4
+products/study-films/           Remotion 渲染器 + stage 截图脚本
 products/studio/                local WebUI
 skills/                         agent skills
 ```
@@ -31,8 +30,8 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | Film / asset / job model, CLI | `weaver/` |
 | Shared voice / element / reference | `library/` |
 | Recipe / 方法卡 | `recipes/lightui-study-explainer/` |
-| New first-party LightUI film | `products/study-films/projects/<id>/` |
-| User film | `data/projects/<id>/` or Studio「新建」 |
+| LightUI / 顾客片实例 | `data/first-party/<id>/`（不提交） |
+| User film | `data/projects/<id>/` or Studio「新建」（不提交） |
 | Remotion cards / capture adapter | `products/study-films/` |
 | Review surface | `products/studio/` |
 | Agent procedure | `skills/lightweaver*` |
@@ -70,5 +69,4 @@ make remotion        # Remotion preview
 
 ## Cleanup
 
-Remove transient `out/`, `.cache/`, and `data/projects/` leftovers that
-are not deliberate first-party fixtures.
+Remove transient `out/`, `.cache/`, and leftover `data/` task instances.

@@ -5,6 +5,8 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { createProject, listProjects, loadProject } from "./project.ts";
 import { resolveAssetFile } from "./assets.ts";
+import { firstPartyRoot } from "./paths.ts";
+import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 
 describe("createProject", () => {
   it("writes a user project under data/projects", () => {
@@ -23,11 +25,15 @@ describe("createProject", () => {
 });
 
 describe("resolveAssetFile", () => {
-  it("resolves locale still files on a first-party project", () => {
-    const project = loadProject("intent-cascade");
-    const resolved = resolveAssetFile(project, "asset:still.problem", "zh");
+  it("resolves locale still files from assets.json, not the scene id", () => {
+    const root = tempWorkspace();
+    const project = seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }], {
+      writePng: true,
+    });
+    assert.ok(project.root.startsWith(firstPartyRoot(root)));
+    const resolved = resolveAssetFile(project, "asset:still.status", "zh", root);
     assert.ok(resolved);
-    assert.ok(resolved.absPath.endsWith("assets/stills/zh/desktop-full.png"));
+    assert.ok(resolved.absPath.endsWith("assets/stills/zh/status.png"));
     assert.ok(fs.existsSync(resolved.absPath));
   });
 });

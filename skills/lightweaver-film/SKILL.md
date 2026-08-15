@@ -16,8 +16,9 @@ description: >
 
 - first-party 理念：`$LIGHTUI_ROOT/studies/<slug>/idea.md`（及 `idea.en.md` / `study.json`；taxonomy 另有 `kinds.ts`；intent-cascade **没有** kinds.ts）
 - 用户片理念：`data/projects/<id>/brief.md`
+- 任务实例：LightUI 顾客片 `data/first-party/<id>/`；用户片 `data/projects/<id>/`。**不提交**
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）
-- 产物：`assets/lines/<locale>/*.wav`；`assets/outputs/<output>`（gitignore）
+- 产物：`<project>/assets/lines/<locale>/*.wav`；`<project>/assets/outputs/<output>`
 - 方法：`recipes/lightui-study-explainer/`（`weaver recipe list --task study-explainer` / `show`；index 六行）
 - 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`
 
@@ -36,7 +37,7 @@ description: >
 | `isRenderable` 且 output 缺，或本会话刚 tts / 换了 png | `render --project` |
 | 无 `publish.dir` | 只写 `assets/outputs/`；不要 `publish` |
 | `brief.kind=project-brief` 且 `brief.files.brief.exists === false` | 先写 `brief.md`，再写 lines |
-| first-party 旁白已按 idea.md 写好（nav/sidebar） | **不要**重写 lines。只补资产与产物 |
+| `data/` 里已有该 slug 且本会话未改旁白 | **不要**重写 lines。只补缺的静帧 / wav / mp4 |
 
 ## 先判模式
 

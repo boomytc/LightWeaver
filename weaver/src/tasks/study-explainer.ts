@@ -13,7 +13,12 @@ import {
 import type { CreateFilmInput, TaskModule } from "./types.ts";
 import { jargonIn } from "../plain-talk.ts";
 
-export const LIGHTUI_LAB_ADAPTERS = ["intent-cascade", "dropdown-taxonomy"] as const;
+export const LIGHTUI_LAB_ADAPTERS = [
+  "intent-cascade",
+  "dropdown-taxonomy",
+  "nav-taxonomy",
+  "sidebar-taxonomy",
+] as const;
 
 export const studyExplainer: TaskModule = {
   id: "study-explainer",

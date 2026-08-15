@@ -48,7 +48,7 @@ LightUI lab 在跑时：`make films`（截图 + 旁白 + 渲染并发布）。
 weaver/                         稳定核与 CLI
 library/                        共享音色 / 元素 / 参考
 recipes/                        方法卡（怎么结合，不是媒体）
-data/projects/                  本地项目
+data/                           任务实例（gitignore；first-party + 用户片）
 products/study-films/           Remotion + LightUI 截图
 products/studio/                复核面
 docs/                           任务核 + 存放契约

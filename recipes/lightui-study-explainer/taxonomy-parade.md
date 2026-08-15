@@ -36,7 +36,7 @@ requires_kinds: true
 - nav：`floating` `sidebar` `breadcrumb` `dropdown` `mega` `drawer` `overlay` `scrollspy` `shrink`
 - sidebar：`floating` `wheel` `multilevel` `collapsible` `offcanvas`
 
-dropdown 历史 `comp-0N.png` 不要复制；新片 / nav / sidebar 用 `<kind>.png`。
+静帧文件名与 LightUI `references/SOURCE.md` 一致（dropdown 用 `<kind>-open.png`；nav 的打开态用 `dropdown-open.png` 等）。
 
 ## 展开
 

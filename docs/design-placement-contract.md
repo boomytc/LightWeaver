@@ -62,7 +62,7 @@ CineWeaver Desktop 实际做的是短剧复刻自动剪（`backend/services/dram
 | Studio | `products/studio/` | 复核面。CRUD 仍在；成片走 `/api/media`；详情带 `paths` |
 | Remotion | `products/study-films/src/Root.tsx` + `compositions/StudyFilm.tsx` | **一部任务一个 composition**；片长读 wav，无 `timeline.ts` |
 | Skills | `skills/lightweaver*` | 路由器 + 生产 skill（存放图 / 模式 / 结合规则）+ assets |
-| 片子 | `products/study-films/projects/` | 四则均可渲（intent / dropdown / nav / sidebar）；成片已发回 LightUI `references/` |
+| 片子 | `data/first-party/`（gitignore） | LightUI 任务实例；不进 git。成片有 `publish.dir` 才拷到 LightUI `references/` |
 
 当时痛点（无存放图、skill 只是动词表、Studio 当主入口）已由本文 PR1–PR5 关闭。仍开放的只有 Q-media = M2：nav / sidebar 手截出片不在本仓实现范围。
 

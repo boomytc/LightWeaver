@@ -7,19 +7,20 @@ when: |
 canon:
   - intent-cascade
 default_scenes:
-  - id: problem
+  - id: status
     kind: still
     role: problem
-    still: asset:still.problem
+    still: asset:still.status
+    fit: contain
   - id: diagonal
     kind: still
     role: rule
     still: asset:still.diagonal
     fit: contain
-  - id: vertical
+  - id: project
     kind: still
     role: contrast
-    still: asset:still.vertical
+    still: asset:still.project
     fit: contain
   - id: third
     kind: still
@@ -37,20 +38,20 @@ study 讲一条会坏的交互规则，而不是一张模型对照表。intent-c
 ## 骨架
 
 1. `title` — recipe `study-title`
-2. `problem`（role=problem）
+2. `status`（role=problem）
 3. 一条或多条 rule still
 4. 至少一条 contrast still
 5. `close` — recipe `say-it-this-way`
 
-v1 写死四场 still，与 canon 相同。
+v1 写死四场 still，与 LightUI stage kinds 相同：`status` `diagonal` `project` `third`。文件名与 `references/SOURCE.md` 一致。
 
 ## 旁白义务
 
-problem 说会坏什么；rule 说走廊/规则；contrast 说朴素 delay 为什么更差。
+status 说会坏什么；diagonal / third 说走廊；project 说纵向为什么立刻切（对照 delay）。
 
 ## 实证
 
-intent-cascade：`problem` / `diagonal` / `vertical` / `third`。历史文件名（`desktop-full.png` 等）只属于这部老片，新片按 `assets.json`。
+intent-cascade：`status` / `diagonal` / `project` / `third`。静帧名 = LightUI `status.png` `diagonal.png` `project.png` `third.png`。
 
 ## 展开
 

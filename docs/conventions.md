@@ -12,8 +12,9 @@ assets/lines/<locale>/    旁白 wav
 assets/outputs/           渲染 mp4（不提交）
 ```
 
-First-party：`products/study-films/projects/<slug>/`，且 `film.id === study.slug === 目录名`。
-User：`data/projects/<id>/`。
+任务实例都在 `data/`（整树 gitignore），**不提交**。LightUI 顾客片：`data/first-party/<slug>/`，且 `film.id === study.slug === 目录名`。用户片：`data/projects/<id>/`。
+
+仓库只留可复用物：`weaver/`、`recipes/`、`library/`、`products/study-films/`（渲染器，不含片子）、`products/studio/`、`skills/`。
 
 ## 三层存放
 
@@ -23,15 +24,14 @@ User：`data/projects/<id>/`。
 | --- | --- | --- |
 | **理念** | first-party：`$LIGHTUI_ROOT/studies/<slug>/`（`idea.md`、`idea.en.md`、`study.json`；taxonomy 另有 `src/lib/kinds.ts`；成片文件名看 `references/SOURCE.md`）。用户片：`data/projects/<id>/brief.md`（可选 `brief.en.md`） | 不把 `idea.md` / `kinds.ts` 拷进片子目录。不把 wav/mp4 写进理念目录 |
 | **资产** | `library/`（`library:` 音色 / 元素）+ 项目 `assets.json` + `assets/stills/<locale>/` | `library/` 不是 DAM。不把 stills 写进 LightUI `references/`。不发明第三套 ref |
-| **产物** | 旁白 `assets/lines/<locale>/<scene>.wav`；成片 `assets/outputs/<output>`（gitignore）。有 `publish.dir` 才拷 **mp4** 到 LightUI `references/` | 不提交 `assets/outputs/`。不把 wav/mp4 写进 study 源码树 |
+| **产物** | 旁白 `assets/lines/<locale>/<scene>.wav`；成片 `assets/outputs/<output>`。整份任务实例在 `data/`。有 `publish.dir` 才拷 **mp4** 到 LightUI `references/` | 不把 `data/` 提交进 LightWeaver。不把 wav/mp4 写进 study 源码树 |
 
 **用户片 brief：** 没有 LightUI study 时，理念写在 `data/projects/<id>/brief.md`。Agent 写正文；`createProject` **不**代写。weaver **不**解析 brief。没有 brief 就先写 brief，再写 `lines`。用户片若同时带了 `study.slug`，主理念仍读 LightUI idea（文件在的话），否则用 brief；**不要**把 idea 拷进项目。
 
 **静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。
 
-- 反例：intent 的 `asset:still.problem` → `assets/stills/zh/desktop-full.png`，不是 `problem.png`。dropdown 的 `still.select` → `select-open.png`，`still.multi` → `comp-02.png`。
-- 新 taxonomy / manual 片约定 `<kind>.png`（与 `scenes[].id` 相同），仍必须先写进 `assets.json` 再落盘。
-- 历史文件名保留，不要回写成 `<kind>.png`。
+- 文件名与 LightUI `studies/<slug>/references/SOURCE.md` 一致：intent `status.png`；dropdown `select-open.png`；nav `drawer-open.png`；sidebar `offcanvas-open.png`。
+- 必须先写进 `assets.json` 再落盘。不要再发明 `comp-01.png`、`desktop-full.png`。
 
 **方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>`。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
 
@@ -66,10 +66,10 @@ npx weaver render --project my-film
 2. 视口 1440×1100，设备像素比 2。中英各一遍。
 3. 点 `[data-kind=<kind>]`，等 `[data-film=fixture]`。
 4. shrink：在 fixture **内部**滚过约 40px。
-5. 写入该项目 `assets.json` 已登记的 `files.<locale>`。新片约定 `assets/stills/{zh,en}/<kind>.png`（文件名 = kind id，不要新造 `comp-01.png`）。intent / dropdown 的历史名（`desktop-full.png`、`select-open.png`、`comp-02.png`、`date-cal.png` 等）以 `assets.json` 为准，不要改名。
-6. LightUI `references/` **只收 mp4**，不收这些 png。`make films` 用已提交进 LightWeaver 的 stills+wav 重渲 mp4。
+5. 写入该项目 `assets.json` 已登记的 `files.<locale>`。文件名跟 LightUI SOURCE.md（`status.png`、`select-open.png`、`drawer-open.png`）。
+6. LightUI `references/` **只收 mp4**，不收这些 png。静帧/wav 留在 `data/first-party/<id>/assets/`。
 
-`capture.mjs` 只服务 `intent-cascade` 与 `dropdown-taxonomy`。没有 adapter 的片子不要等 `make films-capture`。
+`weaver capture` 从 `/s/<slug>/stage` 截到 `data/first-party/<id>/assets/stills/`。
 
 ## After changing scenes
 

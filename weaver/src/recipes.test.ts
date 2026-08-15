@@ -8,6 +8,7 @@ import { createProject, loadProject } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
 import { applyRecipe, listRecipes, loadRecipe, showRecipe } from "./recipes.ts";
 import { recipeRoot, weaverRoot } from "./paths.ts";
+import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 import { patchScene, removeScene } from "./scenes.ts";
 
 function write(file: string, text: string): void {
@@ -147,7 +148,7 @@ describe("listRecipes / loadRecipe", () => {
     const recipe = loadRecipe("problem-then-rule");
     assert.deepEqual(
       recipe.default_scenes?.map((scene) => scene.id),
-      ["problem", "diagonal", "vertical", "third"],
+      ["status", "diagonal", "project", "third"],
     );
     assert.deepEqual(
       recipe.default_scenes?.map((scene) => scene.role),
@@ -169,12 +170,13 @@ describe("listRecipes / loadRecipe", () => {
   });
 
   it("paths.recipes is the pack directory, not recipeRoot itself", () => {
-    const project = loadProject("intent-cascade");
-    const paths = projectPaths(project);
-    assert.equal(paths.recipes, path.join(recipeRoot(), "lightui-study-explainer"));
+    const root = tempWorkspace();
+    const project = seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
+    const paths = projectPaths(project, root);
+    assert.equal(paths.recipes, path.join(recipeRoot(root), "lightui-study-explainer"));
     assert.equal(filmTask(project.film), "study-explainer");
     assert.ok(paths.recipes.endsWith(path.join("recipes", "lightui-study-explainer")));
-    assert.notEqual(paths.recipes, recipeRoot());
+    assert.notEqual(paths.recipes, recipeRoot(root));
   });
 });
 
@@ -271,11 +273,11 @@ default_scenes:
     applyRecipe(project, "problem-then-rule", { kinds: ["nope"] }, weaverRoot());
     assert.deepEqual(
       project.film.scenes.map((scene) => scene.id),
-      ["title", "problem", "diagonal", "vertical", "third", "close"],
+      ["title", "status", "diagonal", "project", "third", "close"],
     );
-    assert.equal(project.film.scenes.find((scene) => scene.id === "problem")?.role, "problem");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "status")?.role, "problem");
     assert.equal(project.film.scenes.find((scene) => scene.id === "diagonal")?.role, "rule");
-    assert.equal(project.film.scenes.find((scene) => scene.id === "vertical")?.role, "contrast");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "project")?.role, "contrast");
     assert.equal(project.film.scenes.find((scene) => scene.id === "third")?.role, "rule");
     assert.equal(project.film.scenes.some((scene) => scene.id === "nope"), false);
   });

@@ -1,10 +1,9 @@
 # study-films
 
-Remotion renderer for LightWeaver projects. First-party LightUI films live
-in `projects/`. Capture adapters exist only for `intent-cascade` and
-`dropdown-taxonomy`. `nav-taxonomy` / `sidebar-taxonomy` stills come from
-the LightUI stage (`/s/<slug>/stage`) and live in each project's
-`assets/stills/`.
+Remotion renderer for LightWeaver. Task instances (film.json, stills, wav,
+mp4) live in `data/first-party/` and `data/projects/` — not in this
+package, not in git. `weaver capture` reads LightUI `/s/<slug>/stage`
+and writes stills into `data/first-party/<id>/assets/stills/`.
 
 ```bash
 npm run sync       # link public/projects + catalog

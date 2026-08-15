@@ -19,7 +19,7 @@ export function recipeRoot(root = weaverRoot()): string {
 }
 
 export function firstPartyRoot(root = weaverRoot()): string {
-  return path.join(root, "products/study-films/projects");
+  return path.join(root, "data/first-party");
 }
 
 export function userRoot(root = weaverRoot()): string {

@@ -20,6 +20,6 @@ __pycache__/
 !.vscode/extensions.json
 *.swp
 *.swo
-data/projects/
+data/
 products/study-films/public/projects/
 **/assets/outputs/

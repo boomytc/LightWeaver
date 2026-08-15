@@ -2,53 +2,57 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { listProjects, loadProject } from "./project.ts";
 import { hasErrors, isCompletedFilm, isRenderable, validateProject } from "./validate.ts";
-import { weaverRoot } from "./paths.ts";
 import { tryGetTask } from "./tasks/registry.ts";
+import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 
 describe("first-party films", () => {
-  it("loads all first-party projects including unfinished scaffolds", () => {
-    const ids = listProjects(weaverRoot()).map((project) => project.id);
-    assert.ok(ids.includes("intent-cascade"));
-    assert.ok(ids.includes("dropdown-taxonomy"));
-    assert.ok(ids.includes("nav-taxonomy"));
-    assert.ok(ids.includes("sidebar-taxonomy"));
+  it("lists first-party and user roots from a workspace", () => {
+    const root = tempWorkspace();
+    seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
+    const ids = listProjects(root).map((project) => project.id);
+    assert.deepEqual(ids, ["intent-cascade"]);
   });
 
-  it("completed lightui-lab films have no errors and are renderable", () => {
-    const completed = listProjects(weaverRoot()).filter((item) => isCompletedFilm(item));
-    assert.ok(completed.some((project) => project.id === "intent-cascade"));
-    assert.ok(completed.some((project) => project.id === "dropdown-taxonomy"));
-    for (const project of completed) {
-      const issues = validateProject(project);
-      assert.equal(hasErrors(issues), false, `${project.id}: ${JSON.stringify(issues.filter((i) => i.level === "error"))}`);
-      assert.equal(isRenderable(project), true, project.id);
-      const jargon = issues.filter((issue) => issue.message.includes("忌术语"));
-      assert.equal(jargon.length, 0, `${project.id}: ${JSON.stringify(jargon)}`);
-    }
+  it("treats a lab film with stills as completed and renderable", () => {
+    const root = tempWorkspace();
+    const project = seedLabFilm(
+      root,
+      "intent-cascade",
+      [
+        { id: "status", file: "status.png", role: "problem" },
+        { id: "contrast", file: "contrast.png", role: "contrast" },
+      ],
+      { writePng: true },
+    );
+    assert.equal(isCompletedFilm(project, root), true);
+    assert.equal(isRenderable(project, root), true);
+    assert.equal(hasErrors(validateProject(project, root)), false);
   });
 
-  it("nav/sidebar first-party films have no errors and are renderable", () => {
-    for (const id of ["nav-taxonomy", "sidebar-taxonomy"]) {
-      const project = loadProject(id);
-      const issues = validateProject(project);
-      assert.equal(hasErrors(issues), false, id);
-      assert.equal(isRenderable(project), true, id);
-      const jargon = issues.filter((issue) => issue.message.includes("忌术语"));
-      assert.equal(jargon.length, 0, `${id}: ${JSON.stringify(jargon)}`);
-    }
+  it("is not renderable when the official still file is missing", () => {
+    const root = tempWorkspace();
+    const project = seedLabFilm(root, "nav-taxonomy", [
+      { id: "floating", file: "floating.png", role: "contrast" },
+    ]);
+    assert.equal(hasErrors(validateProject(project, root)), false);
+    assert.equal(isRenderable(project, root), false);
   });
 
   it("keeps narration on the scene", () => {
-    const project = loadProject("intent-cascade");
+    const root = tempWorkspace();
+    const project = seedLabFilm(root, "intent-cascade", [
+      { id: "status", file: "status.png", role: "problem" },
+    ]);
     assert.equal(project.film.task, "study-explainer");
     assert.equal(project.film.study?.slug, "intent-cascade");
-    const title = project.film.scenes.find((scene) => scene.id === "title");
-    assert.ok(title?.lines.zh.includes("菜单意图预测"));
-    assert.equal(project.film.scenes.find((scene) => scene.id === "problem")?.role, "problem");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "status")?.role, "problem");
   });
 
   it("warns when study-explainer copy uses leaf jargon", () => {
-    const project = loadProject("dropdown-taxonomy");
+    const root = tempWorkspace();
+    const project = seedLabFilm(root, "dropdown-taxonomy", [
+      { id: "cascader", file: "cascader-open.png", role: "contrast" },
+    ]);
     const fake = {
       ...project,
       film: {
@@ -60,16 +64,18 @@ describe("first-party films", () => {
         ),
       },
     };
-    const issues = validateProject(fake);
+    const issues = validateProject(fake, root);
     assert.ok(issues.some((issue) => issue.level === "warning" && issue.message.includes("叶子")));
     assert.ok(issues.some((issue) => issue.level === "warning" && issue.message.includes("leaf")));
   });
 
   it("does not throw on an unknown task", () => {
     assert.equal(tryGetTask("drama-plot"), undefined);
-    const project = loadProject("intent-cascade");
+    const root = tempWorkspace();
+    seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
+    const project = loadProject("intent-cascade", root);
     const fake = { ...project, film: { ...project.film, task: "drama-plot" } };
-    const issues = validateProject(fake);
+    const issues = validateProject(fake, root);
     assert.ok(issues.some((issue) => issue.path === "task" && issue.level === "error"));
   });
 });

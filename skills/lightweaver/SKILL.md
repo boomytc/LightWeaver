@@ -14,7 +14,7 @@ Read `AGENTS.md` first.
 | --- | --- |
 | Schema, CLI, validate, tts/render jobs | `weaver/` |
 | Shared voice / element / reference | `library/` |
-| First-party LightUI film files | `products/study-films/projects/<id>/` |
+| LightUI / 顾客片实例 | `data/first-party/<id>/`（gitignore） |
 | Remotion cards, LightUI capture | `products/study-films/` |
 | Workbench UI | `products/studio/` |
 | How to author a film | **lightweaver-film** |
