@@ -1,9 +1,11 @@
+import fs from "node:fs";
 import { parseArgs } from "node:util";
 import { addAsset, loadLibrary } from "./assets.ts";
 import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { projectPaths } from "./project-paths.ts";
+import { listRecipes, loadRecipe, summarizeRecipe } from "./recipes.ts";
 import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./validate.ts";
 import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
@@ -301,6 +303,42 @@ function main(): void {
     fail(`用法: weaver asset list|add（kind: ${ASSET_KINDS.join(", ")}）`);
   }
 
+  if (command === "recipe") {
+    const sub = rest[0];
+    if (sub === "list" || !sub) {
+      const recipes = listRecipes(root, str(values, "task")).map(summarizeRecipe);
+      print({ ok: true, recipes });
+      return;
+    }
+    if (sub === "show") {
+      const id = rest[1];
+      if (!id) fail("用法: weaver recipe show <id>");
+      try {
+        const recipe = loadRecipe(id, root);
+        if (wantJson) {
+          print({
+            ok: true,
+            id: recipe.id,
+            task: recipe.task,
+            level: recipe.level,
+            when: recipe.when,
+            canon: recipe.canon,
+            requires_kinds: recipe.requires_kinds,
+            default_scenes: recipe.default_scenes,
+            path: recipe.path,
+            body: recipe.body,
+          });
+        } else {
+          print(fs.readFileSync(recipe.path, "utf8"));
+        }
+      } catch (error) {
+        fail(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+    fail("用法: weaver recipe list|show");
+  }
+
   if (command === "validate") {
     const id = rest[0] ?? str(values, "project");
     const reports = validateWorkspace(root, id);
@@ -388,6 +426,7 @@ function main(): void {
 命令:
   weaver task list
   weaver project list|show|validate|create
+  weaver recipe list|show
   weaver scene list|add|rm|move|set
   weaver card set
   weaver voice set

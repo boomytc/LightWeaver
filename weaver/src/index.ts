@@ -3,6 +3,7 @@ export * from "./paths.ts";
 export * from "./io.ts";
 export * from "./project.ts";
 export * from "./project-paths.ts";
+export * from "./recipes.ts";
 export * from "./assets.ts";
 export * from "./validate.ts";
 export * from "./timeline.ts";

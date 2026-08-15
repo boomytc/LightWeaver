@@ -172,23 +172,3 @@ describe("project show CLI", () => {
   });
 });
 
-describe("PR1 skill wording", () => {
-  it("teaches the map without recipe CLI", () => {
-    for (const rel of [
-      "skills/lightweaver-film/SKILL.md",
-      "skills/lightweaver-film/references/pipeline.md",
-      "skills/lightweaver-film/references/modes.md",
-      "skills/lightweaver-film/references/qa.md",
-    ]) {
-      const text = fs.readFileSync(path.join(weaverRoot(), rel), "utf8");
-      assert.doesNotMatch(text, /weaver recipe/i);
-      assert.doesNotMatch(text, /recipe list/i);
-      assert.doesNotMatch(text, /recipe show/i);
-      assert.doesNotMatch(text, /recipe apply/i);
-      assert.doesNotMatch(text, /recipes\/study-explainer\/index\.md/);
-    }
-    const skill = fs.readFileSync(path.join(weaverRoot(), "skills/lightweaver-film/SKILL.md"), "utf8");
-    assert.match(skill, /project show/);
-    assert.match(skill, /stillFiles/);
-  });
-});
