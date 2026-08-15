@@ -124,6 +124,7 @@ function SceneEditor({
           lede={copy.titleCard.lede ?? ""}
           kicker={copy.titleCard.kicker ?? ""}
           tags={(copy.titleCard.tags ?? []).join(", ")}
+          points={(copy.titleCard.points ?? []).join("\n")}
           onSave={(body) => api.setCard(detail.id, { locale, which: "title", ...body }).then(onChange)}
         />
       ) : null}
@@ -132,6 +133,7 @@ function SceneEditor({
           which="close"
           headline={copy.closeCard.headline ?? ""}
           lede={copy.closeCard.lede ?? ""}
+          points={(copy.closeCard.points ?? []).join("\n")}
           onSave={(body) => api.setCard(detail.id, { locale, which: "close", ...body }).then(onChange)}
         />
       ) : null}
@@ -209,6 +211,7 @@ function CardFields({
   lede,
   kicker,
   tags,
+  points,
   onSave,
 }: {
   which: "title" | "close";
@@ -216,32 +219,50 @@ function CardFields({
   lede: string;
   kicker?: string;
   tags?: string;
+  points?: string;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const [h, setH] = useState(headline);
   const [l, setL] = useState(lede);
   const [k, setK] = useState(kicker ?? "");
   const [t, setT] = useState(tags ?? "");
+  const [p, setP] = useState(points ?? "");
+  const save = (next?: { headline?: string; lede?: string; kicker?: string; tags?: string[]; points?: string[] }) => {
+    const body: Record<string, unknown> = {
+      headline: next?.headline ?? h,
+      lede: next?.lede ?? l,
+      points: (next?.points ?? p.split("\n").map((item) => item.trim()).filter(Boolean)),
+    };
+    if (which === "title") {
+      body.kicker = next?.kicker ?? k;
+      body.tags = next?.tags ?? t.split(",").map((item) => item.trim()).filter(Boolean);
+    }
+    void onSave(body);
+  };
   return (
     <>
       {which === "title" ? (
         <div className="field">
           <label htmlFor="kicker">kicker</label>
-          <input id="kicker" value={k} onChange={(e) => setK(e.target.value)} onBlur={() => void onSave({ headline: h, lede: l, kicker: k, tags: t.split(",").map((x) => x.trim()).filter(Boolean) })} />
+          <input id="kicker" value={k} onChange={(e) => setK(e.target.value)} onBlur={() => save({ kicker: k })} />
         </div>
       ) : null}
       <div className="field">
         <label htmlFor="headline">headline</label>
-        <input id="headline" value={h} onChange={(e) => setH(e.target.value)} onBlur={() => void onSave({ headline: h, lede: l, ...(which === "title" ? { kicker: k, tags: t.split(",").map((x) => x.trim()).filter(Boolean) } : {}) })} />
+        <input id="headline" value={h} onChange={(e) => setH(e.target.value)} onBlur={() => save({ headline: h })} />
       </div>
       <div className="field">
-        <label htmlFor="lede">lede</label>
-        <textarea id="lede" value={l} onChange={(e) => setL(e.target.value)} onBlur={() => void onSave({ headline: h, lede: l, ...(which === "title" ? { kicker: k, tags: t.split(",").map((x) => x.trim()).filter(Boolean) } : {}) })} />
+        <label htmlFor="lede">lede（一句）</label>
+        <textarea id="lede" value={l} onChange={(e) => setL(e.target.value)} onBlur={() => save({ lede: l })} />
+      </div>
+      <div className="field">
+        <label htmlFor="points">要点（一行一条；对照用 || ）</label>
+        <textarea id="points" value={p} onChange={(e) => setP(e.target.value)} onBlur={() => save({ points: p.split("\n").map((item) => item.trim()).filter(Boolean) })} />
       </div>
       {which === "title" ? (
         <div className="field">
           <label htmlFor="tags">tags（逗号分隔）</label>
-          <input id="tags" value={t} onChange={(e) => setT(e.target.value)} onBlur={() => void onSave({ headline: h, lede: l, kicker: k, tags: t.split(",").map((x) => x.trim()).filter(Boolean) })} />
+          <input id="tags" value={t} onChange={(e) => setT(e.target.value)} onBlur={() => save({ tags: t.split(",").map((item) => item.trim()).filter(Boolean) })} />
         </div>
       ) : null}
     </>

@@ -42,6 +42,7 @@ const calculateMetadata: CalculateMetadataFunction<StudyFilmProps> = async ({ pr
       headline: titleCard?.headline ?? closeCard?.headline,
       lede: titleCard?.lede ?? closeCard?.lede,
       tags: titleCard?.tags,
+      points: titleCard?.points ?? closeCard?.points,
     });
     from += durationInFrames;
   }

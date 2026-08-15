@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { createProject } from "./project.ts";
-import { addScene, moveScene, patchScene, removeScene } from "./scenes.ts";
+import { addScene, moveScene, patchScene, removeScene, setCard } from "./scenes.ts";
 import { hasErrors, validateProject } from "./validate.ts";
 
 function tempRoot(): string {
@@ -42,6 +42,18 @@ describe("scenes", () => {
     assert.equal(project.film.scenes[1]?.id, "shot");
     assert.equal(project.film.scenes[0]?.kind, "title");
     assert.equal(project.film.scenes.at(-1)?.kind, "close");
+  });
+
+  it("writes card points without dropping the lede", () => {
+    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    setCard(project, "zh", "close", {
+      points: ["分组选择是分类 || 级联选择才是上下级", " 先说名称 "],
+    });
+    assert.deepEqual(project.film.locales.zh.closeCard.points, [
+      "分组选择是分类 || 级联选择才是上下级",
+      "先说名称",
+    ]);
+    assert.equal(project.film.locales.zh.closeCard.headline, "说清楚");
   });
 
   it("seed hero is not renderable until a still is bound", () => {

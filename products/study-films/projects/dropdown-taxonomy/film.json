@@ -24,11 +24,19 @@
           "名称",
           "场景",
           "规则"
+        ],
+        "points": [
+          "选完交出去什么",
+          "菜单关不关"
         ]
       },
       "closeCard": {
         "headline": "说清楚",
-        "lede": "分组选择是分类，级联选择才是上下级。先说名称、场景、面板何时关闭，再谈外观。"
+        "lede": "最容易混的一对",
+        "points": [
+          "分组选择是分类 || 级联选择才是上下级",
+          "先说名称、场景、面板何时关闭，再谈外观"
+        ]
       }
     },
     "en": {
@@ -42,11 +50,19 @@
           "Name",
           "Scene",
           "Rules"
+        ],
+        "points": [
+          "What do you hand over?",
+          "Does the menu close?"
         ]
       },
       "closeCard": {
         "headline": "Say it this way",
-        "lede": "Grouped is filing. Cascader is parent-child. Name it, name the scene, and when the panel closes — then talk about looks."
+        "lede": "The pair people mix up",
+        "points": [
+          "Grouped is filing || Cascader is parent-child",
+          "Name it, name the scene, and when the panel closes — then talk about looks"
+        ]
       }
     }
   },

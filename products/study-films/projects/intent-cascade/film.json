@@ -24,11 +24,21 @@
           "安全三角",
           "斜向保护",
           "纵向即时"
+        ],
+        "points": [
+          "斜着过去时，途中的项不要抢走子菜单",
+          "上下移动立刻切换"
         ]
       },
       "closeCard": {
         "headline": "说清楚",
-        "lede": "上一帧指针与子菜单左缘构成走廊。走廊内不切换；纵向即时；越过左缘不再保护，也不画反向三角。判定顶点是上一帧，不是当前指针。"
+        "lede": "走廊怎么判",
+        "points": [
+          "上一帧指针和子菜单左缘围成走廊",
+          "走廊内不切换 || 纵向立刻切",
+          "越过左缘不再保护",
+          "顶点是上一帧，不是当前指针"
+        ]
       }
     },
     "en": {
@@ -42,11 +52,21 @@
           "Safe triangle",
           "Diagonal protect",
           "Instant vertical"
+        ],
+        "points": [
+          "On a diagonal, passing items must not steal the submenu",
+          "Up and down switches now"
         ]
       },
       "closeCard": {
         "headline": "Say it this way",
-        "lede": "The previous pointer and the submenu’s leading edge form a corridor. Stay inside, do not switch. Vertical moves switch now. Past the leading edge, the corridor ends — no reverse triangle. The test vertex is the previous sample, not the live pointer."
+        "lede": "How the corridor is judged",
+        "points": [
+          "Previous pointer and the leading edge form a corridor",
+          "Stay inside, do not switch || Vertical moves switch now",
+          "Past the leading edge, protection ends",
+          "The vertex is the previous sample, not the live pointer"
+        ]
       }
     }
   },

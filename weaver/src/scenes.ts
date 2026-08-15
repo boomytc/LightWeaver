@@ -139,24 +139,32 @@ export function setCard(
   project: ProjectRecord,
   locale: string,
   which: "title" | "close",
-  patch: { headline?: string; lede?: string; kicker?: string; tags?: string[] },
+  patch: { headline?: string; lede?: string; kicker?: string; tags?: string[]; points?: string[] },
 ): ProjectRecord {
   const copy = project.film.locales[locale];
   if (!copy) throw new Error(`没有 locale ${locale}`);
   if (which === "close" && (patch.kicker !== undefined || patch.tags !== undefined)) {
     throw new Error("close 卡不能设 kicker / tags");
   }
+  const points = patch.points?.map((item) => item.trim()).filter(Boolean);
   const locales = { ...project.film.locales };
   if (which === "title") {
+    const titleCard = { ...copy.titleCard, ...patch };
+    if (points) titleCard.points = points;
     locales[locale] = {
       ...copy,
       title: patch.headline ?? copy.title,
-      titleCard: { ...copy.titleCard, ...patch },
+      titleCard,
     };
   } else {
     locales[locale] = {
       ...copy,
-      closeCard: { ...copy.closeCard, headline: patch.headline ?? copy.closeCard.headline, lede: patch.lede ?? copy.closeCard.lede },
+      closeCard: {
+        ...copy.closeCard,
+        headline: patch.headline ?? copy.closeCard.headline,
+        lede: patch.lede ?? copy.closeCard.lede,
+        ...(points ? { points } : {}),
+      },
     };
   }
   saveFilm(project, { ...filmOf(project), locales });

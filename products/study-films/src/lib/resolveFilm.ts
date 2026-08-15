@@ -21,7 +21,7 @@ export type FilmDoc = {
       title: string;
       output: string;
       titleCard: CardCopy;
-      closeCard: Pick<CardCopy, "headline" | "lede">;
+      closeCard: Pick<CardCopy, "headline" | "lede" | "points">;
     }
   >;
   scenes: {

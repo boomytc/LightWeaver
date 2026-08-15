@@ -77,6 +77,7 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       lede: { type: "string" },
       kicker: { type: "string" },
       tags: { type: "string" },
+      points: { type: "string" },
       ref: { type: "string" },
       recipe: { type: "string" },
       kinds: { type: "string" },
@@ -229,11 +230,13 @@ function main(): void {
       fail("需要 --locale 与 --which title|close");
     }
     const tags = str(values, "tags");
+    const points = str(values, "points");
     setCard(project, locale, which, {
       headline: str(values, "headline"),
       lede: str(values, "lede"),
       kicker: str(values, "kicker"),
       tags: tags ? tags.split(",").map((item) => item.trim()).filter(Boolean) : undefined,
+      points: points ? points.split(";").map((item) => item.trim()).filter(Boolean) : undefined,
     });
     print(envelope(project, root));
     return;

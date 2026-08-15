@@ -18,6 +18,7 @@ export type CardCopy = {
   headline?: string;
   lede?: string;
   tags?: string[];
+  points?: string[];
 };
 
 export type SceneDef = {
@@ -39,7 +40,7 @@ export type FilmDoc = {
   voices: Record<string, string>;
   locales: Record<
     string,
-    { title: string; output: string; titleCard: CardCopy; closeCard: Pick<CardCopy, "headline" | "lede"> }
+    { title: string; output: string; titleCard: CardCopy; closeCard: Pick<CardCopy, "headline" | "lede" | "points"> }
   >;
   scenes: SceneDef[];
 };

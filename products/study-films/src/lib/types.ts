@@ -5,6 +5,7 @@ export type CardCopy = {
   headline?: string;
   lede?: string;
   tags?: string[];
+  points?: string[];
 };
 
 export type TimedScene = {
@@ -20,6 +21,7 @@ export type TimedScene = {
   headline?: string;
   lede?: string;
   tags?: string[];
+  points?: string[];
 };
 
 export type ResolvedFilm = {

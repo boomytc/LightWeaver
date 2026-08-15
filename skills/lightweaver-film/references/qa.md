@@ -15,3 +15,4 @@
 | Q9 | `isRenderable === true` | `project show` 的 `renderable` | **禁止 `render --project`** |
 | Q10 | 成片文件名不是猜的 | 与 SOURCE.md 逐字相同 | 用手写 `--output` |
 | Q11 | 口播/卡片无「叶子」「提交模型」等忌语 | `validate` warning：`口播忌术语` / `卡片忌术语` | 改成听者的话再 tts |
+| Q12 | title/close 有 points | `validate` warning：`卡片正文用 points` | lede 缩成一句，要点 2–4 条 |

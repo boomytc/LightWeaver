@@ -41,13 +41,15 @@ export type CardCopy = {
   headline?: string;
   lede?: string;
   tags?: string[];
+  /** 要点板正文。lede 只留一句；对照条用 || 分成左右。 */
+  points?: string[];
 };
 
 export type LocaleCopy = {
   title: string;
   output: string;
   titleCard: CardCopy;
-  closeCard: Pick<CardCopy, "headline" | "lede">;
+  closeCard: Pick<CardCopy, "headline" | "lede" | "points">;
 };
 
 export type SceneDef = {

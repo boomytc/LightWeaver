@@ -22,16 +22,25 @@
       "titleCard": {
         "kicker": "LightUI  ·  Study",
         "headline": "给侧栏起对名字",
-        "lede": "贴在左边只是外观。先定占不占位、变宽还是盖上来。",
+        "lede": "贴在左边只是外观。",
         "tags": [
           "名称",
           "场景",
           "规则"
+        ],
+        "points": [
+          "占不占位",
+          "变宽还是盖上来"
         ]
       },
       "closeCard": {
         "headline": "说清楚",
-        "lede": "最容易混的两对：可折叠不是隐藏式，多级不是滚轮。先说名称、场景和规则，再谈外观。"
+        "lede": "最容易混的两对",
+        "points": [
+          "可折叠 || 不是隐藏式",
+          "多级 || 不是滚轮",
+          "先说名称、场景和规则，再谈外观"
+        ]
       }
     },
     "en": {
@@ -40,16 +49,25 @@
       "titleCard": {
         "kicker": "LightUI  ·  Study",
         "headline": "Name the sidebar",
-        "lede": "Sitting on the left is only the skin. First decide occupancy, and whether expand grows or overlays.",
+        "lede": "Sitting on the left is only the skin.",
         "tags": [
           "Name",
           "Scene",
           "Rules"
+        ],
+        "points": [
+          "Does it take space?",
+          "Does expand grow, or overlay?"
         ]
       },
       "closeCard": {
         "headline": "Say it this way",
-        "lede": "The two pairs people mix up: collapsible is not off-canvas; multi-level is not a wheel. Name it, name the scene, name the rule."
+        "lede": "The two pairs people mix up",
+        "points": [
+          "Collapsible || not off-canvas",
+          "Multi-level || not a wheel",
+          "Name it, name the scene, name the rule"
+        ]
       }
     }
   },

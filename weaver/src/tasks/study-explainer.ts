@@ -186,7 +186,22 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
     }
   }
   for (const [locale, copy] of Object.entries(film.locales)) {
-    for (const text of [copy.titleCard.lede, copy.titleCard.headline, copy.closeCard.lede, copy.closeCard.headline]) {
+    const pointLists = [copy.titleCard.points, copy.closeCard.points];
+    for (const [index, list] of pointLists.entries()) {
+      const which = index === 0 ? "titleCard" : "closeCard";
+      if (!list?.length) {
+        issues.push(warn(`locales.${locale}.${which}.points`, "卡片正文用 points，lede 只留一句"));
+      }
+    }
+    const texts = [
+      copy.titleCard.lede,
+      copy.titleCard.headline,
+      copy.closeCard.lede,
+      copy.closeCard.headline,
+      ...(copy.titleCard.points ?? []),
+      ...(copy.closeCard.points ?? []),
+    ];
+    for (const text of texts) {
       if (!text) continue;
       for (const hit of jargonIn(text)) {
         issues.push(warn(`locales.${locale}`, `卡片忌术语「${hit.term}」：${hit.hint}`));

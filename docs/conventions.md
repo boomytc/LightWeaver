@@ -43,6 +43,7 @@ User：`data/projects/<id>/`。
 - 场景形状：title 在首、close 在末、至少一场 still
 - 旁白写在 `scenes[].lines`
 - **口播通俗：** `idea.md` 可以写「叶子」「提交模型」；片子 `lines` 与 title/close 卡片必须改成听者的话（「不能再往下点的那一级」「选完交出去什么、菜单关不关」）。`validate` 对忌语出 warning（Q11）。「路径」可以留（面包屑、省市区一串都是日常说法）
+- **要点板：** title / close 的正文是 `points`（2–4 条），按旁白进度出现。lede 只留一句。对照条写成 `左 || 右`。不要一段 lede 铺满，不要另写 mermaid 渲染器
 - 静帧：`scenes[].still = "asset:still.<id>"`
 - 音色：`voices.<locale> = "library:voice.prompt-zh"`
 - 有 `publish.dir` 才发布到 LightUI `studies/<slug>/references/`

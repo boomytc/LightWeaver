@@ -22,16 +22,27 @@
       "titleCard": {
         "kicker": "LightUI  ·  Study",
         "headline": "给导航起对名字",
-        "lede": "「做个导航栏」只说了有一排链接。先定它住在哪、怎么打开、滚的时候干什么。",
+        "lede": "「做个导航栏」只说了有一排链接。",
         "tags": [
           "名称",
           "场景",
           "规则"
+        ],
+        "points": [
+          "它住在哪",
+          "怎么打开",
+          "滚的时候干什么"
         ]
       },
       "closeCard": {
         "headline": "说清楚",
-        "lede": "最容易混的三对：抽屉不是全屏，下拉不是巨型，收缩不是吸顶。先说名称、场景和规则，再谈外观。"
+        "lede": "最容易混的三对",
+        "points": [
+          "抽屉 || 不是全屏遮罩",
+          "下拉 || 不是巨型导航",
+          "收缩 || 不是吸顶",
+          "先说名称、场景和规则，再谈外观"
+        ]
       }
     },
     "en": {
@@ -40,16 +51,27 @@
       "titleCard": {
         "kicker": "LightUI  ·  Study",
         "headline": "Name the nav",
-        "lede": "“Make a navbar” only says there is a row of links. First decide where it lives, how it opens, and what scroll does.",
+        "lede": "“Make a navbar” only says there is a row of links.",
         "tags": [
           "Name",
           "Scene",
           "Rules"
+        ],
+        "points": [
+          "Where it lives",
+          "How it opens",
+          "What scroll does"
         ]
       },
       "closeCard": {
         "headline": "Say it this way",
-        "lede": "The three pairs people mix up: a drawer is not a full-screen overlay; a dropdown is not a mega; shrink is not sticky. Name it, name the scene, name the rule."
+        "lede": "The three pairs people mix up",
+        "points": [
+          "Drawer || not a full-screen overlay",
+          "Dropdown || not a mega menu",
+          "Shrink || not sticky",
+          "Name it, name the scene, name the rule"
+        ]
       }
     }
   },

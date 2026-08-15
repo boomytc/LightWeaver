@@ -10,6 +10,8 @@ when: |
 
 一场 `kind=title`，种子已有，**禁止** `scene add --kind title`。
 
-`titleCard.kicker` = `LightUI  ·  Study`（first-party）或 `LightWeaver  ·  Film`（user）。tags 默认 `名称, 场景, 规则` / `Name, Scene, Rules`。headline / lede 来自 `study.json` 的 `title` / `summary`。
+`titleCard.kicker` = `LightUI  ·  Study`（first-party）或 `LightWeaver  ·  Film`（user）。tags 默认 `名称, 场景, 规则` / `Name, Scene, Rules`。headline 来自 `study.json` 的 `title`。
 
-旁白：标题句 + 一句话问题，不要在 title 场开始阅兵。lede 只留一句画面提示，不要整段复述旁白。卡片和口播都忌「叶子 / 提交模型」。
+lede 只留一句画面提示。正文写 `points`（2–4 条），按旁白进度逐条出现。不要把 summary 整段塞进 lede，不要让画面只剩大标题。
+
+旁白：标题句 + 一句话问题，不要在 title 场开始阅兵。卡片和口播都忌「叶子 / 提交模型」。

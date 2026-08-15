@@ -10,7 +10,7 @@
     "render": "npm run weaver -w @lightweaver/weaver -- render",
     "films": "node scripts/capture.mjs && npm run weaver -w @lightweaver/weaver -- tts && npm run weaver -w @lightweaver/weaver -- render",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/lib/subtitles.test.ts"
+    "test": "tsx --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@lightweaver/weaver": "*",

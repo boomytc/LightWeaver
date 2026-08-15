@@ -178,6 +178,11 @@ app.patch("/api/projects/:id/cards", (req, res) => {
       lede: req.body?.lede,
       kicker: req.body?.kicker,
       tags: req.body?.tags,
+      points: Array.isArray(req.body?.points)
+        ? req.body.points
+        : typeof req.body?.points === "string"
+          ? req.body.points.split("\n")
+          : undefined,
     });
     res.json(detailOf(project));
   } catch (error) {

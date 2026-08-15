@@ -1,6 +1,7 @@
 import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 import type { ResolvedFilm, TimedScene } from "../lib/types";
 import { theme } from "../lib/theme";
+import { DeckPoints } from "./DeckPoints";
 import { Mark } from "./Mark";
 import { Subtitles } from "./Subtitles";
 
@@ -16,9 +17,17 @@ export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedSce
   const opacity = Math.min(fadeIn, fadeOut);
 
   if (scene.kind === "title") {
+    const hasPoints = Boolean(scene.points?.length);
     return (
       <AbsoluteFill style={{ background: theme.bg, opacity, fontFamily: theme.font }}>
-        <div style={{ position: "absolute", inset: 96, display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: "72px 96px 140px",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <Mark size={32} />
             <span
@@ -35,8 +44,8 @@ export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedSce
           </div>
           <h1
             style={{
-              margin: "64px 0 0",
-              fontSize: 92,
+              margin: hasPoints ? "28px 0 0" : "64px 0 0",
+              fontSize: hasPoints ? 72 : 92,
               lineHeight: 1.08,
               letterSpacing: "-0.03em",
               fontWeight: 600,
@@ -46,18 +55,29 @@ export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedSce
           >
             {scene.headline}
           </h1>
-          <p
-            style={{
-              margin: "28px 0 0",
-              fontSize: 32,
-              lineHeight: 1.45,
-              color: theme.muted,
-              maxWidth: 980,
-            }}
-          >
-            {scene.lede}
-          </p>
-          <div style={{ marginTop: "auto", display: "flex", gap: 12, paddingBottom: 72 }}>
+          {scene.lede ? (
+            <p
+              style={{
+                margin: "16px 0 0",
+                fontSize: 28,
+                lineHeight: 1.45,
+                color: theme.muted,
+                maxWidth: 980,
+              }}
+            >
+              {scene.lede}
+            </p>
+          ) : null}
+          <div style={{ marginTop: 36, flex: 1, minHeight: 0, display: "flex" }}>
+            <DeckPoints
+              points={scene.points ?? []}
+              frame={frame}
+              durationInFrames={sceneLen}
+              line={scene.line}
+              tone="light"
+            />
+          </div>
+          <div style={{ display: "flex", gap: 12, paddingTop: 24 }}>
             {(scene.tags ?? []).map((tag) => (
               <span
                 key={tag}
@@ -83,7 +103,14 @@ export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedSce
   if (scene.kind === "close") {
     return (
       <AbsoluteFill style={{ background: theme.fg, opacity, fontFamily: theme.font }}>
-        <div style={{ position: "absolute", inset: 96, display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: "72px 96px 140px",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <p
             style={{
               margin: 0,
@@ -96,27 +123,36 @@ export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedSce
           >
             {scene.headline}
           </p>
-          <p
-            style={{
-              margin: "36px 0 0",
-              fontSize: 40,
-              lineHeight: 1.45,
-              color: "rgba(255,255,255,0.92)",
-              maxWidth: 1400,
-              fontWeight: 500,
-            }}
-          >
-            {scene.lede}
-          </p>
+          {scene.lede ? (
+            <p
+              style={{
+                margin: "20px 0 0",
+                fontSize: 28,
+                lineHeight: 1.4,
+                color: "rgba(255,255,255,0.62)",
+                fontWeight: 500,
+              }}
+            >
+              {scene.lede}
+            </p>
+          ) : null}
+          <div style={{ marginTop: 32, flex: 1, minHeight: 0, display: "flex" }}>
+            <DeckPoints
+              points={scene.points ?? []}
+              frame={frame}
+              durationInFrames={sceneLen}
+              line={scene.line}
+              tone="dark"
+            />
+          </div>
           <div
             style={{
-              marginTop: "auto",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               color: "rgba(255,255,255,0.4)",
               fontSize: 18,
-              paddingBottom: 72,
+              paddingTop: 24,
             }}
           >
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>

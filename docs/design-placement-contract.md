@@ -876,13 +876,13 @@ Studio「新建」仍只写 `data/projects/`、忽略 source（D6）。First-par
 #### R5 · `study-title`（scene）
 
 - **when：** 任意 study-explainer 片头。
-- **写法：** 一场 `kind=title`（种子已有，禁止 `scene add --kind title`）。`titleCard.kicker` = `LightUI  ·  Study`（first-party）或 `LightWeaver  ·  Film`（user）。`tags` 默认 `名称, 场景, 规则` / `Name, Scene, Rules`（`createFilm` 已如此）。headline / lede 来自 `study.json` 的 `title` / `summary`（`createFilm` 已软读，LightUI 不在则用 `--title`）。
+- **写法：** 一场 `kind=title`（种子已有，禁止 `scene add --kind title`）。`titleCard.kicker` = `LightUI  ·  Study`（first-party）或 `LightWeaver  ·  Film`（user）。`tags` 默认 `名称, 场景, 规则` / `Name, Scene, Rules`（`createFilm` 已如此）。headline 来自 `study.json` 的 `title`。lede 一句；正文 `points` 2–4 条，按旁白进度出现。
 - **旁白：** 标题句 + 一句话问题，不要在 title 场开始阅兵。
 
 #### R6 · `say-it-this-way`（scene）
 
 - **when：** 任意 study-explainer 片尾。
-- **写法：** `kind=close` 钉在末尾。`closeCard.headline`：`说清楚` / `Say it this way`（`createFilm` 已写）。lede = 易混对 + 「先名称场景规则，再谈外观」。
+- **写法：** `kind=close` 钉在末尾。`closeCard.headline`：`说清楚` / `Say it this way`（`createFilm` 已写）。lede 当小节标题；`points` 写易混对（`左 || 右`）和收束句。不要一段 lede 当正文，不要 mermaid。
 - **实证：** 四则 `close` 场均是这个收束，不是 CTA、不是品牌秀。
 
 **索引文件（PR2 才提交）：** `recipes/lightui-study-explainer/index.md` 只列六行 `id — when`。**PR2 起** SKILL 链到 index，不链六份全文。PR1 SKILL **不要**链这个尚未存在的路径。
@@ -906,6 +906,7 @@ Studio「新建」仍只写 `data/projects/`、忽略 source（D6）。First-par
 | Q9 | `isRenderable === true` | GET 项目的 `renderable` 或本地 `everyStillPngExists` | **禁止 `render --project`**。无参 `make films` 会 skip，那不是这条片子的完成 |
 | Q10 | 成片文件名不是猜的 | 与 SOURCE.md 逐字相同 | 见 D6 |
 | Q11 | 口播/卡片无「叶子」「提交模型」等忌语 | `validateStudyExplainer` → `jargonIn` warning | 改成听者的话再 tts |
+| Q12 | title/close 有 points | `validateStudyExplainer` warning | lede 缩成一句，要点上板 |
 
 阶段 7 之后 skill 再看一眼本机 `assets/outputs/<output>` 是否存在。独立 subagent 终检（shotcraft 阶段 7）**v1 不做强制**——讲解片没有 2.5D 穿帮面，代价不值再开一条 agent。人在 Studio 看 mp4 即可。
 
