@@ -1,0 +1,85 @@
+{
+  "assets": [
+    {
+      "id": "still.floating",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/floating.png",
+        "en": "assets/stills/en/floating.png"
+      },
+      "label": "floating"
+    },
+    {
+      "id": "still.sidebar",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/sidebar.png",
+        "en": "assets/stills/en/sidebar.png"
+      },
+      "label": "sidebar"
+    },
+    {
+      "id": "still.breadcrumb",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/breadcrumb.png",
+        "en": "assets/stills/en/breadcrumb.png"
+      },
+      "label": "breadcrumb"
+    },
+    {
+      "id": "still.dropdown",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/dropdown.png",
+        "en": "assets/stills/en/dropdown.png"
+      },
+      "label": "dropdown"
+    },
+    {
+      "id": "still.mega",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/mega.png",
+        "en": "assets/stills/en/mega.png"
+      },
+      "label": "mega"
+    },
+    {
+      "id": "still.drawer",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/drawer.png",
+        "en": "assets/stills/en/drawer.png"
+      },
+      "label": "drawer"
+    },
+    {
+      "id": "still.overlay",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/overlay.png",
+        "en": "assets/stills/en/overlay.png"
+      },
+      "label": "overlay"
+    },
+    {
+      "id": "still.scrollspy",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/scrollspy.png",
+        "en": "assets/stills/en/scrollspy.png"
+      },
+      "label": "scrollspy"
+    },
+    {
+      "id": "still.shrink",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/shrink.png",
+        "en": "assets/stills/en/shrink.png"
+      },
+      "label": "shrink"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, it } from "node:test";
+import { createProject } from "./project.ts";
+import { addScene, moveScene, patchScene, removeScene } from "./scenes.ts";
+import { hasErrors, validateProject } from "./validate.ts";
+
+function tempRoot(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+  fs.mkdirSync(path.join(root, "library"), { recursive: true });
+  fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
+  return root;
+}
+
+describe("scenes", () => {
+  it("adds a still before close and refuses to drop the last still", () => {
+    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    assert.deepEqual(project.film.scenes.map((scene) => scene.id), ["title", "hero", "close"]);
+    addScene(project, { id: "shot", kind: "still", still: "asset:still.shot" });
+    assert.deepEqual(project.film.scenes.map((scene) => scene.id), ["title", "hero", "shot", "close"]);
+    assert.ok(project.assets.some((asset) => asset.id === "still.shot"));
+    removeScene(project, "hero");
+    assert.throws(() => removeScene(project, "shot"), /最后一场 still/);
+    assert.throws(() => removeScene(project, "title"), /title/);
+  });
+
+  it("patches zh without dropping en", () => {
+    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    patchScene(project, "hero", { lines: { zh: "中文" } });
+    const hero = project.film.scenes.find((scene) => scene.id === "hero");
+    assert.equal(hero?.lines.zh, "中文");
+    assert.equal(hero?.lines.en, "演示");
+  });
+
+  it("refuses to move title off the front", () => {
+    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    addScene(project, { id: "shot", kind: "still", still: "asset:still.shot" });
+    assert.throws(() => moveScene(project, "title", { after: "hero" }), /钉住/);
+    moveScene(project, "shot", { after: "title" });
+    assert.equal(project.film.scenes[1]?.id, "shot");
+    assert.equal(project.film.scenes[0]?.kind, "title");
+    assert.equal(project.film.scenes.at(-1)?.kind, "close");
+  });
+
+  it("seed hero is not renderable until a still is bound", () => {
+    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    assert.ok(hasErrors(validateProject(project)));
+  });
+});

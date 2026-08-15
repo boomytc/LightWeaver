@@ -22,3 +22,4 @@ __pycache__/
 *.swo
 data/projects/
 products/study-films/public/projects/
+**/assets/outputs/

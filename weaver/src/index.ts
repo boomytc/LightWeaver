@@ -8,3 +8,13 @@ export * from "./timeline.ts";
 export * from "./sync.ts";
 export * from "./tts.ts";
 export * from "./render.ts";
+export * from "./scenes.ts";
+export * from "./capture.ts";
+export {
+  getTask,
+  tryGetTask,
+  listTasks,
+  taskAllowsKind,
+  LIGHTUI_LAB_ADAPTERS,
+} from "./tasks/registry.ts";
+export type { TaskModule } from "./tasks/types.ts";

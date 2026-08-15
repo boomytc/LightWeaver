@@ -6,11 +6,13 @@ path rules, or job runners.
 ## Layout
 
 ```
-src/schema.ts      Film / Asset / Scene types
+src/schema.ts      Film / Asset / Scene / task types
+src/tasks/         TaskModule（只实现 study-explainer）
+src/scenes.ts      add/rm/move/patch/card/voice
 src/paths.ts       workspace roots
 src/project.ts     list / load / save / create
 src/assets.ts      resolve refs, add assets
-src/validate.ts    catalog + project checks
+src/validate.ts    catalog + isRenderable
 src/timeline.ts    duration estimate
 src/sync.ts        Remotion public links + catalog
 src/tts.ts         VoxCPM2 job

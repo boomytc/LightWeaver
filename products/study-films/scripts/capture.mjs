@@ -266,11 +266,24 @@ async function captureDropdown(browser, locale) {
   await mobile.close();
 }
 
+const ADAPTERS = {
+  "intent-cascade": captureIntent,
+  "dropdown-taxonomy": captureDropdown,
+};
+
 const locales = process.argv.includes("--en") && !process.argv.includes("--zh")
   ? ["en"]
   : process.argv.includes("--zh") && !process.argv.includes("--en")
     ? ["zh"]
     : ["zh", "en"];
+
+const projectFlag = process.argv.indexOf("--project");
+const only = projectFlag >= 0 ? process.argv[projectFlag + 1] : undefined;
+const jobs = only ? [only] : Object.keys(ADAPTERS);
+if (only && !ADAPTERS[only]) {
+  console.error(`没有 lab adapter：${only}`);
+  process.exit(2);
+}
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -279,8 +292,9 @@ try {
     throw new Error(`Lab is not reachable at ${LAB}. Start LightUI with: make dev`);
   }
   for (const locale of locales) {
-    await captureIntent(browser, locale);
-    await captureDropdown(browser, locale);
+    for (const id of jobs) {
+      await ADAPTERS[id](browser, locale);
+    }
   }
   console.log("\ncapture done");
 } finally {

@@ -1,4 +1,4 @@
-import type { Asset, FilmDoc, Job, ProjectDetail, ProjectSummary } from "./types";
+import type { Asset, Job, ProjectDetail, ProjectSummary } from "./types";
 
 async function parse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -9,20 +9,55 @@ async function parse<T>(response: Response): Promise<T> {
 }
 
 export const api = {
+  tasks: () => fetch("/api/tasks").then((res) => parse<{ id: string; label: { zh: string; en: string } }[]>(res)),
   projects: () => fetch("/api/projects").then((res) => parse<ProjectSummary[]>(res)),
   project: (id: string) => fetch(`/api/projects/${encodeURIComponent(id)}`).then((res) => parse<ProjectDetail>(res)),
   createProject: (id: string, title: string) =>
     fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, title }),
+      body: JSON.stringify({ id, title, task: "study-explainer" }),
     }).then((res) => parse<ProjectDetail>(res)),
-  saveFilm: (id: string, film: FilmDoc) =>
-    fetch(`/api/projects/${encodeURIComponent(id)}/film`, {
-      method: "PUT",
+  addScene: (id: string, body: { id: string; kind?: string; still?: string; fit?: string; role?: string }) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/scenes`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(film),
-    }).then((res) => parse<{ film: FilmDoc; issues: ProjectDetail["issues"] }>(res)),
+      body: JSON.stringify(body),
+    }).then((res) => parse<ProjectDetail>(res)),
+  removeScene: (id: string, sceneId: string) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/scenes/${encodeURIComponent(sceneId)}`, { method: "DELETE" }).then(
+      (res) => parse<ProjectDetail>(res),
+    ),
+  moveScene: (id: string, sceneId: string, after?: string) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/scenes/${encodeURIComponent(sceneId)}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ after }),
+    }).then((res) => parse<ProjectDetail>(res)),
+  patchScene: (id: string, sceneId: string, body: Record<string, unknown>) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/scenes/${encodeURIComponent(sceneId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((res) => parse<ProjectDetail>(res)),
+  setCard: (id: string, body: Record<string, unknown>) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/cards`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((res) => parse<ProjectDetail>(res)),
+  setVoice: (id: string, locale: string, ref: string) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/voices`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale, ref }),
+    }).then((res) => parse<ProjectDetail>(res)),
+  publish: (id: string, locale?: string) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale }),
+    }).then((res) => parse<unknown>(res)),
   library: () => fetch("/api/library").then((res) => parse<Asset[]>(res)),
   validate: (id: string) =>
     fetch(`/api/projects/${encodeURIComponent(id)}/validate`, { method: "POST" }).then((res) =>

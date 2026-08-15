@@ -5,14 +5,24 @@ import express from "express";
 import multer from "multer";
 import {
   addAsset,
+  addScene,
   createProject,
+  isImplementedTask,
+  isRenderable,
   libraryRoot,
   listProjects,
+  listTasks,
   loadLibrary,
   loadProject,
+  moveScene,
+  patchScene,
   projectSummary,
+  removeScene,
+  runPublish,
   saveFilm,
   saveAssets,
+  setCard,
+  setVoice,
   validateProject,
   weaverRoot,
   type Asset,
@@ -47,6 +57,10 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/api/tasks", (_req, res) => {
+  res.json(listTasks().map((task) => ({ id: task.id, label: task.label })));
+});
+
 app.get("/api/projects", (_req, res) => {
   res.json(listProjects(root).map(projectSummary));
 });
@@ -55,8 +69,9 @@ app.post("/api/projects", (req, res) => {
   try {
     const id = String(req.body?.id ?? "").trim();
     const title = typeof req.body?.title === "string" ? req.body.title : undefined;
-    const project = createProject(id, { title }, root);
-    res.status(201).json({ ...projectSummary(project), film: project.film, assets: project.assets });
+    const task = typeof req.body?.task === "string" ? req.body.task : undefined;
+    const project = createProject(id, { title, task }, root);
+    res.status(201).json(detailOf(project));
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
   }
@@ -64,13 +79,7 @@ app.post("/api/projects", (req, res) => {
 
 app.get("/api/projects/:id", (req, res) => {
   try {
-    const project = loadProject(param(req.params.id), root);
-    res.json({
-      ...projectSummary(project),
-      film: project.film,
-      assets: project.assets,
-      issues: validateProject(project, root),
-    });
+    res.json(detailOf(loadProject(param(req.params.id), root)));
   } catch (error) {
     res.status(404).json({ error: messageOf(error) });
   }
@@ -84,8 +93,112 @@ app.put("/api/projects/:id/film", (req, res) => {
       res.status(400).json({ error: "film.id 必须与项目一致" });
       return;
     }
+    if (film.task && !isImplementedTask(String(film.task))) {
+      res.status(400).json({ error: `未知任务类型：${film.task}` });
+      return;
+    }
     saveFilm(project, film);
-    res.json({ film: project.film, issues: validateProject(project, root) });
+    res.json({ film: project.film, issues: validateProject(project, root), renderable: isRenderable(project, root) });
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.post("/api/projects/:id/scenes", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    addScene(project, {
+      id: String(req.body?.id ?? ""),
+      kind: String(req.body?.kind ?? "still"),
+      still: typeof req.body?.still === "string" ? req.body.still : undefined,
+      fit: req.body?.fit,
+      role: req.body?.role,
+      after: typeof req.body?.after === "string" ? req.body.after : undefined,
+    });
+    res.status(201).json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.delete("/api/projects/:id/scenes/:sceneId", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    removeScene(project, param(req.params.sceneId));
+    res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.post("/api/projects/:id/scenes/:sceneId/move", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    moveScene(project, param(req.params.sceneId), {
+      after: req.body?.after,
+      before: req.body?.before,
+      index: req.body?.index,
+    });
+    res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.patch("/api/projects/:id/scenes/:sceneId", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    if (req.body?.lines !== undefined && (typeof req.body.lines !== "object" || Array.isArray(req.body.lines))) {
+      res.status(400).json({ error: "lines 必须是对象" });
+      return;
+    }
+    patchScene(project, param(req.params.sceneId), {
+      lines: req.body?.lines,
+      still: req.body?.still,
+      fit: req.body?.fit,
+      role: req.body?.role,
+    });
+    res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.patch("/api/projects/:id/cards", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    const which = req.body?.which;
+    if (which !== "title" && which !== "close") {
+      res.status(400).json({ error: "which 必须是 title 或 close" });
+      return;
+    }
+    setCard(project, String(req.body?.locale ?? ""), which, {
+      headline: req.body?.headline,
+      lede: req.body?.lede,
+      kicker: req.body?.kicker,
+      tags: req.body?.tags,
+    });
+    res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.patch("/api/projects/:id/voices", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    setVoice(project, String(req.body?.locale ?? ""), String(req.body?.ref ?? ""));
+    res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.post("/api/projects/:id/publish", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    const locale = typeof req.body?.locale === "string" ? req.body.locale : undefined;
+    res.json(runPublish({ projectId: project.id, locale, root }));
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
   }
@@ -164,6 +277,18 @@ app.post("/api/jobs", (req, res) => {
     res.status(400).json({ error: "缺少 projectId" });
     return;
   }
+  if (type === "render") {
+    try {
+      const project = loadProject(projectId, root);
+      if (!isRenderable(project, root)) {
+        res.status(400).json({ error: `静帧文件不存在：${projectId}；先按手截配方补 png` });
+        return;
+      }
+    } catch (error) {
+      res.status(400).json({ error: messageOf(error) });
+      return;
+    }
+  }
   res.status(202).json(startJob(type, projectId, locale));
 });
 
@@ -236,6 +361,16 @@ function guessExt(mime: string): string {
   if (mime.includes("svg")) return ".svg";
   if (mime.includes("mp4")) return ".mp4";
   return "";
+}
+
+function detailOf(project: ReturnType<typeof loadProject>) {
+  return {
+    ...projectSummary(project),
+    film: project.film,
+    assets: project.assets,
+    issues: validateProject(project, root),
+    renderable: isRenderable(project, root),
+  };
 }
 
 function messageOf(error: unknown): string {

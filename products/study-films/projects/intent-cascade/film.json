@@ -66,7 +66,8 @@
         "zh": "从一级斜着滑向二级时，指针会短暂经过中间其它项。若悬停到谁就展开谁，子菜单会被途中抢走。",
         "en": "Sliding diagonally from the first column into the second briefly crosses other items. If whichever item you hover opens, the submenu gets stolen mid-path."
       },
-      "still": "asset:still.problem"
+      "still": "asset:still.problem",
+      "role": "problem"
     },
     {
       "id": "diagonal",
@@ -76,7 +77,8 @@
         "zh": "子菜单打开后，用上一帧指针和子菜单左缘上下两点，构成一条安全走廊。斜向穿越时，只要还在走廊里，途经的项不会抢走子菜单。",
         "en": "After the submenu opens, the previous pointer sample and the leading-edge corners form a safe corridor. Stay inside on a diagonal, and passing items will not steal the submenu."
       },
-      "still": "asset:still.diagonal"
+      "still": "asset:still.diagonal",
+      "role": "rule"
     },
     {
       "id": "vertical",
@@ -86,7 +88,8 @@
         "zh": "沿一级列表上下移动、轨迹不朝向子菜单，则立刻切换。意图预测只保护像是要进去的那条斜线。",
         "en": "Moving up and down the first column, not toward the submenu, switches immediately. Intent only protects a path that looks like it is going in."
       },
-      "still": "asset:still.vertical"
+      "still": "asset:still.vertical",
+      "role": "contrast"
     },
     {
       "id": "third",
@@ -96,7 +99,8 @@
         "zh": "打开项目属性，再进项目标签，再斜向进入紧急。每一级都有自己的安全三角。进入子菜单后，走廊变绿。",
         "en": "Open Project, then Project tags, then slide into Urgent. Each level has its own safe triangle. It turns green after you enter the submenu."
       },
-      "still": "asset:still.third"
+      "still": "asset:still.third",
+      "role": "rule"
     },
     {
       "id": "close",
@@ -106,5 +110,9 @@
         "en": "Once the pointer crosses the submenu's leading edge, the corridor ends, and we do not draw a reverse triangle. Unlike a flat delay: vertical scans stay snappy, diagonals stay protected."
       }
     }
-  ]
+  ],
+  "task": "study-explainer",
+  "study": {
+    "slug": "intent-cascade"
+  }
 }

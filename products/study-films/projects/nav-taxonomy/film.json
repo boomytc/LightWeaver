@@ -1,0 +1,173 @@
+{
+  "id": "nav-taxonomy",
+  "task": "study-explainer",
+  "brand": "LightUI",
+  "study": {
+    "slug": "nav-taxonomy"
+  },
+  "publish": {
+    "dir": "studies/nav-taxonomy/references"
+  },
+  "capture": {
+    "kind": "manual"
+  },
+  "voices": {
+    "zh": "library:voice.prompt-zh",
+    "en": "library:voice.prompt-en"
+  },
+  "locales": {
+    "zh": {
+      "title": "给导航起对名字",
+      "output": "source-tutorial.mp4",
+      "titleCard": {
+        "kicker": "LightUI  ·  Study",
+        "headline": "给导航起对名字",
+        "lede": "「做个导航栏」只说了有一排链接。先定它住在哪、怎么打开、滚的时候干什么。",
+        "tags": [
+          "名称",
+          "场景",
+          "规则"
+        ]
+      },
+      "closeCard": {
+        "headline": "说清楚",
+        "lede": "最容易混的三对：抽屉不是全屏，下拉不是巨型，收缩不是吸顶。先说名称、场景和规则，再谈外观。"
+      }
+    },
+    "en": {
+      "title": "Name the nav",
+      "output": "source-tutorial.en.mp4",
+      "titleCard": {
+        "kicker": "LightUI  ·  Study",
+        "headline": "Name the nav",
+        "lede": "“Make a navbar” only says there is a row of links. First decide where it lives, how it opens, and what scroll does.",
+        "tags": [
+          "Name",
+          "Scene",
+          "Rules"
+        ]
+      },
+      "closeCard": {
+        "headline": "Say it this way",
+        "lede": "The three pairs people mix up: a drawer is not a full-screen overlay; a dropdown is not a mega; shrink is not sticky. Name it, name the scene, name the rule."
+      }
+    }
+  },
+  "scenes": [
+    {
+      "id": "title",
+      "kind": "title",
+      "lines": {
+        "zh": "给导航起对名字。「做个导航栏」只说了有一排链接。先定它住在哪、怎么打开、滚的时候干什么。",
+        "en": "Name the nav. “Make a navbar” only says there is a row of links. First decide where it lives, how it opens, and what scroll does."
+      }
+    },
+    {
+      "id": "floating",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.floating",
+      "lines": {
+        "zh": "悬浮吸顶是离顶的浮卡，用 sticky 钉住，不要用 fixed。",
+        "en": "Floating sticky is an inset card pinned with sticky, not fixed."
+      }
+    },
+    {
+      "id": "sidebar",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.sidebar",
+      "lines": {
+        "zh": "侧栏是竖排主导航，长期占位，可折成图标。",
+        "en": "A sidebar is vertical primary nav. It occupies, and may collapse to icons."
+      }
+    },
+    {
+      "id": "breadcrumb",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.breadcrumb",
+      "lines": {
+        "zh": "面包屑是路径，不是主导航。最后一项是当前页，不能再点。",
+        "en": "A breadcrumb is a path, not the primary nav. The last item is the page."
+      }
+    },
+    {
+      "id": "dropdown",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.dropdown",
+      "lines": {
+        "zh": "站点二级下拉是栏目下的一列子页，不是表单。",
+        "en": "A site dropdown is one column of children, not a form field."
+      }
+    },
+    {
+      "id": "mega",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.mega",
+      "lines": {
+        "zh": "巨型菜单是整宽多列分类，不是一行子链。",
+        "en": "A mega menu is classified columns, not one child list."
+      }
+    },
+    {
+      "id": "drawer",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.drawer",
+      "lines": {
+        "zh": "汉堡抽屉是小屏主导航，从侧边滑入并锁滚动。",
+        "en": "A hamburger drawer is small-screen primary. It slides in and locks scroll."
+      }
+    },
+    {
+      "id": "overlay",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.overlay",
+      "lines": {
+        "zh": "全屏遮罩把整页换成菜单，不是一条边。",
+        "en": "A full-screen overlay replaces the page. It is not an edge panel."
+      }
+    },
+    {
+      "id": "scrollspy",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.scrollspy",
+      "lines": {
+        "zh": "锚点导航滚到哪高亮哪。点击跳转时先锁观察器。",
+        "en": "Scrollspy highlights the section in view. Lock the observer on a click jump."
+      }
+    },
+    {
+      "id": "shrink",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.shrink",
+      "lines": {
+        "zh": "滚动收缩改的是顶栏自己的高度和对比度，不是钉住的位置。",
+        "en": "Shrink changes the bar itself, not where it pins."
+      }
+    },
+    {
+      "id": "close",
+      "kind": "close",
+      "lines": {
+        "zh": "最容易混的三对：抽屉不是全屏，下拉不是巨型，收缩不是吸顶。先说名称、场景和规则，再谈外观。",
+        "en": "The three pairs people mix up: a drawer is not a full-screen overlay; a dropdown is not a mega; shrink is not sticky. Name it, name the scene, name the rule."
+      }
+    }
+  ]
+}

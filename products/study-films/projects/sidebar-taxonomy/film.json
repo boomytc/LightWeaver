@@ -1,0 +1,129 @@
+{
+  "id": "sidebar-taxonomy",
+  "task": "study-explainer",
+  "brand": "LightUI",
+  "study": {
+    "slug": "sidebar-taxonomy"
+  },
+  "publish": {
+    "dir": "studies/sidebar-taxonomy/references"
+  },
+  "capture": {
+    "kind": "manual"
+  },
+  "voices": {
+    "zh": "library:voice.prompt-zh",
+    "en": "library:voice.prompt-en"
+  },
+  "locales": {
+    "zh": {
+      "title": "给侧栏起对名字",
+      "output": "source-tutorial.mp4",
+      "titleCard": {
+        "kicker": "LightUI  ·  Study",
+        "headline": "给侧栏起对名字",
+        "lede": "贴在左边只是外观。先定占不占位、变宽还是盖上来。",
+        "tags": [
+          "名称",
+          "场景",
+          "规则"
+        ]
+      },
+      "closeCard": {
+        "headline": "说清楚",
+        "lede": "最容易混的两对：可折叠不是隐藏式，多级不是滚轮。先说名称、场景和规则，再谈外观。"
+      }
+    },
+    "en": {
+      "title": "Name the sidebar",
+      "output": "source-tutorial.en.mp4",
+      "titleCard": {
+        "kicker": "LightUI  ·  Study",
+        "headline": "Name the sidebar",
+        "lede": "Sitting on the left is only the skin. First decide occupancy, and whether expand grows or overlays.",
+        "tags": [
+          "Name",
+          "Scene",
+          "Rules"
+        ]
+      },
+      "closeCard": {
+        "headline": "Say it this way",
+        "lede": "The two pairs people mix up: collapsible is not off-canvas; multi-level is not a wheel. Name it, name the scene, name the rule."
+      }
+    }
+  },
+  "scenes": [
+    {
+      "id": "title",
+      "kind": "title",
+      "lines": {
+        "zh": "给侧栏起对名字。贴在左边只是外观。先定占不占位、变宽还是盖上来。",
+        "en": "Name the sidebar. Sitting on the left is only the skin. First decide occupancy, and whether expand grows or overlays."
+      }
+    },
+    {
+      "id": "floating",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.floating",
+      "lines": {
+        "zh": "悬浮岛占位但不贴边，四周留白才是一张卡。",
+        "en": "A floating island occupies but is inset. Padding makes it a card."
+      }
+    },
+    {
+      "id": "wheel",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.wheel",
+      "lines": {
+        "zh": "滚轮是一条有序选择器，到基准线才高亮，不是目录树。",
+        "en": "A wheel is an ordered selector. Only the baseline is current."
+      }
+    },
+    {
+      "id": "multilevel",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.multilevel",
+      "lines": {
+        "zh": "多级是树：父级只归类，子级才是页。",
+        "en": "Multi-level is a tree. A parent only files; a child is the page."
+      }
+    },
+    {
+      "id": "collapsible",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.collapsible",
+      "lines": {
+        "zh": "可折叠变宽，收起后仍占一条图标栏。",
+        "en": "Collapsible changes width. Collapsed still occupies an icon rail."
+      }
+    },
+    {
+      "id": "offcanvas",
+      "kind": "still",
+      "fit": "contain",
+      "role": "contrast",
+      "still": "asset:still.offcanvas",
+      "lines": {
+        "zh": "隐藏式默认宽度为零，滑入盖住内容。",
+        "en": "Off-canvas has zero width until it slides in over the content."
+      }
+    },
+    {
+      "id": "close",
+      "kind": "close",
+      "lines": {
+        "zh": "最容易混的两对：可折叠不是隐藏式，多级不是滚轮。先说名称、场景和规则，再谈外观。",
+        "en": "The two pairs people mix up: collapsible is not off-canvas; multi-level is not a wheel. Name it, name the scene, name the rule."
+      }
+    }
+  ]
+}

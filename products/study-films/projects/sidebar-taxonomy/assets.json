@@ -1,0 +1,49 @@
+{
+  "assets": [
+    {
+      "id": "still.floating",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/floating.png",
+        "en": "assets/stills/en/floating.png"
+      },
+      "label": "floating"
+    },
+    {
+      "id": "still.wheel",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/wheel.png",
+        "en": "assets/stills/en/wheel.png"
+      },
+      "label": "wheel"
+    },
+    {
+      "id": "still.multilevel",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/multilevel.png",
+        "en": "assets/stills/en/multilevel.png"
+      },
+      "label": "multilevel"
+    },
+    {
+      "id": "still.collapsible",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/collapsible.png",
+        "en": "assets/stills/en/collapsible.png"
+      },
+      "label": "collapsible"
+    },
+    {
+      "id": "still.offcanvas",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/offcanvas.png",
+        "en": "assets/stills/en/offcanvas.png"
+      },
+      "label": "offcanvas"
+    }
+  ]
+}

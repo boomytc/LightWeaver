@@ -23,6 +23,30 @@
       "projectId": "intent-cascade",
       "locale": "en",
       "title": "Menu intent"
+    },
+    {
+      "id": "nav-taxonomy-zh",
+      "projectId": "nav-taxonomy",
+      "locale": "zh",
+      "title": "给导航起对名字"
+    },
+    {
+      "id": "nav-taxonomy-en",
+      "projectId": "nav-taxonomy",
+      "locale": "en",
+      "title": "Name the nav"
+    },
+    {
+      "id": "sidebar-taxonomy-zh",
+      "projectId": "sidebar-taxonomy",
+      "locale": "zh",
+      "title": "给侧栏起对名字"
+    },
+    {
+      "id": "sidebar-taxonomy-en",
+      "projectId": "sidebar-taxonomy",
+      "locale": "en",
+      "title": "Name the sidebar"
     }
   ]
 }

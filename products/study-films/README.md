@@ -1,12 +1,14 @@
 # study-films
 
 Remotion renderer for LightWeaver projects. First-party LightUI films live
-in `projects/`.
+in `projects/`. Capture adapters exist only for `intent-cascade` and
+`dropdown-taxonomy`. `nav-taxonomy` / `sidebar-taxonomy` are study-explainer
+scaffolds: scene list is ready, stills are uploaded by hand.
 
 ```bash
 npm run sync       # link public/projects + catalog
 npm run studio     # Remotion preview
-npm run capture    # LightUI lab stills
+npx weaver capture --project intent-cascade
 ```
 
-TTS / render go through `npx weaver`.
+TTS / render / scene CRUD go through `npx weaver`.

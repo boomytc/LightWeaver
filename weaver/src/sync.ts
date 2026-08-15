@@ -3,6 +3,8 @@ import path from "node:path";
 import { filmsProductRoot, weaverRoot } from "./paths.ts";
 import { listProjects } from "./project.ts";
 import { atomicWriteJson } from "./io.ts";
+import { filmTask } from "./schema.ts";
+import { tryGetTask } from "./tasks/registry.ts";
 
 export type CatalogEntry = {
   id: string;
@@ -23,6 +25,10 @@ export function syncRemotion(root = weaverRoot()): { compositions: CatalogEntry[
   const links: string[] = [];
 
   for (const project of listProjects(root)) {
+    if (!tryGetTask(filmTask(project.film))) {
+      console.warn(`sync 跳过未知任务：${project.id} (${filmTask(project.film)})`);
+      continue;
+    }
     const link = path.join(publicDir, project.id);
     wanted.add(project.id);
     relink(link, project.root);

@@ -1,13 +1,18 @@
 import fs from "node:fs";
-import type { FilmDoc, Issue, ProjectRecord } from "./schema.ts";
-import { isSceneKind, parseAssetRef } from "./schema.ts";
+import { err, filmTask, isImplementedTask, type Issue, type ProjectRecord, warn } from "./schema.ts";
 import { findAsset, resolveAssetFile } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
+import { taskAllowsKind, tryGetTask } from "./tasks/registry.ts";
 
 export function validateProject(project: ProjectRecord, root = weaverRoot()): Issue[] {
   const issues: Issue[] = [];
   const { film } = project;
+  const taskId = filmTask(film);
+  if (!isImplementedTask(taskId) || !tryGetTask(taskId)) {
+    issues.push(err("task", `未知任务类型：${taskId}`));
+  }
+
   const locales = Object.keys(film.locales);
   if (!locales.length) issues.push(err("locales", "至少需要一个 locale"));
 
@@ -28,7 +33,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     const voiceRef = film.voices[locale];
     if (!voiceRef) {
       issues.push(warn(`voices.${locale}`, "未指定音色"));
-    } else if (!parseAssetRef(voiceRef) || !findAsset(project, voiceRef, root)) {
+    } else if (!findAsset(project, voiceRef, root)) {
       issues.push(err(`voices.${locale}`, `找不到音色 ${voiceRef}`));
     } else {
       const resolved = resolveAssetFile(project, voiceRef, locale, root);
@@ -40,7 +45,9 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
 
   for (const scene of film.scenes) {
     const base = `scenes.${scene.id}`;
-    if (!isSceneKind(scene.kind)) issues.push(err(base, `未知场景 kind：${scene.kind}`));
+    if (!taskAllowsKind(taskId, scene.kind)) {
+      issues.push(err(base, `未知场景 kind：${scene.kind}`));
+    }
     for (const locale of locales) {
       const line = scene.lines?.[locale]?.trim() ?? "";
       if (!line) issues.push(err(`${base}.lines.${locale}`, "缺旁白"));
@@ -48,7 +55,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     if (scene.kind === "still") {
       if (!scene.still) {
         issues.push(err(`${base}.still`, "静帧场景需要 still 资产引用"));
-      } else if (!parseAssetRef(scene.still) || !findAsset(project, scene.still, root)) {
+      } else if (!findAsset(project, scene.still, root)) {
         issues.push(err(`${base}.still`, `找不到静帧 ${scene.still}`));
       } else {
         for (const locale of locales) {
@@ -76,7 +83,30 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     }
   }
 
+  const task = tryGetTask(taskId);
+  if (task) issues.push(...task.validate(project, root));
   return issues;
+}
+
+export function everyStillPngExists(project: ProjectRecord, root = weaverRoot()): boolean {
+  const locales = Object.keys(project.film.locales);
+  for (const scene of project.film.scenes) {
+    if (scene.kind !== "still" || !scene.still) return false;
+    for (const locale of locales) {
+      const resolved = resolveAssetFile(project, scene.still, locale, root);
+      if (!resolved || !fs.existsSync(resolved.absPath)) return false;
+    }
+  }
+  return project.film.scenes.some((scene) => scene.kind === "still");
+}
+
+export function isRenderable(project: ProjectRecord, root = weaverRoot()): boolean {
+  if (hasErrors(validateProject(project, root))) return false;
+  return everyStillPngExists(project, root);
+}
+
+export function isCompletedFilm(project: ProjectRecord, root = weaverRoot()): boolean {
+  return project.film.capture?.kind === "lightui-lab" && everyStillPngExists(project, root);
 }
 
 export function validateWorkspace(root = weaverRoot(), id?: string): { project: string; issues: Issue[] }[] {
@@ -86,16 +116,4 @@ export function validateWorkspace(root = weaverRoot(), id?: string): { project: 
 
 export function hasErrors(issues: Issue[]): boolean {
   return issues.some((issue) => issue.level === "error");
-}
-
-function err(path: string, message: string): Issue {
-  return { level: "error", path, message };
-}
-
-function warn(path: string, message: string): Issue {
-  return { level: "warning", path, message };
-}
-
-export function assertFilmShape(film: FilmDoc): void {
-  if (!film.id || !film.scenes) throw new Error("film.json 不完整");
 }

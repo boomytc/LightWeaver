@@ -5,6 +5,7 @@
 
 LIGHTUI_ROOT ?= $(abspath ../LightUI)
 LAB_URL ?= http://127.0.0.1:5173
+PROJECT ?=
 
 help: ## 显示帮助信息
 	@echo "LightWeaver workspace commands"
@@ -38,19 +39,19 @@ test: ## 运行 weaver / studio / study-films 单测
 sync: ## 刷新 Remotion public/projects 与 catalog
 	npm run weaver -- sync
 
-films-capture: ## 从 LightUI lab 截取 stills
-	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run capture -w @lightweaver/study-films
+films-capture: ## 从 LightUI lab 截取 stills（可选 PROJECT=slug）
+	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- capture $(if $(PROJECT),--project $(PROJECT),)
 
-films-tts: ## 合成旁白
-	npm run weaver -- tts
+films-tts: ## 合成旁白（可选 PROJECT=；无参跳过不可渲片）
+	npm run weaver -- tts $(if $(PROJECT),--project $(PROJECT),)
 
-films-render: ## 渲染并写回 LightUI references
-	LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- render
+films-render: ## 渲染（可选 PROJECT=；无参跳过不可渲片）
+	LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- render $(if $(PROJECT),--project $(PROJECT),)
 
 films: ## 截图 + 旁白 + 渲染
-	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run capture -w @lightweaver/study-films
-	npm run weaver -- tts
-	LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- render
+	$(MAKE) films-capture PROJECT="$(PROJECT)"
+	$(MAKE) films-tts PROJECT="$(PROJECT)"
+	$(MAKE) films-render PROJECT="$(PROJECT)"
 
 clean: ## 清理构建缓存
 	@rm -rf products/study-films/out products/study-films/.cache products/studio/dist

@@ -14,6 +14,8 @@ describe("createProject", () => {
     const project = createProject("demo-film", { title: "演示" }, root);
     assert.equal(project.source, "user");
     assert.equal(project.film.locales.zh.title, "演示");
+    assert.equal(project.film.task, "study-explainer");
+    assert.deepEqual(project.film.scenes.map((scene) => scene.id), ["title", "hero", "close"]);
     assert.ok(fs.existsSync(path.join(root, "data/projects/demo-film/film.json")));
     assert.equal(listProjects(root).length, 1);
     assert.equal(loadProject("demo-film", root).id, "demo-film");

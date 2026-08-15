@@ -5,6 +5,8 @@ import { filmsProductRoot, lightuiRoot, weaverRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
 import { outputRelPath, upsertAsset } from "./assets.ts";
 import { syncRemotion } from "./sync.ts";
+import { isRenderable } from "./validate.ts";
+import { safeJoin } from "./io.ts";
 import type { Locale } from "./schema.ts";
 
 export type RenderOptions = {
@@ -19,9 +21,46 @@ export type RenderResult = {
   files: { locale: string; dest: string; published?: string }[];
 };
 
+export function runPublish(options: { projectId: string; locale?: Locale; root?: string }): {
+  files: { locale: string; dest: string }[];
+} {
+  const root = options.root ?? weaverRoot();
+  const project = loadProject(options.projectId, root);
+  const dir = project.film.publish?.dir;
+  if (!dir) {
+    throw new Error("未配置 publish.dir；user 片只渲染到 assets/outputs");
+  }
+  const uiRoot = process.env.LIGHTUI_ROOT ? path.resolve(process.env.LIGHTUI_ROOT) : lightuiRoot(root);
+  if (!fs.existsSync(uiRoot)) {
+    throw new Error(`LightUI 不在 ${uiRoot}。设置 LIGHTUI_ROOT 后再发布。`);
+  }
+  const destDir = safeJoin(uiRoot, dir);
+  const locales = options.locale ? [options.locale] : Object.keys(project.film.locales);
+  const files: { locale: string; dest: string }[] = [];
+  for (const locale of locales) {
+    const copy = project.film.locales[locale];
+    if (!copy) throw new Error(`项目 ${project.id} 没有 locale ${locale}`);
+    if (copy.output.includes("/") || copy.output.includes("..")) {
+      throw new Error(`非法 output 文件名：${copy.output}`);
+    }
+    const src = path.join(project.root, outputRelPath(copy.output));
+    if (!fs.existsSync(src)) {
+      throw new Error(`先 render：缺少 ${src}`);
+    }
+    const dest = path.join(destDir, path.basename(copy.output));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+    files.push({ locale, dest });
+  }
+  return { files };
+}
+
 export function runRender(options: RenderOptions): RenderResult {
   const root = options.root ?? weaverRoot();
   const project = loadProject(options.projectId, root);
+  if (!isRenderable(project, root)) {
+    throw new Error(`静帧文件不存在：${project.id}；先按手截配方补 png`);
+  }
   syncRemotion(root);
 
   const filmsRoot = filmsProductRoot(root);
@@ -86,14 +125,8 @@ export function runRender(options: RenderOptions): RenderResult {
 
     let published: string | undefined;
     if (project.film.publish?.dir) {
-      const uiRoot = process.env.LIGHTUI_ROOT ? path.resolve(process.env.LIGHTUI_ROOT) : lightuiRoot(root);
-      if (!fs.existsSync(uiRoot)) {
-        throw new Error(`LightUI 不在 ${uiRoot}。设置 LIGHTUI_ROOT 后再发布。`);
-      }
-      published = path.join(uiRoot, project.film.publish.dir, copy.output);
-      fs.mkdirSync(path.dirname(published), { recursive: true });
-      fs.copyFileSync(dest, published);
-      options.onLog?.(`published ${published}`);
+      published = runPublish({ projectId: project.id, locale, root }).files[0]?.dest;
+      if (published) options.onLog?.(`published ${published}`);
     }
     files.push({ locale, dest: projectOut, published });
   }

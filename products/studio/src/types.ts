@@ -5,6 +5,8 @@ export type ProjectSummary = {
   source: "first-party" | "user";
   root: string;
   brand: string;
+  task?: string;
+  studySlug?: string;
   locales: string[];
   scenes: number;
   assets: number;
@@ -20,17 +22,20 @@ export type CardCopy = {
 
 export type SceneDef = {
   id: string;
-  kind: "title" | "still" | "close";
+  kind: string;
   still?: string;
   fit?: "cover" | "contain";
+  role?: "problem" | "rule" | "contrast";
   lines: Record<string, string>;
 };
 
 export type FilmDoc = {
   id: string;
+  task?: string;
   brand: string;
+  study?: { slug: string };
   publish?: { dir: string };
-  capture?: { kind: string; slug: string };
+  capture?: { kind: string; slug?: string };
   voices: Record<string, string>;
   locales: Record<
     string,
@@ -55,6 +60,7 @@ export type ProjectDetail = ProjectSummary & {
   film: FilmDoc;
   assets: Asset[];
   issues: Issue[];
+  renderable: boolean;
 };
 
 export type Job = {

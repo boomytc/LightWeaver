@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, libraryMedia, projectMedia } from "./api";
 import { IconFilm, IconImage, IconMark, IconWave } from "./icons";
+import { stillPreviewSrc, StudyExplainerPane } from "./tasks/study-explainer";
 import type { Asset, Job, ProjectDetail, ProjectSummary } from "./types";
 
 type Pane = "scenes" | "assets";
@@ -52,25 +53,11 @@ export function App() {
   }, [job]);
 
   const scene = detail?.film.scenes.find((item) => item.id === sceneId);
-  const stillAsset = useMemo(() => {
-    if (!detail || !scene?.still) return undefined;
-    const id = scene.still.replace(/^asset:/, "");
-    return detail.assets.find((asset) => asset.id === id);
-  }, [detail, scene]);
-
-  const stillSrc = stillAsset?.files?.[locale] ?? stillAsset?.file;
-
-  async function saveLine(text: string) {
-    if (!detail || !scene) return;
-    const film = {
-      ...detail.film,
-      scenes: detail.film.scenes.map((item) =>
-        item.id === scene.id ? { ...item, lines: { ...item.lines, [locale]: text } } : item,
-      ),
-    };
-    const saved = await api.saveFilm(detail.id, film);
-    setDetail({ ...detail, film: saved.film, issues: saved.issues });
-  }
+  const preview = useMemo(() => (detail ? stillPreviewSrc(detail, scene, locale) : undefined), [detail, scene, locale]);
+  const voices = library.filter((asset) => asset.kind === "voice");
+  const task = detail?.film.task ?? "study-explainer";
+  const canPublish = Boolean(detail?.film.publish?.dir);
+  const canRender = Boolean(detail?.renderable);
 
   async function run(type: Job["type"]) {
     if (!detail) return;
@@ -89,9 +76,15 @@ export function App() {
 
   async function validate() {
     if (!detail) return;
-    const result = await api.validate(detail.id);
-    setDetail({ ...detail, issues: result.issues });
-    setMessage(`校验完成：${result.issues.filter((i) => i.level === "error").length} 个错误`);
+    const next = await api.project(detail.id);
+    setDetail(next);
+    setMessage(`校验完成：${next.issues.filter((i) => i.level === "error").length} 个错误`);
+  }
+
+  async function publish() {
+    if (!detail) return;
+    await api.publish(detail.id, locale);
+    setMessage("已发布到 LightUI references");
   }
 
   async function create() {
@@ -101,6 +94,7 @@ export function App() {
       setNewTitle("");
       await loadList();
       setProjectId(created.id);
+      setDetail(created);
       setMessage(`已创建 ${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -114,15 +108,25 @@ export function App() {
     form.set("id", id);
     form.set("locale", locale);
     if (scope === "library") {
-      const asset = await api.uploadLibrary(form);
+      await api.uploadLibrary(form);
       setLibrary(await api.library());
-      setMessage(`已入库 ${asset.id}`);
+      setMessage(`已入库 ${id}`);
       return;
     }
     if (!detail) return;
     await api.uploadProject(detail.id, form);
-    await loadDetail(detail.id);
+    const next = await api.project(detail.id);
+    if (kind === "still" && sceneId) {
+      onChange(await api.patchScene(detail.id, sceneId, { still: `asset:${id}` }));
+    } else {
+      onChange(next);
+    }
     setMessage("项目资产已更新");
+  }
+
+  function onChange(next: ProjectDetail) {
+    setDetail(next);
+    setSceneId((current) => next.film.scenes.find((scene) => scene.id === current)?.id ?? next.film.scenes[0]?.id);
   }
 
   return (
@@ -139,16 +143,32 @@ export function App() {
         </div>
         <div className="spacer" />
         {detail ? (
-          <label className="field" style={{ margin: 0, minWidth: 88 }}>
-            <span className="sr">语种</span>
-            <select aria-label="语种" value={locale} onChange={(event) => setLocale(event.target.value)}>
-              {Object.keys(detail.film.locales).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
+          <>
+            <label className="field" style={{ margin: 0, minWidth: 88 }}>
+              <span className="sr">语种</span>
+              <select aria-label="语种" value={locale} onChange={(event) => setLocale(event.target.value)}>
+                {Object.keys(detail.film.locales).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field" style={{ margin: 0, minWidth: 160 }}>
+              <span className="sr">音色</span>
+              <select
+                aria-label="音色"
+                value={detail.film.voices[locale] ?? ""}
+                onChange={(event) => void api.setVoice(detail.id, locale, event.target.value).then(onChange)}
+              >
+                {voices.map((asset) => (
+                  <option key={asset.id} value={`library:${asset.id}`}>
+                    {asset.label ?? asset.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
         ) : null}
         <div className="actions">
           <button type="button" className="btn" onClick={() => void validate()} disabled={!detail}>
@@ -157,9 +177,14 @@ export function App() {
           <button type="button" className="btn" onClick={() => void run("tts")} disabled={!detail || busy}>
             合成旁白
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => void run("render")} disabled={!detail || busy}>
+          <button type="button" className="btn btn-primary" onClick={() => void run("render")} disabled={!detail || busy || !canRender}>
             渲染
           </button>
+          {canPublish ? (
+            <button type="button" className="btn" onClick={() => void publish()} disabled={!detail || !canRender}>
+              发布
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -176,7 +201,7 @@ export function App() {
               >
                 <span className="item-title">{project.titles[locale] ?? project.id}</span>
                 <span className="item-meta">
-                  {project.source === "first-party" ? "内置" : "本地"} · {project.scenes} 场
+                  {project.source === "first-party" ? "内置" : "本地"} · {project.task ?? "study-explainer"} · {project.scenes} 场
                 </span>
               </button>
             ))}
@@ -210,28 +235,19 @@ export function App() {
             </div>
             {detail ? (
               <span className="item-meta">
-                {detail.brand} · {detail.id}
+                {detail.brand} · {detail.id} · {task}
               </span>
             ) : null}
           </div>
 
           {!detail ? (
-            <p className="item-meta">还没有项目。先创建一个，或确认 first-party 片子已迁入。</p>
-          ) : pane === "scenes" ? (
-            <Scenes
-              detail={detail}
-              locale={locale}
-              sceneId={sceneId}
-              onSelect={setSceneId}
-              onLine={(text) => void saveLine(text)}
-            />
+            <p className="item-meta">还没有项目。</p>
+          ) : pane === "assets" ? (
+            <Assets library={library} detail={detail} locale={locale} onUpload={onUpload} />
+          ) : task === "study-explainer" ? (
+            <StudyExplainerPane detail={detail} locale={locale} sceneId={sceneId} onSelect={setSceneId} onChange={onChange} />
           ) : (
-            <Assets
-              library={library}
-              detail={detail}
-              locale={locale}
-              onUpload={onUpload}
-            />
+            <p>此任务尚未实现编辑器（{task}）</p>
           )}
 
           {detail?.issues.length ? (
@@ -257,11 +273,7 @@ export function App() {
         <aside className="pane preview">
           <h2 className="h">预览</h2>
           <div className="preview-frame">
-            {detail && stillSrc ? (
-              <img src={projectMedia(detail.id, stillSrc)} alt={scene?.id ?? "静帧"} />
-            ) : (
-              <span>{scene?.kind === "still" ? "没有静帧" : "片头 / 片尾无静帧"}</span>
-            )}
+            {preview ? <img src={preview} alt={scene?.id ?? "静帧"} /> : <span>{scene?.kind === "still" ? "没有静帧" : "片头 / 片尾无静帧"}</span>}
           </div>
           {scene ? (
             <p className="item-meta" style={{ marginTop: 12 }}>
@@ -272,55 +284,6 @@ export function App() {
         </aside>
       </div>
     </div>
-  );
-}
-
-function Scenes({
-  detail,
-  locale,
-  sceneId,
-  onSelect,
-  onLine,
-}: {
-  detail: ProjectDetail;
-  locale: string;
-  sceneId?: string;
-  onSelect: (id: string) => void;
-  onLine: (text: string) => void;
-}) {
-  const selected = detail.film.scenes.find((scene) => scene.id === sceneId);
-  return (
-    <>
-      {detail.film.scenes.map((scene) => (
-        <button
-          key={scene.id}
-          type="button"
-          className={scene.id === sceneId ? "item is-active" : "item"}
-          onClick={() => onSelect(scene.id)}
-        >
-          <span className="scene-row" style={{ width: "100%", border: 0, padding: 0 }}>
-            <span className="kind">{scene.kind}</span>
-            <span>
-              <span className="item-title">{scene.id}</span>
-              <span className="item-meta"> {(scene.lines[locale] ?? "").slice(0, 48)}</span>
-            </span>
-          </span>
-        </button>
-      ))}
-      {selected ? (
-        <div className="field" style={{ marginTop: 16 }}>
-          <label htmlFor="line">旁白 · {selected.id} · {locale}</label>
-          <textarea
-            id="line"
-            defaultValue={selected.lines[locale] ?? ""}
-            key={`${selected.id}-${locale}-${selected.lines[locale] ?? ""}`}
-            onBlur={(event) => {
-              if (event.target.value !== (selected.lines[locale] ?? "")) onLine(event.target.value);
-            }}
-          />
-        </div>
-      ) : null}
-    </>
   );
 }
 

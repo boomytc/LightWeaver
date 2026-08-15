@@ -25,7 +25,9 @@ Agent / 脚本入口：
 
 ```bash
 npx weaver project list --json
+npx weaver task list
 npx weaver validate
+npx weaver scene add --project <id> --id shot --kind still --still asset:still.shot
 npx weaver tts --project intent-cascade --locale zh
 npx weaver render --project intent-cascade --locale zh
 ```

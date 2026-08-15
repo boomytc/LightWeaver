@@ -1,27 +1,39 @@
 ---
 name: lightweaver-film
 description: >
-  Author or edit a LightWeaver film project (film.json scenes + lines).
-  Use when adding a film, changing narration, or running tts/render via CLI.
+  Author a LightWeaver study-explainer film via CLI (scenes, cards, voice).
   Slash command: /lightweaver-film.
 ---
 
-# Author a film
+# Author a study-explainer
 
-Read `docs/conventions.md`.
+Read `docs/conventions.md` and `docs/design-study-explainer.md`.
 
-1. First-party LightUI film: `products/study-films/projects/<id>/`.
-   User film: `weaver project create <id>` → `data/projects/<id>/`.
-2. Edit `film.json` only. Scene ids and spoken lines live there.
-3. Point `scenes[].still` at `asset:<id>` after the still is in `assets.json`.
-4. Point `voices.<locale>` at `library:<id>`.
-5. Validate and preview:
+## Verbs
 
 ```bash
+npx weaver task list
+npx weaver project create <id> --task study-explainer [--title] [--source first-party] [--study-slug] [--output] [--output-en]
+npx weaver scene add --project <id> --id <scene> --kind still [--still asset:still.x] [--role contrast]
+npx weaver scene rm --project <id> --id <scene>
+npx weaver scene move --project <id> --id <scene> --after <id>
+npx weaver scene set --project <id> --id <scene> --locale zh --text "..."
+npx weaver scene set --project <id> --id <scene> --still asset:still.x --fit contain
+npx weaver card set --project <id> --locale zh --which title --headline "..." --lede "..."
+npx weaver voice set --project <id> --locale zh --ref library:voice.prompt-zh
 npx weaver validate <id>
 npx weaver tts --project <id>
 npx weaver render --project <id>
-make remotion
+npx weaver publish --project <id>
 ```
 
-Do not revive `scripts/narration.json` or `src/lib/catalog.ts`.
+`--json` 写操作返回 `{ ok, project, film, issues }`。
+
+## Loop
+
+1. User 片：`project create`（落到 `data/projects/`，无 publish.dir，只渲本地）。
+2. First-party：`--source first-party --study-slug <slug>`，再 `scene add` 齐 kind，`scene rm --id hero`，手写 `--output` 对齐 SOURCE.md。
+3. 手截或 `weaver capture --project`（仅 intent / dropdown）。
+4. 绑 still → card/voice → validate → tts → render → 有 dir 才 publish。
+
+不要手改 `film.json` 当日常路径。不要等 MCP / Remotion Player。没有 lab adapter 就手截，不要复制 `capture.mjs`。
