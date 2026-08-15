@@ -3,15 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "studio": "remotion studio src/index.ts",
+    "sync": "npm run weaver -w @lightweaver/weaver -- sync",
+    "studio": "npm run sync && remotion studio src/index.ts",
     "capture": "node scripts/capture.mjs",
-    "tts": "python3 scripts/tts.py",
-    "render": "node scripts/render.mjs",
-    "films": "node scripts/capture.mjs && python3 scripts/tts.py && node scripts/render.mjs",
+    "tts": "npm run weaver -w @lightweaver/weaver -- tts",
+    "render": "npm run weaver -w @lightweaver/weaver -- render",
+    "films": "node scripts/capture.mjs && npm run weaver -w @lightweaver/weaver -- tts && npm run weaver -w @lightweaver/weaver -- render",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/lib/subtitles.test.ts src/lib/films.test.ts"
+    "test": "tsx --test src/lib/subtitles.test.ts"
   },
   "dependencies": {
+    "@lightweaver/weaver": "*",
     "@remotion/cli": "4.0.512",
     "@remotion/media": "4.0.512",
     "@remotion/media-utils": "4.0.512",

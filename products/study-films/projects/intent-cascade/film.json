@@ -1,0 +1,110 @@
+{
+  "id": "intent-cascade",
+  "brand": "LightUI",
+  "publish": {
+    "dir": "studies/intent-cascade/references"
+  },
+  "capture": {
+    "kind": "lightui-lab",
+    "slug": "intent-cascade"
+  },
+  "voices": {
+    "zh": "library:voice.prompt-zh",
+    "en": "library:voice.prompt-en"
+  },
+  "locales": {
+    "zh": {
+      "title": "菜单意图预测",
+      "output": "cursor-movement.mp4",
+      "titleCard": {
+        "kicker": "LightUI  ·  Study",
+        "headline": "菜单意图预测",
+        "lede": "根据指针轨迹，判断你是不是要进子菜单。",
+        "tags": [
+          "安全三角",
+          "斜向保护",
+          "纵向即时"
+        ]
+      },
+      "closeCard": {
+        "headline": "说清楚",
+        "lede": "上一帧指针与子菜单左缘构成走廊。走廊内不切换；纵向即时；越过左缘不再保护，也不画反向三角。判定顶点是上一帧，不是当前指针。"
+      }
+    },
+    "en": {
+      "title": "Menu intent",
+      "output": "cursor-movement.en.mp4",
+      "titleCard": {
+        "kicker": "LightUI  ·  Study",
+        "headline": "Menu intent",
+        "lede": "Guess from the pointer path whether you are heading into the submenu.",
+        "tags": [
+          "Safe triangle",
+          "Diagonal protect",
+          "Instant vertical"
+        ]
+      },
+      "closeCard": {
+        "headline": "Say it this way",
+        "lede": "The previous pointer and the submenu’s leading edge form a corridor. Stay inside, do not switch. Vertical moves switch now. Past the leading edge, the corridor ends — no reverse triangle. The test vertex is the previous sample, not the live pointer."
+      }
+    }
+  },
+  "scenes": [
+    {
+      "id": "title",
+      "kind": "title",
+      "lines": {
+        "zh": "菜单意图预测。根据指针轨迹，判断你是不是要进子菜单。",
+        "en": "Menu intent prediction. From the pointer path, guess whether you are heading into the submenu."
+      }
+    },
+    {
+      "id": "problem",
+      "kind": "still",
+      "lines": {
+        "zh": "从一级斜着滑向二级时，指针会短暂经过中间其它项。若悬停到谁就展开谁，子菜单会被途中抢走。",
+        "en": "Sliding diagonally from the first column into the second briefly crosses other items. If whichever item you hover opens, the submenu gets stolen mid-path."
+      },
+      "still": "asset:still.problem"
+    },
+    {
+      "id": "diagonal",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "子菜单打开后，用上一帧指针和子菜单左缘上下两点，构成一条安全走廊。斜向穿越时，只要还在走廊里，途经的项不会抢走子菜单。",
+        "en": "After the submenu opens, the previous pointer sample and the leading-edge corners form a safe corridor. Stay inside on a diagonal, and passing items will not steal the submenu."
+      },
+      "still": "asset:still.diagonal"
+    },
+    {
+      "id": "vertical",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "沿一级列表上下移动、轨迹不朝向子菜单，则立刻切换。意图预测只保护像是要进去的那条斜线。",
+        "en": "Moving up and down the first column, not toward the submenu, switches immediately. Intent only protects a path that looks like it is going in."
+      },
+      "still": "asset:still.vertical"
+    },
+    {
+      "id": "third",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "打开项目属性，再进项目标签，再斜向进入紧急。每一级都有自己的安全三角。进入子菜单后，走廊变绿。",
+        "en": "Open Project, then Project tags, then slide into Urgent. Each level has its own safe triangle. It turns green after you enter the submenu."
+      },
+      "still": "asset:still.third"
+    },
+    {
+      "id": "close",
+      "kind": "close",
+      "lines": {
+        "zh": "指针越过子菜单左缘之后，走廊结束，也不再画反向三角。和一律加延迟不同：纵向扫不发黏，斜向才保护。",
+        "en": "Once the pointer crosses the submenu's leading edge, the corridor ends, and we do not draw a reverse triangle. Unlike a flat delay: vertical scans stay snappy, diagonals stay protected."
+      }
+    }
+  ]
+}

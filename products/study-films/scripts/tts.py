@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Synthesize study-film narration via VoxCPM2 Hi-Fi clone.
+"""Synthesize project narration via VoxCPM2 Hi-Fi clone.
 
-Each locale has its own prompt wav. Every line in that locale is cloned
-from it with ref_audio + ref_text so timbre stays the same.
+Reads a weaver job JSON (--job). Logs go to stderr. The last stdout line is
+the result JSON.
 """
 
 from __future__ import annotations
@@ -18,11 +18,7 @@ from pathlib import Path
 import requests
 import yaml
 
-HERE = Path(__file__).resolve().parent
-FILMS_ROOT = HERE.parent
-NARRATION_PATH = HERE / "narration.json"
 MAX_REF_BYTES = 5 * 1024 * 1024
-LOCALES = ("zh", "en")
 
 
 def _load_yaml(path: Path) -> dict:
@@ -31,7 +27,7 @@ def _load_yaml(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def load_backend() -> tuple[str, str]:
+def load_backend(config_dirs: list[str]) -> tuple[str, str]:
     base = (os.environ.get("MODELBEST_BASE_URL") or "").rstrip("/")
     key = (os.environ.get("MODELBEST_API_KEY") or "").strip()
     cfg: dict = {}
@@ -43,17 +39,14 @@ def load_backend() -> tuple[str, str]:
             cfg.update(_load_yaml(extra_path / "config.local.yaml"))
         else:
             cfg.update(_load_yaml(extra_path))
-    cfg.update(_load_yaml(FILMS_ROOT / "config.local.yaml"))
+    for folder in config_dirs:
+        cfg.update(_load_yaml(Path(folder) / "config.local.yaml"))
     base = base or str(cfg.get("modelbest_base_url") or "").rstrip("/")
     key = key or str(cfg.get("modelbest_api_key") or "").strip()
     if not base:
-        raise SystemExit(
-            "Missing MODELBEST_BASE_URL, or modelbest_base_url in products/study-films/config.local.yaml"
-        )
+        raise SystemExit("Missing MODELBEST_BASE_URL or modelbest_base_url in config.local.yaml")
     if not key:
-        raise SystemExit(
-            "Missing MODELBEST_API_KEY, or modelbest_api_key in products/study-films/config.local.yaml"
-        )
+        raise SystemExit("Missing MODELBEST_API_KEY or modelbest_api_key in config.local.yaml")
     return base, key
 
 
@@ -126,34 +119,6 @@ def write_wav(path: Path, audio: bytes) -> float:
     return wav_seconds(path)
 
 
-def ensure_prompt(api_url: str, key: str, narration: dict, locale: str, *, force: bool) -> tuple[Path, str]:
-    prompt = narration["prompts"][locale]
-    text = str(prompt["text"]).strip()
-    dest = FILMS_ROOT / prompt["audio"]
-    sidecar = dest.with_suffix(".txt")
-    if dest.is_file() and sidecar.is_file() and sidecar.read_text(encoding="utf-8").strip() == text and not force:
-        print(f"reuse prompt {locale} {dest}  {wav_seconds(dest):.2f}s", file=sys.stderr)
-        return dest, text
-
-    print(f"seed prompt {locale} (voice design → hifi reference)", file=sys.stderr)
-    voice = narration.get("voices", {}).get(locale) or ""
-    audio = post_speech(
-        api_url,
-        key,
-        {
-            "model": "VoxCPM2",
-            "input": f"({voice}){text}" if voice else text,
-            "voice": "default",
-            "response_format": "wav",
-            "do_normalize": True,
-        },
-    )
-    seconds = write_wav(dest, audio)
-    sidecar.write_text(text + "\n", encoding="utf-8")
-    print(f"  {dest}  {seconds:.2f}s", file=sys.stderr)
-    return dest, text
-
-
 def synthesize_hifi(api_url: str, key: str, text: str, ref_wav: Path, ref_text: str) -> bytes:
     return post_speech(
         api_url,
@@ -170,46 +135,51 @@ def synthesize_hifi(api_url: str, key: str, text: str, ref_wav: Path, ref_text: 
     )
 
 
+def maybe_seed(api_url: str, key: str, ref_wav: Path, ref_text: str, style: str, force: bool) -> None:
+    sidecar = ref_wav.with_suffix(".txt")
+    if ref_wav.is_file() and sidecar.is_file() and sidecar.read_text(encoding="utf-8").strip() == ref_text and not force:
+        print(f"reuse prompt {ref_wav}  {wav_seconds(ref_wav):.2f}s", file=sys.stderr)
+        return
+    print("seed prompt (voice design → hifi reference)", file=sys.stderr)
+    payload_text = f"({style}){ref_text}" if style else ref_text
+    audio = post_speech(
+        api_url,
+        key,
+        {
+            "model": "VoxCPM2",
+            "input": payload_text,
+            "voice": "default",
+            "response_format": "wav",
+            "do_normalize": True,
+        },
+    )
+    seconds = write_wav(ref_wav, audio)
+    sidecar.write_text(ref_text + "\n", encoding="utf-8")
+    print(f"  {ref_wav}  {seconds:.2f}s", file=sys.stderr)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    narration = json.loads(NARRATION_PATH.read_text(encoding="utf-8"))
-    film_ids = list(narration["films"])
-    parser.add_argument("--film", choices=[*film_ids, "all"], default="all")
-    parser.add_argument("--locale", choices=["zh", "en", "all"], default="all")
-    parser.add_argument("--seed", action="store_true", help="regenerate the Hi-Fi prompt wav")
+    parser.add_argument("--job", required=True, help="weaver TTS job JSON")
     args = parser.parse_args()
-
-    base, key = load_backend()
+    job = json.loads(Path(args.job).read_text(encoding="utf-8"))
+    project_root = Path(job["projectRoot"])
+    base, key = load_backend(job.get("configDirs") or [])
     api_url = f"{base}/audio/speech"
-    locales = list(LOCALES) if args.locale == "all" else [args.locale]
-    films = film_ids if args.film == "all" else [args.film]
-    manifest: dict = {"mode": "hifi-clone", "locales": {}}
+    ref_wav = Path(job["refAudio"])
+    ref_text = str(job.get("refText") or "").strip()
+    maybe_seed(api_url, key, ref_wav, ref_text, str(job.get("style") or ""), bool(job.get("seed")))
 
-    for locale in locales:
-        ref_wav, ref_text = ensure_prompt(api_url, key, narration, locale, force=args.seed)
-        locale_meta: dict = {
-            "prompt": {"text": ref_text, "audio": str(ref_wav.relative_to(FILMS_ROOT))},
-            "films": {},
-        }
-        for film_id in films:
-            lines = narration["films"][film_id][locale]
-            out_dir = FILMS_ROOT / "public" / "voice" / locale / film_id
-            out_dir.mkdir(parents=True, exist_ok=True)
-            film_meta = []
-            for line in lines:
-                dest = out_dir / f"{line['id']}.wav"
-                print(f"hifi {locale}/{film_id}/{line['id']}", file=sys.stderr)
-                audio = synthesize_hifi(api_url, key, line["text"], ref_wav, ref_text)
-                seconds = write_wav(dest, audio)
-                film_meta.append({"id": line["id"], "file": dest.name, "seconds": round(seconds, 3)})
-                print(f"  {dest}  {seconds:.2f}s")
-            locale_meta["films"][film_id] = film_meta
-        manifest["locales"][locale] = locale_meta
+    wrote = []
+    for item in job.get("items") or []:
+        dest = project_root / item["dest"]
+        print(f"hifi {job['locale']}/{item['id']}", file=sys.stderr)
+        audio = synthesize_hifi(api_url, key, item["text"], ref_wav, ref_text)
+        seconds = write_wav(dest, audio)
+        print(f"  {dest}  {seconds:.2f}s", file=sys.stderr)
+        wrote.append({"scene": item["id"], "file": item["dest"], "seconds": round(seconds, 3)})
 
-    (FILMS_ROOT / "public" / "voice" / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    print(json.dumps({"wrote": wrote}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

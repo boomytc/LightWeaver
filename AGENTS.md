@@ -2,54 +2,57 @@
 
 ## Scope
 
-LightWeaver is the workspace for **scene-orchestrated explainer films**:
-title / still / close cards, narration, subtitles, Remotion preview and
-render. It is not a long-form auto-editor and not a TTS model lab.
+LightWeaver is the workspace for **scene-orchestrated explainer films**.
+Shared objects live in `weaver/`. Products consume that package.
 
-The repository root is not an application. It holds catalog, conventions,
-aggregate commands, and project skills.
-
-- Treat each `products/<name>/` as a product root before editing that product.
-- Read this file first, then the local `AGENTS.md`.
+- Treat `weaver/` as the core library before adding a second copy of schema,
+  path rules, or job runners.
+- Treat each `products/<name>/` as a product root. Read its `AGENTS.md`.
 
 ## Layout
 
 ```
-skills/                      agent workflows for this repo
-docs/                        film contract and workspace notes
-products/study-films/        first product: scene films (from LightUI)
+weaver/                         schema, projects, assets, CLI, jobs
+library/                        shared voices / elements / references
+data/projects/                  user projects (gitignored)
+products/study-films/           Remotion renderer + LightUI capture
+products/study-films/projects/  first-party LightUI films
+products/studio/                local WebUI
+skills/                         agent skills
 ```
 
-Root Makefile is an orchestrator only. Do not put app `src/` at the
-repository root.
+Root Makefile orchestrates. Do not put app `src/` at the repository root.
 
 ## Where to put work
 
 | Change | Put it here |
 | --- | --- |
-| Scene film engine, Remotion, TTS, capture | `products/study-films/` |
-| New explainer film | `products/study-films/films/<id>.json` + narration |
-| How a film is declared | `docs/conventions.md` |
-| Agent procedure | `skills/lightweaver` |
+| Film / asset / job model, CLI | `weaver/` |
+| Shared voice / element / reference | `library/` |
+| New first-party LightUI film | `products/study-films/projects/<id>/` |
+| User film | `data/projects/<id>/` or Studio「新建」 |
+| Remotion cards / capture adapter | `products/study-films/` |
+| Workbench UI | `products/studio/` |
+| Agent procedure | `skills/lightweaver*` |
 
-Do not create empty product folders. Do not start a timeline editor or
-shared component library until a second product needs one.
+Do not re-home the engine under LightUI. Do not fold auto-cutting of
+existing footage into this repo (CineWeaver). Do not turn `library/` into
+a generic DAM (LightAsset).
 
 ## Family boundaries
 
-- **CineWeaver** owns AI commentary and automated cutting of existing footage.
-- **LightTTS** owns TTS model exploration. This repo calls a speech API.
-- **LightCanvas** owns asset libraries and relation canvases.
-- **LightUI** owns UI studies and the lab. Capture may talk to the lab;
-  published stills and mp4s still land in LightUI `studies/*/references/`.
-  Do not re-home the film engine under LightUI.
+- **CineWeaver** — AI commentary and automated cutting of existing footage.
+- **LightTTS** — TTS model exploration. This repo calls a speech API.
+- **LightCanvas** — asset libraries and relation canvases.
+- **LightUI** — UI studies. Capture may HTTP the lab; publish may copy
+  into `LIGHTUI_ROOT`.
+- **LightAsset** — cross-folder file management.
 
 ## Skills
 
-Repository agent skills live under root-level `skills/<name>/SKILL.md`.
-Do not put them in `.grok/skills/`.
-
-- `skills/lightweaver` — where a change belongs
+- `skills/lightweaver` — workspace router
+- `skills/lightweaver-film` — author a film via CLI / project files
+- `skills/lightweaver-assets` — ingest library / project assets
 
 ## Validation
 
@@ -57,12 +60,11 @@ Do not put them in `.grok/skills/`.
 make install
 make typecheck
 make test
-make studio
+make studio          # http://127.0.0.1:5175/
+make remotion        # Remotion preview
 ```
-
-Studio: Remotion at the default studio port from `products/study-films`.
 
 ## Cleanup
 
-Remove transient `out/`, `.cache/`, and one-off renders that are not
-deliberate fixtures under `public/`.
+Remove transient `out/`, `.cache/`, and `data/projects/` leftovers that
+are not deliberate first-party fixtures.

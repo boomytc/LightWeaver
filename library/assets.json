@@ -1,0 +1,28 @@
+{
+  "assets": [
+    {
+      "id": "voice.prompt-zh",
+      "kind": "voice",
+      "locale": "zh",
+      "file": "voices/prompt-zh.wav",
+      "text": "先把名称、场景和规则说清楚，再动手做交互。",
+      "style": "青春女声，灵动里带一点稳重，吐字清晰，语速从容",
+      "label": "讲解女声（中）"
+    },
+    {
+      "id": "voice.prompt-en",
+      "kind": "voice",
+      "locale": "en",
+      "file": "voices/prompt-en.wav",
+      "text": "Name the model, the scene, and the rule before you build the interaction.",
+      "style": "youthful female voice, lively but a little composed, clear diction, unhurried pace",
+      "label": "Narrator (EN)"
+    },
+    {
+      "id": "element.mark",
+      "kind": "element",
+      "file": "elements/mark.svg",
+      "label": "Light mark"
+    }
+  ]
+}

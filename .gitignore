@@ -20,3 +20,5 @@ __pycache__/
 !.vscode/extensions.json
 *.swp
 *.swo
+data/projects/
+products/study-films/public/projects/

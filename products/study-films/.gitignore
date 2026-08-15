@@ -1,8 +1,7 @@
 node_modules/
 out/
 .cache/
-public/stills/
-public/voice/
+public/projects/
 config.local.yaml
 .DS_Store
 *.log

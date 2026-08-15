@@ -1,0 +1,220 @@
+{
+  "assets": [
+    {
+      "id": "still.select",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/select-open.png",
+        "en": "assets/stills/en/select-open.png"
+      },
+      "label": "select-open.png"
+    },
+    {
+      "id": "still.multi",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/comp-02.png",
+        "en": "assets/stills/en/comp-02.png"
+      },
+      "label": "comp-02.png"
+    },
+    {
+      "id": "still.grouped",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/comp-03.png",
+        "en": "assets/stills/en/comp-03.png"
+      },
+      "label": "comp-03.png"
+    },
+    {
+      "id": "still.cascader",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/comp-04.png",
+        "en": "assets/stills/en/comp-04.png"
+      },
+      "label": "comp-04.png"
+    },
+    {
+      "id": "still.split",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/comp-05.png",
+        "en": "assets/stills/en/comp-05.png"
+      },
+      "label": "comp-05.png"
+    },
+    {
+      "id": "still.mega",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/comp-06.png",
+        "en": "assets/stills/en/comp-06.png"
+      },
+      "label": "comp-06.png"
+    },
+    {
+      "id": "still.date",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/date-cal.png",
+        "en": "assets/stills/en/date-cal.png"
+      },
+      "label": "date-cal.png"
+    },
+    {
+      "id": "still.comp-01",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/comp-01.png",
+        "en": "assets/stills/en/comp-01.png"
+      },
+      "label": "comp-01.png"
+    },
+    {
+      "id": "still.comp-07",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/comp-07.png",
+        "en": "assets/stills/en/comp-07.png"
+      },
+      "label": "comp-07.png"
+    },
+    {
+      "id": "still.mobile",
+      "kind": "still",
+      "files": {
+        "zh": "assets/stills/zh/mobile.png",
+        "en": "assets/stills/en/mobile.png"
+      },
+      "label": "mobile.png"
+    },
+    {
+      "id": "line.title.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "title",
+      "file": "assets/lines/zh/title.wav"
+    },
+    {
+      "id": "line.select.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "select",
+      "file": "assets/lines/zh/select.wav"
+    },
+    {
+      "id": "line.multi.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "multi",
+      "file": "assets/lines/zh/multi.wav"
+    },
+    {
+      "id": "line.grouped.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "grouped",
+      "file": "assets/lines/zh/grouped.wav"
+    },
+    {
+      "id": "line.cascader.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "cascader",
+      "file": "assets/lines/zh/cascader.wav"
+    },
+    {
+      "id": "line.split.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "split",
+      "file": "assets/lines/zh/split.wav"
+    },
+    {
+      "id": "line.mega.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "mega",
+      "file": "assets/lines/zh/mega.wav"
+    },
+    {
+      "id": "line.date.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "date",
+      "file": "assets/lines/zh/date.wav"
+    },
+    {
+      "id": "line.close.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "close",
+      "file": "assets/lines/zh/close.wav"
+    },
+    {
+      "id": "line.title.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "title",
+      "file": "assets/lines/en/title.wav"
+    },
+    {
+      "id": "line.select.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "select",
+      "file": "assets/lines/en/select.wav"
+    },
+    {
+      "id": "line.multi.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "multi",
+      "file": "assets/lines/en/multi.wav"
+    },
+    {
+      "id": "line.grouped.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "grouped",
+      "file": "assets/lines/en/grouped.wav"
+    },
+    {
+      "id": "line.cascader.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "cascader",
+      "file": "assets/lines/en/cascader.wav"
+    },
+    {
+      "id": "line.split.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "split",
+      "file": "assets/lines/en/split.wav"
+    },
+    {
+      "id": "line.mega.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "mega",
+      "file": "assets/lines/en/mega.wav"
+    },
+    {
+      "id": "line.date.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "date",
+      "file": "assets/lines/en/date.wav"
+    },
+    {
+      "id": "line.close.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "close",
+      "file": "assets/lines/en/close.wav"
+    }
+  ]
+}

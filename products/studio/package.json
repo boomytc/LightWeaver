@@ -1,0 +1,37 @@
+{
+  "name": "@lightweaver/studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch server/index.ts",
+    "start": "concurrently -k -n api,web -c cyan,magenta \"npm:start:api\" \"npm:preview\"",
+    "start:api": "tsx server/index.ts",
+    "preview": "vite preview --host 127.0.0.1 --port 4175",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --pretty false",
+    "test": "tsx --test server/paths.test.ts"
+  },
+  "dependencies": {
+    "@lightweaver/weaver": "*",
+    "concurrently": "^9.1.2",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "multer": "^2.0.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tsx": "^4.23.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/multer": "^1.4.13",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3"
+  }
+}

@@ -1,0 +1,29 @@
+---
+name: lightweaver-assets
+description: >
+  Ingest LightWeaver library or project assets (voice, still, element,
+  reference). Use when adding a timbre, still, logo, or reference image.
+  Slash command: /lightweaver-assets.
+---
+
+# Ingest assets
+
+Kinds: `voice` | `still` | `element` | `reference` | `line` | `output`.
+`line` and `output` are produced by `weaver tts` / `weaver render`.
+
+Shared library (`library/`):
+
+```bash
+npx weaver asset add --library --id voice.foo --kind voice --locale zh --file voices/foo.wav --text "..." 
+```
+
+Project stills:
+
+```bash
+npx weaver asset add --project <id> --id still.hero --kind still --file assets/stills/zh/hero.png
+```
+
+Then set `scenes[].still` to `asset:still.hero`. Locale variants use
+`files: { "zh": "...", "en": "..." }` in `assets.json`.
+
+Studio「资产」页也可以上传。不要把通用 DAM 做进这里。

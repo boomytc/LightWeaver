@@ -1,0 +1,17 @@
+{
+  "name": "lightweaver",
+  "private": true,
+  "workspaces": [
+    "weaver",
+    "products/study-films",
+    "products/studio"
+  ],
+  "scripts": {
+    "weaver": "npm run weaver -w @lightweaver/weaver --",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

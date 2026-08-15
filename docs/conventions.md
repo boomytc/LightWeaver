@@ -1,49 +1,38 @@
 # How to add a film
 
-One JSON file per film. Do not start a second implementation of the same
-film unless the first one is retired.
+One directory per film. Scene ids live only in `film.json`.
 
-## Name
-
-Use a short kebab-case slug that names the *subject*, matching the LightUI
-study slug when the film is a study explainer.
-
-Good: `intent-cascade`, `dropdown-taxonomy`.
-Bad: `film-1`, `new-demo`.
-
-## Required files
+## Project layout
 
 ```
-products/study-films/
-  films/<id>.json           scene list, locale copy, publish dest
-  scripts/narration.json    spoken lines per locale (same scene ids)
-  src/lib/catalog.ts        import the new JSON (Remotion has no glob)
+film.json                 scenes, locale copy, voice refs, publish
+assets.json               project asset registry
+assets/stills/<locale>/   stills
+assets/lines/<locale>/    spoken wavs
+assets/outputs/           rendered mp4
 ```
 
-If the source is a live LightUI lab page, add a capture path in
-`scripts/capture.mjs`. Do not invent a plugin layer for a second source
-kind until one exists.
+First-party LightUI films: `products/study-films/projects/<id>/`.
+User films: `data/projects/<id>/`.
 
-`films/<id>.json` should answer:
+Shared voices / elements / references: `library/assets.json`.
 
-1. Which scenes, in order, and which still each still-scene uses.
-2. Title / close card copy per locale.
-3. Where the rendered mp4 is published (`publish.dir` relative to
-   `LIGHTUI_ROOT` for LightUI studies).
+## film.json
 
-`scripts/narration.json` is the spoken script. Every scene id must have a
-line in every locale the film declares.
+- `voices.<locale>` is a ref (`library:voice.prompt-zh`).
+- `scenes[].still` is a ref (`asset:still.problem`).
+- `scenes[].lines.<locale>` is the spoken sentence. Do not keep a second
+  narration file.
+
+Register nothing by hand. `weaver sync` writes Remotion
+`src/generated/catalog.json` and `public/projects/<id>` links.
 
 ## After adding
 
 ```bash
-make typecheck
-make test
-make studio
+make weaver ARGS='validate <id>'
+make remotion
 ```
 
-Confirm the new `<id>-zh` and `<id>-en` compositions. Capture and render
-only after the lab page (if any) can be driven headlessly.
-
-Voice wavs under `public/voice/` and stills under `public/stills/` are
-fixtures. Do not commit Remotion `out/` intermediates.
+Capture (LightUI lab only) still lives in
+`products/study-films/scripts/capture.mjs`.

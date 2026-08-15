@@ -1,9 +1,8 @@
 # Makefile
-.PHONY: help install studio typecheck test films films-capture films-tts films-render clean
+.PHONY: help install studio remotion typecheck test weaver films films-capture films-tts films-render sync clean
 
 .DEFAULT_GOAL := help
 
-FILMS_DIR := products/study-films
 LIGHTUI_ROOT ?= $(abspath ../LightUI)
 LAB_URL ?= http://127.0.0.1:5173
 
@@ -16,31 +15,44 @@ help: ## 显示帮助信息
 	@echo "Available commands:"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: ## 安装 study-films 依赖
-	npm install --prefix $(FILMS_DIR)
+install: ## 安装全部 workspace 依赖并同步 Remotion 目录
+	npm install
+	npm run weaver -- sync
 
-studio: ## 预览 Remotion compositions
-	npm run studio --prefix $(FILMS_DIR)
+studio: ## 启动 Studio WebUI（127.0.0.1:5175）
+	npm run weaver -- sync
+	npm run dev -w @lightweaver/studio
+
+remotion: ## Remotion 预览 compositions
+	npm run studio -w @lightweaver/study-films
+
+weaver: ## 运行 weaver CLI（例：make weaver ARGS='project list --json'）
+	npm run weaver -- $(ARGS)
 
 typecheck: ## 类型检查
-	npm run typecheck --prefix $(FILMS_DIR)
+	npm run typecheck
 
-test: ## 运行产品单测
-	npm test --prefix $(FILMS_DIR)
+test: ## 运行 weaver / studio / study-films 单测
+	npm test
 
-films-capture: ## 从运行中的 LightUI lab 截取 stills
-	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run capture --prefix $(FILMS_DIR)
+sync: ## 刷新 Remotion public/projects 与 catalog
+	npm run weaver -- sync
 
-films-tts: ## 用 VoxCPM2 合成讲解旁白
-	npm run tts --prefix $(FILMS_DIR)
+films-capture: ## 从 LightUI lab 截取 stills
+	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run capture -w @lightweaver/study-films
 
-films-render: ## Remotion 渲染并写回 LightUI studies/*/references
-	LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run render --prefix $(FILMS_DIR)
+films-tts: ## 合成旁白
+	npm run weaver -- tts
 
-films: ## 截图 + 旁白 + 渲染（lab 需在 LAB_URL）
-	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run films --prefix $(FILMS_DIR)
+films-render: ## 渲染并写回 LightUI references
+	LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- render
 
-clean: ## 清理构建缓存与未压缩渲染
-	@rm -rf $(FILMS_DIR)/out $(FILMS_DIR)/.cache
+films: ## 截图 + 旁白 + 渲染
+	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run capture -w @lightweaver/study-films
+	npm run weaver -- tts
+	LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- render
+
+clean: ## 清理构建缓存
+	@rm -rf products/study-films/out products/study-films/.cache products/studio/dist
 	@find . -name '.DS_Store' -delete
 	@echo "Cleaning completed."

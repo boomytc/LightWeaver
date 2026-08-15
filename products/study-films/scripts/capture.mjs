@@ -3,6 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { filmsRoot, labUrl, requireLightuiRoot } from "./paths.mjs";
 
+function projectStill(study, name, locale) {
+  const loc = locale === "en" ? "en" : "zh";
+  return path.join(filmsRoot, "projects", study, "assets", "stills", loc, name);
+}
+
 const LAB = labUrl();
 const DESKTOP = { width: 1440, height: 1100 };
 const MOBILE = { width: 390, height: 844 };
@@ -31,14 +36,10 @@ const UI = {
 };
 
 function dests(study, name, locale) {
-  if (locale === "en") {
-    return [path.join(filmsRoot, "public", "stills", "en", study, name)];
-  }
+  const still = projectStill(study, name, locale);
+  if (locale === "en") return [still];
   const uiRoot = requireLightuiRoot();
-  return [
-    path.join(uiRoot, "studies", study, "references", name),
-    path.join(filmsRoot, "public", "stills", study, name),
-  ];
+  return [path.join(uiRoot, "studies", study, "references", name), still];
 }
 
 function writeAll(paths, buffer) {

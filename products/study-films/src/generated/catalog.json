@@ -1,0 +1,28 @@
+{
+  "compositions": [
+    {
+      "id": "dropdown-taxonomy-zh",
+      "projectId": "dropdown-taxonomy",
+      "locale": "zh",
+      "title": "给下拉起对名字"
+    },
+    {
+      "id": "dropdown-taxonomy-en",
+      "projectId": "dropdown-taxonomy",
+      "locale": "en",
+      "title": "Name the dropdown"
+    },
+    {
+      "id": "intent-cascade-zh",
+      "projectId": "intent-cascade",
+      "locale": "zh",
+      "title": "菜单意图预测"
+    },
+    {
+      "id": "intent-cascade-en",
+      "projectId": "intent-cascade",
+      "locale": "en",
+      "title": "Menu intent"
+    }
+  ]
+}

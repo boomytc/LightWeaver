@@ -1,10 +1,10 @@
 import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
-import type { FilmDef, TimedScene } from "../lib/types";
+import type { ResolvedFilm, TimedScene } from "../lib/types";
 import { theme } from "../lib/theme";
 import { Mark } from "./Mark";
 import { Subtitles } from "./Subtitles";
 
-export function SceneView({ film, scene }: { film: FilmDef; scene: TimedScene }) {
+export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedScene }) {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const fadeIn = interpolate(frame, [0, 10], [0, 1], { extrapolateRight: "clamp" });
@@ -148,9 +148,9 @@ export function SceneView({ film, scene }: { film: FilmDef; scene: TimedScene })
             border: "1px solid rgba(23,24,28,0.08)",
           }}
         >
-          {scene.still ? (
+          {scene.stillSrc ? (
             <Img
-              src={staticFile(`${film.stillDir}/${scene.still}`)}
+              src={staticFile(scene.stillSrc)}
               style={{
                 width: "100%",
                 height: "100%",

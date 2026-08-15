@@ -1,0 +1,141 @@
+{
+  "id": "dropdown-taxonomy",
+  "brand": "LightUI",
+  "publish": {
+    "dir": "studies/dropdown-taxonomy/references"
+  },
+  "capture": {
+    "kind": "lightui-lab",
+    "slug": "dropdown-taxonomy"
+  },
+  "voices": {
+    "zh": "library:voice.prompt-zh",
+    "en": "library:voice.prompt-en"
+  },
+  "locales": {
+    "zh": {
+      "title": "给下拉起对名字",
+      "output": "source-tutorial.mp4",
+      "titleCard": {
+        "kicker": "LightUI  ·  Study",
+        "headline": "给下拉起对名字",
+        "lede": "往下展开只是外观。先定提交模型。",
+        "tags": [
+          "名称",
+          "场景",
+          "规则"
+        ]
+      },
+      "closeCard": {
+        "headline": "说清楚",
+        "lede": "分组选择是分类，级联选择才是上下级。先说名称、场景、面板何时关闭，再谈外观。"
+      }
+    },
+    "en": {
+      "title": "Name the dropdown",
+      "output": "source-tutorial.en.mp4",
+      "titleCard": {
+        "kicker": "LightUI  ·  Study",
+        "headline": "Name the dropdown",
+        "lede": "Opening downward is only the skin. First decide the commit model.",
+        "tags": [
+          "Name",
+          "Scene",
+          "Rules"
+        ]
+      },
+      "closeCard": {
+        "headline": "Say it this way",
+        "lede": "Grouped is filing. Cascader is parent-child. Name the model, the scene, and when the panel closes — then talk about looks."
+      }
+    }
+  },
+  "scenes": [
+    {
+      "id": "title",
+      "kind": "title",
+      "lines": {
+        "zh": "给下拉起对名字。往下展开只是外观，真正要先定的是提交模型。",
+        "en": "Name the dropdown properly. Opening downward is only the skin. First decide the commit model."
+      }
+    },
+    {
+      "id": "select",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "选择，扁平列表里只交一个值，点中即关。",
+        "en": "Select commits one value from a flat list, and closes on pick."
+      },
+      "still": "asset:still.select"
+    },
+    {
+      "id": "multi",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "多选择交的是一个集合。面板保持开着，标签可以单独摘掉。",
+        "en": "Multi-select commits a set. The panel stays open, and chips can be removed one by one."
+      },
+      "still": "asset:still.multi"
+    },
+    {
+      "id": "grouped",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "分组选择仍然只交一个值。分组标题只是分类，不是层级。",
+        "en": "Grouped Select still commits one value. Group titles are filing, not hierarchy."
+      },
+      "still": "asset:still.grouped"
+    },
+    {
+      "id": "cascader",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "级联选择必须走到叶子才提交一条路径。父级只展开，不能当成最终值。",
+        "en": "Cascader must reach a leaf before it commits a path. A parent only expands. It is not the final value."
+      },
+      "still": "asset:still.cascader"
+    },
+    {
+      "id": "split",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "分割按钮的主体立刻执行默认动作，只有箭头才打开低频菜单。",
+        "en": "On a Split Button, the body fires the default action at once. Only the chevron opens the infrequent menu."
+      },
+      "still": "asset:still.split"
+    },
+    {
+      "id": "mega",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "巨型导航不是表单值，是多列导航。点链接，或点其它导航项。",
+        "en": "A Mega Menu is not a form value. It is multi-column navigation. Click a link, or another nav item."
+      },
+      "still": "asset:still.mega"
+    },
+    {
+      "id": "date",
+      "kind": "still",
+      "fit": "contain",
+      "lines": {
+        "zh": "日期选择先入住再离店，过去不可选。两端齐了才是一段，晚数是日历日差。",
+        "en": "A date range is check-in, then check-out. Past days are locked. Only both ends make a span. Nights are calendar days."
+      },
+      "still": "asset:still.date"
+    },
+    {
+      "id": "close",
+      "kind": "close",
+      "lines": {
+        "zh": "最容易混的一对：分组选择是分类，级联选择才是上下级。先说名称、场景和规则，再谈外观。",
+        "en": "The pair people mix up: Grouped is filing. Cascader is parent-child. Name it, name the scene, name the rule, then talk about looks."
+      }
+    }
+  ]
+}
