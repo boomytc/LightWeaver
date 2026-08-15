@@ -15,16 +15,24 @@
 
 ## 怎么用
 
+Agent 主路径：按存放图结合出片。先发现三层路径，再跑 weaver。
+
+```bash
+npx weaver project list --json
+npx weaver project show <id> --json   # paths + renderable
+```
+
+Studio 是复核面（改词、补静帧、看 issue）：
+
 ```bash
 make install
 make studio          # http://127.0.0.1:5175/
 make remotion        # Remotion 预览
 ```
 
-Agent / 脚本入口：
+其它动词：
 
 ```bash
-npx weaver project list --json
 npx weaver task list
 npx weaver validate
 npx weaver scene add --project <id> --id shot --kind still --still asset:still.shot
@@ -41,7 +49,7 @@ weaver/                         稳定核与 CLI
 library/                        共享音色 / 元素 / 参考
 data/projects/                  本地项目
 products/study-films/           Remotion + LightUI 截图
-products/studio/                工作台
+products/studio/                复核面
 ```
 
 Agent 入口：`/lightweaver`、`/lightweaver-film`、`/lightweaver-assets`。

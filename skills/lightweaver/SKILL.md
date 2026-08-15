@@ -18,6 +18,7 @@ Read `AGENTS.md` first.
 | Remotion cards, LightUI capture | `products/study-films/` |
 | Workbench UI | `products/studio/` |
 | How to author a film | **lightweaver-film** |
+| 制作一部讲解片 / 选配方 / 从 study 出片 | **lightweaver-film** |
 | Task type / 第三部片子 / study-explainer | **lightweaver-film** |
 | How to ingest assets | **lightweaver-assets** |
 

@@ -13,6 +13,11 @@ export function libraryRoot(root = weaverRoot()): string {
   return path.join(root, "library");
 }
 
+export function recipeRoot(root = weaverRoot()): string {
+  if (process.env.LIGHTWEAVER_RECIPES) return path.resolve(process.env.LIGHTWEAVER_RECIPES);
+  return path.join(root, "recipes");
+}
+
 export function firstPartyRoot(root = weaverRoot()): string {
   return path.join(root, "products/study-films/projects");
 }

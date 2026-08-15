@@ -3,6 +3,7 @@ import { addAsset, loadLibrary } from "./assets.ts";
 import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
+import { projectPaths } from "./project-paths.ts";
 import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./validate.ts";
 import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
@@ -26,12 +27,13 @@ function print(data: unknown): void {
   console.log(typeof data === "string" && !wantJson ? data : JSON.stringify(data, null, 2));
 }
 
-function envelope(project: ProjectRecord) {
+function envelope(project: ProjectRecord, root = weaverRoot()) {
   return {
     ok: true,
     project: projectSummary(project),
     film: project.film,
-    issues: validateProject(project),
+    issues: validateProject(project, root),
+    paths: projectPaths(project, root),
   };
 }
 
@@ -114,7 +116,13 @@ function main(): void {
     }
     if (sub === "show") {
       const project = requireProject(rest[1] ?? str(values, "project") ?? "");
-      print({ ...projectSummary(project), film: project.film, assets: project.assets });
+      print({
+        ...projectSummary(project),
+        film: project.film,
+        assets: project.assets,
+        paths: projectPaths(project, root),
+        renderable: isRenderable(project, root),
+      });
       return;
     }
     if (sub === "validate") {
@@ -141,7 +149,7 @@ function main(): void {
         },
         root,
       );
-      print(wantJson ? envelope(project) : projectSummary(project));
+      print(wantJson ? envelope(project, root) : projectSummary(project));
       return;
     }
     fail("用法: weaver project list|show|validate|create");
@@ -167,14 +175,14 @@ function main(): void {
         role: roleRaw && isStudyRole(roleRaw) ? roleRaw : undefined,
         after: str(values, "after"),
       });
-      print(envelope(project));
+      print(envelope(project, root));
       return;
     }
     if (sub === "rm") {
       const id = str(values, "id") ?? rest[1];
       if (!id) fail("用法: weaver scene rm --project <id> --id <scene>");
       removeScene(project, id);
-      print(envelope(project));
+      print(envelope(project, root));
       return;
     }
     if (sub === "move") {
@@ -186,7 +194,7 @@ function main(): void {
         before: str(values, "before"),
         index: indexRaw !== undefined ? Number(indexRaw) : undefined,
       });
-      print(envelope(project));
+      print(envelope(project, root));
       return;
     }
     if (sub === "set") {
@@ -202,7 +210,7 @@ function main(): void {
         role: roleRaw && isStudyRole(roleRaw) ? roleRaw : undefined,
         lines: locale && text !== undefined ? { [locale]: text } : undefined,
       });
-      print(envelope(project));
+      print(envelope(project, root));
       return;
     }
     fail("用法: weaver scene list|add|rm|move|set");
@@ -223,7 +231,7 @@ function main(): void {
       kicker: str(values, "kicker"),
       tags: tags ? tags.split(",").map((item) => item.trim()).filter(Boolean) : undefined,
     });
-    print(envelope(project));
+    print(envelope(project, root));
     return;
   }
 
@@ -234,7 +242,7 @@ function main(): void {
     const ref = str(values, "ref");
     if (!locale || !ref) fail("需要 --locale 与 --ref");
     setVoice(project, locale, ref);
-    print(envelope(project));
+    print(envelope(project, root));
     return;
   }
 
