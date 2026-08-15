@@ -52,7 +52,7 @@ Studio「新建」与 CLI `create` 的默认闭环是 **本机渲染到 `assets/
 | 渲染 | `products/study-films/` | 读 `film.json` + wav 时长（无 `timeline.ts`） |
 | 截图 | `scripts/capture.mjs` | 仅 intent / dropdown adapter；manual 片手截 |
 | 发布 | `runPublish` | 有 `publish.dir` 才拷 mp4；`safeJoin` |
-| 片子 | `products/study-films/projects/` | intent / dropdown 可渲；nav / sidebar 形状绿、媒体黄 |
+| 片子 | `products/study-films/projects/` | 四则均可渲；成片发回 LightUI `references/` |
 
 `FilmDoc` 今日形状（`weaver/src/schema.ts`）：
 

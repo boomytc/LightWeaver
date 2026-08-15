@@ -44,6 +44,116 @@
         "en": "assets/stills/en/offcanvas.png"
       },
       "label": "offcanvas"
+    },
+    {
+      "id": "line.title.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "title",
+      "file": "assets/lines/zh/title.wav"
+    },
+    {
+      "id": "line.floating.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "floating",
+      "file": "assets/lines/zh/floating.wav"
+    },
+    {
+      "id": "line.wheel.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "wheel",
+      "file": "assets/lines/zh/wheel.wav"
+    },
+    {
+      "id": "line.multilevel.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "multilevel",
+      "file": "assets/lines/zh/multilevel.wav"
+    },
+    {
+      "id": "line.collapsible.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "collapsible",
+      "file": "assets/lines/zh/collapsible.wav"
+    },
+    {
+      "id": "line.offcanvas.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "offcanvas",
+      "file": "assets/lines/zh/offcanvas.wav"
+    },
+    {
+      "id": "line.close.zh",
+      "kind": "line",
+      "locale": "zh",
+      "scene": "close",
+      "file": "assets/lines/zh/close.wav"
+    },
+    {
+      "id": "line.title.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "title",
+      "file": "assets/lines/en/title.wav"
+    },
+    {
+      "id": "line.floating.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "floating",
+      "file": "assets/lines/en/floating.wav"
+    },
+    {
+      "id": "line.wheel.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "wheel",
+      "file": "assets/lines/en/wheel.wav"
+    },
+    {
+      "id": "line.multilevel.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "multilevel",
+      "file": "assets/lines/en/multilevel.wav"
+    },
+    {
+      "id": "line.collapsible.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "collapsible",
+      "file": "assets/lines/en/collapsible.wav"
+    },
+    {
+      "id": "line.offcanvas.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "offcanvas",
+      "file": "assets/lines/en/offcanvas.wav"
+    },
+    {
+      "id": "line.close.en",
+      "kind": "line",
+      "locale": "en",
+      "scene": "close",
+      "file": "assets/lines/en/close.wav"
+    },
+    {
+      "id": "output.zh",
+      "kind": "output",
+      "locale": "zh",
+      "file": "assets/outputs/source-tutorial.mp4"
+    },
+    {
+      "id": "output.en",
+      "kind": "output",
+      "locale": "en",
+      "file": "assets/outputs/source-tutorial.en.mp4"
     }
   ]
 }

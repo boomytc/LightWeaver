@@ -15,7 +15,7 @@
 
 ## Overview
 
-LightWeaver 已经具备可跑的 study-explainer 闭环：`FilmDoc.task`、`weaver/src/tasks/`、场景 CRUD CLI / HTTP、`isRenderable`、Studio `StudyExplainerPane`、Remotion `StudyFilm`、四则 first-party 片子（intent / dropdown 可渲；nav / sidebar 形状绿、媒体黄）。对象其实已经分家——教学意图在 LightUI `studies/<slug>/idea.md`，共享音色在 `library/`，静帧与旁白 wav 在项目 `assets/`，成片应进 `assets/outputs/`（gitignore），发布拷贝才到 LightUI `references/`。但没有任何一张图把这三层钉死。Agent 只能在仓里乱走，或缩进 Studio CRUD；需要出片时不知道该读哪、写哪、复用哪、何时才该 `tts` / `render`。
+LightWeaver 已经具备可跑的 study-explainer 闭环：`FilmDoc.task`、`weaver/src/tasks/`、场景 CRUD CLI / HTTP、`isRenderable`、Studio `StudyExplainerPane`、Remotion `StudyFilm`、四则 first-party 片子（intent / dropdown / nav / sidebar 均可渲）。对象其实已经分家——教学意图在 LightUI `studies/<slug>/idea.md`，共享音色在 `library/`，静帧与旁白 wav 在项目 `assets/`，成片应进 `assets/outputs/`（gitignore），发布拷贝才到 LightUI `references/`。但没有任何一张图把这三层钉死。Agent 只能在仓里乱走，或缩进 Studio CRUD；需要出片时不知道该读哪、写哪、复用哪、何时才该 `tts` / `render`。
 
 本文把 LightWeaver 定成 **agent-driven 场景编排器，产品面首先是一张固定的存放地图**。Agent 读 **理念**，绑定 **资产**，在需要时经确定性 weaver job 写 **产物**。Recipe 是「怎么结合」的方法资产，不是产品本身。Remotion 渲染。Studio 检视。第一任务仍是 `study-explainer`；日后 `drama-plot` 换一套理念源 + recipe pack，仍走同一张三层图，不是成片自动剪。
 
@@ -62,7 +62,7 @@ CineWeaver Desktop 实际做的是短剧复刻自动剪（`backend/services/dram
 | Studio | `products/studio/` | 复核面。CRUD 仍在；成片走 `/api/media`；详情带 `paths` |
 | Remotion | `products/study-films/src/Root.tsx` + `compositions/StudyFilm.tsx` | **一部任务一个 composition**；片长读 wav，无 `timeline.ts` |
 | Skills | `skills/lightweaver*` | 路由器 + 生产 skill（存放图 / 模式 / 结合规则）+ assets |
-| 片子 | `products/study-films/projects/` | intent / dropdown 可渲；nav / sidebar 形状绿、无 png，`isRenderable === false`。未绑场的多余 still 已删 |
+| 片子 | `products/study-films/projects/` | 四则均可渲（intent / dropdown / nav / sidebar）；成片已发回 LightUI `references/` |
 
 当时痛点（无存放图、skill 只是动词表、Studio 当主入口）已由本文 PR1–PR5 关闭。仍开放的只有 Q-media = M2：nav / sidebar 手截出片不在本仓实现范围。
 
@@ -74,7 +74,7 @@ CineWeaver Desktop 实际做的是短剧复刻自动剪（`backend/services/dram
 | --- | --- | --- |
 | `intent-cascade` | title → problem → diagonal → vertical → third → close | png + wav，可渲；output = `cursor-movement.mp4` |
 | `dropdown-taxonomy` | title + 7 kind + close | 同上；`source-tutorial.mp4` |
-| `nav-taxonomy` | title + 9 kind + close | 形状绿；无 png |
+| `nav-taxonomy` | title + 9 kind + close | png + wav，可渲；`source-tutorial.mp4` |
 | `sidebar-taxonomy` | title + 5 kind + close | 同上 |
 
 `idea.md` 的三问（缺了什么会坏、规则是什么、朴素替代为什么更差）和「名称 / 场景 / 规则」是 **理念**，住在 LightUI study 里。Agent 写旁白前必须按路径去读。**不要**把 `idea.md` 拷进 LightWeaver 片子目录。`film.study.slug` 已经是指针。

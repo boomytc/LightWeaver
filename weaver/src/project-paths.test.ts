@@ -81,14 +81,14 @@ describe("projectPaths", () => {
     assert.notEqual(rel("select"), "assets/stills/zh/select.png");
   });
 
-  it("reports missing nav stills without guessing output names", () => {
+  it("uses nav kind still names from the catalog", () => {
     const project = loadProject("nav-taxonomy");
     const paths = projectPaths(project);
     assert.equal(paths.brief.kind, "study");
     const pngs = paths.stillFiles.filter((file) => file.rel.endsWith(".png"));
     assert.ok(pngs.length >= 18);
-    assert.ok(pngs.every((file) => file.exists === false));
-    assert.equal(isRenderable(project), false);
+    assert.ok(pngs.every((file) => file.exists === true));
+    assert.equal(isRenderable(project), true);
     const floating = paths.stillFiles.find((file) => file.sceneId === "floating" && file.locale === "zh");
     assert.equal(floating?.rel, "assets/stills/zh/floating.png");
     assert.equal(paths.outputFiles.zh.rel, "assets/outputs/source-tutorial.mp4");
@@ -159,7 +159,7 @@ describe("project show CLI", () => {
     const shown = showJson("nav-taxonomy");
     assert.equal(shown.id, "nav-taxonomy");
     assert.equal(shown.task, "study-explainer");
-    assert.equal(shown.renderable, false);
+    assert.equal(shown.renderable, true);
     assert.ok(Array.isArray(shown.paths.stillFiles));
     assert.ok(shown.film);
     assert.ok(Array.isArray(shown.assets));

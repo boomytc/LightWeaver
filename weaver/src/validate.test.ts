@@ -27,11 +27,14 @@ describe("first-party films", () => {
     }
   });
 
-  it("nav/sidebar scaffolds have no errors but are not renderable", () => {
+  it("nav/sidebar first-party films have no errors and are renderable", () => {
     for (const id of ["nav-taxonomy", "sidebar-taxonomy"]) {
       const project = loadProject(id);
-      assert.equal(hasErrors(validateProject(project)), false, id);
-      assert.equal(isRenderable(project), false, id);
+      const issues = validateProject(project);
+      assert.equal(hasErrors(issues), false, id);
+      assert.equal(isRenderable(project), true, id);
+      const jargon = issues.filter((issue) => issue.message.includes("忌术语"));
+      assert.equal(jargon.length, 0, `${id}: ${JSON.stringify(jargon)}`);
     }
   });
 
