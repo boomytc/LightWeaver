@@ -5,7 +5,7 @@
 | 文档标题 | LightWeaver 产品形态设计：存放契约 + Agent 按图出片 |
 | 作者 | LightWeaver maintainers |
 | 日期 | 2026-08-15 |
-| 状态 | Draft |
+| 状态 | Landed（PR1–PR5 已合；PR6 / Q-media = M2 不做） |
 | 范围 | LightWeaver 工作区产品形状；坐在已落地的 study-explainer CRUD 之上 |
 | 不实现 | MCP、Vercel、drama-plot 运行时、Remotion 逐片 codegen、CineWeaver 自动剪、NarratoAI 式 LLM 进核、空 recipe stub、DAM、LightTTS 训练面 |
 
@@ -49,26 +49,22 @@ video-shotcraft 的产品形状值得对齐的部分：
 
 CineWeaver Desktop 实际做的是短剧复刻自动剪（`backend/services/drama_clone/pipeline.py` → `cutter.py` + OpenCV `visual_align.py`）；Streamlit 是另一条解说剪辑 WebUI。两者都吃**已有素材**。其 skill 里只有 `skills/cineweaver-workspace` 是工作区路由器；`cineweaver-product-backend` / `cineweaver-streamlit-ui` / `sync-third-party` 是产品编码指南，不是制作方法论。LightWeaver 现网三个 skill 同样偏路由 + 动词，缺存放图。`AGENTS.md` 写死：不把成片自动剪折进本仓。
 
-### 现网（study-explainer 落地之后）
+### 现网（存放契约已落地）
 
 | 层 | 路径 | 现状 |
 | --- | --- | --- |
-| 核 | `weaver/src/schema.ts` `FilmDoc.task` | `TASK_IDS = ["study-explainer"]`；`role`；`study.slug` |
+| 核 | `weaver/src/schema.ts` `FilmDoc.task` | `TASK_IDS = ["study-explainer"]`；`role`；`study.slug`。无 `SCENE_KINDS` 兼容别名 |
 | 任务 | `weaver/src/tasks/{types,registry,study-explainer}.ts` | `createFilm` 种子 title+`hero`+close；校验 title/close 钉住 |
-| CLI | `weaver/src/cli.ts` | `task` / `project` / `scene` / `card` / `voice` / `asset` / `validate` / `capture` / `tts` / `render` / `publish` / `sync`；`--json` 信封 |
-| 校验 | `weaver/src/validate.ts` | 形状 error / 媒体 warning；`isRenderable`；`isCompletedFilm` |
-| Studio | `products/studio/src/App.tsx` + `tasks/study-explainer.tsx` | CRUD 已齐；预览是静帧 `<img>`；无成片回放；产品文案仍是工作台 |
-| Remotion | `products/study-films/src/Root.tsx` + `compositions/StudyFilm.tsx` | **一部任务一个 composition 家族**；`weaver sync` 写 catalog |
-| Skills | `skills/lightweaver*` | 路由 + 动词。`lightweaver-film` 第 8–38 行就是命令表 |
-| 片子 | `products/study-films/projects/` | intent / dropdown 可渲；nav 11 场、sidebar 7 场，旁白已写，**无 png**，`isRenderable === false`（`validate.test.ts` 已锁） |
+| 发现 | `weaver/src/project-paths.ts` | `project show --json` 同级 `paths` + `renderable`。静帧 `rel` 来自 `assets.json` |
+| 方法 | `weaver/src/recipes.ts` + `recipes/study-explainer/` | 6 张真卡；`recipe list\|show\|apply`。apply 只铺 still、同 id 进 `skipped` |
+| CLI | `weaver/src/cli.ts` | 上列动词 + `recipe`；写操作信封带 `paths` |
+| 校验 | `weaver/src/validate.ts` | 形状 error / 媒体 warning；`isRenderable` 只看 still 场的 png |
+| Studio | `products/studio/` | 复核面。CRUD 仍在；成片走 `/api/media`；详情带 `paths` |
+| Remotion | `products/study-films/src/Root.tsx` + `compositions/StudyFilm.tsx` | **一部任务一个 composition**；片长读 wav，无 `timeline.ts` |
+| Skills | `skills/lightweaver*` | 路由器 + 生产 skill（存放图 / 模式 / 结合规则）+ assets |
+| 片子 | `products/study-films/projects/` | intent / dropdown 可渲；nav / sidebar 形状绿、无 png，`isRenderable === false`。未绑场的多余 still 已删 |
 
-痛点不再是「第三部片子必须手改 JSON」——nav / sidebar 的 `film.json` 已经在仓里。痛点是：
-
-1. **没有存放契约。** 理念（`idea.md`）、资产（`library/` + 项目 `assets/`）、产物（wav / mp4 / 发布拷贝）已经分家，但 agent 没有一张图。会把 png 写进 LightUI `references/`、把 `idea.md` 复制进片子目录、把 mp4 提交进 git、或在 Studio 里当唯一真相。
-2. **产品入口仍是 Studio。** README 第一句用法是 `make studio`。Agent 入口是三个 slash command，没有「按路径结合出片」。
-3. **Skill 不会教「读哪、写哪、何时生成」。** 没有模式、没有何时停、没有 QA 清单、没有「对照表阅兵 vs 问题-规则」的选卡。
-4. **叙事词汇只活在四份 `film.json` 里。** Agent 要做第五则 study，只能抄 JSON 或发明结构。Recipe 应作为方法资产可发现，而不是埋在 skill 附件里。
-5. **LLM 归属未写死。** 有人会想「Studio 里加一键写旁白」或「把 NarratoAI `script_service` 搬进 weaver」。
+当时痛点（无存放图、skill 只是动词表、Studio 当主入口）已由本文 PR1–PR5 关闭。仍开放的只有 Q-media = M2：nav / sidebar 手截出片不在本仓实现范围。
 
 ### 第一顾客没有变
 
@@ -283,7 +279,7 @@ lineFiles.find((f) => f.locale === locale && f.sceneId === id)
 | 理念 · 成片文件名 | publish name | `…/studies/<slug>/references/SOURCE.md` | LightUI | Agent；`studyExplainer.validate` 若文件在则 warning 未点名 | LightUI | 文件系统（正文须含 `locales.*.output`） |
 | 理念 · 用户片 brief | project brief | `data/projects/<id>/brief.md`、可选 `brief.en.md` | Agent | Agent。weaver 不读 | `data/projects/` 整树 gitignore（`.gitignore`） | 文件系统 |
 | 编排合同 | FilmDoc | first-party：`products/study-films/projects/<id>/film.json`；user：`data/projects/<id>/film.json`（`firstPartyRoot` / `userRoot`） | Agent via CLI / Studio PATCH | weaver、Remotion `Root.tsx`、Studio | first-party 提交；user 不提交 | 无 ref；`film.id ===` 目录名 |
-| 方法资产 | recipe | `recipes/study-explainer/<id>.md` + `index.md`（**PR2 才提交**） | 维护者 | Agent。**PR1** 对照 first-party `film.json`。**PR2** `weaver recipe list\|show`。**PR3** `apply` | 提交（PR2） | 文件系统；`recipeRoot() = join(weaverRoot(), "recipes")` |
+| 方法资产 | recipe | `recipes/study-explainer/<id>.md` + `index.md` | 维护者 | Agent：`weaver recipe list\|show\|apply` | 已提交 | 文件系统；`recipeRoot() = join(weaverRoot(), "recipes")` |
 | 共享资产登记 | library catalog | `library/assets.json` | `weaver asset add --library` | `findAsset` / `loadLibrary` | 提交 | `library:<id>` |
 | 共享音色 | voice | `library/voices/prompt-{zh,en}.wav` + `.txt` | 人 / assets skill | `runTts` | 提交 | `library:voice.prompt-zh` |
 | 共享元素 | element | `library/elements/mark.svg` | 人 | Remotion `Mark.tsx` | 提交 | `library:element.mark` |
@@ -1200,12 +1196,12 @@ D13 三条已拍板，不重复。**Q-recipe-root 已在 P5 关闭：** `recipes
 ## References
 
 - LightWeaver：`AGENTS.md`、`README.md`、`docs/conventions.md`、`docs/design-study-explainer.md`、`weaver/src/paths.ts`、`library/assets.json`
-- 核：`weaver/src/{schema,project,assets,validate,scenes,cli,render,sync,capture,tts,index}.ts`、`weaver/src/tasks/{types,registry,study-explainer}.ts`；落地后 `weaver/src/project-paths.ts`
+- 核：`weaver/src/{schema,project,project-paths,recipes,assets,validate,scenes,cli,render,sync,capture,tts,index}.ts`、`weaver/src/tasks/{types,registry,study-explainer}.ts`
 - Studio：`products/studio/src/{App.tsx,api.ts,types.ts,tasks/study-explainer.tsx}`、`products/studio/server/{index.ts,jobs.ts}`、`AGENTS.md`
 - Remotion：`products/study-films/src/Root.tsx`、`compositions/StudyFilm.tsx`、`scripts/capture.mjs`、`AGENTS.md`
 - 片子：`products/study-films/projects/{intent-cascade,dropdown-taxonomy,nav-taxonomy,sidebar-taxonomy}/film.json`
-- Skills（现网动词表，将改为教存放图）：`skills/lightweaver/SKILL.md`、`skills/lightweaver-film/SKILL.md`、`skills/lightweaver-assets/SKILL.md`
-- 方法资产（本文落地）：`recipes/study-explainer/`
+- Skills（存放图 + 结合规则）：`skills/lightweaver/SKILL.md`、`skills/lightweaver-film/SKILL.md` + `references/{pipeline,modes,qa}.md`、`skills/lightweaver-assets/SKILL.md`
+- 方法资产：`recipes/study-explainer/`
 - LightUI 顾客（只读，不在本仓改公开页）：`studies/{intent-cascade,dropdown-taxonomy,nav-taxonomy,sidebar-taxonomy}/{idea.md,idea.en.md,study.json,references/SOURCE.md}`；taxonomy 另有 `src/lib/kinds.ts`（intent-cascade 无）
 - NarratoAI 活路径：`webui/tools/generate_script_docu.py`、`app/services/generate_narration_script.py`、`app/services/task.py` `start_subclip`；`script_service.ScriptGenerator` 同族但非当前 Streamlit 入口
 - Remotion Agent Skills：https://www.remotion.dev/docs/ai/skills  
@@ -1218,7 +1214,9 @@ D13 三条已拍板，不重复。**Q-recipe-root 已在 P5 关闭：** `recipes
 
 ## PR Plan
 
-每条可独立评审、可单独合。不重做 `docs/design-study-explainer.md` 里已落地的 CRUD。不包含 nav/sidebar 媒体劳动（Q-media 已拍板 M2）。不包含空 recipe、MCP、drama-plot、Player。
+**PR1–PR5 已合入。** 下文留作当时切片记录，不要再当待办。PR6 仍按 M2 默认不做。
+
+每条当时可独立评审。不重做 `docs/design-study-explainer.md` 里已落地的 CRUD。不包含 nav/sidebar 媒体劳动。不包含空 recipe、MCP、drama-plot、Player。
 
 ### PR1 — `projectPaths` + skill 约定表（发现先于/同于文档）
 

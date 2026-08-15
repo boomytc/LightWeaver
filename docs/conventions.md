@@ -48,7 +48,8 @@ User：`data/projects/<id>/`。
 
 ```bash
 npx weaver project create my-film --title "演示"
-npx weaver scene add --project my-film --id shot --kind still --still asset:still.shot
+npx weaver recipe apply --project my-film --recipe taxonomy-parade --kinds shot
+# 或 scene add --project my-film --id shot --kind still --still asset:still.shot
 # 按 assets.json 的 files.<locale> 写入（新片约定 shot.png；不要从 id 猜）
 npx weaver validate my-film
 npx weaver tts --project my-film

@@ -5,7 +5,7 @@
 | 文档标题 | LightWeaver 任务场景设计：教学讲解片优先 |
 | 作者 | LightWeaver maintainers |
 | 日期 | 2026-08-15 |
-| 状态 | Draft |
+| 状态 | Landed（任务核已合；产品形状见 `design-placement-contract.md`） |
 | 范围 | LightWeaver 工作区；第一顾客为 LightUI `studies/` |
 | 不实现 | `drama-plot` 运行时、MCP、Remotion Player、clip/overlay、通用 DAM、Vercel |
 
@@ -29,7 +29,7 @@
 
 ## Overview
 
-LightWeaver 已经从 LightUI 抽出稳定核（`weaver/`）、两部 first-party 片子、Studio 工作台和 Remotion 渲染器，但产品形态仍像「一份隐式的讲解片 JSON 编辑器」：项目没有任务类型，Studio 只能改旁白，第三部片子必须手改 `film.json`。这会把后续短剧剧情编排挤进同一套 `title | still | close` 时间线，最终滑向通用 NLE 或误并入 CineWeaver 成片剪辑。
+任务核已经落地：`FilmDoc.task`、`TaskModule`、场景 CRUD、`isRenderable`、四则 first-party 片子。产品形状（存放图 + agent 按图出片）见 [`design-placement-contract.md`](./design-placement-contract.md)。本文记录当时为什么要把任务类型做成一等对象：否则讲解片会和短剧剧情挤进同一套 `title | still | close`，滑向通用 NLE 或误并入 CineWeaver 成片剪辑。
 
 本文把 **任务场景（task）** 做成项目的一等类型。当前只实现 `study-explainer`：面向 LightUI study 的双语教学讲解片——问题 → 规则 → 对照朴素做法 → 收束「说清楚」，静帧来自本机 lab，成片发布回 `studies/<slug>/references/`。Studio 与 CLI 提供同一组场景 CRUD / 绑静帧 / 改卡片 / 选音色 / 校验 / TTS / 渲染 / 发布，人与 agent 走同一 `--json` 面。`nav-taxonomy` 与 `sidebar-taxonomy` 先靠「手传 / 本机截屏 + 同一讲解模板」出片，不为两部未拍片上插件框架。`drama-plot` 只留注册点，不写空实现。
 
@@ -39,20 +39,20 @@ Studio「新建」与 CLI `create` 的默认闭环是 **本机渲染到 `assets/
 
 ## Background & Motivation
 
-### 当前实现（已抽出、可跑）
+### 当前实现（任务核已落地）
 
 | 层 | 路径 | 现状 |
 | --- | --- | --- |
-| 核 | `weaver/src/schema.ts` | `FilmDoc` 无任务类型；`SCENE_KINDS = title \| still \| close` 写死在全局 |
-| 项目 | `weaver/src/project.ts` `createProject` | 用户片落到 `data/projects/`；种子已是 title+close、「说清楚」，但未声明自己是哪种任务 |
-| 校验 | `weaver/src/validate.ts` | 旁白空 = error；`still` 无引用 = error；png 缺失 = warning；音色缺 = warning |
-| CLI | `weaver/src/cli.ts` | `project list\|show\|validate\|create`、`asset list\|add`、`validate`、`sync`、`tts`、`render`。没有 scene 动词。无 id 的 `tts`/`render` 遍历 `listProjects()` |
-| Studio | `products/studio/src/App.tsx` | 能改一行旁白、上传资产、跑 job；**不能**增删改序场景、绑 still、改 title/close 卡、选音色、单独发布。渲染按钮仅 `disabled={!detail \|\| busy}` |
-| API | `products/studio/server/index.ts` | `PUT /film` 整文件覆盖；无 scene 粒度 PATCH。job 只允许 `tts` \| `render` |
-| 渲染 | `products/study-films/src/Root.tsx` + `StudyFilm.tsx` | 读 `film.json` + wav 时长；composition 由 `weaver sync` 生成 |
-| 截图 | `products/study-films/scripts/capture.mjs`（289 行） | Playwright **写死** `captureIntent` + `captureDropdown`，一次跑两部；没有 `--project`。`package.json` 的 `capture` / `films` 同样无项目 id |
-| 发布 | `weaver/src/render.ts` `runRender` | 有 `film.publish.dir` 就 `path.join(uiRoot, dir, output)` 拷到 LightUI（**无** `safeJoin`）；无 `publish` 则跳过、不报错 |
-| 片子 | `products/study-films/projects/{intent-cascade,dropdown-taxonomy}/` | 完整 film + stills + wav，校验通过。`assets/outputs/` 今日不存在、未提交 |
+| 核 | `weaver/src/schema.ts` | `FilmDoc.task`；`STUDY_SCENE_KINDS` 仅 study-explainer。无 `SCENE_KINDS` 兼容别名 |
+| 任务 | `weaver/src/tasks/` | 只实现 `study-explainer`；种子 title+`hero`+close |
+| 项目 | `weaver/src/project.ts` | first-party / user 分根；`createProject` 走 `createFilm` |
+| 校验 | `weaver/src/validate.ts` | 形状 error / 媒体 warning；`isRenderable` 只检查 still 场 png |
+| CLI | `weaver/src/cli.ts` | scene / card / voice / recipe / validate / tts / render / publish |
+| Studio | `products/studio/` | 复核面；CRUD + `/api/media` 播成片；详情带 `paths` |
+| 渲染 | `products/study-films/` | 读 `film.json` + wav 时长（无 `timeline.ts`） |
+| 截图 | `scripts/capture.mjs` | 仅 intent / dropdown adapter；manual 片手截 |
+| 发布 | `runPublish` | 有 `publish.dir` 才拷 mp4；`safeJoin` |
+| 片子 | `products/study-films/projects/` | intent / dropdown 可渲；nav / sidebar 形状绿、媒体黄 |
 
 `FilmDoc` 今日形状（`weaver/src/schema.ts`）：
 
@@ -460,7 +460,7 @@ flowchart LR
 | `nav-taxonomy` | title + 9 kind（floating, sidebar, breadcrumb, dropdown, mega, drawer, overlay, scrollspy, shrink）+ close | 住在哪 / 怎么开 / 滚什么；close 点破三对易混 |
 | `sidebar-taxonomy` | title + 5 kind（floating, wheel, multilevel, collapsible, offcanvas）+ close | 占位 / 变宽 / 盖上来；close 点破两对易混 |
 
-片长量级（按现网 `timeline.ts`：中文 ≈ 4.2 字/秒，英文 ≈ 14 字/秒，+0.55s，最少 60 帧，wav 优先）：
+片长量级（Remotion 读旁白 wav 时长；无 wav 时 composition 不估字速。下列是口播量级，不是运行时公式）：
 
 - intent：6 场 × ~8–12s ≈ **50–70s** / locale
 - dropdown：9 场 ≈ **70–100s**
@@ -636,9 +636,7 @@ const ADAPTERS = {
 
 ### Agent skills
 
-- **PR2：** `skills/lightweaver-film/SKILL.md` 换成 scene / card / voice / create 旗标动词表；删「Edit film.json only」。
-- **PR7：** 同一文件补叙事闭环（手截配方、无 adapter 时不要等 capture、user 片只本地渲染）。
-- `skills/lightweaver` 路由表加「任务类型 / 第三部片子」→ film skill。
+生产 skill 已是存放图 + 结合规则 + `recipe list\|show\|apply`，不是「Edit film.json only」。路由器把「制作一部讲解片」指到 `lightweaver-film`。细节以 `skills/lightweaver-film/SKILL.md` 与 `references/` 为准。
 
 ---
 
@@ -652,10 +650,6 @@ export type TaskId = (typeof TASK_IDS)[number];
 
 export const STUDY_SCENE_KINDS = ["title", "still", "close"] as const;
 export type StudySceneKind = (typeof STUDY_SCENE_KINDS)[number];
-
-/** 兼容旧 import；不再表示「所有任务的 kind」 */
-export const SCENE_KINDS = STUDY_SCENE_KINDS;
-export type SceneKind = StudySceneKind;
 
 export const STUDY_ROLES = ["problem", "rule", "contrast"] as const;
 export type StudyRole = (typeof STUDY_ROLES)[number];
@@ -689,7 +683,7 @@ export type FilmDoc = {
 };
 ```
 
-`isSceneKind` 改为 `taskAllowsKind(task, kind)`（未知 task 时仍用 `STUDY_SCENE_KINDS` 做尽力检查，不 throw）。
+场景 kind 由 `taskAllowsKind(task, kind)` 校验（未知 task 时仍用 `STUDY_SCENE_KINDS` 做尽力检查，不 throw）。没有 `SCENE_KINDS` / `isSceneKind` 兼容别名。
 
 `projectSummary` 增加 `task`、`studySlug?`（硬编码，非 TaskModule hook）。
 
@@ -946,7 +940,7 @@ products/study-films/projects/sidebar-taxonomy/...
 ## References
 
 - LightWeaver：`AGENTS.md`、`README.md`、`docs/conventions.md`、`docs/design-placement-contract.md`（产品形状；不要与本文合并）、`.gitignore`
-- 核：`weaver/src/schema.ts`、`project.ts`、`assets.ts`、`validate.ts`、`cli.ts`、`tts.ts`、`render.ts`、`sync.ts`、`timeline.ts`、`paths.ts`
+- 核：`weaver/src/schema.ts`、`project.ts`、`project-paths.ts`、`recipes.ts`、`assets.ts`、`validate.ts`、`cli.ts`、`tts.ts`、`render.ts`、`sync.ts`、`paths.ts`
 - Studio：`products/studio/src/App.tsx`、`api.ts`、`types.ts`、`server/index.ts`、`server/jobs.ts`、`AGENTS.md`
 - 渲染 / 截图：`products/study-films/src/Root.tsx`、`compositions/StudyFilm.tsx`、`scripts/capture.mjs`（289 行）、`package.json` `capture`/`films`、`AGENTS.md`
 - 已拍：`products/study-films/projects/intent-cascade/film.json`、`dropdown-taxonomy/film.json`
@@ -959,7 +953,9 @@ products/study-films/projects/sidebar-taxonomy/...
 
 ## PR Plan
 
-每条可独立评审。Studio 大改不与 schema 同 PR。
+**本文切片已合入。** 下文留作当时记录，不要再当待办。产品形状切片见 `design-placement-contract.md`（亦已合，除 M2）。
+
+每条当时可独立评审。Studio 大改不与 schema 同 PR。
 
 ### PR1 — `task` 字段、TaskModule、旧片打戳与 role
 
