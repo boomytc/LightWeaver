@@ -12,4 +12,16 @@ describe("safeJoin", () => {
   it("rejects parent escape", () => {
     assert.throws(() => safeJoin("/tmp/lib", "../secret"));
   });
+
+  it("allows gitignored output rel under project root", () => {
+    const root = "/tmp/proj";
+    assert.equal(
+      safeJoin(root, "assets/outputs/cursor-movement.mp4"),
+      path.resolve(root, "assets/outputs/cursor-movement.mp4"),
+    );
+  });
+
+  it("rejects escaping through assets/outputs", () => {
+    assert.throws(() => safeJoin("/tmp/proj", "assets/outputs/../../../etc/passwd"));
+  });
 });

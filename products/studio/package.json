@@ -11,7 +11,7 @@
     "preview": "vite preview --host 127.0.0.1 --port 4175",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
-    "test": "tsx --test server/paths.test.ts"
+    "test": "tsx --test server/paths.test.ts src/preview.test.ts"
   },
   "dependencies": {
     "@lightweaver/weaver": "*",

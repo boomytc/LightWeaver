@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, libraryMedia, projectMedia } from "./api";
 import { IconFilm, IconImage, IconMark, IconWave } from "./icons";
-import { stillPreviewSrc, StudyExplainerPane } from "./tasks/study-explainer";
+import { missingStillSceneIds, outputPreview, stillPreviewSrc, StudyExplainerPane } from "./tasks/study-explainer";
 import type { Asset, Job, ProjectDetail, ProjectSummary } from "./types";
 
 type Pane = "scenes" | "assets";
@@ -47,13 +47,24 @@ export function App() {
   useEffect(() => {
     if (!job || job.status !== "running") return;
     const timer = window.setInterval(() => {
-      api.job(job.id).then(setJob).catch((err: Error) => setError(err.message));
+      api
+        .job(job.id)
+        .then((next) => {
+          setJob(next);
+          if (next.status === "ok" && detail) void loadDetail(detail.id);
+        })
+        .catch((err: Error) => setError(err.message));
     }, 1200);
     return () => window.clearInterval(timer);
-  }, [job]);
+  }, [job, detail, loadDetail]);
 
   const scene = detail?.film.scenes.find((item) => item.id === sceneId);
+  const output = useMemo(() => (detail ? outputPreview(detail, locale) : undefined), [detail, locale]);
   const preview = useMemo(() => (detail ? stillPreviewSrc(detail, scene, locale) : undefined), [detail, scene, locale]);
+  const missingStills = useMemo(
+    () => (detail ? missingStillSceneIds(detail, locale) : []),
+    [detail, locale],
+  );
   const voices = library.filter((asset) => asset.kind === "voice");
   const task = detail?.film.task ?? "study-explainer";
   const canPublish = Boolean(detail?.film.publish?.dir);
@@ -140,6 +151,9 @@ export function App() {
             <IconMark />
           </span>
           LightWeaver
+          <span className="item-meta" style={{ marginLeft: 12, fontWeight: 400 }}>
+            片子由 agent 经 weaver 写；这里复核、改词、补静帧。
+          </span>
         </div>
         <div className="spacer" />
         {detail ? (
@@ -207,7 +221,8 @@ export function App() {
             ))}
           </div>
           <div className="create">
-            <h2 className="h">新建项目</h2>
+            <h2 className="h">新建（本机收尾）</h2>
+            <p className="item-meta">片子由 agent 经 weaver 写；这里复核、改词、补静帧。</p>
             <input aria-label="项目 id" placeholder="kebab-id" value={newId} onChange={(e) => setNewId(e.target.value)} />
             <input aria-label="标题" placeholder="标题（可选）" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
             <button type="button" className="btn" onClick={() => void create()} disabled={!newId.trim()}>
@@ -250,6 +265,13 @@ export function App() {
             <p>此任务尚未实现编辑器（{task}）</p>
           )}
 
+          {detail ? (
+            <p className="item-meta">
+              {detail.renderable ? "可渲" : "不可渲"}
+              {missingStills.length ? ` · 缺 png：${missingStills.join(", ")}` : ""}
+            </p>
+          ) : null}
+
           {detail?.issues.length ? (
             <section>
               <h2 className="h">校验</h2>
@@ -273,8 +295,20 @@ export function App() {
         <aside className="pane preview">
           <h2 className="h">预览</h2>
           <div className="preview-frame">
-            {preview ? <img src={preview} alt={scene?.id ?? "静帧"} /> : <span>{scene?.kind === "still" ? "没有静帧" : "片头 / 片尾无静帧"}</span>}
+            {output ? (
+              <video controls playsInline preload="metadata" src={output.src} />
+            ) : preview ? (
+              <img src={preview} alt={scene?.id ?? "静帧"} />
+            ) : (
+              <span>{scene?.kind === "still" ? "没有静帧" : "片头 / 片尾无静帧"}</span>
+            )}
           </div>
+          {output ? (
+            <label className="field" style={{ marginTop: 12 }}>
+              <span>成片路径</span>
+              <input readOnly value={output.path} onFocus={(event) => event.currentTarget.select()} />
+            </label>
+          ) : null}
           {scene ? (
             <p className="item-meta" style={{ marginTop: 12 }}>
               {scene.id} · {scene.kind}

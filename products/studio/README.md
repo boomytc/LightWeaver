@@ -1,6 +1,6 @@
 # Studio
 
-本地工作台：项目、资产区、场景旁白、校验 / 合成 / 渲染。
+本地复核面：片子由 agent 经 weaver 写；这里检视 issues、回放 `assets/outputs/`（经 `/api/media`）、改词、补静帧。CRUD 仍可用。
 
 ```bash
 # 仓库根
@@ -10,7 +10,9 @@ make studio
 
 浏览器打开 `http://127.0.0.1:5175/`。API 在 `127.0.0.1:8788`。
 
+- 片子主路径是 agent + `weaver`
 - 内置项目来自 `products/study-films/projects/`
 - 新建项目写到 `data/projects/`（study-explainer，只渲到本地）
 - 共享音色 / 元素 / 参考在 `library/`
 - 场景增删改序、绑静帧、改卡片、选音色走 PATCH，不必手改 JSON
+- `<video src>` 只用 `projectMedia(id, rel)`，不用磁盘绝对路径

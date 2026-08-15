@@ -16,6 +16,7 @@ import {
   loadProject,
   moveScene,
   patchScene,
+  projectPaths,
   projectSummary,
   removeScene,
   runPublish,
@@ -370,6 +371,7 @@ function detailOf(project: ReturnType<typeof loadProject>) {
     assets: project.assets,
     issues: validateProject(project, root),
     renderable: isRenderable(project, root),
+    paths: projectPaths(project, root),
   };
 }
 

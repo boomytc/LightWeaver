@@ -287,7 +287,8 @@ button:disabled {
   justify-content: center;
   color: #5c616b;
 }
-.preview-frame img { width: 100%; display: block; }
+.preview-frame img,
+.preview-frame video { width: 100%; display: block; }
 
 .create {
   display: flex;
