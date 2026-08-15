@@ -19,7 +19,7 @@
       "titleCard": {
         "kicker": "LightUI  ·  Study",
         "headline": "给下拉起对名字",
-        "lede": "往下展开只是外观。先定提交模型。",
+        "lede": "往下展开只是外观。",
         "tags": [
           "名称",
           "场景",
@@ -37,7 +37,7 @@
       "titleCard": {
         "kicker": "LightUI  ·  Study",
         "headline": "Name the dropdown",
-        "lede": "Opening downward is only the skin. First decide the commit model.",
+        "lede": "Opening downward is only the skin.",
         "tags": [
           "Name",
           "Scene",
@@ -46,7 +46,7 @@
       },
       "closeCard": {
         "headline": "Say it this way",
-        "lede": "Grouped is filing. Cascader is parent-child. Name the model, the scene, and when the panel closes — then talk about looks."
+        "lede": "Grouped is filing. Cascader is parent-child. Name it, name the scene, and when the panel closes — then talk about looks."
       }
     }
   },
@@ -55,8 +55,8 @@
       "id": "title",
       "kind": "title",
       "lines": {
-        "zh": "给下拉起对名字。往下展开只是外观，真正要先定的是提交模型。",
-        "en": "Name the dropdown properly. Opening downward is only the skin. First decide the commit model."
+        "zh": "给下拉起对名字。先问清楚：选完交出去什么，菜单关不关。",
+        "en": "Name the dropdown. First ask: what do you hand over, and does the menu close?"
       }
     },
     {
@@ -64,8 +64,8 @@
       "kind": "still",
       "fit": "contain",
       "lines": {
-        "zh": "选择，扁平列表里只交一个值，点中即关。",
-        "en": "Select commits one value from a flat list, and closes on pick."
+        "zh": "选择：一排选项里只交一个值，点中就关。",
+        "en": "Select: you hand over one value from a flat list, and the menu closes when you pick."
       },
       "still": "asset:still.select",
       "role": "contrast"
@@ -75,8 +75,8 @@
       "kind": "still",
       "fit": "contain",
       "lines": {
-        "zh": "多选择交的是一个集合。面板保持开着，标签可以单独摘掉。",
-        "en": "Multi-select commits a set. The panel stays open, and chips can be removed one by one."
+        "zh": "多选择交的是一组。面板先开着，标签可以一个个摘掉。",
+        "en": "Multi-select hands over a set. The panel stays open, and you can peel tags off one by one."
       },
       "still": "asset:still.multi",
       "role": "contrast"
@@ -86,8 +86,8 @@
       "kind": "still",
       "fit": "contain",
       "lines": {
-        "zh": "分组选择仍然只交一个值。分组标题只是分类，不是层级。",
-        "en": "Grouped Select still commits one value. Group titles are filing, not hierarchy."
+        "zh": "分组选择还是只交一个值。分组标题只是分类，不是上下级。",
+        "en": "Grouped Select still hands over one value. Group titles are filing, not parent and child."
       },
       "still": "asset:still.grouped",
       "role": "contrast"
@@ -97,8 +97,8 @@
       "kind": "still",
       "fit": "contain",
       "lines": {
-        "zh": "级联选择必须走到叶子才提交一条路径。父级只展开，不能当成最终值。",
-        "en": "Cascader must reach a leaf before it commits a path. A parent only expands. It is not the final value."
+        "zh": "级联选择要一路点到不能再往下的那一级，才算选完。点开上一级只是展开，还不能当最终值。",
+        "en": "Cascader only finishes when you reach the last level you can pick. Opening a parent just expands it. That parent is not the final value."
       },
       "still": "asset:still.cascader",
       "role": "contrast"
@@ -108,8 +108,8 @@
       "kind": "still",
       "fit": "contain",
       "lines": {
-        "zh": "分割按钮的主体立刻执行默认动作，只有箭头才打开低频菜单。",
-        "en": "On a Split Button, the body fires the default action at once. Only the chevron opens the infrequent menu."
+        "zh": "分割按钮的主体立刻做默认动作，只有箭头才打开不常用的菜单。",
+        "en": "On a Split Button, the main part does the default action at once. Only the arrow opens the less-used menu."
       },
       "still": "asset:still.split",
       "role": "contrast"
@@ -119,7 +119,7 @@
       "kind": "still",
       "fit": "contain",
       "lines": {
-        "zh": "巨型导航不是表单值，是多列导航。点链接，或点其它导航项。",
+        "zh": "巨型导航不是表单里的值，是多列导航。点链接，或点别的导航项。",
         "en": "A Mega Menu is not a form value. It is multi-column navigation. Click a link, or another nav item."
       },
       "still": "asset:still.mega",
@@ -130,8 +130,8 @@
       "kind": "still",
       "fit": "contain",
       "lines": {
-        "zh": "日期选择先入住再离店，过去不可选。两端齐了才是一段，晚数是日历日差。",
-        "en": "A date range is check-in, then check-out. Past days are locked. Only both ends make a span. Nights are calendar days."
+        "zh": "日期选择先入住再离店，过去的日子点不了。两端都齐了才是一段，晚数按日历天数算。",
+        "en": "A date range is check-in, then check-out. Past days cannot be picked. Only both ends make a span. Nights are calendar days."
       },
       "still": "asset:still.date",
       "role": "contrast"
