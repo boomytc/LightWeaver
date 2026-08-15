@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ProjectRecord } from "./schema.ts";
 import { filmStudySlug, filmTask } from "./schema.ts";
 import { labUrl, libraryRoot, lightuiRoot, recipeRoot, weaverRoot } from "./paths.ts";
+import { tryGetTask } from "./tasks/registry.ts";
 import { assetsPath, filmPath } from "./project.ts";
 import { lineRelPath, outputRelPath, resolveAssetFile, stillRelPath } from "./assets.ts";
 
@@ -149,7 +150,7 @@ export function projectPaths(project: ProjectRecord, root = weaverRoot()): Proje
     lineFiles,
     outputFiles,
     library: libraryRoot(root),
-    recipes: path.join(recipeRoot(root), task),
+    recipes: path.join(recipeRoot(root), tryGetTask(task)?.recipePack ?? task),
     labUrl: slug ? `${labUrl()}/s/${slug}` : undefined,
     publishDir: film.publish?.dir,
     brief,

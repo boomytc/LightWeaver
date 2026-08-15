@@ -17,6 +17,7 @@ export const LIGHTUI_LAB_ADAPTERS = ["intent-cascade", "dropdown-taxonomy"] as c
 
 export const studyExplainer: TaskModule = {
   id: "study-explainer",
+  recipePack: "lightui-study-explainer",
   label: { zh: "Study 讲解片", en: "Study explainer" },
   sceneKinds: ["title", "still", "close"],
   createFilm,

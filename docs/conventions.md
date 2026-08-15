@@ -33,7 +33,7 @@ User：`data/projects/<id>/`。
 - 新 taxonomy / manual 片约定 `<kind>.png`（与 `scenes[].id` 相同），仍必须先写进 `assets.json` 再落盘。
 - 历史文件名保留，不要回写成 `<kind>.png`。
 
-**方法资产：** `recipes/study-explainer/`（与 `library/` 平级）。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>`。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
+**方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>`。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
 
 发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 

@@ -56,7 +56,7 @@ CineWeaver Desktop 实际做的是短剧复刻自动剪（`backend/services/dram
 | 核 | `weaver/src/schema.ts` `FilmDoc.task` | `TASK_IDS = ["study-explainer"]`；`role`；`study.slug`。无 `SCENE_KINDS` 兼容别名 |
 | 任务 | `weaver/src/tasks/{types,registry,study-explainer}.ts` | `createFilm` 种子 title+`hero`+close；校验 title/close 钉住 |
 | 发现 | `weaver/src/project-paths.ts` | `project show --json` 同级 `paths` + `renderable`。静帧 `rel` 来自 `assets.json` |
-| 方法 | `weaver/src/recipes.ts` + `recipes/study-explainer/` | 6 张真卡；`recipe list\|show\|apply`。apply 只铺 still、同 id 进 `skipped` |
+| 方法 | `weaver/src/recipes.ts` + `recipes/lightui-study-explainer/` | 6 张真卡；`recipe list\|show\|apply`。apply 只铺 still、同 id 进 `skipped` |
 | CLI | `weaver/src/cli.ts` | 上列动词 + `recipe`；写操作信封带 `paths` |
 | 校验 | `weaver/src/validate.ts` | 形状 error / 媒体 warning；`isRenderable` 只看 still 场的 png |
 | Studio | `products/studio/` | 复核面。CRUD 仍在；成片走 `/api/media`；详情带 `paths` |
@@ -88,7 +88,7 @@ CineWeaver Desktop 实际做的是短剧复刻自动剪（`backend/services/dram
 1. **存放位置一等。** 理念 / 资产 / 产物 各有唯一路径与引用方案。Agent 按图找到对象，结合已有资产，**只在需要时**生成视频；不在仓里游荡，不把 Studio CRUD 当地图。
 2. **Agent 按图出片。** 主路径是：读理念 → 选 recipe（怎么结合）→ 绑资产 → 写旁白 → 调 weaver。Studio 降为复核。
 3. **Skill 教地图 + 何时结合。** 一条生产 skill：存放图 + 三种模式 + 何时停 / 何时复用 / 何时跑 weaver。路由器保持薄。
-4. **Recipe 是方法资产。** 从四则已有片子抽出 **6 张真实卡**（不是 152 张空卡），放在仓库根 `recipes/study-explainer/`，教 agent 怎么把理念和资产合成 FilmDoc。
+4. **Recipe 是方法资产。** 从四则已有片子抽出 **6 张真实卡**（不是 152 张空卡），放在仓库根 `recipes/lightui-study-explainer/`，教 agent 怎么把理念和资产合成 FilmDoc。
 5. **确定性核不动。** 已有 CRUD / `isRenderable` / TaskModule 循环禁令全部保留。LLM 不准进 `weaver/` 或 Studio job。
 6. **最小 CLI 增量** 让发现可靠：PR1 `project show --json` 带 `paths`；**PR2** `recipe list|show`；**PR3** `recipe apply`。不加 `produce`，不加核内规划器。
 7. **QA 是 skill 一等阶段。** `!isRenderable` 禁止 render。双语、title/close 钉、SOURCE.md、role 都进清单。
@@ -161,7 +161,7 @@ CineWeaver Desktop 实际做的是短剧复刻自动剪（`backend/services/dram
 
 Recipe 编码「如何把理念 + 资产写成 FilmDoc」。Template 是填好的起点。Composition 是渲染器。四层必须分清（见下文）。Agent 选 recipe，不选「新 kind」、不选「新 TSX」。
 
-**存放（关闭原 Q-recipe-root）：** 仓库根 `recipes/study-explainer/`。与 `library/`（媒体资产）、`docs/` 平级，是产品对象。禁止 `library/recipes/`（会把 library 混成 DAM）。禁止 `skills/lightweaver-film/recipes/`（skill 附件不是存放面）。Skill `references/` 只留方法论（pipeline / modes / qa）。
+**存放（关闭原 Q-recipe-root）：** 仓库根 `recipes/lightui-study-explainer/`。与 `library/`（媒体资产）、`docs/` 平级，是产品对象。禁止 `library/recipes/`（会把 library 混成 DAM）。禁止 `skills/lightweaver-film/recipes/`（skill 附件不是存放面）。Skill `references/` 只留方法论（pipeline / modes / qa）。
 
 ### P6 · LLM 只住在 agent 进程里
 
@@ -279,7 +279,7 @@ lineFiles.find((f) => f.locale === locale && f.sceneId === id)
 | 理念 · 成片文件名 | publish name | `…/studies/<slug>/references/SOURCE.md` | LightUI | Agent；`studyExplainer.validate` 若文件在则 warning 未点名 | LightUI | 文件系统（正文须含 `locales.*.output`） |
 | 理念 · 用户片 brief | project brief | `data/projects/<id>/brief.md`、可选 `brief.en.md` | Agent | Agent。weaver 不读 | `data/projects/` 整树 gitignore（`.gitignore`） | 文件系统 |
 | 编排合同 | FilmDoc | first-party：`products/study-films/projects/<id>/film.json`；user：`data/projects/<id>/film.json`（`firstPartyRoot` / `userRoot`） | Agent via CLI / Studio PATCH | weaver、Remotion `Root.tsx`、Studio | first-party 提交；user 不提交 | 无 ref；`film.id ===` 目录名 |
-| 方法资产 | recipe | `recipes/study-explainer/<id>.md` + `index.md` | 维护者 | Agent：`weaver recipe list\|show\|apply` | 已提交 | 文件系统；`recipeRoot() = join(weaverRoot(), "recipes")` |
+| 方法资产 | recipe | `recipes/lightui-study-explainer/<id>.md` + `index.md` | 维护者 | Agent：`weaver recipe list\|show\|apply` | 已提交 | 文件系统；`recipeRoot() = join(weaverRoot(), "recipes")` |
 | 共享资产登记 | library catalog | `library/assets.json` | `weaver asset add --library` | `findAsset` / `loadLibrary` | 提交 | `library:<id>` |
 | 共享音色 | voice | `library/voices/prompt-{zh,en}.wav` + `.txt` | 人 / assets skill | `runTts` | 提交 | `library:voice.prompt-zh` |
 | 共享元素 | element | `library/elements/mark.svg` | 人 | Remotion `Mark.tsx` | 提交 | `library:element.mark` |
@@ -303,7 +303,7 @@ flowchart LR
   end
 
   subgraph method [方法资产]
-    Rec["recipes/study-explainer/*.md"]
+    Rec["recipes/lightui-study-explainer/*.md"]
     Skill["skills/lightweaver-film"]
   end
 
@@ -404,7 +404,7 @@ LLM 只出现在 agent。右半边任何 `fetch(openai)` / NarratoAI `script_ser
       "en": { "path": "/…/assets/outputs/source-tutorial.en.mp4", "exists": false, "rel": "assets/outputs/source-tutorial.en.mp4" }
     },
     "library": "/…/library",
-    "recipes": "/…/recipes/study-explainer",
+    "recipes": "/…/recipes/lightui-study-explainer",
     "labUrl": "http://127.0.0.1:5173/s/nav-taxonomy",
     "publishDir": "studies/nav-taxonomy/references",
     "brief": {
@@ -430,7 +430,7 @@ LLM 只出现在 agent。右半边任何 `fetch(openai)` / NarratoAI `script_ser
 
 `outputFiles[locale]`：`rel` = `assets/outputs/<locales[locale].output>`。
 
-`paths.recipes` = `path.join(recipeRoot(root), filmTask(film))`（即 `…/recipes/study-explainer`，**不是** `recipeRoot()` 本身）。
+`paths.recipes` = `path.join(recipeRoot(root), task.recipePack)`（即 `…/recipes/lightui-study-explainer`，**不是** `recipeRoot()` 本身；pack 名可以和 `film.task` 不同）。
 
 **`brief.kind`：**
 
@@ -492,7 +492,7 @@ LightUI 不在时：`lightuiRoot()` 仍拼出意图路径，`exists: false`，**
 | 对象 | 是什么 | 现网锚点 | v1 规则 |
 | --- | --- | --- | --- |
 | **TaskModule** | 任务级 schema + `createFilm` + `validate` | `weaver/src/tasks/study-explainer.ts` | 已存在。一部片子一个 task。**不**因 recipe 新增 task |
-| **Recipe** | 方法资产：怎么把理念 + 资产写成 FilmDoc | `recipes/study-explainer/*.md` | 6 张真卡。不是理念，不是媒体 |
+| **Recipe** | 方法资产：怎么把理念 + 资产写成 FilmDoc | `recipes/lightui-study-explainer/*.md` | 6 张真卡。不是理念，不是媒体 |
 | **Template** | 某种 study 形状的填空起点 | 活模板 = 四则 first-party `film.json` + recipe 的 `canon` | 不另建空 `templates/*.json`。`template` 模式 = 按 canon 片的 recipe 展开 |
 | **Composition** | Remotion 组件 | `StudyFilm.tsx` | **一任务一份**，不是一片一份 |
 
@@ -565,7 +565,7 @@ Frontmatter 字段（`weaver/src/recipes.ts` 解析，未知键忽略）：
 
 `default_scenes` 项：`{ id, kind, role?, still?, fit? }`。`kind` 只能是该 TaskModule 的 `sceneKinds`。`apply` 拒绝 `beat` / `clip` / 任何不在 `task.sceneKinds` 的值——这是「agent 发明新 scene kind」的硬闸。
 
-发现：`listRecipes(root, task?)` 扫 `recipes/<task>/*.md`。**不**递归十层。**静默跳过** `index.md`、以及缺合法 `id`/`task` frontmatter 的文件——**不要** `console.warn`（否则每次 list 都会为索引文件告警）。坏卡挡不住 `recipe list`。
+发现：`listRecipes(root, task?)` 扫 `recipes/<TaskModule.recipePack>/*.md`。frontmatter `task` 仍是 TaskId（今日 `study-explainer`）。**不**递归十层。**静默跳过** `index.md`、以及缺合法 `id`/`task` frontmatter 的文件——**不要** `console.warn`（否则每次 list 都会为索引文件告警）。坏卡挡不住 `recipe list`。
 
 `recipeRoot` 放进 `weaver/src/paths.ts`（与 `libraryRoot` 并列）：
 
@@ -587,7 +587,7 @@ export function recipeRoot(root = weaverRoot()): string {
 | | 阶段 1 抽卡 | 阶段 2 展开骨架 |
 | --- | --- | --- |
 | **PR1**（尚无 `recipes/`） | 对照 first-party `film.json`：intent-cascade → problem-then-rule 结构；dropdown / nav / sidebar → taxonomy-parade（一种 kind 一场） | `project create` + `scene add` / `scene rm --id hero`。**没有** `recipe list` / `apply` |
-| **PR2** | `weaver recipe list` / `show`；读 `recipes/study-explainer/index.md` | 仍 `scene add` / `rm`（读卡手写骨架）。**还没有** `recipe apply` |
+| **PR2** | `weaver recipe list` / `show`；读 `recipes/lightui-study-explainer/index.md` | 仍 `scene add` / `rm`（读卡手写骨架）。**还没有** `recipe apply` |
 | **PR3 起** | 同 PR2 | `recipe apply`；必要时再 `scene add/rm` |
 
 PR1 写入的 `references/pipeline.md` 与 `modes.md` **必须用 PR1 行**。PR2 只替换阶段 1 / 选卡为 `recipe list`/`show` + `index.md`（阶段 2 仍 `scene add`）。PR3 再把阶段 2 换成 `apply`。
@@ -724,7 +724,7 @@ description: >
 - 用户片理念：`data/projects/<id>/brief.md`
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 assets.json 为准）
 - 产物：`assets/lines/<locale>/*.wav`；`assets/outputs/<output>`（gitignore）
-- 方法：PR2 才落地 `recipes/study-explainer/`。PR1 对照 first-party `film.json`（intent / dropdown / nav / sidebar）抄结构
+- 方法：PR2 才落地 `recipes/lightui-study-explainer/`。PR1 对照 first-party `film.json`（intent / dropdown / nav / sidebar）抄结构
 - 发现：`weaver project show --json` 的 `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与 `renderable`（与本 skill 同批落地，见 PR1）
 
 ## 结合规则
@@ -739,7 +739,7 @@ description: >
 ## 何时读哪个文件
 | 时机 | 读 |
 | 找齐三层 | 先按上表约定路径；再 `weaver project show --json` |
-| 选卡 | PR1：对照 first-party `film.json`（intent=problem-then-rule，dropdown/nav/sidebar=taxonomy-parade）。**不要**链 `recipes/study-explainer/index.md`（PR2 才有）。PR2 改为：`weaver recipe list` + 该 index |
+| 选卡 | PR1：对照 first-party `film.json`（intent=problem-then-rule，dropdown/nav/sidebar=taxonomy-parade）。**不要**链 `recipes/lightui-study-explainer/index.md`（PR2 才有）。PR2 改为：`weaver recipe list` + 该 index |
 | 手截 | docs/conventions.md |
 | QA | references/qa.md |
 | 资产入库 | 切到 lightweaver-assets |
@@ -885,7 +885,7 @@ Studio「新建」仍只写 `data/projects/`、忽略 source（D6）。First-par
 - **写法：** `kind=close` 钉在末尾。`closeCard.headline`：`说清楚` / `Say it this way`（`createFilm` 已写）。lede = 易混对 + 「先名称场景规则，再谈外观」。
 - **实证：** 四则 `close` 场均是这个收束，不是 CTA、不是品牌秀。
 
-**索引文件（PR2 才提交）：** `recipes/study-explainer/index.md` 只列六行 `id — when`。**PR2 起** SKILL 链到 index，不链六份全文。PR1 SKILL **不要**链这个尚未存在的路径。
+**索引文件（PR2 才提交）：** `recipes/lightui-study-explainer/index.md` 只列六行 `id — when`。**PR2 起** SKILL 链到 index，不链六份全文。PR1 SKILL **不要**链这个尚未存在的路径。
 
 **禁止：** `recipes/drama-plot/`、空 `wip-*.md`、把 shotcraft 镜头名（`deck-deal-flyin`）改名进口。
 
@@ -919,7 +919,7 @@ Studio「新建」仍只写 `data/projects/`、忽略 source（D6）。First-par
 | CLI/HTTP/Studio CRUD | 拍板且 **已实现** | 降为 job API |
 | 存放图（理念 / 资产 / 产物） | 只写了项目 layout 与 publish 边界 | **本文主场（P0）** |
 | Skill 作为产品、模式、阶段 | 未覆盖（只写了「PR2 动词表 / PR7 叙事闭环」） | 服务于存放图 |
-| Recipe / template / composition 分层 | 未覆盖 | 方法资产，`recipes/study-explainer/` |
+| Recipe / template / composition 分层 | 未覆盖 | 方法资产，`recipes/lightui-study-explainer/` |
 | LLM 住哪里 | 未覆盖 | P6 |
 | Studio 产品故事 | 「人与 agent 同一面」偏工作台 | 改为复核面 |
 
@@ -956,7 +956,7 @@ export type ProjectPaths = {
   lineFiles: MediaFile[];
   outputFiles: Record<string, MediaPath>;
   library: string;
-  recipes: string; // join(recipeRoot(root), filmTask(film))
+  recipes: string; // join(recipeRoot(root), task.recipePack)
   labUrl?: string;
   publishDir?: string;
   brief:
@@ -994,7 +994,7 @@ weaver recipe apply --project <id> --recipe <id> [--kinds a,b,c] [--json]
       "level": "film",
       "when": "study 以 kinds.ts 列出互斥模型…",
       "canon": ["dropdown-taxonomy", "nav-taxonomy", "sidebar-taxonomy"],
-      "path": "/…/recipes/study-explainer/taxonomy-parade.md"
+      "path": "/…/recipes/lightui-study-explainer/taxonomy-parade.md"
     }
   ]
 }
@@ -1037,13 +1037,13 @@ weaver recipe apply --project <id> --recipe <id> [--kinds a,b,c] [--json]
 新增纯文件：
 
 ```
-recipes/study-explainer/index.md
-recipes/study-explainer/problem-then-rule.md
-recipes/study-explainer/taxonomy-parade.md
-recipes/study-explainer/kind-still.md
-recipes/study-explainer/contrast-pair.md
-recipes/study-explainer/study-title.md
-recipes/study-explainer/say-it-this-way.md
+recipes/lightui-study-explainer/index.md
+recipes/lightui-study-explainer/problem-then-rule.md
+recipes/lightui-study-explainer/taxonomy-parade.md
+recipes/lightui-study-explainer/kind-still.md
+recipes/lightui-study-explainer/contrast-pair.md
+recipes/lightui-study-explainer/study-title.md
+recipes/lightui-study-explainer/say-it-this-way.md
 
 skills/lightweaver-film/references/pipeline.md
 skills/lightweaver-film/references/modes.md
@@ -1093,7 +1093,7 @@ skills/lightweaver-film/references/qa.md
 | 存放是否一等 | 无（代码即片子） | 无（服务状态） | 埋在工作台 | **三层图 + paths JSON** |
 | Agent 主路径 | 是 | 弱（UI 向导） | 否 | 是（按图结合） |
 | 制作方法论 | Remotion markup | 提示词服务 | 无 | skill 教地图 + 结合规则 |
-| 可复用词汇 | 无（每片 TSX） | 无（每片 LLM） | 埋在 JSON | `recipes/study-explainer/` 6 张真卡 |
+| 可复用词汇 | 无（每片 TSX） | 无（每片 LLM） | 埋在 JSON | `recipes/lightui-study-explainer/` 6 张真卡 |
 | 核确定性 | 否（生成代码） | 否（LLM 进核） | 是 | 是 |
 | 已有四则片子 | 重写 | 重写 | 保留 | 保留 |
 | 家族越界风险 | 低 | 高（自动剪） | 中（Studio→NLE） | 低 |
@@ -1115,7 +1115,7 @@ skills/lightweaver-film/references/qa.md
 
 | 威胁 | 现网 | 本文 |
 | --- | --- | --- |
-| 路径穿越 | Studio `safeJoin`；`runPublish` `safeJoin(lightuiRoot(), dir)` | recipe 只从 `recipes/<task>/*.md` 读；拒绝 `../` id。`projectPaths` 只拼已知根，不扫盘 |
+| 路径穿越 | Studio `safeJoin`；`runPublish` `safeJoin(lightuiRoot(), dir)` | recipe 只从 `recipes/<recipePack>/*.md` 读；拒绝 `../` id。`projectPaths` 只拼已知根，不扫盘 |
 | 把 Studio / lab 绑公网 | `127.0.0.1` | 不改 |
 | Agent 乱 publish | 无 `publish.dir` 则 throw | skill：无 dir 不准调用 |
 | 把兄弟仓名写进 LightUI 公开页 | 已禁 | publish 仍只拷 mp4；skill 写「不要改 LightUI README」 |
@@ -1153,7 +1153,7 @@ skills/lightweaver-film/references/qa.md
 
 **阶段 S1 — 发现 JSON + skill 约定表：** `project-paths.ts` + `project show` 的 `paths`/`renderable`；SKILL 正文写约定路径 + 结合规则。Agent 立刻能按 JSON 判断复用 / 生成 / 停。
 
-**阶段 S2 — recipe 文件 + list/show：** `recipes/study-explainer/` 6 张真卡。
+**阶段 S2 — recipe 文件 + list/show：** `recipes/lightui-study-explainer/` 6 张真卡。
 
 **阶段 S3 — apply + Studio 复核：** `recipe apply`；`<video>` 走 `/api/media`。
 
@@ -1178,7 +1178,7 @@ skills/lightweaver-film/references/qa.md
 
 ## Open Questions
 
-D13 三条已拍板，不重复。**Q-recipe-root 已在 P5 关闭：** `recipes/study-explainer/`。
+D13 三条已拍板，不重复。**Q-recipe-root 已在 P5 关闭：** `recipes/lightui-study-explainer/`。
 
 ### Q-media · nav / sidebar 的手截 png + TTS + 发布，算不算本设计的实现 PR？
 
@@ -1202,7 +1202,7 @@ D13 三条已拍板，不重复。**Q-recipe-root 已在 P5 关闭：** `recipes
 - Remotion：`products/study-films/src/Root.tsx`、`compositions/StudyFilm.tsx`、`scripts/capture.mjs`、`AGENTS.md`
 - 片子：`products/study-films/projects/{intent-cascade,dropdown-taxonomy,nav-taxonomy,sidebar-taxonomy}/film.json`
 - Skills（存放图 + 结合规则）：`skills/lightweaver/SKILL.md`、`skills/lightweaver-film/SKILL.md` + `references/{pipeline,modes,qa}.md`、`skills/lightweaver-assets/SKILL.md`
-- 方法资产：`recipes/study-explainer/`
+- 方法资产：`recipes/lightui-study-explainer/`
 - LightUI 顾客（只读，不在本仓改公开页）：`studies/{intent-cascade,dropdown-taxonomy,nav-taxonomy,sidebar-taxonomy}/{idea.md,idea.en.md,study.json,references/SOURCE.md}`；taxonomy 另有 `src/lib/kinds.ts`（intent-cascade 无）
 - NarratoAI 活路径：`webui/tools/generate_script_docu.py`、`app/services/generate_narration_script.py`、`app/services/task.py` `start_subclip`；`script_service.ScriptGenerator` 同族但非当前 Streamlit 入口
 - Remotion Agent Skills：https://www.remotion.dev/docs/ai/skills  
@@ -1229,9 +1229,9 @@ D13 三条已拍板，不重复。**Q-recipe-root 已在 P5 关闭：** `recipes
 ### PR2 — recipe 发现（6 张真卡 + list/show）
 
 - **标题：** `feat(weaver): discover study-explainer recipes`
-- **影响：** **新** `weaver/src/recipes.ts`、`recipes.test.ts`；`cli.ts` 增加 `recipe list|show`（**不加 apply**）；**新** `recipes/study-explainer/{index.md, 6 张卡}`；`docs/conventions.md` 加存放图短表；**替换** SKILL 选卡行 **以及** `pipeline.md` 阶段 1、`modes.md`「对不上结构」行：改为 `weaver recipe list` / `show` + `index.md`。**阶段 2 仍写 `scene add`/`rm`，不要写 apply**
+- **影响：** **新** `weaver/src/recipes.ts`、`recipes.test.ts`；`cli.ts` 增加 `recipe list|show`（**不加 apply**）；**新** `recipes/lightui-study-explainer/{index.md, 6 张卡}`；`docs/conventions.md` 加存放图短表；**替换** SKILL 选卡行 **以及** `pipeline.md` 阶段 1、`modes.md`「对不上结构」行：改为 `weaver recipe list` / `show` + `index.md`。**阶段 2 仍写 `scene add`/`rm`，不要写 apply**
 - **依赖：** PR1（`recipeRoot` 已在 paths.ts）
-- **说明：** `listRecipes` 静默跳过 `index.md` 与非法 frontmatter。`paths.recipes = join(recipeRoot(), filmTask(film))`。禁止 stub。`LIGHTWEAVER_RECIPES` 仅测试。
+- **说明：** `listRecipes` 静默跳过 `index.md` 与非法 frontmatter。`paths.recipes = join(recipeRoot(), task.recipePack)`。禁止 stub。`LIGHTWEAVER_RECIPES` 仅测试。
 
 ### PR3 — `recipe apply`（确定性骨架）
 

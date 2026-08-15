@@ -39,7 +39,7 @@ function detail(partial: Partial<ProjectDetail["paths"]> = {}): ProjectDetail {
       lineFiles: [],
       outputFiles: {},
       library: "/library",
-      recipes: "/recipes/study-explainer",
+      recipes: "/recipes/lightui-study-explainer",
       brief: { kind: "study", root: "/ui", files: {} },
       ...partial,
     },

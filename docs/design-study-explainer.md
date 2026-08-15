@@ -21,7 +21,7 @@
 | CLI / HTTP / Studio CRUD | 拍板且已实现 | 降为 job API |
 | 存放图（理念 / 资产 / 产物） | 只写了项目 layout 与 publish 边界 | **主场（P0）** |
 | Skill 作为产品、模式、阶段 | 未覆盖 | 服务于存放图 |
-| Recipe / template / composition 分层 | 未覆盖 | 方法资产，`recipes/study-explainer/` |
+| Recipe / template / composition 分层 | 未覆盖 | 方法资产，`recipes/lightui-study-explainer/` |
 | LLM 住哪里 | 未覆盖 | P6（只住 agent 进程；`weaver/` 无模型） |
 | Studio 产品故事 | 「人与 agent 同一面」偏工作台 | 改为复核面 |
 

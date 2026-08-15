@@ -14,7 +14,7 @@ Shared objects live in `weaver/`. Products consume that package.
 ```
 weaver/                         schema, projects, assets, CLI, jobs
 library/                        shared voices / elements / references
-recipes/                        method cards（study-explainer；怎么结合，不是媒体）
+recipes/                        method cards（lightui-study-explainer；怎么结合，不是媒体）
 data/projects/                  user projects (gitignored)
 products/study-films/           Remotion renderer + LightUI capture
 products/study-films/projects/  first-party LightUI films
@@ -30,7 +30,7 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | --- | --- |
 | Film / asset / job model, CLI | `weaver/` |
 | Shared voice / element / reference | `library/` |
-| Recipe / 方法卡 | `recipes/study-explainer/` |
+| Recipe / 方法卡 | `recipes/lightui-study-explainer/` |
 | New first-party LightUI film | `products/study-films/projects/<id>/` |
 | User film | `data/projects/<id>/` or Studio「新建」 |
 | Remotion cards / capture adapter | `products/study-films/` |

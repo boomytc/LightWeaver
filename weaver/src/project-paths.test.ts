@@ -63,7 +63,7 @@ describe("projectPaths", () => {
     assert.equal(titleZh?.exists, true);
     assert.equal(paths.outputFiles.zh.rel, "assets/outputs/cursor-movement.mp4");
     assert.equal(paths.outputFiles.en.rel, "assets/outputs/cursor-movement.en.mp4");
-    assert.equal(paths.recipes, path.join(recipeRoot(), "study-explainer"));
+    assert.equal(paths.recipes, path.join(recipeRoot(), "lightui-study-explainer"));
     assert.equal(paths.labUrl, `${labUrl()}/s/intent-cascade`);
     assert.equal(paths.publishDir, "studies/intent-cascade/references");
     assert.equal(paths.film, filmPath(project.root));
@@ -138,7 +138,7 @@ describe("projectPaths", () => {
     try {
       assert.equal(recipeRoot("/ignored"), path.resolve(fixture));
       const paths = projectPaths(loadProject("intent-cascade"));
-      assert.equal(paths.recipes, path.join(path.resolve(fixture), "study-explainer"));
+      assert.equal(paths.recipes, path.join(path.resolve(fixture), "lightui-study-explainer"));
     } finally {
       if (prev === undefined) delete process.env.LIGHTWEAVER_RECIPES;
       else process.env.LIGHTWEAVER_RECIPES = prev;

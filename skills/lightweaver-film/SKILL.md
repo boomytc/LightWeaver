@@ -18,7 +18,7 @@ description: >
 - 用户片理念：`data/projects/<id>/brief.md`
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）
 - 产物：`assets/lines/<locale>/*.wav`；`assets/outputs/<output>`（gitignore）
-- 方法：`recipes/study-explainer/`（`weaver recipe list` / `show`；index 六行）
+- 方法：`recipes/lightui-study-explainer/`（`weaver recipe list --task study-explainer` / `show`；index 六行）
 - 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`
 
 ## 结合规则
@@ -60,7 +60,7 @@ description: >
 | 时机 | 读 |
 | --- | --- |
 | 找齐三层 | 先按存放图；再 `weaver project show --json` |
-| 选卡 | `npx weaver recipe list --task study-explainer`；一眼看 `recipes/study-explainer/index.md`。对上后再 `npx weaver recipe show <id>` |
+| 选卡 | `npx weaver recipe list --task study-explainer`；一眼看 `recipes/lightui-study-explainer/index.md`。对上后再 `npx weaver recipe show <id>` |
 | 展开骨架 | `recipe apply`；补场才 `scene add`。`lines[locale] === <sceneId>` 是占位，阶段 3 必须 `scene set` |
 | 手截 | `docs/conventions.md` |
 | QA | `references/qa.md` |

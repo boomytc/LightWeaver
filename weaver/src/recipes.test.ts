@@ -17,7 +17,7 @@ function write(file: string, text: string): void {
 
 function fixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "recipes-"));
-  const dir = path.join(root, "study-explainer");
+  const dir = path.join(root, "lightui-study-explainer");
   write(
     path.join(dir, "index.md"),
     `---
@@ -139,7 +139,7 @@ describe("listRecipes / loadRecipe", () => {
     assert.equal(shown.level, "film");
     assert.equal(shown.requires_kinds, true);
     assert.deepEqual(shown.canon, ["dropdown-taxonomy", "nav-taxonomy", "sidebar-taxonomy"]);
-    assert.ok(shown.path.endsWith(path.join("recipes", "study-explainer", "taxonomy-parade.md")));
+    assert.ok(shown.path.endsWith(path.join("recipes", "lightui-study-explainer", "taxonomy-parade.md")));
     assert.match(shown.body, /一种 LightUI kind 一场/);
   });
 
@@ -168,11 +168,12 @@ describe("listRecipes / loadRecipe", () => {
     assert.ok(listRecipes(weaverRoot()).some((recipe) => recipe.id === "problem-then-rule"));
   });
 
-  it("paths.recipes is the task directory, not recipeRoot itself", () => {
+  it("paths.recipes is the pack directory, not recipeRoot itself", () => {
     const project = loadProject("intent-cascade");
     const paths = projectPaths(project);
-    assert.equal(paths.recipes, path.join(recipeRoot(), filmTask(project.film)));
-    assert.ok(paths.recipes.endsWith(path.join("recipes", "study-explainer")));
+    assert.equal(paths.recipes, path.join(recipeRoot(), "lightui-study-explainer"));
+    assert.equal(filmTask(project.film), "study-explainer");
+    assert.ok(paths.recipes.endsWith(path.join("recipes", "lightui-study-explainer")));
     assert.notEqual(paths.recipes, recipeRoot());
   });
 });
@@ -231,7 +232,7 @@ describe("applyRecipe", () => {
   it("rejects unknown scene kinds before writing", () => {
     const root = tempProjectRoot();
     write(
-      path.join(root, "recipes/study-explainer/bad-beat.md"),
+      path.join(root, "recipes/lightui-study-explainer/bad-beat.md"),
       `---
 id: bad-beat
 task: study-explainer

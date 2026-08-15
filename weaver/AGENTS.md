@@ -39,4 +39,4 @@ src/cli.ts             JSON/human CLI
   import is a cycle). Put `projectPaths` only in `project-paths.ts`.
 - User projects live in `data/projects/`. First-party LightUI films live in
   `products/study-films/projects/`. Shared voices/elements live in `library/`.
-  Method cards live in `recipes/study-explainer/`.
+  Method cards live in `recipes/lightui-study-explainer/` (`TaskModule.recipePack`; task id remains `study-explainer`).

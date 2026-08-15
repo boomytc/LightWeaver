@@ -10,7 +10,7 @@ import {
   type StudyRole,
   type TaskId,
 } from "./schema.ts";
-import { getTask, listTasks } from "./tasks/registry.ts";
+import { getTask, listTasks, tryGetTask } from "./tasks/registry.ts";
 
 export type RecipeLevel = "film" | "scene";
 
@@ -232,18 +232,24 @@ function recipeFromFile(file: string, expectedTask: string): Recipe | null {
   return recipe;
 }
 
-function taskDirs(root: string, task?: string): string[] {
+function tasksToList(task?: string): string[] {
   if (task !== undefined) {
     return isImplementedTask(task) ? [task] : [];
   }
   return listTasks().map((item) => item.id);
 }
 
+export function recipePackName(task: string): string | undefined {
+  return tryGetTask(task)?.recipePack;
+}
+
 export function listRecipes(root = weaverRoot(), task?: string): Recipe[] {
   const base = recipeRoot(root);
   const found: Recipe[] = [];
-  for (const id of taskDirs(root, task)) {
-    const dir = path.join(base, id);
+  for (const id of tasksToList(task)) {
+    const pack = recipePackName(id);
+    if (!pack) continue;
+    const dir = path.join(base, pack);
     if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
     for (const name of fs.readdirSync(dir)) {
       if (!name.endsWith(".md")) continue;
