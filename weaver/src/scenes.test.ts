@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { createProject } from "./project.ts";
-import { addScene, moveScene, patchScene, removeScene, setCard } from "./scenes.ts";
+import { addScene, moveScene, patchScene, removeScene, setCard, setKit } from "./scenes.ts";
 import { hasErrors, validateProject } from "./validate.ts";
 
 function tempRoot(): string {
@@ -59,5 +59,12 @@ describe("scenes", () => {
   it("seed hero is not renderable until a still is bound", () => {
     const project = createProject("demo-film", { title: "演示" }, tempRoot());
     assert.ok(hasErrors(validateProject(project)));
+  });
+
+  it("records a library kit and rejects project-scoped refs", () => {
+    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    setKit(project, ["library:element.mark", "library:element.mark", " library:reference.board "]);
+    assert.deepEqual(project.film.kit, ["library:element.mark", "library:reference.board"]);
+    assert.throws(() => setKit(project, ["asset:still.hero"]), /library:/);
   });
 });

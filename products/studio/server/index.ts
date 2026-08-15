@@ -15,6 +15,7 @@ import {
   loadLibrary,
   loadProject,
   moveScene,
+  patchLibraryAsset,
   patchScene,
   projectPaths,
   projectSummary,
@@ -23,7 +24,9 @@ import {
   saveFilm,
   saveAssets,
   setCard,
+  setKit,
   setVoice,
+  upsertLibraryAsset,
   validateProject,
   weaverRoot,
   type Asset,
@@ -63,7 +66,12 @@ app.get("/api/tasks", (_req, res) => {
 });
 
 app.get("/api/projects", (_req, res) => {
-  res.json(listProjects(root).map(projectSummary));
+  res.json(
+    listProjects(root).map((project) => ({
+      ...projectSummary(project),
+      renderable: isRenderable(project, root),
+    })),
+  );
 });
 
 app.post("/api/projects", (req, res) => {
@@ -195,6 +203,35 @@ app.patch("/api/projects/:id/voices", (req, res) => {
     const project = loadProject(param(req.params.id), root);
     setVoice(project, String(req.body?.locale ?? ""), String(req.body?.ref ?? ""));
     res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.patch("/api/projects/:id/kit", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    const refs = Array.isArray(req.body?.refs)
+      ? req.body.refs.map((item: unknown) => String(item))
+      : typeof req.body?.refs === "string"
+        ? req.body.refs.split(",")
+        : [];
+    setKit(project, refs);
+    res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.patch("/api/library/assets/:id", (req, res) => {
+  try {
+    const asset = patchLibraryAsset(param(req.params.id), {
+      label: typeof req.body?.label === "string" ? req.body.label : undefined,
+      text: typeof req.body?.text === "string" ? req.body.text : undefined,
+      style: typeof req.body?.style === "string" ? req.body.style : undefined,
+      locale: typeof req.body?.locale === "string" ? req.body.locale : undefined,
+    });
+    res.json(asset);
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
   }
@@ -333,6 +370,21 @@ function ingestUpload(
     const dest = safeJoin(libraryRoot(root), rel);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, req.file.buffer);
+    const existing = loadLibrary(root).find((asset) => asset.id === id);
+    if (existing) {
+      return upsertLibraryAsset(
+        {
+          ...existing,
+          kind: kind as Asset["kind"],
+          locale: locale ?? existing.locale,
+          file: rel,
+          text: text ?? existing.text,
+          style: style ?? existing.style,
+          label: label ?? existing.label,
+        },
+        root,
+      );
+    }
     return addAsset({ kind: "library" }, { id, kind, locale, file: rel, text, style, label }, root);
   }
   const project = loadProject(target.projectId, root);

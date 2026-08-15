@@ -175,3 +175,15 @@ export function setVoice(project: ProjectRecord, locale: string, ref: string): P
   saveFilm(project, { ...filmOf(project), voices: { ...project.film.voices, [locale]: ref } });
   return project;
 }
+
+export function setKit(project: ProjectRecord, refs: string[]): ProjectRecord {
+  const kit = [...new Set(refs.map((item) => item.trim()).filter(Boolean))];
+  for (const ref of kit) {
+    const parsed = parseAssetRef(ref);
+    if (!parsed || parsed.scope !== "library") {
+      throw new Error(`kit 必须是 library: 引用：${ref}`);
+    }
+  }
+  saveFilm(project, { ...filmOf(project), kit });
+  return project;
+}

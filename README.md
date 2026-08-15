@@ -22,11 +22,11 @@ npx weaver project list --json
 npx weaver project show <id> --json   # paths + renderable
 ```
 
-Studio 是复核面（改词、补静帧、看 issue）：
+Studio 是本机控制站（人管音色/素材，点名给片子用；出片仍走 agent）：
 
 ```bash
 make install
-make studio          # http://127.0.0.1:5175/
+make studio          # http://127.0.0.1:5175/  /films /voices /library
 make remotion        # Remotion 预览
 ```
 

@@ -52,6 +52,18 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ locale, ref }),
     }).then((res) => parse<ProjectDetail>(res)),
+  setKit: (id: string, refs: string[]) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/kit`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refs }),
+    }).then((res) => parse<ProjectDetail>(res)),
+  patchLibrary: (id: string, body: { label?: string; text?: string; style?: string; locale?: string }) =>
+    fetch(`/api/library/assets/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((res) => parse<Asset>(res)),
   publish: (id: string, locale?: string) =>
     fetch(`/api/projects/${encodeURIComponent(id)}/publish`, {
       method: "POST",

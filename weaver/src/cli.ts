@@ -11,7 +11,7 @@ import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
 import { runPublish, runRender } from "./render.ts";
 import { ASSET_KINDS, isStudyRole } from "./schema.ts";
-import { addScene, moveScene, patchScene, removeScene, setCard, setVoice } from "./scenes.ts";
+import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setVoice } from "./scenes.ts";
 import { listTasks } from "./tasks/registry.ts";
 import type { ProjectRecord } from "./schema.ts";
 
@@ -79,6 +79,7 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       tags: { type: "string" },
       points: { type: "string" },
       ref: { type: "string" },
+      refs: { type: "string" },
       recipe: { type: "string" },
       kinds: { type: "string" },
     },
@@ -249,6 +250,22 @@ function main(): void {
     const ref = str(values, "ref");
     if (!locale || !ref) fail("需要 --locale 与 --ref");
     setVoice(project, locale, ref);
+    print(envelope(project, root));
+    return;
+  }
+
+  if (command === "kit") {
+    if (rest[0] !== "set") fail("用法: weaver kit set --project <id> --refs library:element.mark,...");
+    const project = requireProject(str(values, "project") ?? "");
+    const refs = str(values, "refs");
+    if (refs === undefined) fail("需要 --refs（逗号分隔的 library: 引用；空字符串清空）");
+    setKit(
+      project,
+      refs
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
     print(envelope(project, root));
     return;
   }
@@ -451,6 +468,7 @@ function main(): void {
   weaver scene list|add|rm|move|set
   weaver card set
   weaver voice set
+  weaver kit set
   weaver asset list|add
   weaver validate [id]
   weaver capture [--project]

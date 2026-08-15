@@ -139,11 +139,16 @@ CineWeaver Desktop 实际做的是短剧复刻自动剪（`backend/services/dram
 
 **理由：** Remotion skill（`/remotion-create`、`/remotion-markup`）面向「从零写动画」。我们的画面语言已经冻结为 title 卡 + still + close 卡。把作者面放到 TSX，等于抛弃 FilmDoc，并诱使每片一份 composition。
 
-### P3 · Studio 是复核面，不是主创作路径
+### P3 · Studio 是控制站：人管音色和素材，agent 出片
 
-不删 Studio（`products/studio/`，`127.0.0.1:5175`）。它负责：issue 列表、本机 mp4 回放、改一行旁白、agent 卡在静帧时上传绑定。CRUD 代码保留。产品文案与 README 第一路径改为 agent。
+不删 Studio（`products/studio/`，`127.0.0.1:5175`）。它是带路线的本机站，不是单页工作台：
 
-**不加：** Remotion Player、lab iframe、Studio 内 LLM、「一键写旁白」。lab URL 仍按 D13 纯文本展示。
+- 人监管 `/voices`、`/library`
+- 人在 `/f/<id>` 点名 `film.voices` 与 `film.kit`（告知 agent 用哪支声、哪些元素）
+- agent 经 weaver 写场、配音、渲染
+- 站里回放 mp4、看校验。**不加** TTS/渲染按钮、Remotion Player、lab iframe、站内 LLM、「一键写旁白」
+
+CRUD API 仍在，给点名和入库用。产品文案第一路径仍是 agent 出片。
 
 ### P4 · Agent 面是 Skill，不是 MCP，不是「Studio 当 API」
 

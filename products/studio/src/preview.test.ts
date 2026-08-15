@@ -19,6 +19,8 @@ function detail(partial: Partial<ProjectDetail["paths"]> = {}): ProjectDetail {
     locales: ["zh", "en"],
     scenes: 1,
     titles: { zh: "菜单" },
+    voices: { zh: "library:voice.prompt-zh" },
+    kit: ["library:element.mark"],
     film: {
       id: "intent-cascade",
       brand: "LightUI",
@@ -100,11 +102,11 @@ describe("outputPreview", () => {
 });
 
 describe("preview source contract", () => {
-  it("App video src is outputPreview, not an absolute path field", () => {
-    const app = fs.readFileSync(path.join(here, "App.tsx"), "utf8");
-    assert.match(app, /outputPreview/);
-    assert.match(app, /src=\{output\.src\}/);
-    assert.doesNotMatch(app, /src=\{output\.path\}/);
-    assert.doesNotMatch(app, /outputExists/);
+  it("Film video src is outputPreview, not an absolute path field", () => {
+    const film = fs.readFileSync(path.join(here, "pages/Film.tsx"), "utf8");
+    assert.match(film, /outputPreview/);
+    assert.match(film, /src=\{output\.src\}/);
+    assert.doesNotMatch(film, /src=\{output\.path\}/);
+    assert.doesNotMatch(film, /outputExists/);
   });
 });

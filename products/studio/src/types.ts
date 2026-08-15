@@ -11,6 +11,9 @@ export type ProjectSummary = {
   scenes: number;
   assets: number;
   titles: Record<string, string>;
+  voices: Record<string, string>;
+  kit: string[];
+  renderable?: boolean;
 };
 
 export type CardCopy = {
@@ -38,6 +41,7 @@ export type FilmDoc = {
   publish?: { dir: string };
   capture?: { kind: string; slug?: string };
   voices: Record<string, string>;
+  kit?: string[];
   locales: Record<
     string,
     { title: string; output: string; titleCard: CardCopy; closeCard: Pick<CardCopy, "headline" | "lede" | "points"> }

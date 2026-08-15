@@ -16,7 +16,7 @@ Read `AGENTS.md` first.
 | Shared voice / element / reference | `library/` |
 | LightUI / 顾客片实例 | `data/first-party/<id>/`（gitignore） |
 | Remotion cards, LightUI capture | `products/study-films/` |
-| Workbench UI | `products/studio/` |
+| Control site（人管音色/素材，复核片子） | `products/studio/` `http://127.0.0.1:5175/` |
 | How to author a film | **lightweaver-film** |
 | 制作一部讲解片 / 选配方 / 从 study 出片 | **lightweaver-film** |
 | Task type / 第三部片子 / study-explainer | **lightweaver-film** |

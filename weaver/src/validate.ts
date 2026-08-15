@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { err, filmTask, isImplementedTask, type Issue, type ProjectRecord, warn } from "./schema.ts";
+import { err, filmTask, isImplementedTask, parseAssetRef, type Issue, type ProjectRecord, warn } from "./schema.ts";
 import { findAsset, resolveAssetFile } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
@@ -40,6 +40,23 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
       if (!resolved || !fs.existsSync(resolved.absPath)) {
         issues.push(warn(`voices.${locale}`, `音色文件不存在：${voiceRef}`));
       }
+    }
+  }
+
+  for (const [index, ref] of (film.kit ?? []).entries()) {
+    const parsed = parseAssetRef(ref);
+    const path = `kit.${index}`;
+    if (!parsed || parsed.scope !== "library") {
+      issues.push(err(path, `必须是 library: 引用：${ref}`));
+      continue;
+    }
+    const asset = findAsset(project, ref, root);
+    if (!asset) {
+      issues.push(err(path, `找不到素材 ${ref}`));
+      continue;
+    }
+    if (asset.kind !== "element" && asset.kind !== "reference") {
+      issues.push(err(path, `kit 只能放元素或参考图，不能放 ${asset.kind}`));
     }
   }
 

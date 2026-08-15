@@ -33,7 +33,7 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | LightUI / 顾客片实例 | `data/first-party/<id>/`（不提交） |
 | User film | `data/projects/<id>/` or Studio「新建」（不提交） |
 | Remotion cards / capture adapter | `products/study-films/` |
-| Review surface | `products/studio/` |
+| Control site | `products/studio/`（`/` `/films` `/voices` `/library`） |
 | Agent procedure | `skills/lightweaver*` |
 | 存放契约 / 按图出片 | `docs/design-placement-contract.md`、`docs/conventions.md` |
 

@@ -10,4 +10,4 @@ Each `products/<name>/` is a standalone product root.
 | Product | Role |
 | --- | --- |
 | `study-films` | Remotion renderer + LightUI lab capture |
-| `studio` | Local workbench |
+| `studio` | Local control site: voices, materials, film assignment |

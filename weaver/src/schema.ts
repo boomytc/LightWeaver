@@ -74,6 +74,8 @@ export type FilmDoc = {
   publish?: { dir: string };
   capture?: { kind: string; slug?: string };
   voices: Record<Locale, AssetRef>;
+  /** 人指定的可复用素材（只允许 library:element|reference）。agent 按这份清单用，不自己加库外元素。 */
+  kit?: AssetRef[];
   locales: Record<Locale, LocaleCopy>;
   scenes: SceneDef[];
 };

@@ -90,6 +90,30 @@ export function addAsset(
   return asset;
 }
 
+export function upsertLibraryAsset(asset: Asset, root = weaverRoot()): Asset {
+  const assets = loadLibrary(root);
+  saveLibrary([...assets.filter((item) => item.id !== asset.id), asset], root);
+  return asset;
+}
+
+export function patchLibraryAsset(
+  id: string,
+  patch: { label?: string; text?: string; style?: string; locale?: string },
+  root = weaverRoot(),
+): Asset {
+  const assets = loadLibrary(root);
+  const current = assets.find((item) => item.id === id);
+  if (!current) throw new Error(`找不到库资产 ${id}`);
+  const next: Asset = {
+    ...current,
+    label: patch.label ?? current.label,
+    text: patch.text ?? current.text,
+    style: patch.style ?? current.style,
+    locale: patch.locale ?? current.locale,
+  };
+  return upsertLibraryAsset(next, root);
+}
+
 export function upsertAsset(project: ProjectRecord, asset: Asset): void {
   const next = project.assets.filter((item) => item.id !== asset.id);
   next.push(asset);
