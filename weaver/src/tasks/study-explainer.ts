@@ -11,6 +11,7 @@ import {
   warn,
 } from "../schema.ts";
 import type { CreateFilmInput, TaskModule } from "./types.ts";
+import { jargonIn } from "../plain-talk.ts";
 
 export const LIGHTUI_LAB_ADAPTERS = ["intent-cascade", "dropdown-taxonomy"] as const;
 
@@ -170,6 +171,24 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
             issues.push(warn(`locales.${locale}.output`, `SOURCE.md 未点名 ${copy.output}`));
           }
         }
+      }
+    }
+  }
+
+  for (const scene of scenes) {
+    for (const [locale, line] of Object.entries(scene.lines)) {
+      for (const hit of jargonIn(line)) {
+        issues.push(
+          warn(`scenes.${scene.id}.lines.${locale}`, `口播忌术语「${hit.term}」：${hit.hint}`),
+        );
+      }
+    }
+  }
+  for (const [locale, copy] of Object.entries(film.locales)) {
+    for (const text of [copy.titleCard.lede, copy.titleCard.headline, copy.closeCard.lede, copy.closeCard.headline]) {
+      if (!text) continue;
+      for (const hit of jargonIn(text)) {
+        issues.push(warn(`locales.${locale}`, `卡片忌术语「${hit.term}」：${hit.hint}`));
       }
     }
   }

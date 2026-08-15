@@ -22,6 +22,8 @@ describe("first-party films", () => {
       const issues = validateProject(project);
       assert.equal(hasErrors(issues), false, `${project.id}: ${JSON.stringify(issues.filter((i) => i.level === "error"))}`);
       assert.equal(isRenderable(project), true, project.id);
+      const jargon = issues.filter((issue) => issue.message.includes("忌术语"));
+      assert.equal(jargon.length, 0, `${project.id}: ${JSON.stringify(jargon)}`);
     }
   });
 
@@ -40,6 +42,24 @@ describe("first-party films", () => {
     const title = project.film.scenes.find((scene) => scene.id === "title");
     assert.ok(title?.lines.zh.includes("菜单意图预测"));
     assert.equal(project.film.scenes.find((scene) => scene.id === "problem")?.role, "problem");
+  });
+
+  it("warns when study-explainer copy uses leaf jargon", () => {
+    const project = loadProject("dropdown-taxonomy");
+    const fake = {
+      ...project,
+      film: {
+        ...project.film,
+        scenes: project.film.scenes.map((scene) =>
+          scene.id === "cascader"
+            ? { ...scene, lines: { zh: "必须走到叶子", en: "must reach a leaf" } }
+            : scene,
+        ),
+      },
+    };
+    const issues = validateProject(fake);
+    assert.ok(issues.some((issue) => issue.level === "warning" && issue.message.includes("叶子")));
+    assert.ok(issues.some((issue) => issue.level === "warning" && issue.message.includes("leaf")));
   });
 
   it("does not throw on an unknown task", () => {
