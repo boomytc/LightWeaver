@@ -410,8 +410,8 @@ function main(): void {
       }
     }
     if (!attempted.length) fail("没有可合成的项目", 2);
+    if (failed) fail(projectId ? "tts 失败" : "部分项目 tts 失败", 2);
     print(projectId ? results[0] : results);
-    if (failed) process.exit(2);
     return;
   }
 
