@@ -1,0 +1,150 @@
+{
+  "voices": {
+    "zh": "青春女声，灵动里带一点稳重，吐字清晰，语速从容",
+    "en": "youthful female voice, lively but a little composed, clear diction, unhurried pace"
+  },
+  "prompts": {
+    "zh": {
+      "text": "先把名称、场景和规则说清楚，再动手做交互。",
+      "audio": "assets/voice-prompt.zh.wav"
+    },
+    "en": {
+      "text": "Name the model, the scene, and the rule before you build the interaction.",
+      "audio": "assets/voice-prompt.en.wav"
+    }
+  },
+  "films": {
+    "intent-cascade": {
+      "zh": [
+        {
+          "id": "title",
+          "text": "菜单意图预测。根据指针轨迹，判断你是不是要进子菜单。"
+        },
+        {
+          "id": "problem",
+          "text": "从一级斜着滑向二级时，指针会短暂经过中间其它项。若悬停到谁就展开谁，子菜单会被途中抢走。"
+        },
+        {
+          "id": "diagonal",
+          "text": "子菜单打开后，用上一帧指针和子菜单左缘上下两点，构成一条安全走廊。斜向穿越时，只要还在走廊里，途经的项不会抢走子菜单。"
+        },
+        {
+          "id": "vertical",
+          "text": "沿一级列表上下移动、轨迹不朝向子菜单，则立刻切换。意图预测只保护像是要进去的那条斜线。"
+        },
+        {
+          "id": "third",
+          "text": "打开项目属性，再进项目标签，再斜向进入紧急。每一级都有自己的安全三角。进入子菜单后，走廊变绿。"
+        },
+        {
+          "id": "close",
+          "text": "指针越过子菜单左缘之后，走廊结束，也不再画反向三角。和一律加延迟不同：纵向扫不发黏，斜向才保护。"
+        }
+      ],
+      "en": [
+        {
+          "id": "title",
+          "text": "Menu intent prediction. From the pointer path, guess whether you are heading into the submenu."
+        },
+        {
+          "id": "problem",
+          "text": "Sliding diagonally from the first column into the second briefly crosses other items. If whichever item you hover opens, the submenu gets stolen mid-path."
+        },
+        {
+          "id": "diagonal",
+          "text": "After the submenu opens, the previous pointer sample and the leading-edge corners form a safe corridor. Stay inside on a diagonal, and passing items will not steal the submenu."
+        },
+        {
+          "id": "vertical",
+          "text": "Moving up and down the first column, not toward the submenu, switches immediately. Intent only protects a path that looks like it is going in."
+        },
+        {
+          "id": "third",
+          "text": "Open Project, then Project tags, then slide into Urgent. Each level has its own safe triangle. It turns green after you enter the submenu."
+        },
+        {
+          "id": "close",
+          "text": "Once the pointer crosses the submenu's leading edge, the corridor ends, and we do not draw a reverse triangle. Unlike a flat delay: vertical scans stay snappy, diagonals stay protected."
+        }
+      ]
+    },
+    "dropdown-taxonomy": {
+      "zh": [
+        {
+          "id": "title",
+          "text": "给下拉起对名字。往下展开只是外观，真正要先定的是提交模型。"
+        },
+        {
+          "id": "select",
+          "text": "选择，扁平列表里只交一个值，点中即关。"
+        },
+        {
+          "id": "multi",
+          "text": "多选择交的是一个集合。面板保持开着，标签可以单独摘掉。"
+        },
+        {
+          "id": "grouped",
+          "text": "分组选择仍然只交一个值。分组标题只是分类，不是层级。"
+        },
+        {
+          "id": "cascader",
+          "text": "级联选择必须走到叶子才提交一条路径。父级只展开，不能当成最终值。"
+        },
+        {
+          "id": "split",
+          "text": "分割按钮的主体立刻执行默认动作，只有箭头才打开低频菜单。"
+        },
+        {
+          "id": "mega",
+          "text": "巨型导航不是表单值，是多列导航。点链接，或点其它导航项。"
+        },
+        {
+          "id": "date",
+          "text": "日期选择先入住再离店，过去不可选。两端齐了才是一段，晚数是日历日差。"
+        },
+        {
+          "id": "close",
+          "text": "最容易混的一对：分组选择是分类，级联选择才是上下级。先说名称、场景和规则，再谈外观。"
+        }
+      ],
+      "en": [
+        {
+          "id": "title",
+          "text": "Name the dropdown properly. Opening downward is only the skin. First decide the commit model."
+        },
+        {
+          "id": "select",
+          "text": "Select commits one value from a flat list, and closes on pick."
+        },
+        {
+          "id": "multi",
+          "text": "Multi-select commits a set. The panel stays open, and chips can be removed one by one."
+        },
+        {
+          "id": "grouped",
+          "text": "Grouped Select still commits one value. Group titles are filing, not hierarchy."
+        },
+        {
+          "id": "cascader",
+          "text": "Cascader must reach a leaf before it commits a path. A parent only expands. It is not the final value."
+        },
+        {
+          "id": "split",
+          "text": "On a Split Button, the body fires the default action at once. Only the chevron opens the infrequent menu."
+        },
+        {
+          "id": "mega",
+          "text": "A Mega Menu is not a form value. It is multi-column navigation. Click a link, or another nav item."
+        },
+        {
+          "id": "date",
+          "text": "A date range is check-in, then check-out. Past days are locked. Only both ends make a span. Nights are calendar days."
+        },
+        {
+          "id": "close",
+          "text": "The pair people mix up: Grouped is filing. Cascader is parent-child. Name it, name the scene, name the rule, then talk about looks."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,3 @@
+# Copy to config.local.yaml (gitignored). Do not commit real keys.
+modelbest_base_url: 'https://api.modelbest.cn/v1'
+modelbest_api_key: ''

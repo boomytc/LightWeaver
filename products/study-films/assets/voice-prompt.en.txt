@@ -1,0 +1,1 @@
+Name the model, the scene, and the rule before you build the interaction.
