@@ -19,6 +19,7 @@ products/study-films/           Remotion renderer + LightUI capture
 products/study-films/projects/  first-party LightUI films
 products/studio/                local WebUI
 skills/                         agent skills
+spec/                           存放契约落地的实施规格（按 PR 切开）
 ```
 
 Root Makefile orchestrates. Do not put app `src/` at the repository root.
@@ -34,6 +35,7 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | Remotion cards / capture adapter | `products/study-films/` |
 | Workbench UI | `products/studio/` |
 | Agent procedure | `skills/lightweaver*` |
+| 存放契约怎么落地 | `spec/` |
 
 Do not re-home the engine under LightUI. Do not fold auto-cutting of
 existing footage into this repo (CineWeaver). Do not turn `library/` into
