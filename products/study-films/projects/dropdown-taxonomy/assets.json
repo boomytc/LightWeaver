@@ -64,33 +64,6 @@
       "label": "date-cal.png"
     },
     {
-      "id": "still.comp-01",
-      "kind": "still",
-      "files": {
-        "zh": "assets/stills/zh/comp-01.png",
-        "en": "assets/stills/en/comp-01.png"
-      },
-      "label": "comp-01.png"
-    },
-    {
-      "id": "still.comp-07",
-      "kind": "still",
-      "files": {
-        "zh": "assets/stills/zh/comp-07.png",
-        "en": "assets/stills/en/comp-07.png"
-      },
-      "label": "comp-07.png"
-    },
-    {
-      "id": "still.mobile",
-      "kind": "still",
-      "files": {
-        "zh": "assets/stills/zh/mobile.png",
-        "en": "assets/stills/en/mobile.png"
-      },
-      "label": "mobile.png"
-    },
-    {
       "id": "line.title.zh",
       "kind": "line",
       "locale": "zh",

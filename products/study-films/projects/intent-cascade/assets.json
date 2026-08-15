@@ -37,15 +37,6 @@
       "label": "third-level.png"
     },
     {
-      "id": "still.mobile",
-      "kind": "still",
-      "files": {
-        "zh": "assets/stills/zh/mobile.png",
-        "en": "assets/stills/en/mobile.png"
-      },
-      "label": "mobile.png"
-    },
-    {
       "id": "line.title.zh",
       "kind": "line",
       "locale": "zh",

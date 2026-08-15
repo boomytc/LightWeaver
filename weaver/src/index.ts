@@ -6,7 +6,6 @@ export * from "./project-paths.ts";
 export * from "./recipes.ts";
 export * from "./assets.ts";
 export * from "./validate.ts";
-export * from "./timeline.ts";
 export * from "./sync.ts";
 export * from "./tts.ts";
 export * from "./render.ts";

@@ -7,10 +7,6 @@ export type TaskId = (typeof TASK_IDS)[number];
 export const STUDY_SCENE_KINDS = ["title", "still", "close"] as const;
 export type StudySceneKind = (typeof STUDY_SCENE_KINDS)[number];
 
-/** 兼容旧 import；表示 study-explainer 的 kind，不是「所有任务」 */
-export const SCENE_KINDS = STUDY_SCENE_KINDS;
-export type SceneKind = StudySceneKind;
-
 export const STUDY_ROLES = ["problem", "rule", "contrast"] as const;
 export type StudyRole = (typeof STUDY_ROLES)[number];
 
@@ -104,10 +100,6 @@ export function isStudyRole(value: string): value is StudyRole {
 
 export function isImplementedTask(id: string): id is TaskId {
   return (TASK_IDS as readonly string[]).includes(id);
-}
-
-export function isSceneKind(value: string): value is SceneKind {
-  return (STUDY_SCENE_KINDS as readonly string[]).includes(value);
 }
 
 export function parseAssetRef(ref: string): { scope: "asset" | "library"; id: string } | null {

@@ -15,7 +15,6 @@ src/project-paths.ts   project show 的 paths（禁止并进 project.ts）
 src/recipes.ts         recipe list/show/apply
 src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
-src/timeline.ts        duration estimate
 src/sync.ts            Remotion public links + catalog
 src/tts.ts             VoxCPM2 job
 src/render.ts          Remotion + publish
