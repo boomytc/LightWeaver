@@ -28,7 +28,7 @@ requires_kinds: true
 
 ## 旁白义务
 
-每场 still ≈ `oneLiner` + 一条 rule；close 用 idea.md「最容易混的 N 对」。中间场不要过早收束。
+每场 still 用听者的话讲清「交出去什么、面板关不关」。不要把 idea.md 的「叶子 / 提交模型 / leaf / commit model」原样念出来。close 用易混对。中间场不要过早收束。
 
 ## 实证
 

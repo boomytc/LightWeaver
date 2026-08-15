@@ -50,7 +50,7 @@ description: >
 4. 真 lab 静帧。不要手绘假 UI。
 5. 双语成对写完再 TTS。
 6. 先形状后媒体；能复用就不重生。`validate` error 未清不得交付；`!isRenderable` 不得 `render`。
-7. 先名称 / 场景 / 规则，再谈外观。
+7. 先名称 / 场景 / 规则，再谈外观。口播用听者的话：`idea.md` 可以写「叶子」「提交模型」，片子里要改成「不能再往下点的那一级」「选完交出去什么、菜单关不关」。`validate` 对忌语出 warning。
 8. 不发明 scene kind。只能 `title | still | close`。
 9. 模式未定就停。缺静帧且无 adapter 就停。不要空转 `capture`。
 10. 确定性 job。weaver 内无模型。

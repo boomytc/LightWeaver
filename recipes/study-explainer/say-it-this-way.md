@@ -8,6 +8,6 @@ when: |
 
 # 说清楚
 
-`kind=close` 钉在末尾。`closeCard.headline`：`说清楚` / `Say it this way`。lede = 易混对 + 「先名称场景规则，再谈外观」。
+`kind=close` 钉在末尾。`closeCard.headline`：`说清楚` / `Say it this way`。lede = 易混对 + 「先名称场景规则，再谈外观」。易混对也用听者的话，不要回滑到「叶子 / 提交模型」。
 
 四则 `close` 都是这个收束，不是 CTA、不是品牌秀。禁止 `scene add --kind close`。

@@ -456,7 +456,7 @@ flowchart LR
 | slug | 已有 / 建议场景 id | 叙事 |
 | --- | --- | --- |
 | `intent-cascade` | title, problem, diagonal, vertical, third, close | 问题 → 走廊规则 → 纵向对照 delay → 第三级 → 收束 |
-| `dropdown-taxonomy` | title + 7 kind + close | 提交模型对照表；close 点破 Grouped ≠ Cascader |
+| `dropdown-taxonomy` | title + 7 kind + close | 对照表：选完交什么、关不关；close 点破 Grouped ≠ Cascader |
 | `nav-taxonomy` | title + 9 kind（floating, sidebar, breadcrumb, dropdown, mega, drawer, overlay, scrollspy, shrink）+ close | 住在哪 / 怎么开 / 滚什么；close 点破三对易混 |
 | `sidebar-taxonomy` | title + 5 kind（floating, wheel, multilevel, collapsible, offcanvas）+ close | 占位 / 变宽 / 盖上来；close 点破两对易混 |
 

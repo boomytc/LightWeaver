@@ -12,4 +12,4 @@ when: |
 
 `titleCard.kicker` = `LightUI  ·  Study`（first-party）或 `LightWeaver  ·  Film`（user）。tags 默认 `名称, 场景, 规则` / `Name, Scene, Rules`。headline / lede 来自 `study.json` 的 `title` / `summary`。
 
-旁白：标题句 + 一句话问题，不要在 title 场开始阅兵。
+旁白：标题句 + 一句话问题，不要在 title 场开始阅兵。lede 只留一句画面提示，不要整段复述旁白。卡片和口播都忌「叶子 / 提交模型」。
