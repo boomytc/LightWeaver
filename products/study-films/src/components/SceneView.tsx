@@ -1,4 +1,4 @@
-import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 import type { ResolvedFilm, TimedScene } from "../lib/types";
 import { theme } from "../lib/theme";
 import { Mark } from "./Mark";
@@ -6,9 +6,10 @@ import { Subtitles } from "./Subtitles";
 
 export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedScene }) {
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  // Sequence-local. useVideoConfig().durationInFrames is the whole film.
+  const sceneLen = scene.durationInFrames;
   const fadeIn = interpolate(frame, [0, 10], [0, 1], { extrapolateRight: "clamp" });
-  const fadeOut = interpolate(frame, [durationInFrames - 8, durationInFrames], [1, 0], {
+  const fadeOut = interpolate(frame, [sceneLen - 8, sceneLen], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -74,7 +75,7 @@ export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedSce
             ))}
           </div>
         </div>
-        <Subtitles line={scene.line} durationInFrames={durationInFrames} />
+        <Subtitles line={scene.line} durationInFrames={sceneLen} />
       </AbsoluteFill>
     );
   }
@@ -125,20 +126,23 @@ export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedSce
             <span>{film.title}</span>
           </div>
         </div>
-        <Subtitles line={scene.line} durationInFrames={durationInFrames} />
+        <Subtitles line={scene.line} durationInFrames={sceneLen} />
       </AbsoluteFill>
     );
   }
 
-  const zoom = interpolate(frame, [0, durationInFrames], [1, 1.035], {
-    extrapolateRight: "clamp",
-  });
+  // contain stills already letterbox; zoom would crop the lab chrome.
+  const zoom =
+    scene.fit === "contain"
+      ? 1
+      : interpolate(frame, [0, sceneLen], [1, 1.035], { extrapolateRight: "clamp" });
 
   return (
     <AbsoluteFill style={{ background: theme.bg, opacity, fontFamily: theme.font }}>
       <div style={{ position: "absolute", inset: "36px 48px 148px" }}>
         <div
           style={{
+            position: "relative",
             width: "100%",
             height: "100%",
             borderRadius: 18,
@@ -161,9 +165,26 @@ export function SceneView({ film, scene }: { film: ResolvedFilm; scene: TimedSce
               }}
             />
           ) : null}
+          <span
+            style={{
+              position: "absolute",
+              top: 16,
+              left: 16,
+              padding: "6px 12px",
+              borderRadius: 999,
+              background: "rgba(23,24,28,0.78)",
+              color: "rgba(255,255,255,0.96)",
+              fontSize: 16,
+              letterSpacing: "0.04em",
+              fontFamily: theme.mono,
+              fontWeight: 500,
+            }}
+          >
+            {scene.id}
+          </span>
         </div>
       </div>
-      <Subtitles line={scene.line} durationInFrames={durationInFrames} />
+      <Subtitles line={scene.line} durationInFrames={sceneLen} />
     </AbsoluteFill>
   );
 }
