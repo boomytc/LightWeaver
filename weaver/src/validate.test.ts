@@ -15,7 +15,10 @@ describe("first-party films", () => {
   });
 
   it("completed lightui-lab films have no errors and are renderable", () => {
-    for (const project of listProjects(weaverRoot()).filter((item) => isCompletedFilm(item))) {
+    const completed = listProjects(weaverRoot()).filter((item) => isCompletedFilm(item));
+    assert.ok(completed.some((project) => project.id === "intent-cascade"));
+    assert.ok(completed.some((project) => project.id === "dropdown-taxonomy"));
+    for (const project of completed) {
       const issues = validateProject(project);
       assert.equal(hasErrors(issues), false, `${project.id}: ${JSON.stringify(issues.filter((i) => i.level === "error"))}`);
       assert.equal(isRenderable(project), true, project.id);

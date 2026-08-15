@@ -91,7 +91,8 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
 export function everyStillPngExists(project: ProjectRecord, root = weaverRoot()): boolean {
   const locales = Object.keys(project.film.locales);
   for (const scene of project.film.scenes) {
-    if (scene.kind !== "still" || !scene.still) return false;
+    if (scene.kind !== "still") continue;
+    if (!scene.still) return false;
     for (const locale of locales) {
       const resolved = resolveAssetFile(project, scene.still, locale, root);
       if (!resolved || !fs.existsSync(resolved.absPath)) return false;
