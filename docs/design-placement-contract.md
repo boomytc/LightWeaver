@@ -756,7 +756,7 @@ description: >
 4. **真 lab 静帧。** 表现 study 时截 `http://127.0.0.1:5173/s/<slug>`；不要手绘一套假 UI 冒充 lab。
 5. **双语成对写完再 TTS。** first-party 读 `idea.md` **和** `idea.en.md`；用户片读 `brief.md` / `brief.en.md`。
 6. **先形状后媒体；能复用就不重生。** `validate` error 未清不得交付；`!isRenderable` 不得 `render`；wav/mp4 仍有效则跳过 job。
-7. **先名称 / 场景 / 规则，再谈外观。** 来自理念源，不是新 schema。口播用听者的话：`idea.md` 可以写「叶子」「提交模型」，片子里要译成「不能再往下点的那一级」「选完交出去什么、菜单关不关」。`validate` 对忌语出 warning。
+7. **先名称 / 场景 / 规则，再谈外观。** 来自理念源，不是新 schema。口播用听者的话：一场只留一个要记住的名字，解释用动作和后果。`idea.md` 可以写「叶子」「安全三角」「sticky」，片子里译成「不能再往下点的那一级」「斜着走过去先别换菜单」「跟着页面走、停在靠近顶部」。`validate` 对忌语出 warning。
 8. **不发明 scene kind。** 只能 `title | still | close`。
 9. **模式未定就停。** 缺静帧且无 adapter 就停。不要空转 `capture`。
 10. **确定性 job。** weaver 内无模型。写旁白是 agent 的事。
@@ -855,7 +855,7 @@ Studio「新建」仍只写 `data/projects/`、忽略 source（D6）。First-par
 - **canon：** `dropdown-taxonomy`（7）、`nav-taxonomy`（9）、`sidebar-taxonomy`（5）
 - **骨架：** title → 每个 kind 一场 contrast still → close 点破易混对。
 - **apply：** `--kinds` 必填。
-- **旁白义务：** 每场 still 用听者的话讲清「交出去什么、面板关不关」。不要把 idea.md 的「叶子 / 提交模型」原样念出来。close 用易混对。不要在中间场剧透过早收束。
+- **旁白义务：** 每场 still 用听者的话讲清这一场要记住的一件事。不要把 idea.md 的实现词原样念出来。close 用易混对。不要在中间场剧透过早收束。
 
 #### R3 · `kind-still`（scene）
 
@@ -905,7 +905,7 @@ Studio「新建」仍只写 `data/projects/`、忽略 source（D6）。First-par
 | Q8 | taxonomy 片：scene id 集合 = kinds 集合 | 与 `--kinds` / `kinds.ts` 对一下 | 补场，不合并 |
 | Q9 | `isRenderable === true` | GET 项目的 `renderable` 或本地 `everyStillPngExists` | **禁止 `render --project`**。无参 `make films` 会 skip，那不是这条片子的完成 |
 | Q10 | 成片文件名不是猜的 | 与 SOURCE.md 逐字相同 | 见 D6 |
-| Q11 | 口播/卡片无「叶子」「提交模型」等忌语 | `validateStudyExplainer` → `jargonIn` warning | 改成听者的话再 tts |
+| Q11 | 口播/卡片无实现词堆叠 | `validateStudyExplainer` → `jargonIn` warning | 改成动作和后果再 tts |
 | Q12 | title/close 有 points | `validateStudyExplainer` warning | lede 缩成一句，要点上板 |
 
 阶段 7 之后 skill 再看一眼本机 `assets/outputs/<output>` 是否存在。独立 subagent 终检（shotcraft 阶段 7）**v1 不做强制**——讲解片没有 2.5D 穿帮面，代价不值再开一条 agent。人在 Studio 看 mp4 即可。

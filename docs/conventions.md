@@ -42,7 +42,7 @@ assets/outputs/           渲染 mp4（不提交）
 - `task: "study-explainer"`
 - 场景形状：title 在首、close 在末、至少一场 still
 - 旁白写在 `scenes[].lines`
-- **口播通俗：** `idea.md` 可以写「叶子」「提交模型」；片子 `lines` 与 title/close 卡片必须改成听者的话（「不能再往下点的那一级」「选完交出去什么、菜单关不关」）。`validate` 对忌语出 warning（Q11）。「路径」可以留（面包屑、省市区一串都是日常说法）
+- **口播通俗：** `idea.md` 可以写实现词；片子 `lines` 与 title/close 卡片必须改成听者的话。一场只留一个要记住的名字，解释用动作和后果，不要堆「安全三角 / 走廊 / sticky / 观察器 / 上一帧」。`validate` 对忌语出 warning（Q11）。「路径」可以留（面包屑、省市区一串都是日常说法）
 - **要点板：** title / close 的正文是 `points`（2–4 条），按旁白进度出现。lede 只留一句。对照条写成 `左 || 右`。不要一段 lede 铺满，不要另写 mermaid 渲染器
 - 静帧：`scenes[].still = "asset:still.<id>"`
 - 音色：`voices.<locale> = "library:voice.prompt-zh"`

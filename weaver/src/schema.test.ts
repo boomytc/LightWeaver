@@ -16,12 +16,19 @@ describe("parseAssetRef", () => {
 });
 
 describe("plain talk", () => {
-  it("flags leaf jargon and accepts everyday wording", () => {
+  it("flags stacked jargon and accepts everyday wording", () => {
     assert.equal(jargonIn("级联选择必须走到叶子才提交一条路径。")[0]?.term, "叶子");
     assert.equal(jargonIn("Cascader must reach a leaf before it commits.")[0]?.term, "leaf");
     assert.equal(jargonIn("先定提交模型。")[0]?.term, "提交模型");
     assert.equal(jargonIn("First decide the commit model.")[0]?.term, "commit model");
+    assert.equal(jargonIn("用安全三角保护斜向穿越")[0]?.term, "安全三角");
+    assert.equal(jargonIn("用 sticky 钉住，不要用 fixed。")[0]?.term, "sticky");
+    assert.equal(jargonIn("点击跳转时先锁观察器。")[0]?.term, "观察器");
+    assert.equal(jargonIn("隐藏式默认宽度为零")[0]?.term, "宽度为零");
+    assert.equal(jargonIn("Lock the observer on a click jump.")[0]?.term, "observer");
     assert.deepEqual(jargonIn("点到不能再往下的那一级，才算选完。"), []);
-    assert.deepEqual(jargonIn("面包屑是路径，不是主导航。"), []);
+    assert.deepEqual(jargonIn("面包屑是你怎么走到这一页的路径，不是主菜单。"), []);
+    assert.deepEqual(jargonIn("斜着走过去先别换菜单，上下扫的时候马上换。"), []);
+    assert.deepEqual(jargonIn("On a long page, the matching item lights up as you scroll."), []);
   });
 });

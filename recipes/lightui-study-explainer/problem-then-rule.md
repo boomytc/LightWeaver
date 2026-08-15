@@ -47,7 +47,7 @@ v1 写死四场 still，与 LightUI stage kinds 相同：`status` `diagonal` `pr
 
 ## 旁白义务
 
-status 说会坏什么；diagonal / third 说走廊；project 说纵向为什么立刻切（对照 delay）。
+status 说会坏什么；diagonal 说斜着走先别换；project 说上下扫马上换；third 说进了右边菜单路就定住。不要念「走廊 / 安全三角 / 上一帧」。
 
 ## 实证
 
