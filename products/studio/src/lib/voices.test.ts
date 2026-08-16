@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filmVoiceRef, listVoicePacks, voiceFile, voicePackId, voiceSlots } from "./voices.ts";
+import { filmVoiceRef, listVoicePacks, voiceFile, voicePackId, voiceParts } from "./voices.ts";
 import type { Asset } from "../types.ts";
 
 describe("listVoicePacks", () => {
@@ -27,15 +27,33 @@ describe("listVoicePacks", () => {
     assert.equal(voicePackId(listed[0]!), "voice.prompt");
   });
 
-  it("marks the first kept wav as the primary slot", () => {
-    const slots = voiceSlots({
+  it("treats instruct-designed locale wavs as preview, not clone", () => {
+    const parts = voiceParts({
       id: "voice.prompt",
       kind: "voice",
       files: { zh: "voices/prompt-zh.wav", en: "voices/prompt-en.wav" },
       texts: { zh: "中", en: "en" },
+      style: "青春女声",
     });
-    assert.equal(slots[0]?.primary, true);
-    assert.equal(slots[0]?.key, "zh");
+    assert.equal(parts.preview?.file, "voices/prompt-zh.wav");
+    assert.equal(parts.preview?.said, "中");
+    assert.equal(parts.clone, undefined);
+    assert.equal(parts.instruct, "青春女声");
     assert.equal(filmVoiceRef({ zh: "library:voice.prompt", en: "library:voice.prompt" }), "library:voice.prompt");
+  });
+
+  it("reads an uploaded clone separately from preview", () => {
+    const parts = voiceParts({
+      id: "voice.prompt",
+      kind: "voice",
+      file: "voices/voice.prompt.wav",
+      text: "试听稿",
+      style: "青春女声",
+      files: { clone: "voices/voice.prompt.clone.wav" },
+      texts: { clone: "克隆稿" },
+    });
+    assert.equal(parts.preview?.file, "voices/voice.prompt.wav");
+    assert.equal(parts.clone?.file, "voices/voice.prompt.clone.wav");
+    assert.equal(parts.clone?.said, "克隆稿");
   });
 });

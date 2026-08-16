@@ -10,18 +10,9 @@
       "id": "voice.prompt",
       "kind": "voice",
       "label": "讲解女声",
-      "files": {
-        "zh": "voices/prompt-zh.wav",
-        "en": "voices/prompt-en.wav"
-      },
-      "texts": {
-        "zh": "先把名称、场景和规则说清楚，再动手做交互。",
-        "en": "Name the model, the scene, and the rule before you build the interaction."
-      },
-      "styles": {
-        "zh": "青春女声，灵动里带一点稳重，吐字清晰，语速从容",
-        "en": "youthful female voice, lively but a little composed, clear diction, unhurried pace"
-      }
+      "file": "voices/prompt-zh.wav",
+      "text": "先把名称、场景和规则说清楚，再动手做交互。",
+      "style": "青春女声，灵动里带一点稳重，吐字清晰，语速从容"
     }
   ]
 }

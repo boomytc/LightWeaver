@@ -121,7 +121,7 @@ export function Home() {
                   onClick={() => setVoiceRef(voiceRef === ref ? "" : ref)}
                 >
                   <strong>{asset.label ?? asset.id}</strong>
-                  <span className="item-meta">{asset.id} · 一套音色</span>
+                  <span className="item-meta">{asset.id} · Hi-Fi clone</span>
                 </button>
               );
             })}

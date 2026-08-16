@@ -42,54 +42,62 @@ export function resolveAssetFile(
   return { asset, relPath, scopeRoot, absPath: path.join(scopeRoot, relPath) };
 }
 
-/** 优先本语言参考声；没有就用套里任意一支。VoxCPM2 不按语言标签分流。 */
+/** files.clone / texts.clone = 上传或从片子提出的克隆源。file/text = 试听。 */
+export const VOICE_CLONE_KEY = "clone";
+
+export type VoiceClip = { file: string; said: string };
+
+export type VoiceParts = {
+  clone?: VoiceClip;
+  preview?: VoiceClip;
+  instruct: string;
+};
+
+function clipOf(file?: string, said?: string): VoiceClip | undefined {
+  return file ? { file, said: (said ?? "").trim() } : undefined;
+}
+
+/** 克隆源只认 files.clone。其余 wav（含旧的 files.zh/en）都是试听。 */
+export function voiceParts(asset?: Asset): VoiceParts {
+  if (!asset) return { instruct: "" };
+  const instruct = (asset.style || asset.styles?.zh || asset.styles?.en || "").trim();
+  const clone = clipOf(asset.files?.[VOICE_CLONE_KEY], asset.texts?.[VOICE_CLONE_KEY]);
+  let preview = clipOf(asset.file, asset.text);
+  if (!preview) {
+    const entry = Object.entries(asset.files ?? {}).find(([key, file]) => key !== VOICE_CLONE_KEY && file);
+    if (entry) preview = clipOf(entry[1], asset.texts?.[entry[0]] ?? asset.text);
+  }
+  return { clone, preview, instruct };
+}
+
+/** 出片 Hi-Fi：试听优先（instruct 铸出的身份），没有再克隆源。 */
+export function voiceHifiRef(asset?: Asset): VoiceClip | undefined {
+  const parts = voiceParts(asset);
+  return parts.preview ?? parts.clone;
+}
+
+/** 出片用的那支 wav。VoxCPM2 不按语言标签分流。 */
 export function resolveVoicePrompt(
   project: ProjectRecord | null,
   ref: AssetRef,
-  locale?: Locale,
+  _locale?: Locale,
   root = weaverRoot(),
 ) {
+  const parsed = parseAssetRef(ref);
   const asset = findAsset(project, ref, root);
-  if (!asset) return null;
-  const order = [locale, ...Object.keys(asset.files ?? {}), asset.locale, undefined];
-  const seen = new Set<string>();
-  for (const item of order) {
-    const key = item ?? "";
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const resolved = resolveAssetFile(project, ref, item, root);
-    if (resolved && fs.existsSync(resolved.absPath)) return resolved;
-  }
-  return null;
+  if (!parsed || !asset) return null;
+  const relPath = voiceHifiRef(asset)?.file;
+  if (!relPath) return null;
+  const scopeRoot = parsed.scope === "library" ? libraryRoot(root) : project!.root;
+  const absPath = path.join(scopeRoot, relPath);
+  if (!fs.existsSync(absPath)) return null;
+  return { asset, relPath, scopeRoot, absPath };
 }
 
 export function voiceStyle(asset: Asset, locale?: string): string {
   if (locale && asset.styles?.[locale]) return asset.styles[locale] ?? "";
   if (locale && asset.locale === locale && asset.style) return asset.style;
   return asset.styles?.zh ?? asset.styles?.en ?? asset.style ?? "";
-}
-
-export type VoiceSlot = { key: string; file: string; said: string; primary: boolean };
-
-export function voiceSlots(asset: Asset): VoiceSlot[] {
-  const slots: VoiceSlot[] = [];
-  for (const [key, file] of Object.entries(asset.files ?? {})) {
-    if (file) slots.push({ key, file, said: asset.texts?.[key] ?? "", primary: false });
-  }
-  if (asset.file && !slots.some((slot) => slot.file === asset.file)) {
-    slots.unshift({
-      key: asset.locale || "main",
-      file: asset.file,
-      said: asset.text ?? "",
-      primary: true,
-    });
-  }
-  if (slots[0]) slots[0] = { ...slots[0], primary: true };
-  return slots;
-}
-
-export function voicePrimaryKey(asset?: Asset): string {
-  return voiceSlots(asset ?? { id: "", kind: "voice" })[0]?.key ?? "main";
 }
 
 export function remotionPublicPath(projectId: string, relPath: string): string {

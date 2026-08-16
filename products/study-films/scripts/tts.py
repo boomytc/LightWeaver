@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-"""Synthesize project narration via VoxCPM2 public /audio/speech paths.
+"""Synthesize project narration via VoxCPM2.
 
-Aligned with AutoModel explore/tts/api/requests/voxcpm2:
-  clone         ref_audio (data:audio/wav;base64) + optional denoise
-  style clone   input = "(style)text" + ref_audio
-  voice design  input = "(style)text" without ref_audio
-  tts           input = text
-  multilingual  change input text only; no language tag
-  normalize     do_normalize=true (official optional passthrough)
+Mint (Studio /voices):
+  instruct     input = "(style)text" without ref_audio → 试听
+  clone        ref_audio from 克隆源 only (not 试听)
+Film lines:
+  hifi-clone   试听优先，否则克隆源；ref_audio + ref_text，保证一致性
 
-Do not send ref_text (Hi-Fi is not a documented public field).
-Language is not an API parameter.
+Language is not an API parameter; change input text only.
 
 Reads a weaver job JSON (--job). Logs go to stderr. The last stdout line is
 the result JSON.
@@ -144,6 +141,7 @@ def speech_payload(
     denoise: bool | None = None,
     do_normalize: bool = True,
     cfg_value: float | None = None,
+    ref_text: str = "",
 ) -> dict:
     payload: dict = {
         "model": "VoxCPM2",
@@ -155,6 +153,8 @@ def speech_payload(
     if ref_wav and ref_wav.is_file():
         payload["ref_audio"] = as_data_wav(ref_wav)
         payload["denoise"] = True if denoise is None else bool(denoise)
+        if ref_text.strip():
+            payload["ref_text"] = ref_text.strip()
     elif denoise is True:
         payload["denoise"] = True
     if cfg_value is not None:
@@ -192,6 +192,7 @@ def mint_one(api_url: str, key: str, job: dict) -> dict:
             denoise=_opt_bool(job, "denoise"),
             do_normalize=True if job.get("do_normalize") is None else bool(job.get("do_normalize")),
             cfg_value=_opt_float(job, "cfg_value"),
+            ref_text=str(job.get("refText") or ""),
         ),
     )
     seconds = write_wav(dest, audio)
@@ -213,8 +214,13 @@ def main() -> None:
     project_root = Path(job["projectRoot"])
     ref_raw = str(job.get("refAudio") or "").strip()
     ref_wav = Path(ref_raw) if ref_raw else None
+    ref_text = str(job.get("refText") or "").strip()
     if job.get("seed"):
         print("ignore seed: 铸库请在 Studio /voices，出片不改参考声", file=sys.stderr)
+    if not ref_wav or not ref_wav.is_file():
+        raise SystemExit("出片需要克隆源 wav。先在 /voices 用 instruct 铸一支再收，或上传 wav。")
+    if not ref_text:
+        raise SystemExit("出片 Hi-Fi 需要克隆源逐字稿（这支在说）。")
 
     wrote = []
     for item in job.get("items") or []:
@@ -222,9 +228,12 @@ def main() -> None:
         text = str(item.get("text") or "").strip()
         if not text:
             continue
-        mode = "clone" if ref_wav and ref_wav.is_file() else "tts"
-        print(f"{mode} {job.get('locale')}/{item['id']}", file=sys.stderr)
-        audio = post_speech(api_url, key, speech_payload(text, ref_wav=ref_wav, style=""))
+        print(f"hifi {job.get('locale')}/{item['id']}", file=sys.stderr)
+        audio = post_speech(
+            api_url,
+            key,
+            speech_payload(text, ref_wav=ref_wav, style="", ref_text=ref_text),
+        )
         seconds = write_wav(dest, audio)
         print(f"  {dest}  {seconds:.2f}s", file=sys.stderr)
         wrote.append({"scene": item["id"], "file": item["dest"], "seconds": round(seconds, 3)})

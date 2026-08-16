@@ -40,7 +40,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     } else {
       const resolved = resolveVoicePrompt(project, voiceRef, locale, root);
       if (!resolved) {
-        issues.push(warn(`voices.${locale}`, `音色文件不存在：${voiceRef}`));
+        issues.push(warn(`voices.${locale}`, `还没有试听或克隆源 wav：${voiceRef}`));
       }
     }
   }

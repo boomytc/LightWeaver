@@ -105,9 +105,14 @@ export const api = {
       body: JSON.stringify({ type, projectId, locale }),
     }).then((res) => parse<Job>(res)),
   job: (id: string) => fetch(`/api/jobs/${encodeURIComponent(id)}`).then((res) => parse<Job>(res)),
+  createVoicePack: (body: { id: string; label?: string; style?: string }) =>
+    fetch("/api/voices/pack", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((res) => parse<Asset>(res)),
   mintVoice: (body: {
     id?: string;
-    locale?: string;
     text: string;
     style?: string;
     ref?: string;
@@ -124,7 +129,7 @@ export const api = {
     ),
   keepVoice: (body: {
     id: string;
-    locale?: string;
+    as?: "preview" | "clone";
     label?: string;
     said?: string;
     style?: string;

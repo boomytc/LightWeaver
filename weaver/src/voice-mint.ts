@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { filmsProductRoot, firstPartyRoot, libraryRoot, userRoot, voiceCandidateRoot, weaverRoot } from "./paths.ts";
-import { loadLibrary, upsertLibraryAsset, voicePrimaryKey } from "./assets.ts";
+import { loadLibrary, upsertLibraryAsset, VOICE_CLONE_KEY, voiceParts } from "./assets.ts";
 import { loadProject } from "./project.ts";
 import { parseTtsResult } from "./tts.ts";
-import type { Asset, Locale } from "./schema.ts";
+import type { Asset } from "./schema.ts";
 
 const ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 
@@ -14,6 +14,7 @@ export type VoiceMintOptions = {
   style?: string;
   refAudio?: string;
   destName?: string;
+  refText?: string;
   denoise?: boolean;
   doNormalize?: boolean;
   cfgValue?: number;
@@ -28,19 +29,45 @@ export type VoiceMintResult = {
   style: string;
 };
 
+export type VoiceKeepAs = "preview" | "clone";
+
 export type KeepLibraryVoiceInput = {
   id: string;
-  locale?: Locale;
   sourceAbs: string;
+  as?: VoiceKeepAs;
   label?: string;
   said?: string;
   style?: string;
 };
 
-export function voiceKeepRel(id: string, locale: string, current?: string): string {
+export function voiceKeepRel(id: string, as: VoiceKeepAs, current?: string): string {
   if (current) return current;
-  if (locale === "main") return path.posix.join("voices", `${id}.wav`);
-  return path.posix.join("voices", `${id}-${locale}.wav`);
+  const name = as === "clone" ? `${id}.clone.wav` : `${id}.wav`;
+  return path.posix.join("voices", name);
+}
+
+export function upsertVoicePack(
+  input: { id: string; label?: string; style?: string },
+  root = weaverRoot(),
+): Asset {
+  if (!ID_RE.test(input.id)) throw new Error("资产 id 必须是 dotted/kebab 小写");
+  const current = loadLibrary(root).find((item) => item.id === input.id);
+  if (current && current.kind !== "voice") throw new Error(`${input.id} 不是音色`);
+  const parts = voiceParts(current);
+  return upsertLibraryAsset(
+    {
+      id: input.id,
+      kind: "voice",
+      label: input.label ?? current?.label ?? input.id,
+      style: input.style ?? current?.style ?? parts.instruct,
+      file: current?.file,
+      text: current?.text,
+      files: current?.files,
+      texts: current?.texts,
+      styles: current?.styles,
+    },
+    root,
+  );
 }
 
 export function runVoiceMint(options: VoiceMintOptions): VoiceMintResult {
@@ -64,6 +91,7 @@ export function runVoiceMint(options: VoiceMintOptions): VoiceMintResult {
         text,
         style: options.style ?? "",
         refAudio: options.refAudio ?? "",
+        refText: options.refText ?? "",
         denoise: options.denoise,
         do_normalize: options.doNormalize ?? true,
         cfg_value: options.cfgValue,
@@ -97,41 +125,51 @@ export function keepLibraryVoice(input: KeepLibraryVoiceInput, root = weaverRoot
   const assets = loadLibrary(root);
   const current = assets.find((item) => item.id === input.id);
   if (current && current.kind !== "voice") throw new Error(`${input.id} 不是音色`);
-  const slot = input.locale?.trim() || voicePrimaryKey(current);
-  const currentRel = current?.files?.[slot] ?? (slot === voicePrimaryKey(current) ? current?.file : undefined);
-  const rel = voiceKeepRel(input.id, slot, currentRel);
+  const parts = voiceParts(current);
+  const as: VoiceKeepAs = input.as ?? "preview";
+  const currentRel = as === "clone" ? parts.clone?.file : parts.preview?.file;
+  const rel = voiceKeepRel(input.id, as, currentRel);
   const dest = path.join(libraryRoot(root), rel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   if (path.resolve(input.sourceAbs) !== path.resolve(dest)) {
     fs.copyFileSync(input.sourceAbs, dest);
   }
-  const texts = { ...(current?.texts ?? {}) };
-  if (input.said !== undefined) texts[slot] = input.said;
+  const cloneFile = as === "clone" ? rel : parts.clone?.file;
+  const cloneSaid = as === "clone" ? (input.said ?? parts.clone?.said ?? "") : (parts.clone?.said ?? "");
   const files = { ...(current?.files ?? {}) };
-  if (slot === "main" && !Object.keys(files).length) {
-    const next: Asset = {
+  const texts = { ...(current?.texts ?? {}) };
+  if (as === "clone") {
+    files[VOICE_CLONE_KEY] = rel;
+    texts[VOICE_CLONE_KEY] = cloneSaid;
+    return upsertLibraryAsset(
+      {
+        id: input.id,
+        kind: "voice",
+        label: input.label ?? current?.label ?? input.id,
+        file: current?.file,
+        text: current?.text,
+        style: input.style ?? current?.style ?? parts.instruct,
+        files,
+        texts,
+      },
+      root,
+    );
+  }
+  const nextFiles = cloneFile ? { [VOICE_CLONE_KEY]: cloneFile } : undefined;
+  const nextTexts = cloneFile ? { [VOICE_CLONE_KEY]: cloneSaid } : undefined;
+  return upsertLibraryAsset(
+    {
       id: input.id,
       kind: "voice",
       label: input.label ?? current?.label ?? input.id,
       file: rel,
-      text: input.said ?? current?.text,
-      texts,
-      style: input.style ?? current?.style,
-      styles: current?.styles,
-    };
-    return upsertLibraryAsset(next, root);
-  }
-  files[slot] = rel;
-  const next: Asset = {
-    id: input.id,
-    kind: "voice",
-    label: input.label ?? current?.label ?? input.id,
-    files,
-    texts,
-    style: input.style ?? current?.style,
-    styles: current?.styles,
-  };
-  return upsertLibraryAsset(next, root);
+      text: input.said ?? parts.preview?.said ?? "",
+      style: input.style ?? current?.style ?? parts.instruct,
+      files: nextFiles,
+      texts: nextTexts,
+    },
+    root,
+  );
 }
 
 export function resolveKeepSource(

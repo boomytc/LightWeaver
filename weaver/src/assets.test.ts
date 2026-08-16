@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { listVoiceSets, patchLibraryAsset, resolveVoicePrompt, voiceCloneText, voiceSetId, voiceStyle } from "./assets.ts";
+import { listVoiceSets, patchLibraryAsset, resolveVoicePrompt, voiceCloneText, voiceHifiRef, voiceParts, voiceSetId, voiceStyle } from "./assets.ts";
 import { tempWorkspace, touch } from "./test-workspace.ts";
 import type { Asset } from "./schema.ts";
 
@@ -45,6 +45,35 @@ describe("voice packs", () => {
     assert.equal(next.texts?.en, "new english");
     assert.equal(next.styles?.en, "steady");
     assert.equal(next.locale, undefined);
+  });
+
+  it("treats leftover locale wavs as preview, not clone", () => {
+    const asset: Asset = {
+      id: "voice.prompt",
+      kind: "voice",
+      files: { zh: "voices/prompt-zh.wav", en: "voices/prompt-en.wav" },
+      texts: { zh: "中文稿", en: "English prompt" },
+      style: "青春女声",
+    };
+    const parts = voiceParts(asset);
+    assert.equal(parts.preview?.file, "voices/prompt-zh.wav");
+    assert.equal(parts.preview?.said, "中文稿");
+    assert.equal(parts.clone, undefined);
+    assert.equal(parts.instruct, "青春女声");
+    assert.equal(voiceHifiRef(asset)?.file, "voices/prompt-zh.wav");
+  });
+
+  it("prefers preview over clone for Hi-Fi", () => {
+    const asset: Asset = {
+      id: "voice.prompt",
+      kind: "voice",
+      file: "voices/voice.prompt.wav",
+      text: "试听稿",
+      files: { clone: "voices/voice.prompt.clone.wav" },
+      texts: { clone: "克隆稿" },
+    };
+    assert.equal(voiceHifiRef(asset)?.file, "voices/voice.prompt.wav");
+    assert.equal(voiceHifiRef(asset)?.said, "试听稿");
   });
 
   it("falls back to the other side of a voice pack", () => {

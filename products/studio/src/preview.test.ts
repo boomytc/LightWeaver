@@ -104,11 +104,16 @@ describe("outputPreview", () => {
 describe("voices catalog contract", () => {
   it("treats kept wav as the pack and does not seed from film tts", () => {
     const page = fs.readFileSync(path.join(here, "pages/Voices.tsx"), "utf8");
-    assert.match(page, /一支参考声就能克隆/);
+    assert.match(page, /Hi-Fi/);
+    assert.match(page, /instruct/);
     assert.match(page, /MODELBEST_URL/);
     assert.match(page, /keepVoice/);
-    assert.match(page, /mintVoice/);
-    assert.doesNotMatch(page, /中文风格/);
+    assert.match(page, /收下为试听/);
+    assert.match(page, /收为克隆源/);
+    assert.match(page, /instruct 铸出的放试听/);
+    assert.doesNotMatch(page, /备声/);
+    assert.doesNotMatch(page, /主声/);
+    assert.doesNotMatch(page, /收下为克隆源/);
   });
 });
 

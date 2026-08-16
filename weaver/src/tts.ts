@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { filmsProductRoot, weaverRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
-import { lineAssetId, lineRelPath, resolveVoicePrompt, upsertAsset } from "./assets.ts";
+import { findAsset, lineAssetId, lineRelPath, resolveVoicePrompt, upsertAsset, voiceHifiRef } from "./assets.ts";
 import { filmLangs, type Locale } from "./schema.ts";
 
 export type TtsOptions = {
@@ -55,6 +55,14 @@ export function runTts(options: TtsOptions): TtsResult {
     const voiceRef = project.film.voices[locale] ?? project.film.voices[Object.keys(project.film.voices)[0] ?? ""];
     if (!voiceRef) throw new Error(`项目 ${project.id} 未指定音色`);
     const voice = resolveVoicePrompt(project, voiceRef, locale, root);
+    const voiceAsset = findAsset(project, voiceRef, root);
+    const hifi = voiceHifiRef(voiceAsset);
+    if (!voice || !hifi) {
+      throw new Error(`音色 ${voiceRef} 还没有试听或克隆源 wav。先在 /voices 用 instruct 铸一支再收，或上传克隆源。`);
+    }
+    if (!hifi.said) {
+      throw new Error(`音色 ${voiceRef} 缺逐字稿（这支在说），Hi-Fi 无法保证一致。`);
+    }
     const items = scenes
       .map((scene) => ({
         id: scene.id,
@@ -65,9 +73,11 @@ export function runTts(options: TtsOptions): TtsResult {
     if (!items.length) throw new Error(`项目 ${project.id} 没有 ${locale} 旁白`);
     const job = {
       kind: "lines",
+      mode: "hifi",
       projectRoot: project.root,
       locale,
-      refAudio: voice?.absPath ?? "",
+      refAudio: voice.absPath,
+      refText: hifi.said,
       configDirs: [root, filmsProductRoot(root)],
       items,
     };

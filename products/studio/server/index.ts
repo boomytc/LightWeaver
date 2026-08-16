@@ -33,11 +33,13 @@ import {
   upsertLibraryAsset,
   validateProject,
   weaverRoot,
+  findAsset,
   keepLibraryVoice,
   resolveKeepSource,
-  resolveVoicePrompt,
   runVoiceMint,
+  upsertVoicePack,
   voiceCandidateRoot,
+  voiceParts,
   type Asset,
   type FilmDoc,
 } from "@lightweaver/weaver";
@@ -248,24 +250,49 @@ app.patch("/api/projects/:id/kit", (req, res) => {
   }
 });
 
+app.post("/api/voices/pack", (req, res) => {
+  try {
+    const asset = upsertVoicePack(
+      {
+        id: String(req.body?.id ?? "").trim(),
+        label: typeof req.body?.label === "string" ? req.body.label : undefined,
+        style: typeof req.body?.style === "string" ? req.body.style : undefined,
+      },
+      root,
+    );
+    res.json(asset);
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
 app.post("/api/voices/mint", (req, res) => {
   req.setTimeout(200000);
   res.setTimeout(200000);
   try {
-    const locale = typeof req.body?.locale === "string" ? req.body.locale : "zh";
     const id = typeof req.body?.id === "string" ? req.body.id.trim() : "";
     const ref = typeof req.body?.ref === "string" ? req.body.ref : "";
+    const instruct = typeof req.body?.style === "string" ? req.body.style : "";
     let refAudio: string | undefined;
+    let refText = "";
     if (ref && ref !== "none") {
-      const resolved = resolveVoicePrompt(null, ref.startsWith("library:") ? ref : `library:${ref}`, locale, root);
-      if (!resolved) throw new Error("这套还没有可克隆的参考声，先上传一支或用不带参考声的声音描述");
-      refAudio = resolved.absPath;
+      const packRef = ref.startsWith("library:") ? ref : `library:${ref}`;
+      const asset = findAsset(null, packRef, root);
+      const clone = voiceParts(asset).clone;
+      if (!asset || !clone) throw new Error("铸试听只按克隆源铸。没有克隆源就只用 instruct。");
+      const dest = path.join(libraryRoot(root), clone.file);
+      if (!fs.existsSync(dest)) throw new Error("克隆源 wav 不在盘上");
+      refAudio = dest;
+      refText = clone.said;
+    } else if (!instruct.trim()) {
+      throw new Error("没有克隆源时，需要一段 instruct 描述");
     }
     const minted = runVoiceMint({
       text: String(req.body?.text ?? ""),
-      style: typeof req.body?.style === "string" ? req.body.style : "",
+      style: instruct,
       refAudio,
-      destName: `${id || "mint"}-${locale}-${Date.now()}.wav`,
+      refText,
+      destName: `${id || "mint"}-${Date.now()}.wav`,
       denoise: typeof req.body?.denoise === "boolean" ? req.body.denoise : undefined,
       doNormalize: typeof req.body?.doNormalize === "boolean" ? req.body.doNormalize : true,
       cfgValue:
@@ -288,11 +315,12 @@ app.post("/api/voices/keep", (req, res) => {
       res.status(400).json({ error: "收下需要 candidate 或片子旁白路径" });
       return;
     }
+    const as = req.body?.as === "clone" ? "clone" : "preview";
     const abs = resolveKeepSource(source, root);
     const asset = keepLibraryVoice(
       {
         id: String(req.body?.id ?? "").trim(),
-        locale: typeof req.body?.locale === "string" ? req.body.locale.trim() : undefined,
+        as,
         sourceAbs: abs,
         label: typeof req.body?.label === "string" ? req.body.label : undefined,
         said: typeof req.body?.said === "string" ? req.body.said : undefined,
@@ -483,24 +511,33 @@ function ingestUpload(
   const rel = destRel(kind, id, locale, ext);
 
   if (target.scope === "library") {
+    const existing = loadLibrary(root).find((asset) => asset.id === id);
+    if (kind === "voice") {
+      const parts = voiceParts(existing);
+      const cloneRel = parts.clone?.file ?? `voices/${id.replace(/[^a-z0-9.-]+/gi, "-")}.clone${ext}`;
+      const dest = safeJoin(libraryRoot(root), cloneRel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, req.file.buffer);
+      const files = { ...(existing?.files ?? {}), clone: cloneRel };
+      const texts = { ...(existing?.texts ?? {}) };
+      if (text !== undefined) texts.clone = text;
+      return upsertLibraryAsset(
+        {
+          id,
+          kind: "voice",
+          label: label ?? existing?.label ?? id,
+          file: existing?.file,
+          text: existing?.text,
+          style: style ?? existing?.style ?? parts.instruct,
+          files,
+          texts,
+        },
+        root,
+      );
+    }
     const dest = safeJoin(libraryRoot(root), rel);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, req.file.buffer);
-    const existing = loadLibrary(root).find((asset) => asset.id === id);
-    if (kind === "voice" && locale) {
-      const files = { ...(existing?.files ?? {}), [locale]: rel };
-      const texts = { ...(existing?.texts ?? {}), ...(text ? { [locale]: text } : {}) };
-      const styles = { ...(existing?.styles ?? {}), ...(style ? { [locale]: style } : {}) };
-      const next: Asset = {
-        id,
-        kind: "voice",
-        label: label ?? existing?.label ?? id,
-        files,
-        texts,
-        styles,
-      };
-      return upsertLibraryAsset(next, root);
-    }
     if (existing) {
       return upsertLibraryAsset(
         {
