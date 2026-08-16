@@ -784,6 +784,29 @@ html[data-theme="light"] .btn-primary { color: #fff; }
 .banner-error { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .banner-ok { background: color-mix(in srgb, var(--ok) 14%, transparent); }
 
+.toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 40;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.toast-ok {
+  background: color-mix(in srgb, var(--ok) 18%, var(--bg-elevated));
+  color: var(--text);
+}
+.toast-error {
+  background: color-mix(in srgb, var(--danger) 16%, var(--bg-elevated));
+  color: var(--text);
+}
+
 .compose-grid {
   display: grid;
   grid-template-columns: 1.2fr 0.9fr 0.9fr;

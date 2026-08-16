@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Link } from "../components/Link";
 import { BriefPanel } from "../components/BriefPanel";
 import { assetLabel, kindLabel, sourceLabel } from "../lib/labels";
+import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { filmLangs, langLabel } from "../lib/langs";
 import { filmVoiceRef, listVoicePacks } from "../lib/voices";
@@ -14,8 +15,8 @@ export function Film({ id }: { id: string }) {
   const [library, setLibrary] = useState<Asset[]>([]);
   const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const [locale, setLocale] = useState("zh");
-  const [error, setError] = useState<string>();
-  const [message, setMessage] = useFlash();
+  const { flash, ok, error } = useFlash();
+  const [loadFailed, setLoadFailed] = useState(false);
   const [sceneId, setSceneId] = useState<string>();
 
   const load = useCallback(async () => {
@@ -32,7 +33,10 @@ export function Film({ id }: { id: string }) {
   }, [id]);
 
   useEffect(() => {
-    load().catch((err: Error) => setError(err.message));
+    load().catch((err: Error) => {
+      setLoadFailed(true);
+      error(err.message);
+    });
   }, [load]);
 
   const scene = detail?.film.scenes.find((item) => item.id === sceneId);
@@ -46,9 +50,9 @@ export function Film({ id }: { id: string }) {
     if (!detail || !next.length) return;
     try {
       setDetail(await api.setLangs(detail.id, next));
-      setMessage(`要出：${next.map(langLabel).join("、")}`);
+      ok(`要出：${next.map(langLabel).join("、")}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -56,9 +60,9 @@ export function Film({ id }: { id: string }) {
     if (!detail) return;
     try {
       setDetail(await api.setVoicePack(detail.id, ref));
-      setMessage(`音色套已点名 ${assetLabel(library, ref)}`);
+      ok(`音色套已点名 ${assetLabel(library, ref)}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -68,16 +72,17 @@ export function Film({ id }: { id: string }) {
     const next = current.includes(ref) ? current.filter((item) => item !== ref) : [...current, ref];
     try {
       setDetail(await api.setKit(detail.id, next));
-      setMessage(next.length ? `素材：${next.map((item) => assetLabel(library, item)).join("、")}` : "已清空素材点名");
+      ok(next.length ? `素材：${next.map((item) => assetLabel(library, item)).join("、")}` : "已清空素材点名");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     }
   }
 
   if (!detail) {
     return (
       <div className="page-width page">
-        {error ? <div className="banner banner-error">{error}</div> : <p className="item-meta">载入片子…</p>}
+        <Toast flash={flash} />
+        <p className="item-meta">{loadFailed ? "片子载不进来" : "载入片子…"}</p>
       </div>
     );
   }
@@ -103,12 +108,7 @@ export function Film({ id }: { id: string }) {
           {detail.studySlug ? ` · lab 文本 http://127.0.0.1:5173/s/${detail.studySlug}` : ""}
         </p>
         <p className="lede">人在这里点名音色、素材和方法卡，复制说明给 agent。这个站不排、不渲。</p>
-        {error ? <div className="banner banner-error">{error}</div> : null}
-        {message ? (
-          <div className="banner banner-ok" role="status">
-            {message}
-          </div>
-        ) : null}
+        <Toast flash={flash} />
       </div>
 
       <div className="page-width film-board">
@@ -120,7 +120,7 @@ export function Film({ id }: { id: string }) {
               aria-label="方法卡"
               value={detail.film.recipe ?? ""}
               onChange={(event) =>
-                void api.setRecipe(detail.id, event.target.value).then(setDetail).catch((err: Error) => setError(err.message))
+                void api.setRecipe(detail.id, event.target.value).then(setDetail).catch((err: Error) => error(err.message))
               }
             >
               <option value="">未点名</option>

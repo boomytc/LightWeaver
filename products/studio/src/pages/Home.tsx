@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import { Toast } from "../components/Toast";
+import { useFlash } from "../lib/flash";
 import { BriefPanel } from "../components/BriefPanel";
 import { recipeHint } from "../lib/labels";
 import { langLabel } from "../lib/langs";
@@ -9,7 +11,7 @@ import type { Asset, RecipeCard } from "../types";
 export function Home() {
   const [library, setLibrary] = useState<Asset[]>([]);
   const [recipes, setRecipes] = useState<RecipeCard[]>([]);
-  const [error, setError] = useState<string>();
+  const { flash, error } = useFlash();
   const [recipeId, setRecipeId] = useState("");
   const [voiceRef, setVoiceRef] = useState("");
   const [langs, setLangs] = useState<string[]>(["zh", "en"]);
@@ -23,7 +25,7 @@ export function Home() {
         const wanted = new URLSearchParams(window.location.search).get("recipe") ?? "";
         if (wanted) setRecipeId(wanted);
       })
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => error(err.message));
   }, []);
 
   const voicePacks = listVoicePacks(library);
@@ -58,7 +60,7 @@ export function Home() {
       <p className="lede">
         点名音色、素材组、方法卡，以及要出哪些语言。不写进片子，不在这里排场。agent 拿说明去用 LightWeaver。
       </p>
-      {error ? <div className="banner banner-error">{error}</div> : null}
+      <Toast flash={flash} />
 
       <section>
         <h2 className="h">要出的语言</h2>

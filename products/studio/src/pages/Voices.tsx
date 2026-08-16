@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, candidateMedia, libraryMedia, type ModelbestStatus } from "../api";
+import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { listVoicePacks, voiceCloneSource, type VoiceOrigin } from "../lib/voices";
 import { IconUpload } from "../icons";
@@ -12,8 +13,7 @@ type Candidate = { rel: string; seconds: number; text: string; style: string; as
 
 export function Voices() {
   const [library, setLibrary] = useState<Asset[]>([]);
-  const [error, setError] = useState<string>();
-  const [message, setMessage] = useFlash();
+  const { flash, ok, error } = useFlash();
   const [label, setLabel] = useState("");
   const [how, setHow] = useState<VoiceOrigin>("instruct");
   const [said, setSaid] = useState("");
@@ -39,7 +39,7 @@ export function Voices() {
   }
 
   useEffect(() => {
-    reload().catch((err: Error) => setError(err.message));
+    reload().catch((err: Error) => error(err.message));
   }, []);
 
   async function testLink() {
@@ -68,11 +68,11 @@ export function Voices() {
   function keepName(): string | undefined {
     const name = label.trim();
     if (!name) {
-      setError("先写名称再保存");
+      error("先写名称再保存");
       return;
     }
     if (taken(name)) {
-      setError(`${name} 已在音色库里`);
+      error(`${name} 已在音色库里`);
       return;
     }
     return name;
@@ -80,11 +80,11 @@ export function Voices() {
 
   async function mint() {
     if (!instruct.trim()) {
-      setError("设计指令要先写一段描述");
+      error("设计指令要先写一段描述");
       return;
     }
     if (!canMint) {
-      setError("先写入 ModelBest API key");
+      error("先写入 ModelBest API key");
       return;
     }
     setBusy(true);
@@ -98,10 +98,9 @@ export function Voices() {
         cfgValue: Number.isFinite(Number(cfgValue)) && cfgValue.trim() ? Number(cfgValue) : undefined,
       });
       setCandidate(minted);
-      setMessage(`已合成试听 ${minted.seconds.toFixed(1)} 秒`);
-      setError(undefined);
+      ok(`已合成试听 ${minted.seconds.toFixed(1)} 秒`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -119,12 +118,11 @@ export function Voices() {
         style: instruct,
         source: { kind: "candidate", rel: candidate.rel },
       });
-      setMessage(`已保存 ${name}`);
-      setError(undefined);
+      ok(`已保存 ${name}`);
       resetCreate();
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -139,14 +137,13 @@ export function Voices() {
       const staged = await api.stageVoice(form);
       setCandidate({ rel: staged.rel, seconds: staged.seconds, text: staged.text, style: "", asr: staged.asr });
       setSaid(staged.text);
-      setError(staged.error);
       if (staged.error) {
-        setMessage("转写没写成，请手写这句");
+        error(staged.error);
       } else if (staged.asr) {
-        setMessage(replace ? "已按新录音重新转写" : "已转写文本");
+        ok(replace ? "已按新录音重新转写" : "已转写文本");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -157,7 +154,7 @@ export function Voices() {
     const name = keepName();
     if (!name) return;
     if (!said.trim()) {
-      setError("先写文本，或等转写完成");
+      error("先写文本，或等转写完成");
       return;
     }
     try {
@@ -167,24 +164,18 @@ export function Voices() {
         said: said.trim(),
         source: { kind: "candidate", rel: candidate.rel },
       });
-      setMessage(`已保存 ${name}`);
-      setError(undefined);
+      ok(`已保存 ${name}`);
       resetCreate();
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     }
   }
 
   return (
     <div className="page-width page">
       <h1 className="sr">音色</h1>
-      {error ? <div className="banner banner-error">{error}</div> : null}
-      {message ? (
-        <div className="banner banner-ok" role="status">
-          {message}
-        </div>
-      ) : null}
+      <Toast flash={flash} />
 
       <section className="surface settings-row" aria-label="语音合成">
         <div className="settings-status">
@@ -260,7 +251,7 @@ export function Voices() {
                 busy={busy}
                 src={candidate ? candidateMedia(candidate.rel) : undefined}
                 onFile={(file) => void upload(file)}
-                onReject={() => setError("请选一支音频")}
+                onReject={() => error("请选一支音频")}
               />
               {candidate ? (
                 <>
@@ -293,8 +284,8 @@ export function Voices() {
                   asset={asset}
                   taken={(name) => packs.some((item) => item.id !== asset.id && (item.label ?? item.id).trim() === name)}
                   onChanged={reload}
-                  onError={setError}
-                  onMessage={setMessage}
+                  onError={error}
+                  onMessage={ok}
                 />
               ))}
             </div>

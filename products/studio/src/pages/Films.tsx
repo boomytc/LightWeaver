@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { Toast } from "../components/Toast";
+import { useFlash } from "../lib/flash";
 import { Link } from "../components/Link";
 import { navigate } from "../lib/nav";
 import { assetLabel, sourceLabel } from "../lib/labels";
@@ -9,7 +11,7 @@ import type { Asset, ProjectSummary } from "../types";
 export function Films() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [library, setLibrary] = useState<Asset[]>([]);
-  const [error, setError] = useState<string>();
+  const { flash, error } = useFlash();
   const [newId, setNewId] = useState("");
   const [newTitle, setNewTitle] = useState("");
 
@@ -19,7 +21,7 @@ export function Films() {
         setProjects(nextProjects);
         setLibrary(nextLibrary);
       })
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => error(err.message));
   }, []);
 
   async function create() {
@@ -27,7 +29,7 @@ export function Films() {
       const created = await api.createProject(newId.trim(), newTitle.trim() || newId.trim());
       navigate(`/f/${encodeURIComponent(created.id)}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -36,7 +38,7 @@ export function Films() {
       <p className="eyebrow">复核</p>
       <h1 className="page-title">片子</h1>
       <p className="lede">看每部片子点名了哪支声、哪些素材。编排和出片走 agent，不要在这里加场或生成。</p>
-      {error ? <div className="banner banner-error">{error}</div> : null}
+      <Toast flash={flash} />
 
       <div className="card-grid">
         {projects.map((project) => (

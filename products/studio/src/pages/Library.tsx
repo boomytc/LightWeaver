@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, libraryMedia } from "../api";
 import { Link } from "../components/Link";
+import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { kindLabel } from "../lib/labels";
 import type { Asset, ProjectSummary } from "../types";
@@ -8,8 +9,7 @@ import type { Asset, ProjectSummary } from "../types";
 export function Library() {
   const [library, setLibrary] = useState<Asset[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [error, setError] = useState<string>();
-  const [message, setMessage] = useFlash();
+  const { flash, ok, error } = useFlash();
   const [id, setId] = useState("");
   const [kind, setKind] = useState<"element" | "reference">("element");
   const [label, setLabel] = useState("");
@@ -21,14 +21,14 @@ export function Library() {
   }
 
   useEffect(() => {
-    reload().catch((err: Error) => setError(err.message));
+    reload().catch((err: Error) => error(err.message));
   }, []);
 
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
 
   async function upload(file: File) {
     if (!id.trim()) {
-      setError("先写素材 id，例如 element.mark");
+      error("先写素材 id，例如 element.mark");
       return;
     }
     const form = new FormData();
@@ -38,11 +38,10 @@ export function Library() {
     if (label.trim()) form.set("label", label.trim());
     try {
       await api.uploadLibrary(form);
-      setMessage(`已入库 ${id.trim()}`);
-      setError(undefined);
+      ok(`已入库 ${id.trim()}`);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      error(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -53,12 +52,7 @@ export function Library() {
       <p className="lede">
         只收会进片子的元素和参考图，不是通用文件库。片子页勾选之后，agent 按这份清单用，不自己加。
       </p>
-      {error ? <div className="banner banner-error">{error}</div> : null}
-      {message ? (
-        <div className="banner banner-ok" role="status">
-          {message}
-        </div>
-      ) : null}
+      <Toast flash={flash} />
 
       <div className="assets">
         {materials.map((asset) => {

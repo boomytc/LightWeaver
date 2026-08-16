@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { Toast } from "../components/Toast";
+import { useFlash } from "../lib/flash";
 import { Link } from "../components/Link";
 import { compactWhen, recipeHint, roleLabel } from "../lib/labels";
 import { buildMethodBrief, methodApplyLine, methodShape } from "../lib/method-brief";
@@ -8,7 +10,7 @@ import type { ProjectSummary, RecipeCard } from "../types";
 export function Methods() {
   const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [error, setError] = useState<string>();
+  const { flash, error } = useFlash();
 
   useEffect(() => {
     Promise.all([api.recipes(), api.projects()])
@@ -16,7 +18,7 @@ export function Methods() {
         setRecipes(nextRecipes);
         setProjects(nextProjects);
       })
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => error(err.message));
   }, []);
 
   const filmCards = recipes.filter((item) => item.level === "film");
@@ -34,7 +36,7 @@ export function Methods() {
       <p className="lede">
         可复用的成片骨架。下一张同类片子点同一张卡就能铺同样的形状。片子是实例，卡不是。
       </p>
-      {error ? <div className="banner banner-error">{error}</div> : null}
+      <Toast flash={flash} />
 
       {[...byTask.entries()].map(([task, cards]) => (
         <section key={task} style={{ marginTop: 28 }}>

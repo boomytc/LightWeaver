@@ -1,22 +1,39 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export const FLASH_MS = 3000;
 
-export function useFlash(ms = FLASH_MS): [string | undefined, (next?: string) => void] {
-  const [message, setMessage] = useState<string>();
+export type FlashKind = "ok" | "error";
+
+export type Flash = {
+  kind: FlashKind;
+  text: string;
+};
+
+export function useFlash(ms = FLASH_MS): {
+  flash: Flash | undefined;
+  ok: (next?: string) => void;
+  error: (next?: string) => void;
+} {
+  const [flash, setFlash] = useState<Flash>();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  function flash(next?: string) {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = undefined;
-    const text = next?.trim();
-    setMessage(text || undefined);
-    if (!text) return;
-    timer.current = setTimeout(() => {
-      setMessage(undefined);
+  const show = useCallback(
+    (kind: FlashKind, next?: string) => {
+      if (timer.current) clearTimeout(timer.current);
       timer.current = undefined;
-    }, ms);
-  }
+      const text = next?.trim();
+      if (!text) {
+        setFlash(undefined);
+        return;
+      }
+      setFlash({ kind, text });
+      timer.current = setTimeout(() => {
+        setFlash(undefined);
+        timer.current = undefined;
+      }, ms);
+    },
+    [ms],
+  );
 
   useEffect(
     () => () => {
@@ -25,5 +42,11 @@ export function useFlash(ms = FLASH_MS): [string | undefined, (next?: string) =>
     [],
   );
 
-  return [message, flash];
+  return {
+    flash,
+    ok: useCallback((next?: string) => show("ok", next), [show]),
+    error: useCallback((next?: string) => show("error", next), [show]),
+  };
 }
+
+
