@@ -68,7 +68,7 @@ export function Voices() {
       return;
     }
     if (!instruct.trim()) {
-      setError("instruct 铸源要先写一段描述");
+      setError("设计指令要先写一段描述");
       return;
     }
     setBusy(true);
@@ -219,17 +219,17 @@ export function Voices() {
           {how === "instruct" ? (
             <>
               <label className="field field-span">
-                <span>instruct</span>
+                <span>设计指令</span>
                 <input value={instruct} onChange={(event) => setInstruct(event.target.value)} placeholder="例如 青春女声，吐字清晰" />
               </label>
               <label className="field field-span">
-                <span>试听稿</span>
+                <span>文本</span>
                 <input value={trial} onChange={(event) => setTrial(event.target.value)} />
               </label>
             </>
           ) : (
             <label className="field field-span">
-              <span>这支在说</span>
+              <span>文本</span>
               <input value={said} onChange={(event) => setSaid(event.target.value)} />
             </label>
           )}
@@ -365,7 +365,7 @@ function OriginPick({
         <label className={value === "instruct" ? "kit-item is-on" : "kit-item"}>
           <input type="radio" name={name} checked={value === "instruct"} onChange={() => onChange("instruct")} />
           <span>
-            <span className="item-title">instruct 铸</span>
+            <span className="item-title">设计指令</span>
             <span className="item-meta">点铸才出试听</span>
           </span>
         </label>
@@ -376,7 +376,7 @@ function OriginPick({
 
 function VoiceLibraryCard({ asset }: { asset: Asset }) {
   const source = voiceCloneSource(asset);
-  const origin = source.origin === "instruct" ? "instruct 铸出" : "上传";
+  const origin = source.origin === "instruct" ? "设计指令铸出" : "上传";
   return (
     <article className="voice-card">
       <div className="voice-main">
@@ -388,8 +388,8 @@ function VoiceLibraryCard({ asset }: { asset: Asset }) {
         </div>
         {source.file ? <audio controls preload="metadata" src={libraryMedia(source.file)} /> : null}
       </div>
-      {source.said ? <p className="item-meta">这支在说：{source.said}</p> : null}
-      {source.instruct ? <p className="item-meta">instruct：{source.instruct}</p> : null}
+      {source.said ? <p className="item-meta">文本：{source.said}</p> : null}
+      {source.instruct ? <p className="item-meta">设计指令：{source.instruct}</p> : null}
     </article>
   );
 }

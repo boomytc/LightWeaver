@@ -105,7 +105,8 @@ describe("voices catalog contract", () => {
   it("treats kept wav as the pack and does not seed from film tts", () => {
     const page = fs.readFileSync(path.join(here, "pages/Voices.tsx"), "utf8");
     assert.match(page, /Hi-Fi/);
-    assert.match(page, /instruct/);
+    assert.match(page, /设计指令/);
+    assert.match(page, /文本/);
     assert.match(page, /MODELBEST_URL/);
     assert.match(page, /keepVoice/);
     assert.match(page, /收下进音色库/);
@@ -113,6 +114,7 @@ describe("voices catalog contract", () => {
     assert.match(page, /type="radio"/);
     assert.match(page, /点铸才出试听/);
     assert.match(page, /上传后直接听/);
+    assert.doesNotMatch(page, /这支在说/);
     assert.match(page, /VoiceLibraryCard/);
     assert.doesNotMatch(page, /备声/);
     assert.doesNotMatch(page, /主声/);

@@ -15,7 +15,7 @@ Shared library (`library/`):
 
 ```bash
 npx weaver asset add --library --id voice.prompt --kind voice --file voices/prompt-zh.wav
-# 一套声一支克隆源。上传录音或 instruct 铸完再收，二选一。出片 Hi-Fi clone。不要用 tts --seed 改库。
+# 一套声一支克隆源。上传录音或写设计指令铸完再收，二选一。出片 Hi-Fi clone。不要用 tts --seed 改库。
 ```
 
 Project stills:

@@ -218,9 +218,9 @@ def main() -> None:
     if job.get("seed"):
         print("ignore seed: 铸库请在 Studio /voices，出片不改参考声", file=sys.stderr)
     if not ref_wav or not ref_wav.is_file():
-        raise SystemExit("出片需要克隆源 wav。先在 /voices 用 instruct 铸一支再收，或上传 wav。")
+        raise SystemExit("出片需要克隆源 wav。先在 /voices 用设计指令铸一支再收，或上传 wav。")
     if not ref_text:
-        raise SystemExit("出片 Hi-Fi 需要克隆源逐字稿（这支在说）。")
+        raise SystemExit("出片 Hi-Fi 需要克隆源文本。")
 
     wrote = []
     for item in job.get("items") or []:

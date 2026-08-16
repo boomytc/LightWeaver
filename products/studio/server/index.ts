@@ -271,7 +271,7 @@ app.post("/api/voices/mint", (req, res) => {
   try {
     const id = typeof req.body?.id === "string" ? req.body.id.trim() : "";
     const instruct = typeof req.body?.style === "string" ? req.body.style : "";
-    if (!instruct.trim()) throw new Error("铸试听需要一段 instruct");
+    if (!instruct.trim()) throw new Error("铸试听需要一段设计指令");
     const minted = runVoiceMint({
       text: String(req.body?.text ?? ""),
       style: instruct,

@@ -58,10 +58,10 @@ export function runTts(options: TtsOptions): TtsResult {
     const voiceAsset = findAsset(project, voiceRef, root);
     const hifi = voiceHifiRef(voiceAsset);
     if (!voice || !hifi) {
-      throw new Error(`音色 ${voiceRef} 还没有克隆源 wav。上传一支，或用 instruct 铸完再收。`);
+      throw new Error(`音色 ${voiceRef} 还没有克隆源 wav。上传一支，或用设计指令铸完再收。`);
     }
     if (!hifi.said) {
-      throw new Error(`音色 ${voiceRef} 缺逐字稿（这支在说），Hi-Fi 无法保证一致。`);
+      throw new Error(`音色 ${voiceRef} 缺文本，Hi-Fi 无法保证一致。`);
     }
     const items = scenes
       .map((scene) => ({

@@ -17,7 +17,7 @@ src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
 src/sync.ts            Remotion public links + catalog
 src/tts.ts             VoxCPM2 line job（Hi-Fi：唯一克隆源）
-src/voice-mint.ts      instruct 铸试听 / 收下为克隆源
+src/voice-mint.ts      设计指令铸试听 / 收下为克隆源
 src/render.ts          Remotion + publish
 src/cli.ts             JSON/human CLI
 ```
