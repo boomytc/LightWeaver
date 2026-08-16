@@ -54,7 +54,7 @@ export function Voices() {
     <div className="page-width page">
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">音色</h1>
-      <p className="lede">一套音色绑中英两支参考声。工作台只点一套，不要拆开选。</p>
+      <p className="lede">一套音色。中英可以各有一支参考声，出片时勾选要出的语言，不必两种都出。</p>
       {error ? <div className="banner banner-error">{error}</div> : null}
       {message ? <div className="banner banner-ok">{message}</div> : null}
 
@@ -162,7 +162,7 @@ function VoicePackCard({
       <div className="voice-main">
         <div>
           <div className="item-title">{asset.label ?? asset.id}</div>
-          <div className="card-id">{asset.id} · 中英一套</div>
+          <div className="card-id">{asset.id} · 一套音色</div>
         </div>
       </div>
       <div className="form-grid">

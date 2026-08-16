@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseAssetRef } from "./schema.ts";
+import { filmLangs, parseAssetRef } from "./schema.ts";
 import { jargonIn } from "./plain-talk.ts";
 
 describe("parseAssetRef", () => {
@@ -12,6 +12,16 @@ describe("parseAssetRef", () => {
   it("rejects bare filenames", () => {
     assert.equal(parseAssetRef("desktop-full.png"), null);
     assert.equal(parseAssetRef("asset:"), null);
+  });
+});
+
+describe("filmLangs", () => {
+  it("defaults to every locale when langs is omitted", () => {
+    assert.deepEqual(filmLangs({ locales: { zh: {} as never, en: {} as never } }), ["zh", "en"]);
+  });
+
+  it("keeps only picked locales that exist on the film", () => {
+    assert.deepEqual(filmLangs({ locales: { zh: {} as never, en: {} as never }, langs: ["zh", "ja"] }), ["zh"]);
   });
 });
 

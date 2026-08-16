@@ -80,6 +80,8 @@ export type FilmDoc = {
   kit?: AssetRef[];
   /** 人点名的成片方法卡（film-level recipe id）。agent 按这张卡铺骨架，不另选。 */
   recipe?: string;
+  /** 要出的语言。省略则按 locales 里已有的键都出。 */
+  langs?: Locale[];
   locales: Record<Locale, LocaleCopy>;
   scenes: SceneDef[];
 };
@@ -134,6 +136,13 @@ export function filmTask(film: FilmDoc): string {
 
 export function filmStudySlug(film: FilmDoc): string | undefined {
   return film.study?.slug ?? film.capture?.slug;
+}
+
+export function filmLangs(film: Pick<FilmDoc, "locales" | "langs">): Locale[] {
+  const all = Object.keys(film.locales);
+  const picked = [...new Set((film.langs ?? []).map((item) => item.trim()).filter(Boolean))];
+  if (!picked.length) return all;
+  return picked.filter((locale) => all.includes(locale));
 }
 
 export function normalizeFilm(film: FilmDoc): FilmDoc {

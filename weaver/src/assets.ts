@@ -42,6 +42,33 @@ export function resolveAssetFile(
   return { asset, relPath, scopeRoot, absPath: path.join(scopeRoot, relPath) };
 }
 
+/** 优先本语言参考声；没有就用套里任意一支。VoxCPM2 不按语言标签分流。 */
+export function resolveVoicePrompt(
+  project: ProjectRecord | null,
+  ref: AssetRef,
+  locale?: Locale,
+  root = weaverRoot(),
+) {
+  const asset = findAsset(project, ref, root);
+  if (!asset) return null;
+  const order = [locale, ...Object.keys(asset.files ?? {}), asset.locale, undefined];
+  const seen = new Set<string>();
+  for (const item of order) {
+    const key = item ?? "";
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const resolved = resolveAssetFile(project, ref, item, root);
+    if (resolved && fs.existsSync(resolved.absPath)) return resolved;
+  }
+  return null;
+}
+
+export function voiceStyle(asset: Asset, locale?: string): string {
+  if (locale && asset.styles?.[locale]) return asset.styles[locale] ?? "";
+  if (locale && asset.locale === locale && asset.style) return asset.style;
+  return asset.styles?.zh ?? asset.styles?.en ?? asset.style ?? "";
+}
+
 export function remotionPublicPath(projectId: string, relPath: string): string {
   return `projects/${projectId}/${relPath.replace(/\\/g, "/")}`;
 }

@@ -20,7 +20,7 @@ description: >
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）
 - 产物：`<project>/assets/lines/<locale>/*.wav`；`<project>/assets/outputs/<output>`
 - 方法：`recipes/lightui-study-explainer/`（`weaver recipe list --task study-explainer` / `show`；index 六行）
-- 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.voices`、`film.kit`、`film.recipe`：人点名的音色、素材、方法卡，不要自己换。
+- 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.langs`、`film.voices`、`film.kit`、`film.recipe`：人点名要出的语言、音色、素材、方法卡，不要自己换。
 
 ## 结合规则
 
@@ -85,6 +85,7 @@ npx weaver scene move --project <id> --id <scene> --after <id>
 npx weaver scene set --project <id> --id <scene> --locale zh --text "..."
 npx weaver card set --project <id> --locale zh --which title --headline "..." --lede "..." --points "要点一;要点二"
 npx weaver voice set --project <id> --ref library:voice.prompt
+npx weaver langs set --project <id> --langs zh
 npx weaver kit set --project <id> --refs library:element.mark
 npx weaver validate <id>
 npx weaver tts --project <id>

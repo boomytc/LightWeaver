@@ -43,10 +43,10 @@ assets/outputs/           渲染 mp4（不提交）
 - 场景形状：title 在首、close 在末、至少一场 still
 - 旁白写在 `scenes[].lines`
 - **口播通俗：** `idea.md` 可以写实现词；片子 `lines` 与 title/close 卡片必须改成听者的话。一场只留一个要记住的名字，解释用动作和后果，不要堆「安全三角 / 走廊 / sticky / 观察器 / 上一帧」。`validate` 对忌语出 warning（Q11）。「路径」可以留（面包屑、省市区一串都是日常说法）
-- **点名资产：** `film.voices` 中英绑同一套音色；`film.kit` 是人勾选的 `library:element|reference`。agent 先读这两项再写片子，不自己换声、不加清单外元素。Studio `/voices` `/library` 监管库，`/f/<id>` 点名。
+- **点名资产：** `film.voices` 各语言同一套音色；`film.langs` 是要出的语言（可只出中文或只出英文）；`film.kit` 是人勾选的 `library:element|reference`。agent 先读这三项再写片子。Studio `/voices` `/library` 监管库，`/f/<id>` 点名。
 - **要点板：** title / close 的正文是 `points`（2–4 条），按旁白进度出现。lede 只留一句。对照条写成 `左 || 右`。不要一段 lede 铺满，不要另写 mermaid 渲染器
 - 静帧：`scenes[].still = "asset:still.<id>"`
-- 音色套：中英绑同一引用，`voices.zh` 与 `voices.en` 都是 `library:voice.prompt`。`weaver voice set --project <id> --ref library:voice.prompt`
+- 音色套：一套引用 `library:voice.prompt`。要出的语言用 `weaver langs set --project <id> --langs zh`（或 `zh,en`）。tts 按 VoxCPM2：克隆只传参考声，风格写在正文前缀，不要给模型加语言标签。
 - 有 `publish.dir` 才发布到 LightUI `studies/<slug>/references/`
 
 ```bash
@@ -54,6 +54,7 @@ npx weaver project create my-film --title "演示"
 npx weaver recipe apply --project my-film --recipe taxonomy-parade --kinds shot
 # 或 scene add --project my-film --id shot --kind still --still asset:still.shot
 # 按 assets.json 的 files.<locale> 写入（新片约定 shot.png；不要从 id 猜）
+npx weaver langs set --project my-film --langs zh
 npx weaver validate my-film
 npx weaver tts --project my-film
 npx weaver render --project my-film

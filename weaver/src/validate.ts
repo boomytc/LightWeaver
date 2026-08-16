@@ -1,6 +1,6 @@
 import fs from "node:fs";
-import { err, filmTask, isImplementedTask, parseAssetRef, type Issue, type ProjectRecord, warn } from "./schema.ts";
-import { findAsset, resolveAssetFile } from "./assets.ts";
+import { err, filmLangs, filmTask, isImplementedTask, parseAssetRef, type Issue, type ProjectRecord, warn } from "./schema.ts";
+import { findAsset, resolveAssetFile, resolveVoicePrompt } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { loadRecipe } from "./recipes.ts";
@@ -14,8 +14,9 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     issues.push(err("task", `未知任务类型：${taskId}`));
   }
 
-  const locales = Object.keys(film.locales);
-  if (!locales.length) issues.push(err("locales", "至少需要一个 locale"));
+  const locales = filmLangs(film);
+  if (!Object.keys(film.locales).length) issues.push(err("locales", "至少需要一个 locale"));
+  if (!locales.length) issues.push(err("langs", "至少选一种要出的语言"));
 
   const sceneIds = film.scenes.map((scene) => scene.id);
   if (new Set(sceneIds).size !== sceneIds.length) {
@@ -31,14 +32,14 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
       if (outputs.has(copy.output)) issues.push(err(`locales.${locale}.output`, `成片文件名重复 ${copy.output}`));
       outputs.add(copy.output);
     }
-    const voiceRef = film.voices[locale];
+    const voiceRef = film.voices[locale] ?? film.voices[Object.keys(film.voices)[0] ?? ""];
     if (!voiceRef) {
       issues.push(warn(`voices.${locale}`, "未指定音色"));
     } else if (!findAsset(project, voiceRef, root)) {
       issues.push(err(`voices.${locale}`, `找不到音色 ${voiceRef}`));
     } else {
-      const resolved = resolveAssetFile(project, voiceRef, locale, root);
-      if (!resolved || !fs.existsSync(resolved.absPath)) {
+      const resolved = resolveVoicePrompt(project, voiceRef, locale, root);
+      if (!resolved) {
         issues.push(warn(`voices.${locale}`, `音色文件不存在：${voiceRef}`));
       }
     }
@@ -46,7 +47,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
 
   const voiceRefs = [...new Set(locales.map((locale) => film.voices[locale]).filter(Boolean))];
   if (voiceRefs.length > 1) {
-    issues.push(warn("voices", "中英文必须绑同一套音色，不要拆开点"));
+    issues.push(warn("voices", "要出的几种语言必须用同一套音色，不要拆开点"));
   }
 
   for (const [index, ref] of (film.kit ?? []).entries()) {
@@ -123,7 +124,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
 }
 
 export function everyStillPngExists(project: ProjectRecord, root = weaverRoot()): boolean {
-  const locales = Object.keys(project.film.locales);
+  const locales = filmLangs(project.film);
   for (const scene of project.film.scenes) {
     if (scene.kind !== "still") continue;
     if (!scene.still) return false;

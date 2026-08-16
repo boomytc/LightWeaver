@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Asset, AssetDoc, FilmDoc, ProjectRecord, ProjectSource } from "./schema.ts";
-import { filmStudySlug, filmTask, normalizeFilm } from "./schema.ts";
+import { filmLangs, filmStudySlug, filmTask, normalizeFilm } from "./schema.ts";
 import { firstPartyRoot, projectRoots, userRoot, weaverRoot } from "./paths.ts";
 import { atomicWriteJson, readJson } from "./io.ts";
 import { getTask } from "./tasks/registry.ts";
@@ -104,6 +104,7 @@ export function projectSummary(project: ProjectRecord) {
     task: filmTask(project.film),
     studySlug: filmStudySlug(project.film),
     locales: Object.keys(project.film.locales),
+    langs: filmLangs(project.film),
     scenes: project.film.scenes.length,
     assets: project.assets.length,
     voices: project.film.voices,

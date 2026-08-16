@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { filmsProductRoot, weaverRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
-import { findAsset, lineAssetId, lineRelPath, resolveAssetFile, upsertAsset, voiceCloneText } from "./assets.ts";
-import type { Locale } from "./schema.ts";
+import { findAsset, lineAssetId, lineRelPath, resolveVoicePrompt, upsertAsset, voiceCloneText, voiceStyle } from "./assets.ts";
+import { filmLangs, type Locale } from "./schema.ts";
 
 export type TtsOptions = {
   projectId: string;
@@ -41,37 +41,36 @@ export function parseTtsResult(output: string): { wrote?: { scene: string; file:
 export function runTts(options: TtsOptions): TtsResult {
   const root = options.root ?? weaverRoot();
   const project = loadProject(options.projectId, root);
-  const locales = options.locale ? [options.locale] : Object.keys(project.film.locales);
+  const locales = options.locale ? [options.locale] : filmLangs(project.film);
   const scenes = options.scene
     ? project.film.scenes.filter((scene) => scene.id === options.scene)
     : project.film.scenes;
   if (!scenes.length) throw new Error(`没有可合成的场景：${options.scene ?? "(all)"}`);
+  if (!locales.length) throw new Error(`项目 ${project.id} 没有要出的语言`);
 
   const wrote: TtsResult["wrote"] = [];
   const python = path.join(filmsProductRoot(root), "scripts/tts.py");
   if (!fs.existsSync(python)) throw new Error(`找不到 ${python}`);
 
   for (const locale of locales) {
-    const voiceRef = project.film.voices[locale];
-    if (!voiceRef) throw new Error(`项目 ${project.id} 未指定 ${locale} 音色`);
-    const voice = resolveAssetFile(project, voiceRef, locale, root);
-    if (!voice || !fs.existsSync(voice.absPath)) {
-      throw new Error(`音色文件不存在：${voiceRef}`);
-    }
+    const voiceRef = project.film.voices[locale] ?? project.film.voices[Object.keys(project.film.voices)[0] ?? ""];
+    if (!voiceRef) throw new Error(`项目 ${project.id} 未指定音色`);
+    const voice = resolveVoicePrompt(project, voiceRef, locale, root);
     const voiceAsset = findAsset(project, voiceRef, root);
-    const items = scenes.map((scene) => {
-      const dest = lineRelPath(scene.id, locale);
-      return {
+    const items = scenes
+      .map((scene) => ({
         id: scene.id,
         text: scene.lines[locale] ?? "",
-        dest,
-      };
-    });
+        dest: lineRelPath(scene.id, locale),
+      }))
+      .filter((item) => item.text.trim());
+    if (!items.length) throw new Error(`项目 ${project.id} 没有 ${locale} 旁白`);
     const job = {
       projectRoot: project.root,
       locale,
-      refAudio: voice.absPath,
-      refText: voiceAsset ? voiceCloneText(voiceAsset, locale) : "",
+      refAudio: voice?.absPath ?? "",
+      style: voiceAsset ? voiceStyle(voiceAsset, locale) : "",
+      promptText: voiceAsset ? voiceCloneText(voiceAsset, locale) : "",
       seed: Boolean(options.seed),
       configDirs: [root, filmsProductRoot(root)],
       items,

@@ -8,6 +8,8 @@ export type BriefInput = {
   voices: Record<string, string>;
   voiceLabels?: Record<string, string>;
   voiceSet?: { ref: string; label?: string };
+  langs?: string[];
+  langLabels?: Record<string, string>;
   kit: string[];
   kitLabels?: Record<string, string>;
 };
@@ -55,6 +57,16 @@ export function buildAgentBrief(input: BriefInput): string {
     lines.push("方法卡：未点名。先选定一张成片方法卡（对照表阅兵 / 问题然后规则）。");
   }
 
+  const langs = [...new Set((input.langs ?? []).filter(Boolean))];
+  if (langs.length) {
+    lines.push(`要出的语言：${langs.map((locale) => input.langLabels?.[locale] ?? locale).join("、")}`);
+    if (input.projectId) {
+      lines.push(`  weaver langs set --project ${input.projectId} --langs ${langs.join(",")}`);
+    }
+  } else {
+    lines.push("要出的语言：未点名。");
+  }
+
   const packRef =
     input.voiceSet?.ref ??
     uniqueVoiceRef(input.voices);
@@ -62,12 +74,12 @@ export function buildAgentBrief(input: BriefInput): string {
     const pack = input.voiceSet?.label
       ? `${packRef}（${input.voiceSet.label}）`
       : named(packRef, input.voiceLabels);
-    lines.push(`音色套：${pack}。中英成对，不要拆开换。`);
+    lines.push(`音色套：${pack}。各语言用同一套，不要拆成两套声。`);
     if (input.projectId) {
       lines.push(`  weaver voice set --project ${input.projectId} --ref ${packRef}`);
     }
   } else if (Object.values(input.voices).some(Boolean)) {
-    lines.push("音色套：中英未绑成一套。先收成同一引用，再点名。");
+    lines.push("音色套：几种语言还没绑成一套。先收成同一引用，再点名。");
   } else {
     lines.push("音色套：未点名。");
   }
@@ -88,9 +100,10 @@ export function buildAgentBrief(input: BriefInput): string {
   if (input.projectId) {
     lines.push(`先 weaver project show ${input.projectId} --json，核对 voices / kit / recipe。`);
   } else {
-    lines.push("先 weaver project create，再 voice set / kit set / recipe apply。");
+    lines.push("先 weaver project create，再 langs set / voice set / kit set / recipe apply。");
   }
   lines.push("然后按 skill lightweaver-film：校验 → 缺静帧再截 → 写旁白 → tts → render。");
+  lines.push("tts 按 VoxCPM2：克隆只传参考声，风格写在正文前缀，不要给模型加语言标签。");
   lines.push("不要换声，不要加 kit 外元素，不要在 Studio 里排场或出片。");
 
   return `${lines.join("\n")}\n`;

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { listProjects, loadProject } from "./project.ts";
-import { setVoice } from "./scenes.ts";
+import { setLangs, setVoice } from "./scenes.ts";
 import { hasErrors, isCompletedFilm, isRenderable, validateProject } from "./validate.ts";
 import { tryGetTask } from "./tasks/registry.ts";
 import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
+import fs from "node:fs";
+import path from "node:path";
 
 describe("first-party films", () => {
   it("lists first-party and user roots from a workspace", () => {
@@ -76,6 +78,22 @@ describe("first-party films", () => {
     setVoice(project, "en", "library:voice.other");
     const issues = validateProject(project, root);
     assert.ok(issues.some((issue) => issue.path === "voices" && issue.message.includes("同一套音色")));
+  });
+
+  it("does not require the unselected language", () => {
+    const root = tempWorkspace();
+    const project = seedLabFilm(
+      root,
+      "intent-cascade",
+      [{ id: "status", file: "status.png", role: "problem" }],
+      { writePng: true },
+    );
+    fs.rmSync(path.join(project.root, "assets/stills/en/status.png"), { force: true });
+    setLangs(project, ["zh"]);
+    const issues = validateProject(project, root);
+    assert.equal(hasErrors(issues), false);
+    assert.equal(isRenderable(project, root), true);
+    assert.ok(!issues.some((issue) => issue.path.includes(".en") && issue.level === "error"));
   });
 
   it("does not throw on an unknown task", () => {

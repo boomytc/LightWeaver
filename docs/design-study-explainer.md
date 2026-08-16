@@ -520,7 +520,8 @@ first-party（CLI `--study-slug`）在渲染成功后可再 `weaver publish` 或
 | 绑静帧 | `weaver scene set --project <id> --id floating --still asset:still.floating --fit contain` | `PATCH` `{ still, fit }` | 下拉本项目 still + 「上传并绑定」 |
 | 教学 role | `weaver scene set --project <id> --id floating --role contrast` | `PATCH` `{ role }` | 可选 role 选择器 |
 | 片头/片尾卡 | `weaver card set --project <id> --locale zh --which title --headline ...` | `PATCH /api/projects/:id/cards` | 选中 title/close 时显示卡片表单 |
-| 选音色套 | `weaver voice set --project <id> --ref library:voice.prompt` | `PATCH /api/projects/:id/voices` `{ ref }`（中英一起绑） | 工作台 / 片子页选一套，不要按语种拆 |
+| 选音色套 | `weaver voice set --project <id> --ref library:voice.prompt` | `PATCH /api/projects/:id/voices` `{ ref }` | 工作台 / 片子页选一套 |
+| 要出的语言 | `weaver langs set --project <id> --langs zh` | `PATCH /api/projects/:id/langs` `{ langs }` | 勾选中文 / 英文，不必两种都出 |
 | 校验 | `weaver validate <id>` | 现有 | 现有「校验」 |
 | TTS / 渲染 | 无 id 走 `isRenderable` skip；`tts --project` 允许缺 png；`render --project` 遇 `!isRenderable` error | 现有 jobs（仅 tts \| render） | 「合成旁白」允许只缺 png；**`!isRenderable` 禁渲染** |
 | 只发布 | `weaver publish --project <id> [--locale]` | `POST /api/projects/:id/publish` **同步**，不加 job type | 仅当 `publish.dir` 存在时显示 |
@@ -562,7 +563,7 @@ first-party（CLI `--study-slug`）在渲染成功后可再 `weaver publish` 或
 - 并入 `locales[locale].titleCard` 或 `closeCard`。
 - `which=close` 时若 body 含 `kicker` 或 `tags` → 400（schema 是 `Pick<CardCopy, "headline" | "lede">`）。
 
-`setVoicePack(ref)`：每个 locale 写成同一引用。不要按语种拆开点。
+`setVoicePack(ref)`：各语言写成同一引用。`setLangs` 决定要出哪几种，不必中英都出。
 
 HTTP：`lines` 不是 object → 400。测试：PATCH 只改 zh，读回 en 仍在。
 

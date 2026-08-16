@@ -1,6 +1,6 @@
 import { upsertAsset } from "./assets.ts";
 import { saveFilm } from "./project.ts";
-import { parseAssetRef, type FilmDoc, type ProjectRecord, type SceneDef, type StudyRole } from "./schema.ts";
+import { parseAssetRef, type FilmDoc, type Locale, type ProjectRecord, type SceneDef, type StudyRole } from "./schema.ts";
 import { getTask } from "./tasks/registry.ts";
 import { filmTask } from "./schema.ts";
 
@@ -176,13 +176,24 @@ export function setVoice(project: ProjectRecord, locale: string, ref: string): P
   return project;
 }
 
-/** 中英绑同一套。每个 locale 都写成同一个 library: 引用。 */
+/** 一套音色给片子里的语言。要出哪几种语言用 setLangs，不要拆成两套声。 */
 export function setVoicePack(project: ProjectRecord, ref: string): ProjectRecord {
   const voices = { ...project.film.voices };
   for (const locale of Object.keys(project.film.locales)) {
     voices[locale] = ref;
   }
   saveFilm(project, { ...filmOf(project), voices });
+  return project;
+}
+
+export function setLangs(project: ProjectRecord, langs: string[]): ProjectRecord {
+  const available = Object.keys(project.film.locales);
+  const next = [...new Set(langs.map((item) => item.trim()).filter(Boolean))] as Locale[];
+  if (!next.length) throw new Error("至少选一种要出的语言");
+  for (const locale of next) {
+    if (!available.includes(locale)) throw new Error(`片子没有语言 ${locale}`);
+  }
+  saveFilm(project, { ...filmOf(project), langs: next });
   return project;
 }
 

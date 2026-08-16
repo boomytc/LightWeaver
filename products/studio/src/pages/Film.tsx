@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Link } from "../components/Link";
 import { BriefPanel } from "../components/BriefPanel";
 import { assetLabel, kindLabel, sourceLabel } from "../lib/labels";
+import { filmLangs, langLabel } from "../lib/langs";
 import { listVoicePacks } from "../lib/voices";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
 import type { Asset, ProjectDetail, RecipeCard } from "../types";
@@ -36,6 +37,16 @@ export function Film({ id }: { id: string }) {
   const voicePacks = listVoicePacks(library);
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
 
+  async function assignLangs(next: string[]) {
+    if (!detail || !next.length) return;
+    try {
+      setDetail(await api.setLangs(detail.id, next));
+      setMessage(`要出：${next.map(langLabel).join("、")}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function assignVoicePack(ref: string) {
     if (!detail) return;
     try {
@@ -67,6 +78,7 @@ export function Film({ id }: { id: string }) {
   }
 
   const copy = detail.film.locales[locale];
+  const packRef = detail.film.voices.zh ?? detail.film.voices[locale] ?? "";
 
   return (
     <div className="film-page">
@@ -121,7 +133,7 @@ export function Film({ id }: { id: string }) {
             </select>
           </label>
           <label className="field">
-            <span>音色套（中英成对）</span>
+            <span>音色套</span>
             <select
               aria-label="音色套"
               value={detail.film.voices.zh ?? detail.film.voices[locale] ?? ""}
@@ -136,15 +148,43 @@ export function Film({ id }: { id: string }) {
             </select>
           </label>
           <p className="item-meta">
-            当前：{assetLabel(library, detail.film.voices.zh)}
+            当前：{assetLabel(library, packRef)}
             {" · "}
             <Link href="/voices" className="text-link">
               音色
             </Link>
-            {new Set(Object.values(detail.film.voices).filter(Boolean)).size > 1
-              ? " · 中英还没绑成一套，重选一次就会对齐"
+            {new Set(filmLangs(detail.film).map((item) => detail.film.voices[item]).filter(Boolean)).size > 1
+              ? " · 要出的几种语言还没绑成一套，重选一次就会对齐"
               : ""}
           </p>
+
+          <h2 className="h" style={{ marginTop: 20 }}>
+            要出的语言
+          </h2>
+          <ul className="kit-list lang-picks">
+            {Object.keys(detail.film.locales).map((item) => {
+              const selected = filmLangs(detail.film);
+              const on = selected.includes(item);
+              return (
+                <li key={item}>
+                  <label className={on ? "kit-item is-on" : "kit-item"}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => {
+                        const next = on ? selected.filter((locale) => locale !== item) : [...selected, item];
+                        void assignLangs(next);
+                      }}
+                    />
+                    <span>
+                      <span className="item-title">{langLabel(item)}</span>
+                      <span className="item-meta">{item}</span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
 
           <h2 className="h" style={{ marginTop: 20 }}>
             用哪些素材
@@ -215,9 +255,9 @@ export function Film({ id }: { id: string }) {
             recipeTitle: recipes.find((item) => item.id === detail.film.recipe)?.title,
             requiresKinds: recipes.find((item) => item.id === detail.film.recipe)?.requires_kinds,
             voices: detail.film.voices,
-            voiceSet: detail.film.voices.zh
-              ? { ref: detail.film.voices.zh, label: assetLabel(library, detail.film.voices.zh) }
-              : undefined,
+            voiceSet: packRef ? { ref: packRef, label: assetLabel(library, packRef) } : undefined,
+            langs: filmLangs(detail.film),
+            langLabels: Object.fromEntries(Object.keys(detail.film.locales).map((item) => [item, langLabel(item)])),
             voiceLabels: Object.fromEntries(
               listVoicePacks(library).map((asset) => [`library:${asset.id}`, asset.label ?? asset.id]),
             ),

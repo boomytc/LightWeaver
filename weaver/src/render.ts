@@ -7,7 +7,7 @@ import { outputRelPath, upsertAsset } from "./assets.ts";
 import { syncRemotion } from "./sync.ts";
 import { isRenderable } from "./validate.ts";
 import { safeJoin } from "./io.ts";
-import type { Locale } from "./schema.ts";
+import { filmLangs, type Locale } from "./schema.ts";
 
 export type RenderOptions = {
   projectId: string;
@@ -35,7 +35,7 @@ export function runPublish(options: { projectId: string; locale?: Locale; root?:
     throw new Error(`LightUI 不在 ${uiRoot}。设置 LIGHTUI_ROOT 后再发布。`);
   }
   const destDir = safeJoin(uiRoot, dir);
-  const locales = options.locale ? [options.locale] : Object.keys(project.film.locales);
+  const locales = options.locale ? [options.locale] : filmLangs(project.film);
   const files: { locale: string; dest: string }[] = [];
   for (const locale of locales) {
     const copy = project.film.locales[locale];
@@ -71,7 +71,7 @@ export function runRender(options: RenderOptions): RenderResult {
   const outDir = path.join(filmsRoot, "out");
   fs.mkdirSync(outDir, { recursive: true });
 
-  const locales = options.locale ? [options.locale] : Object.keys(project.film.locales);
+  const locales = options.locale ? [options.locale] : filmLangs(project.film);
   const files: RenderResult["files"] = [];
 
   for (const locale of locales) {

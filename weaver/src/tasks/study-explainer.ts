@@ -3,6 +3,7 @@ import path from "node:path";
 import { lightuiRoot } from "../paths.ts";
 import {
   err,
+  filmLangs,
   filmStudySlug,
   isStudyRole,
   type FilmDoc,
@@ -172,8 +173,9 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
       const sourceMd = path.join(lightuiRoot(root), "studies", slug, "references", "SOURCE.md");
       if (fs.existsSync(sourceMd)) {
         const body = fs.readFileSync(sourceMd, "utf8");
-        for (const [locale, copy] of Object.entries(film.locales)) {
-          if (copy.output && !body.includes(copy.output)) {
+        for (const locale of filmLangs(film)) {
+          const copy = film.locales[locale];
+          if (copy?.output && !body.includes(copy.output)) {
             issues.push(warn(`locales.${locale}.output`, `SOURCE.md 未点名 ${copy.output}`));
           }
         }

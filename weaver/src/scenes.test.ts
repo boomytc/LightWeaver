@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { createProject } from "./project.ts";
-import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setVoicePack } from "./scenes.ts";
+import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setLangs, setVoicePack } from "./scenes.ts";
 import { hasErrors, validateProject } from "./validate.ts";
 
 function tempRoot(): string {
@@ -73,5 +73,13 @@ describe("scenes", () => {
     setVoicePack(project, "library:voice.prompt");
     assert.equal(project.film.voices.zh, "library:voice.prompt");
     assert.equal(project.film.voices.en, "library:voice.prompt");
+  });
+
+  it("records which languages to produce", () => {
+    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    setLangs(project, ["zh"]);
+    assert.deepEqual(project.film.langs, ["zh"]);
+    assert.throws(() => setLangs(project, []), /至少选一种/);
+    assert.throws(() => setLangs(project, ["ja"]), /没有语言/);
   });
 });

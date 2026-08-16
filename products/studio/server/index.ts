@@ -27,6 +27,7 @@ import {
   setCard,
   setFilmRecipe,
   setKit,
+  setLangs,
   setVoicePack,
   summarizeRecipe,
   upsertLibraryAsset,
@@ -206,6 +207,21 @@ app.patch("/api/projects/:id/voices", (req, res) => {
     const project = loadProject(param(req.params.id), root);
     const ref = String(req.body?.ref ?? "");
     setVoicePack(project, ref);
+    res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.patch("/api/projects/:id/langs", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    const langs = Array.isArray(req.body?.langs)
+      ? req.body.langs.map((item: unknown) => String(item))
+      : typeof req.body?.langs === "string"
+        ? req.body.langs.split(",")
+        : [];
+    setLangs(project, langs);
     res.json(detailOf(project));
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });

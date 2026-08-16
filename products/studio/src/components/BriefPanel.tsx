@@ -4,7 +4,7 @@ import { buildAgentBrief, type BriefInput } from "../lib/brief";
 export function BriefPanel({ input }: { input: BriefInput }) {
   const [copied, setCopied] = useState(false);
   const text = buildAgentBrief(input);
-  const ready = Boolean(input.recipeId && Object.values(input.voices).some(Boolean));
+  const ready = Boolean(input.recipeId && Object.values(input.voices).some(Boolean) && (input.langs?.length ?? 0) > 0);
 
   async function copy() {
     try {
@@ -32,7 +32,7 @@ export function BriefPanel({ input }: { input: BriefInput }) {
       <p className="item-meta">
         {ready
           ? "把这段贴给 agent。它应按这组去用 LightWeaver，不要自己改组合。"
-          : "先点名方法卡和一套音色，说明才会完整。"}
+          : "先点名方法卡、一套音色，和至少一种要出的语言。"}
       </p>
       <pre className="brief-text">{text}</pre>
     </section>

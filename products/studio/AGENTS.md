@@ -10,7 +10,7 @@ persist films. `/films` is instances. Agents generate via weaver.
 
 | Path | Who | What |
 | --- | --- | --- |
-| `/` 工作台 | human | pick combo; copy brief; do not persist |
+| `/` 工作台 | human | pick combo (langs + voice + kit + recipe); copy brief; do not persist |
 | `/films` `/f/<id>` | human names; agent produces | voices + kit + recipe; review scenes/mp4 |
 | `/voices` | human | one pack binds zh+en; listen, add, edit clone text/style |
 | `/library` | human | accumulate elements and references |

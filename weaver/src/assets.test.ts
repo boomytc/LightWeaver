@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { listVoiceSets, patchLibraryAsset, voiceCloneText, voiceSetId } from "./assets.ts";
-import { tempWorkspace } from "./test-workspace.ts";
+import { listVoiceSets, patchLibraryAsset, resolveVoicePrompt, voiceCloneText, voiceSetId, voiceStyle } from "./assets.ts";
+import { tempWorkspace, touch } from "./test-workspace.ts";
 import type { Asset } from "./schema.ts";
 
 describe("voice packs", () => {
@@ -45,5 +45,15 @@ describe("voice packs", () => {
     assert.equal(next.texts?.en, "new english");
     assert.equal(next.styles?.en, "steady");
     assert.equal(next.locale, undefined);
+  });
+
+  it("falls back to the other side of a voice pack", () => {
+    const root = tempWorkspace();
+    const zh = `${root}/library/voices/prompt-zh.wav`;
+    touch(zh);
+    const resolved = resolveVoicePrompt(null, "library:voice.prompt", "en", root);
+    assert.ok(resolved);
+    assert.equal(resolved.relPath, "voices/prompt-zh.wav");
+    assert.equal(voiceStyle({ id: "voice.prompt", kind: "voice", styles: { zh: "稳" } }, "en"), "稳");
   });
 });

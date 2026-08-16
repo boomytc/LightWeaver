@@ -52,6 +52,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ref }),
     }).then((res) => parse<ProjectDetail>(res)),
+  setLangs: (id: string, langs: string[]) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/langs`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ langs }),
+    }).then((res) => parse<ProjectDetail>(res)),
   setKit: (id: string, refs: string[]) =>
     fetch(`/api/projects/${encodeURIComponent(id)}/kit`, {
       method: "PATCH",

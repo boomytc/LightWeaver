@@ -11,7 +11,7 @@ import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
 import { runPublish, runRender } from "./render.ts";
 import { ASSET_KINDS, isStudyRole } from "./schema.ts";
-import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setVoicePack } from "./scenes.ts";
+import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setLangs, setVoicePack } from "./scenes.ts";
 import { listTasks } from "./tasks/registry.ts";
 import type { ProjectRecord } from "./schema.ts";
 
@@ -82,6 +82,7 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       refs: { type: "string" },
       recipe: { type: "string" },
       kinds: { type: "string" },
+      langs: { type: "string" },
     },
   });
   wantJson = Boolean(values.json);
@@ -246,10 +247,26 @@ function main(): void {
   if (command === "voice") {
     if (rest[0] !== "set") fail("用法: weaver voice set --project <id> --ref library:voice.prompt");
     const project = requireProject(str(values, "project") ?? "");
-    if (str(values, "locale")) fail("中英绑同一套音色，不要加 --locale");
+    if (str(values, "locale")) fail("一套音色给要出的语言，不要加 --locale");
     const ref = str(values, "ref");
-    if (!ref) fail("需要 --ref（中英一套，例如 library:voice.prompt）");
+    if (!ref) fail("需要 --ref（一套音色，例如 library:voice.prompt）");
     setVoicePack(project, ref);
+    print(envelope(project, root));
+    return;
+  }
+
+  if (command === "langs") {
+    if (rest[0] !== "set") fail("用法: weaver langs set --project <id> --langs zh");
+    const project = requireProject(str(values, "project") ?? "");
+    const langs = str(values, "langs");
+    if (!langs) fail("需要 --langs（逗号分隔，例如 zh 或 zh,en）");
+    setLangs(
+      project,
+      langs
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
     print(envelope(project, root));
     return;
   }
@@ -476,6 +493,7 @@ function main(): void {
   weaver scene list|add|rm|move|set
   weaver card set
   weaver voice set
+  weaver langs set
   weaver kit set
   weaver asset list|add
   weaver validate [id]

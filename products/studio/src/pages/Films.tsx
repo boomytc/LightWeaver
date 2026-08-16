@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Link } from "../components/Link";
 import { navigate } from "../lib/nav";
 import { assetLabel, sourceLabel } from "../lib/labels";
+import { langLabel } from "../lib/langs";
 import type { Asset, ProjectSummary } from "../types";
 
 export function Films() {
@@ -51,6 +52,10 @@ export function Films() {
               <span className="chip">
                 <em>方法</em>
                 {project.recipe ?? "未点名"}
+              </span>
+              <span className="chip">
+                <em>语言</em>
+                {(project.langs?.length ? project.langs : project.locales).map(langLabel).join("、") || "未点名"}
               </span>
               <span className="chip">
                 <em>音色</em>

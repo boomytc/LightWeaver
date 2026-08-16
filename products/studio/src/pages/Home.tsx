@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { BriefPanel } from "../components/BriefPanel";
 import { recipeHint } from "../lib/labels";
+import { langLabel } from "../lib/langs";
 import { listVoicePacks } from "../lib/voices";
 import type { Asset, RecipeCard } from "../types";
 
@@ -11,6 +12,7 @@ export function Home() {
   const [error, setError] = useState<string>();
   const [recipeId, setRecipeId] = useState("");
   const [voiceRef, setVoiceRef] = useState("");
+  const [langs, setLangs] = useState<string[]>(["zh", "en"]);
   const [kit, setKit] = useState<string[]>([]);
 
   useEffect(() => {
@@ -54,9 +56,38 @@ export function Home() {
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">选出一组，复制给 agent。</h1>
       <p className="lede">
-        只点名音色、素材组和方法卡。不写进片子，不在这里排场。agent 拿说明去用 LightWeaver。
+        点名音色、素材组、方法卡，以及要出哪些语言。不写进片子，不在这里排场。agent 拿说明去用 LightWeaver。
       </p>
       {error ? <div className="banner banner-error">{error}</div> : null}
+
+      <section>
+        <h2 className="h">要出的语言</h2>
+        <p className="item-meta">可选中文、英文，或两个都出。音色还是一套，不必两种都勾。</p>
+        <ul className="kit-list lang-picks">
+          {["zh", "en"].map((item) => {
+            const on = langs.includes(item);
+            return (
+              <li key={item}>
+                <label className={on ? "kit-item is-on" : "kit-item"}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() =>
+                      setLangs((current) =>
+                        current.includes(item) ? current.filter((locale) => locale !== item) : [...current, item],
+                      )
+                    }
+                  />
+                  <span>
+                    <span className="item-title">{langLabel(item)}</span>
+                    <span className="item-meta">{item}</span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
       <div className="compose-grid">
         <section>
@@ -90,7 +121,7 @@ export function Home() {
                   onClick={() => setVoiceRef(voiceRef === ref ? "" : ref)}
                 >
                   <strong>{asset.label ?? asset.id}</strong>
-                  <span className="item-meta">{asset.id} · 中英成对</span>
+                  <span className="item-meta">{asset.id} · 一套音色</span>
                 </button>
               );
             })}
@@ -129,9 +160,11 @@ export function Home() {
           recipeId: recipeId || undefined,
           recipeTitle: selectedRecipe?.title,
           requiresKinds: selectedRecipe?.requires_kinds,
-          voices: voiceRef ? { zh: voiceRef, en: voiceRef } : {},
+          voices: Object.fromEntries(langs.map((locale) => [locale, voiceRef])),
           voiceLabels,
           voiceSet: selectedVoice ? { ref: voiceRef, label: selectedVoice.label ?? selectedVoice.id } : undefined,
+          langs,
+          langLabels: Object.fromEntries(langs.map((locale) => [locale, langLabel(locale)])),
           kit,
           kitLabels,
         }}

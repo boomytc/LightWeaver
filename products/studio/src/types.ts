@@ -8,6 +8,7 @@ export type ProjectSummary = {
   task?: string;
   studySlug?: string;
   locales: string[];
+  langs?: string[];
   scenes: number;
   assets: number;
   titles: Record<string, string>;
@@ -44,6 +45,7 @@ export type FilmDoc = {
   voices: Record<string, string>;
   kit?: string[];
   recipe?: string;
+  langs?: string[];
   locales: Record<
     string,
     { title: string; output: string; titleCard: CardCopy; closeCard: Pick<CardCopy, "headline" | "lede" | "points"> }
