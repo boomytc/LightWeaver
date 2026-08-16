@@ -13,6 +13,7 @@ export type ProjectSummary = {
   titles: Record<string, string>;
   voices: Record<string, string>;
   kit: string[];
+  recipe?: string;
   renderable?: boolean;
 };
 
@@ -42,6 +43,7 @@ export type FilmDoc = {
   capture?: { kind: string; slug?: string };
   voices: Record<string, string>;
   kit?: string[];
+  recipe?: string;
   locales: Record<
     string,
     { title: string; output: string; titleCard: CardCopy; closeCard: Pick<CardCopy, "headline" | "lede" | "points"> }
@@ -98,6 +100,16 @@ export type ProjectDetail = ProjectSummary & {
   issues: Issue[];
   renderable: boolean;
   paths: ProjectPaths;
+};
+
+export type RecipeCard = {
+  id: string;
+  task: string;
+  level: "film" | "scene";
+  when: string;
+  title: string;
+  requires_kinds?: boolean;
+  canon?: string[];
 };
 
 export type Job = {

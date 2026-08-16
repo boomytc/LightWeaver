@@ -108,6 +108,7 @@ export function projectSummary(project: ProjectRecord) {
     assets: project.assets.length,
     voices: project.film.voices,
     kit: project.film.kit ?? [],
+    recipe: project.film.recipe,
     titles: Object.fromEntries(
       Object.entries(project.film.locales).map(([locale, copy]) => [locale, copy.title]),
     ),

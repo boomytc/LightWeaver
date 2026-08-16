@@ -76,6 +76,8 @@ export type FilmDoc = {
   voices: Record<Locale, AssetRef>;
   /** 人指定的可复用素材（只允许 library:element|reference）。agent 按这份清单用，不自己加库外元素。 */
   kit?: AssetRef[];
+  /** 人点名的成片方法卡（film-level recipe id）。agent 按这张卡铺骨架，不另选。 */
+  recipe?: string;
   locales: Record<Locale, LocaleCopy>;
   scenes: SceneDef[];
 };

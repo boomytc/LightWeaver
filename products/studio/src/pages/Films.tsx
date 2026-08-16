@@ -49,6 +49,10 @@ export function Films() {
             </p>
             <div className="film-assign" style={{ justifyContent: "flex-start", marginTop: 12 }}>
               <span className="chip">
+                <em>方法</em>
+                {project.recipe ?? "未点名"}
+              </span>
+              <span className="chip">
                 <em>音色</em>
                 {formatVoices(project, library)}
               </span>

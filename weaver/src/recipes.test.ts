@@ -207,6 +207,7 @@ describe("applyRecipe", () => {
     assert.ok(project.assets.some((asset) => asset.id === "still.bravo"));
     assert.equal(project.film.locales.zh.output, "demo-film.mp4");
     assert.equal("recipeId" in project.film, false);
+    assert.equal(project.film.recipe, "taxonomy-parade");
     assert.deepEqual(skipped, []);
   });
 

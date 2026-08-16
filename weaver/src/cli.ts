@@ -5,7 +5,7 @@ import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { projectPaths } from "./project-paths.ts";
-import { applyRecipe, listRecipes, loadRecipe, summarizeRecipe } from "./recipes.ts";
+import { applyRecipe, listRecipes, loadRecipe, setFilmRecipe, summarizeRecipe } from "./recipes.ts";
 import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./validate.ts";
 import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
@@ -358,6 +358,14 @@ function main(): void {
       }
       return;
     }
+    if (sub === "use") {
+      const project = requireProject(str(values, "project") ?? "");
+      const recipeId = str(values, "recipe");
+      if (recipeId === undefined) fail("用法: weaver recipe use --project <id> --recipe <id>（空字符串清空）");
+      setFilmRecipe(project, recipeId, root);
+      print(envelope(project, root));
+      return;
+    }
     if (sub === "apply") {
       const project = requireProject(str(values, "project") ?? "");
       const recipeId = str(values, "recipe") ?? "";
@@ -374,7 +382,7 @@ function main(): void {
       }
       return;
     }
-    fail("用法: weaver recipe list|show|apply");
+    fail("用法: weaver recipe list|show|use|apply");
   }
 
   if (command === "validate") {

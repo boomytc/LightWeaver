@@ -1,4 +1,4 @@
-import type { Asset, Job, ProjectDetail, ProjectSummary } from "./types";
+import type { Asset, Job, ProjectDetail, ProjectSummary, RecipeCard } from "./types";
 
 async function parse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -58,6 +58,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refs }),
     }).then((res) => parse<ProjectDetail>(res)),
+  setRecipe: (id: string, recipe: string) =>
+    fetch(`/api/projects/${encodeURIComponent(id)}/recipe`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipe }),
+    }).then((res) => parse<ProjectDetail>(res)),
+  recipes: () => fetch("/api/recipes").then((res) => parse<RecipeCard[]>(res)),
   patchLibrary: (id: string, body: { label?: string; text?: string; style?: string; locale?: string }) =>
     fetch(`/api/library/assets/${encodeURIComponent(id)}`, {
       method: "PATCH",

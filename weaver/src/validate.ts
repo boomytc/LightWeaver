@@ -3,6 +3,7 @@ import { err, filmTask, isImplementedTask, parseAssetRef, type Issue, type Proje
 import { findAsset, resolveAssetFile } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
+import { loadRecipe } from "./recipes.ts";
 import { taskAllowsKind, tryGetTask } from "./tasks/registry.ts";
 
 export function validateProject(project: ProjectRecord, root = weaverRoot()): Issue[] {
@@ -57,6 +58,17 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     }
     if (asset.kind !== "element" && asset.kind !== "reference") {
       issues.push(err(path, `kit 只能放元素或参考图，不能放 ${asset.kind}`));
+    }
+  }
+
+  if (film.recipe) {
+    try {
+      const recipe = loadRecipe(film.recipe, root);
+      if (recipe.level !== "film") {
+        issues.push(err("recipe", `只能点名成片方法卡，${film.recipe} 是 ${recipe.level} 卡`));
+      }
+    } catch {
+      issues.push(err("recipe", `找不到方法卡 ${film.recipe}`));
     }
   }
 

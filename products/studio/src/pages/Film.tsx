@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Link } from "../components/Link";
+import { BriefPanel } from "../components/BriefPanel";
 import { assetLabel, kindLabel, sourceLabel } from "../lib/labels";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
-import type { Asset, ProjectDetail } from "../types";
+import type { Asset, ProjectDetail, RecipeCard } from "../types";
 
 export function Film({ id }: { id: string }) {
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [library, setLibrary] = useState<Asset[]>([]);
+  const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const [locale, setLocale] = useState("zh");
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [sceneId, setSceneId] = useState<string>();
 
   const load = useCallback(async () => {
-    const [next, nextLibrary] = await Promise.all([api.project(id), api.library()]);
+    const [next, nextLibrary, nextRecipes] = await Promise.all([api.project(id), api.library(), api.recipes()]);
     setDetail(next);
     setLibrary(nextLibrary);
+    setRecipes(nextRecipes.filter((item) => item.level === "film"));
     setLocale((current) => (next.film.locales[current] ? current : Object.keys(next.film.locales)[0] ?? "zh"));
     setSceneId((current) => next.film.scenes.find((scene) => scene.id === current)?.id ?? next.film.scenes[0]?.id);
   }, [id]);
@@ -81,7 +84,7 @@ export function Film({ id }: { id: string }) {
           {sourceLabel(detail.source)} · {detail.task ?? "study-explainer"} · {detail.film.scenes.length} 场
           {detail.studySlug ? ` · lab 文本 http://127.0.0.1:5173/s/${detail.studySlug}` : ""}
         </p>
-        <p className="lede">人在这里点名音色和素材。场次和成片由 agent 生成，这个站不排、不渲。</p>
+        <p className="lede">人在这里点名音色、素材和方法卡，复制说明给 agent。这个站不排、不渲。</p>
         {error ? <div className="banner banner-error">{error}</div> : null}
         {message ? <div className="banner banner-ok">{message}</div> : null}
       </div>
@@ -89,6 +92,23 @@ export function Film({ id }: { id: string }) {
       <div className="page-width film-board">
         <section className="surface">
           <h2 className="h">点名给 agent</h2>
+          <label className="field">
+            <span>方法卡</span>
+            <select
+              aria-label="方法卡"
+              value={detail.film.recipe ?? ""}
+              onChange={(event) =>
+                void api.setRecipe(detail.id, event.target.value).then(setDetail).catch((err: Error) => setError(err.message))
+              }
+            >
+              <option value="">未点名</option>
+              {recipes.map((recipe) => (
+                <option key={recipe.id} value={recipe.id}>
+                  {recipe.title}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="field">
             <span>语种</span>
             <select aria-label="语种" value={locale} onChange={(event) => setLocale(event.target.value)}>
@@ -180,6 +200,29 @@ export function Film({ id }: { id: string }) {
             </label>
           ) : null}
         </aside>
+      </div>
+
+      <div className="page-width" style={{ marginBottom: 16 }}>
+        <BriefPanel
+          input={{
+            projectId: detail.id,
+            title: copy?.title,
+            task: detail.task,
+            recipeId: detail.film.recipe,
+            recipeTitle: recipes.find((item) => item.id === detail.film.recipe)?.title,
+            requiresKinds: recipes.find((item) => item.id === detail.film.recipe)?.requires_kinds,
+            voices: detail.film.voices,
+            voiceLabels: Object.fromEntries(
+              library.filter((asset) => asset.kind === "voice").map((asset) => [`library:${asset.id}`, asset.label ?? asset.id]),
+            ),
+            kit: detail.film.kit ?? [],
+            kitLabels: Object.fromEntries(
+              library
+                .filter((asset) => asset.kind === "element" || asset.kind === "reference")
+                .map((asset) => [`library:${asset.id}`, asset.label ?? asset.id]),
+            ),
+          }}
+        />
       </div>
 
       <section className="page-width surface film-scenes">

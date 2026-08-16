@@ -10,6 +10,7 @@ import {
   type StudyRole,
   type TaskId,
 } from "./schema.ts";
+import { saveFilm } from "./project.ts";
 import { getTask, listTasks, tryGetTask } from "./tasks/registry.ts";
 
 export type RecipeLevel = "film" | "scene";
@@ -34,7 +35,12 @@ export type Recipe = {
   body: string;
 };
 
-export type RecipeSummary = Omit<Recipe, "body" | "default_scenes">;
+export type RecipeSummary = Omit<Recipe, "body" | "default_scenes"> & { title: string };
+
+export function recipeTitle(body: string, id: string): string {
+  const match = /^#\s+(.+)$/m.exec(body);
+  return match?.[1]?.trim() || id;
+}
 
 const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -282,6 +288,7 @@ export function summarizeRecipe(recipe: Recipe): RecipeSummary {
     canon: recipe.canon,
     requires_kinds: recipe.requires_kinds,
     path: recipe.path,
+    title: recipeTitle(recipe.body, recipe.id),
   };
 }
 
@@ -379,5 +386,16 @@ export function applyRecipe(
     if (stillCount > 1) removeScene(project, "hero");
   }
 
+  setFilmRecipe(project, recipe.id, root);
   return { project, skipped };
+}
+
+export function setFilmRecipe(project: ProjectRecord, recipeId: string, root = weaverRoot()): ProjectRecord {
+  const id = recipeId.trim();
+  if (id) {
+    const recipe = loadRecipe(id, root);
+    if (recipe.level !== "film") throw new Error(`只能点名成片方法卡，${id} 是 ${recipe.level} 卡`);
+  }
+  saveFilm(project, { ...project.film, recipe: id || undefined });
+  return project;
 }

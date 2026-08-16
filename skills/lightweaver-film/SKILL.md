@@ -20,7 +20,7 @@ description: >
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）
 - 产物：`<project>/assets/lines/<locale>/*.wav`；`<project>/assets/outputs/<output>`
 - 方法：`recipes/lightui-study-explainer/`（`weaver recipe list --task study-explainer` / `show`；index 六行）
-- 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.voices` 与 `film.kit`：人点名的音色和素材，不要自己换、不要加清单外的元素。
+- 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.voices`、`film.kit`、`film.recipe`：人点名的音色、素材、方法卡，不要自己换。
 
 ## 结合规则
 
@@ -77,6 +77,7 @@ npx weaver recipe list [--task study-explainer]
 npx weaver recipe show <id>
 npx weaver recipe apply --project <id> --recipe taxonomy-parade --kinds a,b,c --json
 npx weaver recipe apply --project <id> --recipe problem-then-rule --json
+npx weaver recipe use --project <id> --recipe taxonomy-parade
 npx weaver project create <id> --task study-explainer [--title] [--source first-party] [--study-slug] [--output] [--output-en]
 npx weaver scene add --project <id> --id <scene> --kind still [--still asset:still.x] [--role contrast]
 npx weaver scene rm --project <id> --id <scene>

@@ -23,9 +23,12 @@ import {
   runPublish,
   saveFilm,
   saveAssets,
+  listRecipes,
   setCard,
+  setFilmRecipe,
   setKit,
   setVoice,
+  summarizeRecipe,
   upsertLibraryAsset,
   validateProject,
   weaverRoot,
@@ -249,6 +252,20 @@ app.post("/api/projects/:id/publish", (req, res) => {
 
 app.get("/api/library", (_req, res) => {
   res.json(loadLibrary(root));
+});
+
+app.get("/api/recipes", (_req, res) => {
+  res.json(listRecipes(root).map(summarizeRecipe));
+});
+
+app.patch("/api/projects/:id/recipe", (req, res) => {
+  try {
+    const project = loadProject(param(req.params.id), root);
+    setFilmRecipe(project, String(req.body?.recipe ?? ""), root);
+    res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
 });
 
 app.post("/api/library/assets", upload.single("file"), (req, res) => {

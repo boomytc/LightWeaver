@@ -71,7 +71,7 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
       <footer className="site-foot">
         <div className="page-width site-foot-inner">
-          <p>本机控制站 · 127.0.0.1 · 人管音色和素材，片子交给 agent。</p>
+          <p>本机控制站 · 127.0.0.1 · 人点名组合，复制说明给 agent。</p>
           <a href={GITHUB_URL} target="_blank" rel="noreferrer">
             GitHub
           </a>

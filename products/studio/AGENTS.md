@@ -2,9 +2,10 @@
 
 Local control site for LightWeaver (`http://127.0.0.1:5175/`).
 
-Humans supervise voices (`/voices`) and reusable materials (`/library`),
-and name which ones a film may use (`/f/<id>`). Agents write scenes and
-generate video via weaver. This site does not author or render films.
+Humans pick a combo on `/` (voices + kit + film-level recipe) and copy
+the agent brief. They supervise catalogs at `/voices` and `/library`.
+Agents write scenes and generate video via weaver. This site does not
+author or render films.
 
 ## Routes
 
