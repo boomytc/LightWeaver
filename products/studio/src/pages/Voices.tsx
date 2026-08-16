@@ -69,16 +69,20 @@ export function Voices() {
     setCandidate(undefined);
   }
 
-  async function mint() {
+  function keepName(): string | undefined {
     const name = label.trim();
     if (!name) {
-      setError("先写名称");
+      setError("先写名称再收进音色库");
       return;
     }
     if (taken(name)) {
       setError(`${name} 已在音色库里`);
       return;
     }
+    return name;
+  }
+
+  async function mint() {
     if (!instruct.trim()) {
       setError("设计指令要先写一段描述");
       return;
@@ -90,7 +94,7 @@ export function Voices() {
     setBusy(true);
     try {
       const minted = await api.mintVoice({
-        id: name,
+        id: label.trim() || undefined,
         text: trial.trim() || TRIAL,
         style: instruct.trim(),
         denoise,
@@ -109,7 +113,7 @@ export function Voices() {
 
   async function keepDesigned() {
     if (!candidate) return;
-    const name = label.trim();
+    const name = keepName();
     if (!name) return;
     try {
       await api.keepVoice({
@@ -129,19 +133,13 @@ export function Voices() {
   }
 
   async function upload(file: File) {
-    const name = label.trim();
-    if (!name) {
-      setError("先写名称");
-      return;
-    }
-    if (taken(name)) {
-      setError(`${name} 已在音色库里`);
-      return;
-    }
+    const replace = Boolean(candidate);
     const form = new FormData();
     form.set("file", file);
-    if (said.trim()) form.set("text", said.trim());
+    if (replace) form.set("force", "1");
+    else if (said.trim()) form.set("text", said.trim());
     setBusy(true);
+    if (replace) setSaid("");
     try {
       const staged = await api.stageVoice(form);
       setCandidate({ rel: staged.rel, seconds: staged.seconds, text: staged.text, style: "", asr: staged.asr });
@@ -150,7 +148,9 @@ export function Voices() {
       if (staged.error) {
         setMessage("上传后直接听。转写没写成，请手写这句再说的话再收");
       } else if (staged.asr) {
-        setMessage(`已转写文本，听完可改再收进音色库 · ${staged.seconds ? `${staged.seconds.toFixed(1)} 秒` : ""}`.trim());
+        setMessage(
+          `${replace ? "已按新录音重新转写" : "已转写文本"}，听完可改再收进音色库${staged.seconds ? ` · ${staged.seconds.toFixed(1)} 秒` : ""}`,
+        );
       } else {
         setMessage("上传后直接听。文本用你写的。听完再收");
       }
@@ -163,7 +163,7 @@ export function Voices() {
 
   async function keepUploaded() {
     if (!candidate) return;
-    const name = label.trim();
+    const name = keepName();
     if (!name) return;
     if (!said.trim()) {
       setError("先写文本，或等转写完成");
@@ -276,7 +276,7 @@ export function Voices() {
                     <audio controls preload="metadata" src={candidateMedia(candidate.rel)} />
                   </div>
                   <div className="create-actions">
-                    <button type="button" className="btn btn-primary" onClick={() => void keepDesigned()}>
+                    <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void keepDesigned()}>
                       收下进音色库
                     </button>
                   </div>
@@ -290,7 +290,7 @@ export function Voices() {
               </p>
               <div className="create-actions">
                 <label className="btn">
-                  {busy ? "正在转写…" : "上传 wav"}
+                  {busy ? "正在转写…" : candidate ? "换一支再转写" : "上传 wav"}
                   <input
                     type="file"
                     accept="audio/wav,audio/*"
@@ -318,7 +318,7 @@ export function Voices() {
                     <input value={said} onChange={(event) => setSaid(event.target.value)} />
                   </label>
                   <div className="create-actions">
-                    <button type="button" className="btn btn-primary" onClick={() => void keepUploaded()}>
+                    <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void keepUploaded()}>
                       收下进音色库
                     </button>
                   </div>

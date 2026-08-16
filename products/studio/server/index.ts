@@ -325,7 +325,8 @@ app.post("/api/voices/stage", upload.single("file"), (req, res) => {
   res.setTimeout(200000);
   try {
     if (!req.file) throw new Error("缺少文件");
-    const given = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    const force = req.body?.force === "1" || req.body?.force === "true" || req.body?.force === true;
+    const given = force ? "" : typeof req.body?.text === "string" ? req.body.text.trim() : "";
     const folder = voiceCandidateRoot(root);
     fs.mkdirSync(folder, { recursive: true });
     const ext = path.extname(req.file.originalname || "") || guessExt(req.file.mimetype) || ".wav";
