@@ -1,5 +1,6 @@
 export * from "./schema.ts";
 export * from "./paths.ts";
+export * from "./config.ts";
 export * from "./io.ts";
 export * from "./project.ts";
 export * from "./project-paths.ts";

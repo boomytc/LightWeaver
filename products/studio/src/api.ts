@@ -8,7 +8,19 @@ async function parse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
+export type ModelbestStatus = {
+  configured: boolean;
+  hint?: string;
+  source?: "env" | "file";
+  probe?: { ok: boolean; message: string };
+};
+
 export const api = {
+  modelbest: () => fetch("/api/settings/modelbest").then((res) => parse<ModelbestStatus>(res)),
+  probeModelbest: () =>
+    fetch("/api/settings/modelbest/probe", { method: "POST" }).then((res) =>
+      parse<{ ok: boolean; message: string }>(res),
+    ),
   tasks: () => fetch("/api/tasks").then((res) => parse<{ id: string; label: { zh: string; en: string } }[]>(res)),
   projects: () => fetch("/api/projects").then((res) => parse<ProjectSummary[]>(res)),
   project: (id: string) => fetch(`/api/projects/${encodeURIComponent(id)}`).then((res) => parse<ProjectDetail>(res)),

@@ -35,8 +35,11 @@ import {
   weaverRoot,
   allocateNewVoice,
   keepLibraryVoice,
+  modelbestStatus,
+  probeModelbest,
   resolveKeepSource,
   runVoiceMint,
+  setModelbestApiKey,
   upsertVoicePack,
   voiceCandidateRoot,
   voiceCloneSource,
@@ -70,6 +73,26 @@ app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/api/settings/modelbest", (_req, res) => {
+  res.json(modelbestStatus(root));
+});
+
+app.put("/api/settings/modelbest", (req, res) => {
+  try {
+    res.json(setModelbestApiKey(String(req.body?.apiKey ?? ""), root));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.post("/api/settings/modelbest/probe", async (_req, res) => {
+  try {
+    res.json(await probeModelbest(root));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
 });
 
 app.get("/api/tasks", (_req, res) => {
@@ -272,7 +295,7 @@ app.post("/api/voices/mint", (req, res) => {
   try {
     const id = typeof req.body?.id === "string" ? req.body.id.trim() : "";
     const instruct = typeof req.body?.style === "string" ? req.body.style : "";
-    if (!instruct.trim()) throw new Error("铸试听需要一段设计指令");
+    if (!instruct.trim()) throw new Error("合成试听需要一段设计指令");
     const minted = runVoiceMint({
       text: String(req.body?.text ?? ""),
       style: instruct,

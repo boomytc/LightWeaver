@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { IconGitHub, IconMark, IconMoon, IconSun } from "../icons";
 import { isWorkbench, usePath } from "../lib/nav";
-import { GITHUB_URL, MODELBEST_URL, usePrefs } from "../lib/prefs";
+import { GITHUB_URL, usePrefs } from "../lib/prefs";
 import { Link } from "./Link";
 
 const NAV = [
@@ -94,19 +94,6 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="site-body" id="main">
         {children}
       </div>
-      <footer className="site-foot">
-        <div className="page-width site-foot-inner">
-          <p>本机控制站 · 127.0.0.1 · 工作台只点名组合；片子交给 agent。</p>
-          <span className="site-foot-links">
-            <a href={MODELBEST_URL} target="_blank" rel="noreferrer">
-              ModelBest 控制台
-            </a>
-            <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-              GitHub
-            </a>
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }
