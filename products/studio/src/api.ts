@@ -105,6 +105,36 @@ export const api = {
       body: JSON.stringify({ type, projectId, locale }),
     }).then((res) => parse<Job>(res)),
   job: (id: string) => fetch(`/api/jobs/${encodeURIComponent(id)}`).then((res) => parse<Job>(res)),
+  mintVoice: (body: {
+    id?: string;
+    locale?: string;
+    text: string;
+    style?: string;
+    ref?: string;
+    denoise?: boolean;
+    doNormalize?: boolean;
+    cfgValue?: number;
+  }) =>
+    fetch("/api/voices/mint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((res) =>
+      parse<{ rel: string; dest: string; seconds: number; text: string; style: string }>(res),
+    ),
+  keepVoice: (body: {
+    id: string;
+    locale: string;
+    label?: string;
+    said?: string;
+    style?: string;
+    source: { kind: "candidate"; rel: string } | { kind: "project"; projectId: string; rel: string };
+  }) =>
+    fetch("/api/voices/keep", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((res) => parse<Asset>(res)),
   uploadLibrary: (form: FormData) =>
     fetch("/api/library/assets", { method: "POST", body: form }).then((res) => parse<Asset>(res)),
   uploadProject: (id: string, form: FormData) =>
@@ -119,4 +149,8 @@ export function libraryMedia(file: string): string {
 
 export function projectMedia(projectId: string, file: string): string {
   return `/api/media/project/${encodeURIComponent(projectId)}/${file}`;
+}
+
+export function candidateMedia(file: string): string {
+  return `/api/media/candidate/${encodeURIComponent(file)}`;
 }

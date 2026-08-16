@@ -136,26 +136,67 @@ def speech_input(text: str, style: str) -> str:
     return f"({style}){text}" if style else text
 
 
-def speech_payload(text: str, *, ref_wav: Path | None, style: str) -> dict:
+def speech_payload(
+    text: str,
+    *,
+    ref_wav: Path | None,
+    style: str = "",
+    denoise: bool | None = None,
+    do_normalize: bool = True,
+    cfg_value: float | None = None,
+) -> dict:
     payload: dict = {
         "model": "VoxCPM2",
         "input": speech_input(text, style),
         "voice": "default",
         "response_format": "wav",
-        "do_normalize": True,
+        "do_normalize": do_normalize,
     }
     if ref_wav and ref_wav.is_file():
         payload["ref_audio"] = as_data_wav(ref_wav)
+        payload["denoise"] = True if denoise is None else bool(denoise)
+    elif denoise is True:
         payload["denoise"] = True
+    if cfg_value is not None:
+        payload["cfg_value"] = float(cfg_value)
     return payload
 
 
-def maybe_seed(api_url: str, key: str, ref_wav: Path, style: str, prompt_text: str) -> None:
-    spoken = prompt_text.strip() or "先把名称、场景和规则说清楚。"
-    print("seed prompt (voice design)", file=sys.stderr)
-    audio = post_speech(api_url, key, speech_payload(spoken, ref_wav=None, style=style))
-    seconds = write_wav(ref_wav, audio)
-    print(f"  {ref_wav}  {seconds:.2f}s", file=sys.stderr)
+def _opt_bool(job: dict, key: str) -> bool | None:
+    if key not in job or job.get(key) is None:
+        return None
+    return bool(job.get(key))
+
+
+def _opt_float(job: dict, key: str) -> float | None:
+    if key not in job or job.get(key) is None or job.get(key) == "":
+        return None
+    return float(job[key])
+
+
+def mint_one(api_url: str, key: str, job: dict) -> dict:
+    dest = Path(str(job.get("dest") or ""))
+    text = str(job.get("text") or "").strip()
+    if not dest or not text:
+        raise SystemExit("mint 需要 dest 与 text")
+    ref_raw = str(job.get("refAudio") or "").strip()
+    ref_wav = Path(ref_raw) if ref_raw else None
+    style = str(job.get("style") or "").strip()
+    audio = post_speech(
+        api_url,
+        key,
+        speech_payload(
+            text,
+            ref_wav=ref_wav,
+            style=style,
+            denoise=_opt_bool(job, "denoise"),
+            do_normalize=True if job.get("do_normalize") is None else bool(job.get("do_normalize")),
+            cfg_value=_opt_float(job, "cfg_value"),
+        ),
+    )
+    seconds = write_wav(dest, audio)
+    print(f"mint {dest}  {seconds:.2f}s", file=sys.stderr)
+    return {"wrote": [{"scene": "mint", "file": str(dest), "seconds": round(seconds, 3)}]}
 
 
 def main() -> None:
@@ -163,14 +204,17 @@ def main() -> None:
     parser.add_argument("--job", required=True, help="weaver TTS job JSON")
     args = parser.parse_args()
     job = json.loads(Path(args.job).read_text(encoding="utf-8"))
-    project_root = Path(job["projectRoot"])
     base, key = load_backend(job.get("configDirs") or [])
     api_url = f"{base}/audio/speech"
+    if job.get("kind") == "mint":
+        print(json.dumps(mint_one(api_url, key, job), ensure_ascii=False))
+        return
+
+    project_root = Path(job["projectRoot"])
     ref_raw = str(job.get("refAudio") or "").strip()
     ref_wav = Path(ref_raw) if ref_raw else None
-    style = str(job.get("style") or "").strip()
-    if ref_wav and job.get("seed"):
-        maybe_seed(api_url, key, ref_wav, style, str(job.get("promptText") or ""))
+    if job.get("seed"):
+        print("ignore seed: 铸库请在 Studio /voices，出片不改参考声", file=sys.stderr)
 
     wrote = []
     for item in job.get("items") or []:
@@ -180,7 +224,7 @@ def main() -> None:
             continue
         mode = "clone" if ref_wav and ref_wav.is_file() else "tts"
         print(f"{mode} {job.get('locale')}/{item['id']}", file=sys.stderr)
-        audio = post_speech(api_url, key, speech_payload(text, ref_wav=ref_wav, style=style))
+        audio = post_speech(api_url, key, speech_payload(text, ref_wav=ref_wav, style=""))
         seconds = write_wav(dest, audio)
         print(f"  {dest}  {seconds:.2f}s", file=sys.stderr)
         wrote.append({"scene": item["id"], "file": item["dest"], "seconds": round(seconds, 3)})

@@ -12,7 +12,7 @@ export default defineConfig({
     port,
     strictPort: true,
     proxy: {
-      "/api": `http://${host}:${api}`,
+      "/api": { target: `http://${host}:${api}`, timeout: 180000 },
     },
   },
   preview: {
@@ -20,7 +20,7 @@ export default defineConfig({
     port: 4175,
     strictPort: true,
     proxy: {
-      "/api": `http://${host}:${api}`,
+      "/api": { target: `http://${host}:${api}`, timeout: 180000 },
     },
   },
 });

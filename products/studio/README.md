@@ -8,13 +8,13 @@ make install
 make studio
 ```
 
-浏览器打开 `http://127.0.0.1:5175/`。API 在 `127.0.0.1:8788`。顶栏可切换浅色 / 深色，GitHub 指向本仓。
+浏览器打开 `http://127.0.0.1:5175/`。API 在 `127.0.0.1:8788`。顶栏可切换浅色 / 深色，GitHub 指向本仓。铸声用 [ModelBest 控制台](https://platform.modelbest.cn/console/login?ref=B08B4DDF)。
 
 | 路径 | 做什么 |
 | --- | --- |
 | `/` | 这张图 |
 | `/films` `/f/<id>` | 点名音色 / `kit`，看场次和成片 |
-| `/voices` | 听、收、改参考稿 |
+| `/voices` | 听、铸、收下 wav |
 | `/library` | 收元素和参考图 |
 
 - 片子主路径是 agent + `weaver`

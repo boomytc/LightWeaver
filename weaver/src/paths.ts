@@ -26,6 +26,10 @@ export function userRoot(root = weaverRoot()): string {
   return path.join(root, "data/projects");
 }
 
+export function voiceCandidateRoot(root = weaverRoot()): string {
+  return path.join(root, "data/voice-candidates");
+}
+
 export function filmsProductRoot(root = weaverRoot()): string {
   return path.join(root, "products/study-films");
 }

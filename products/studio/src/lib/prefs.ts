@@ -4,6 +4,7 @@ export type Theme = "light" | "dark";
 
 export const THEME_KEY = "lightweaver-theme";
 export const GITHUB_URL = "https://github.com/boomytc/LightWeaver";
+export const MODELBEST_URL = "https://platform.modelbest.cn/console/login?ref=B08B4DDF";
 
 export function readTheme(): Theme {
   try {

@@ -33,6 +33,11 @@ import {
   upsertLibraryAsset,
   validateProject,
   weaverRoot,
+  keepLibraryVoice,
+  resolveKeepSource,
+  resolveVoicePrompt,
+  runVoiceMint,
+  voiceCandidateRoot,
   type Asset,
   type FilmDoc,
 } from "@lightweaver/weaver";
@@ -238,6 +243,83 @@ app.patch("/api/projects/:id/kit", (req, res) => {
         : [];
     setKit(project, refs);
     res.json(detailOf(project));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.post("/api/voices/mint", (req, res) => {
+  req.setTimeout(200000);
+  res.setTimeout(200000);
+  try {
+    const locale = typeof req.body?.locale === "string" ? req.body.locale : "zh";
+    const id = typeof req.body?.id === "string" ? req.body.id.trim() : "";
+    const ref = typeof req.body?.ref === "string" ? req.body.ref : "";
+    let refAudio: string | undefined;
+    if (ref && ref !== "none") {
+      const resolved = resolveVoicePrompt(null, ref.startsWith("library:") ? ref : `library:${ref}`, locale, root);
+      if (!resolved) throw new Error("这套还没有可克隆的参考声，先上传一支或用不带参考声的声音描述");
+      refAudio = resolved.absPath;
+    }
+    const minted = runVoiceMint({
+      text: String(req.body?.text ?? ""),
+      style: typeof req.body?.style === "string" ? req.body.style : "",
+      refAudio,
+      destName: `${id || "mint"}-${locale}-${Date.now()}.wav`,
+      denoise: typeof req.body?.denoise === "boolean" ? req.body.denoise : undefined,
+      doNormalize: typeof req.body?.doNormalize === "boolean" ? req.body.doNormalize : true,
+      cfgValue:
+        typeof req.body?.cfgValue === "number" && Number.isFinite(req.body.cfgValue) ? req.body.cfgValue : undefined,
+      root,
+    });
+    res.json(minted);
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.post("/api/voices/keep", (req, res) => {
+  try {
+    const source = req.body?.source as
+      | { kind: "candidate"; rel: string }
+      | { kind: "project"; projectId: string; rel: string }
+      | undefined;
+    if (!source || (source.kind !== "candidate" && source.kind !== "project")) {
+      res.status(400).json({ error: "收下需要 candidate 或片子旁白路径" });
+      return;
+    }
+    const abs = resolveKeepSource(source, root);
+    const asset = keepLibraryVoice(
+      {
+        id: String(req.body?.id ?? "").trim(),
+        locale: String(req.body?.locale ?? "").trim(),
+        sourceAbs: abs,
+        label: typeof req.body?.label === "string" ? req.body.label : undefined,
+        said: typeof req.body?.said === "string" ? req.body.said : undefined,
+        style: typeof req.body?.style === "string" ? req.body.style : undefined,
+      },
+      root,
+    );
+    res.json(asset);
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.get("/api/media/candidate/:file", (req, res) => {
+  try {
+    const file = path.basename(param(req.params.file));
+    const folder = voiceCandidateRoot(root);
+    const dest = path.resolve(folder, file);
+    if (!dest.startsWith(`${path.resolve(folder)}${path.sep}`)) {
+      res.status(400).json({ error: "非法试听路径" });
+      return;
+    }
+    if (!fs.existsSync(dest)) {
+      res.status(404).end();
+      return;
+    }
+    res.sendFile(dest);
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
   }

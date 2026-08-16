@@ -223,6 +223,7 @@ button:disabled {
 .site-foot-inner p { margin: 0; }
 .site-foot-inner a { color: var(--muted); }
 .site-foot-inner a:hover { color: var(--text); }
+.site-foot-links { display: flex; flex-wrap: wrap; gap: 14px; }
 
 .page-width {
   width: min(1080px, calc(100% - 40px));
@@ -396,6 +397,17 @@ button:disabled {
   flex-wrap: wrap;
 }
 .voice-main audio { width: min(360px, 100%); }
+.voice-stage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.voice-stage audio { width: 100%; margin-top: 8px; }
+.voice-mint { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+@media (max-width: 720px) {
+  .voice-stage { grid-template-columns: 1fr; }
+}
 
 .form-grid {
   display: grid;

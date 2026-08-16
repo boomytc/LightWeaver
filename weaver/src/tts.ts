@@ -4,14 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { filmsProductRoot, weaverRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
-import { findAsset, lineAssetId, lineRelPath, resolveVoicePrompt, upsertAsset, voiceCloneText, voiceStyle } from "./assets.ts";
+import { lineAssetId, lineRelPath, resolveVoicePrompt, upsertAsset } from "./assets.ts";
 import { filmLangs, type Locale } from "./schema.ts";
 
 export type TtsOptions = {
   projectId: string;
   locale?: Locale;
   scene?: string;
-  seed?: boolean;
   root?: string;
   onLog?: (line: string) => void;
 };
@@ -56,7 +55,6 @@ export function runTts(options: TtsOptions): TtsResult {
     const voiceRef = project.film.voices[locale] ?? project.film.voices[Object.keys(project.film.voices)[0] ?? ""];
     if (!voiceRef) throw new Error(`项目 ${project.id} 未指定音色`);
     const voice = resolveVoicePrompt(project, voiceRef, locale, root);
-    const voiceAsset = findAsset(project, voiceRef, root);
     const items = scenes
       .map((scene) => ({
         id: scene.id,
@@ -66,12 +64,10 @@ export function runTts(options: TtsOptions): TtsResult {
       .filter((item) => item.text.trim());
     if (!items.length) throw new Error(`项目 ${project.id} 没有 ${locale} 旁白`);
     const job = {
+      kind: "lines",
       projectRoot: project.root,
       locale,
       refAudio: voice?.absPath ?? "",
-      style: voiceAsset ? voiceStyle(voiceAsset, locale) : "",
-      promptText: voiceAsset ? voiceCloneText(voiceAsset, locale) : "",
-      seed: Boolean(options.seed),
       configDirs: [root, filmsProductRoot(root)],
       items,
     };

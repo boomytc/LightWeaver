@@ -12,7 +12,7 @@ persist films. `/films` is instances. Agents generate via weaver.
 | --- | --- | --- |
 | `/` 工作台 | human | pick combo (langs + voice + kit + recipe); copy brief; do not persist |
 | `/films` `/f/<id>` | human names; agent produces | voices + kit + recipe; review scenes/mp4 |
-| `/voices` | human | one pack binds zh+en; listen, add, edit clone text/style |
+| `/voices` | human | kept wav is the pack; mint, listen, keep; ModelBest console link |
 | `/library` | human | accumulate elements and references |
 | `/methods` | human | reusable film cards: when, shape, apply; copy usage |
 
@@ -20,8 +20,8 @@ persist films. `/films` is instances. Agents generate via weaver.
 
 - Talk to `@lightweaver/weaver` and `/api/*` only. Do not import Remotion
   or LightUI source.
-- `/api/media` may only serve `library/` and project roots (including
-  gitignored `assets/outputs/`).
+- `/api/media` may only serve `library/`, project roots (including
+  gitignored `assets/outputs/`), and `data/voice-candidates/` (mint previews).
 - `<video src>` must use `projectMedia(id, rel)` → `/api/media/project/…`.
   Never put a disk absolute path in `src`.
 - No generate-narration button, no TTS/render chrome, no lab iframe, no
@@ -29,4 +29,4 @@ persist films. `/films` is instances. Agents generate via weaver.
 - `film.kit` is `library:element|reference` only.
 - Chinese UI labels. Identifiers English.
 - Site density, not a marketing page. Token-first CSS in `src/index.css`.
-- Theme is `data-theme` on `<html>`, persisted as `lightweaver-theme`. GitHub is this repo.
+- Theme is `data-theme` on `<html>`, persisted as `lightweaver-theme`. GitHub is this repo. ModelBest console: `MODELBEST_URL`.

@@ -16,7 +16,8 @@ src/recipes.ts         recipe list/show/apply
 src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
 src/sync.ts            Remotion public links + catalog
-src/tts.ts             VoxCPM2 job
+src/tts.ts             VoxCPM2 line job（只读参考 wav）
+src/voice-mint.ts      铸试听 / 收下 wav 进 library
 src/render.ts          Remotion + publish
 src/cli.ts             JSON/human CLI
 ```

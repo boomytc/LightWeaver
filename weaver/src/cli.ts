@@ -428,6 +428,7 @@ function main(): void {
   }
 
   if (command === "tts") {
+    if (values.seed) fail("铸库请在 Studio /voices 听完再收。出片 tts 不改参考声，不要加 --seed");
     const projectId = rest[0] ?? str(values, "project") ?? "";
     const projects = projectId ? [loadProject(projectId, root)] : listProjects(root);
     const attempted: ProjectRecord[] = [];
@@ -445,7 +446,6 @@ function main(): void {
             projectId: project.id,
             locale: str(values, "locale"),
             scene: str(values, "scene"),
-            seed: Boolean(values.seed),
             root,
           }),
         );

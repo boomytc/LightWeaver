@@ -27,6 +27,7 @@ Studio 工作台只点名组合并复制给 agent；片子页看实例。出片�
 ```bash
 make install
 make studio          # http://127.0.0.1:5175/  /films /voices /library
+                     # 铸声：https://platform.modelbest.cn/console/login?ref=B08B4DDF
 make remotion        # Remotion 预览
 ```
 
