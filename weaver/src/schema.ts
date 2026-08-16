@@ -27,7 +27,9 @@ export type Asset = {
   file?: string;
   files?: Record<Locale, string>;
   text?: string;
+  texts?: Record<Locale, string>;
   style?: string;
+  styles?: Record<Locale, string>;
   scene?: string;
   label?: string;
 };

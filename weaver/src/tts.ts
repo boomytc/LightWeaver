@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { filmsProductRoot, weaverRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
-import { findAsset, lineAssetId, lineRelPath, resolveAssetFile, upsertAsset } from "./assets.ts";
+import { findAsset, lineAssetId, lineRelPath, resolveAssetFile, upsertAsset, voiceCloneText } from "./assets.ts";
 import type { Locale } from "./schema.ts";
 
 export type TtsOptions = {
@@ -71,7 +71,7 @@ export function runTts(options: TtsOptions): TtsResult {
       projectRoot: project.root,
       locale,
       refAudio: voice.absPath,
-      refText: voiceAsset?.text ?? "",
+      refText: voiceAsset ? voiceCloneText(voiceAsset, locale) : "",
       seed: Boolean(options.seed),
       configDirs: [root, filmsProductRoot(root)],
       items,

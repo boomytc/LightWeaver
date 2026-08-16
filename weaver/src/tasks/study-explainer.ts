@@ -47,8 +47,8 @@ function createFilm(input: CreateFilmInput, root: string): FilmDoc {
     task: "study-explainer",
     brand,
     voices: {
-      zh: "library:voice.prompt-zh",
-      en: "library:voice.prompt-en",
+      zh: "library:voice.prompt",
+      en: "library:voice.prompt",
     },
     locales: {
       zh: {

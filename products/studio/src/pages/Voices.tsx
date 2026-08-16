@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, libraryMedia } from "../api";
 import { Link } from "../components/Link";
+import { listVoicePacks, voiceFile } from "../lib/voices";
 import type { Asset, ProjectSummary } from "../types";
 
 export function Voices() {
@@ -8,9 +9,9 @@ export function Voices() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
-  const [id, setId] = useState("");
-  const [locale, setLocale] = useState("zh");
+  const [id, setId] = useState("voice.prompt");
   const [label, setLabel] = useState("");
+  const [locale, setLocale] = useState("zh");
   const [text, setText] = useState("");
   const [style, setStyle] = useState("");
 
@@ -24,11 +25,11 @@ export function Voices() {
     reload().catch((err: Error) => setError(err.message));
   }, []);
 
-  const voices = library.filter((asset) => asset.kind === "voice");
+  const packs = listVoicePacks(library);
 
   async function upload(file: File) {
     if (!id.trim()) {
-      setError("先写音色 id，例如 voice.prompt-zh");
+      setError("先写音色套 id，例如 voice.prompt");
       return;
     }
     const form = new FormData();
@@ -41,18 +42,8 @@ export function Voices() {
     if (style.trim()) form.set("style", style.trim());
     try {
       await api.uploadLibrary(form);
-      setMessage(`已入库 ${id.trim()}`);
+      setMessage(`已写入 ${id.trim()} · ${locale}`);
       setError(undefined);
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function saveMeta(asset: Asset, next: { label: string; text: string; style: string }) {
-    try {
-      await api.patchLibrary(asset.id, next);
-      setMessage(`已更新 ${asset.label ?? asset.id}`);
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -63,44 +54,48 @@ export function Voices() {
     <div className="page-width page">
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">音色</h1>
-      <p className="lede">人决定库里有哪些声、听起来对不对。片子页再点名用哪一支。agent 不自己换声。</p>
+      <p className="lede">一套音色绑中英两支参考声。工作台只点一套，不要拆开选。</p>
       {error ? <div className="banner banner-error">{error}</div> : null}
       {message ? <div className="banner banner-ok">{message}</div> : null}
 
       <div className="stack">
-        {voices.map((asset) => (
-          <VoiceCard
+        {packs.map((asset) => (
+          <VoicePackCard
             key={asset.id}
             asset={asset}
             usedBy={projects.filter((project) => Object.values(project.voices ?? {}).includes(`library:${asset.id}`))}
-            onSave={saveMeta}
+            onSaved={reload}
+            onError={setError}
           />
         ))}
       </div>
 
       <section className="section">
-        <h2 className="h">入库一支新声</h2>
-        <p className="item-meta">id 用 dotted 小写。参考稿和风格写清楚，agent 合成旁白时按这个克隆。</p>
+        <h2 className="h">补一套或补一边</h2>
+        <p className="item-meta">同一 id 上传 zh / en 两个 wav，会收成一套。</p>
         <div className="form-grid">
           <label className="field">
-            <span>id</span>
-            <input value={id} onChange={(event) => setId(event.target.value)} placeholder="voice.prompt-zh" />
+            <span>套 id</span>
+            <input value={id} onChange={(event) => setId(event.target.value)} placeholder="voice.prompt" />
           </label>
           <label className="field">
-            <span>语种</span>
-            <input value={locale} onChange={(event) => setLocale(event.target.value)} placeholder="zh" />
+            <span>这一边</span>
+            <select value={locale} onChange={(event) => setLocale(event.target.value)} aria-label="语种">
+              <option value="zh">中文</option>
+              <option value="en">英文</option>
+            </select>
           </label>
-          <label className="field">
+          <label className="field field-span">
             <span>名称</span>
-            <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="讲解女声（中）" />
+            <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="讲解女声" />
           </label>
           <label className="field field-span">
-            <span>参考稿</span>
-            <input value={text} onChange={(event) => setText(event.target.value)} placeholder="克隆时跟读的句子" />
+            <span>这一边的参考稿</span>
+            <input value={text} onChange={(event) => setText(event.target.value)} />
           </label>
           <label className="field field-span">
-            <span>风格</span>
-            <input value={style} onChange={(event) => setStyle(event.target.value)} placeholder="语速、气质" />
+            <span>这一边的风格</span>
+            <input value={style} onChange={(event) => setStyle(event.target.value)} />
           </label>
           <label className="btn">
             选择 wav
@@ -121,49 +116,77 @@ export function Voices() {
   );
 }
 
-function VoiceCard({
+function VoicePackCard({
   asset,
   usedBy,
-  onSave,
+  onSaved,
+  onError,
 }: {
   asset: Asset;
   usedBy: ProjectSummary[];
-  onSave: (asset: Asset, next: { label: string; text: string; style: string }) => Promise<void>;
+  onSaved: () => Promise<void>;
+  onError: (message: string) => void;
 }) {
   const [label, setLabel] = useState(asset.label ?? "");
-  const [text, setText] = useState(asset.text ?? "");
-  const [style, setStyle] = useState(asset.style ?? "");
+  const [textZh, setTextZh] = useState(asset.texts?.zh ?? asset.text ?? "");
+  const [textEn, setTextEn] = useState(asset.texts?.en ?? "");
+  const [styleZh, setStyleZh] = useState(asset.styles?.zh ?? asset.style ?? "");
+  const [styleEn, setStyleEn] = useState(asset.styles?.en ?? "");
 
   useEffect(() => {
     setLabel(asset.label ?? "");
-    setText(asset.text ?? "");
-    setStyle(asset.style ?? "");
-  }, [asset.id, asset.label, asset.text, asset.style]);
+    setTextZh(asset.texts?.zh ?? asset.text ?? "");
+    setTextEn(asset.texts?.en ?? "");
+    setStyleZh(asset.styles?.zh ?? asset.style ?? "");
+    setStyleEn(asset.styles?.en ?? "");
+  }, [asset]);
+
+  async function save() {
+    try {
+      await api.patchLibrary(asset.id, {
+        label,
+        texts: { zh: textZh, en: textEn },
+        styles: { zh: styleZh, en: styleEn },
+      });
+      await onSaved();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  const zhFile = voiceFile(asset, "zh");
+  const enFile = voiceFile(asset, "en");
 
   return (
     <article className="voice-card">
       <div className="voice-main">
         <div>
           <div className="item-title">{asset.label ?? asset.id}</div>
-          <div className="card-id">
-            {asset.id}
-            {asset.locale ? ` · ${asset.locale}` : ""}
-          </div>
+          <div className="card-id">{asset.id} · 中英一套</div>
         </div>
-        {asset.file ? <audio controls preload="metadata" src={libraryMedia(asset.file)} /> : null}
       </div>
       <div className="form-grid">
-        <label className="field">
+        <label className="field field-span">
           <span>名称</span>
-          <input value={label} onChange={(event) => setLabel(event.target.value)} onBlur={() => void onSave(asset, { label, text, style })} />
+          <input value={label} onChange={(event) => setLabel(event.target.value)} onBlur={() => void save()} />
         </label>
-        <label className="field field-span">
-          <span>参考稿</span>
-          <input value={text} onChange={(event) => setText(event.target.value)} onBlur={() => void onSave(asset, { label, text, style })} />
+        <label className="field">
+          <span>中文参考稿</span>
+          <input value={textZh} onChange={(event) => setTextZh(event.target.value)} onBlur={() => void save()} />
+          {zhFile ? <audio controls preload="metadata" src={libraryMedia(zhFile)} /> : <span className="item-meta">缺中文 wav</span>}
         </label>
-        <label className="field field-span">
-          <span>风格</span>
-          <input value={style} onChange={(event) => setStyle(event.target.value)} onBlur={() => void onSave(asset, { label, text, style })} />
+        <label className="field">
+          <span>英文参考稿</span>
+          <input value={textEn} onChange={(event) => setTextEn(event.target.value)} onBlur={() => void save()} />
+          {enFile ? <audio controls preload="metadata" src={libraryMedia(enFile)} /> : <span className="item-meta">缺英文 wav</span>}
+        </label>
+        <label className="field">
+          <span>中文风格</span>
+          <input value={styleZh} onChange={(event) => setStyleZh(event.target.value)} onBlur={() => void save()} />
+        </label>
+        <label className="field">
+          <span>英文风格</span>
+          <input value={styleEn} onChange={(event) => setStyleEn(event.target.value)} onBlur={() => void save()} />
         </label>
       </div>
       <div className="item-meta">
@@ -176,7 +199,7 @@ function VoiceCard({
                 </Link>
               </span>
             ))
-          : "还没有片子点名这支声"}
+          : "还没有片子点名这套声"}
       </div>
     </article>
   );

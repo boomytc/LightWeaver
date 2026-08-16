@@ -176,6 +176,16 @@ export function setVoice(project: ProjectRecord, locale: string, ref: string): P
   return project;
 }
 
+/** 中英绑同一套。每个 locale 都写成同一个 library: 引用。 */
+export function setVoicePack(project: ProjectRecord, ref: string): ProjectRecord {
+  const voices = { ...project.film.voices };
+  for (const locale of Object.keys(project.film.locales)) {
+    voices[locale] = ref;
+  }
+  saveFilm(project, { ...filmOf(project), voices });
+  return project;
+}
+
 export function setKit(project: ProjectRecord, refs: string[]): ProjectRecord {
   const kit = [...new Set(refs.map((item) => item.trim()).filter(Boolean))];
   for (const ref of kit) {

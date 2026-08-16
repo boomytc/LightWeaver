@@ -14,7 +14,8 @@ Kinds: `voice` | `still` | `element` | `reference` | `line` | `output`.
 Shared library (`library/`):
 
 ```bash
-npx weaver asset add --library --id voice.foo --kind voice --locale zh --file voices/foo.wav --text "..." 
+npx weaver asset add --library --id voice.prompt --kind voice --file voices/prompt-zh.wav
+# 一套音色用 files.zh / files.en，不要拆成 prompt-zh / prompt-en 两套 
 ```
 
 Project stills:

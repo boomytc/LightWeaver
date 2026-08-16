@@ -12,10 +12,11 @@ describe("buildAgentBrief", () => {
       recipeTitle: "对照表阅兵",
       requiresKinds: true,
       voices: {
-        zh: "library:voice.prompt-zh",
-        en: "library:voice.prompt-en",
+        zh: "library:voice.prompt",
+        en: "library:voice.prompt",
       },
-      voiceLabels: { "library:voice.prompt-zh": "讲解女声（中）" },
+      voiceSet: { ref: "library:voice.prompt", label: "讲解女声" },
+      voiceLabels: { "library:voice.prompt": "讲解女声" },
       kit: ["library:element.mark"],
       kitLabels: { "library:element.mark": "Light mark" },
     });
@@ -23,10 +24,20 @@ describe("buildAgentBrief", () => {
     assert.match(text, /片子：dropdown-taxonomy（给下拉起对名字）/);
     assert.match(text, /方法卡：taxonomy-parade（对照表阅兵）/);
     assert.match(text, /recipe apply --project dropdown-taxonomy --recipe taxonomy-parade/);
-    assert.match(text, /zh = library:voice\.prompt-zh（讲解女声（中））/);
+    assert.match(text, /音色套：library:voice\.prompt（讲解女声）/);
+    assert.match(text, /voice set --project dropdown-taxonomy --ref library:voice\.prompt/);
     assert.match(text, /library:element\.mark（Light mark）/);
     assert.match(text, /kit set --project dropdown-taxonomy --refs library:element\.mark/);
     assert.doesNotMatch(text, /未点名/);
+  });
+
+  it("refuses to list split zh/en voices as two picks", () => {
+    const text = buildAgentBrief({
+      voices: { zh: "library:voice.prompt-zh", en: "library:voice.prompt-en" },
+      kit: [],
+    });
+    assert.match(text, /中英未绑成一套/);
+    assert.doesNotMatch(text, /zh = /);
   });
 
   it("asks the agent to create a film when no project is named", () => {

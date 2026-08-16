@@ -11,7 +11,7 @@ import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
 import { runPublish, runRender } from "./render.ts";
 import { ASSET_KINDS, isStudyRole } from "./schema.ts";
-import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setVoice } from "./scenes.ts";
+import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setVoicePack } from "./scenes.ts";
 import { listTasks } from "./tasks/registry.ts";
 import type { ProjectRecord } from "./schema.ts";
 
@@ -244,12 +244,12 @@ function main(): void {
   }
 
   if (command === "voice") {
-    if (rest[0] !== "set") fail("用法: weaver voice set --project <id> --locale zh --ref library:...");
+    if (rest[0] !== "set") fail("用法: weaver voice set --project <id> --ref library:voice.prompt");
     const project = requireProject(str(values, "project") ?? "");
-    const locale = str(values, "locale");
+    if (str(values, "locale")) fail("中英绑同一套音色，不要加 --locale");
     const ref = str(values, "ref");
-    if (!locale || !ref) fail("需要 --locale 与 --ref");
-    setVoice(project, locale, ref);
+    if (!ref) fail("需要 --ref（中英一套，例如 library:voice.prompt）");
+    setVoicePack(project, ref);
     print(envelope(project, root));
     return;
   }

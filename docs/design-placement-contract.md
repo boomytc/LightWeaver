@@ -267,7 +267,7 @@ lineFiles.find((f) => f.locale === locale && f.sceneId === id)
 | --- | --- | --- | --- |
 | **理念** | 跟 **主题** 走，不跟渲染器走 | first-party：LightUI `studies/<slug>/idea.md` + `idea.en.md` + `study.json` + `references/SOURCE.md`。**taxonomy 片另有** `src/lib/kinds.ts`（nav / sidebar / dropdown）；**`intent-cascade` 无 kinds.ts**。片子只存指针 `film.study.slug`（`schema.ts` `filmStudySlug`，缺省回退 `capture.slug`） | **不**把 `idea.md` 拷进 LightWeaver 片子目录（双源）。**不**在 weaver 里 parse 理念 markdown |
 | **理念（用户片）** | 跟 **项目** 走（没有 LightUI study） | `data/projects/<id>/brief.md` + 可选 `brief.en.md`。Agent 写；`createProject` 不代写正文 | weaver **不**解析 brief（YAGNI）。没有 brief 时 skill 先写 brief 再写旁白 |
-| **资产** | 共享 vs 片内 | `library/` = 音色 / 元素 / 参考（现网 `library/assets.json`：`voice.prompt-zh`、`voice.prompt-en`、`element.mark`）。片内：`assets.json` + `assets/stills/<locale>/`。引用只许 `library:` / `asset:`（`schema.ts` `parseAssetRef`） | `library/` 不是 DAM。不把 stills 写进 LightUI `references/`。不发明第三套 ref scheme |
+| **资产** | 共享 vs 片内 | `library/` = 音色 / 元素 / 参考（现网 `library/assets.json`：`voice.prompt` 一套绑中英、`element.mark`）。片内：`assets.json` + `assets/stills/<locale>/`。引用只许 `library:` / `asset:`（`schema.ts` `parseAssetRef`） | `library/` 不是 DAM。不把 stills 写进 LightUI `references/`。不发明第三套 ref scheme |
 | **产物** | 跟 **项目** 走，发布才离开 | 中间件：`assets/lines/<locale>/<scene>.wav`（`assets.ts` `lineRelPath`）。成片：`assets/outputs/<output>`（`outputRelPath`，根 `.gitignore` 已有 `**/assets/outputs/`）。有 `publish.dir` 才拷到 LightUI `studies/<slug>/references/`（**只 mp4**） | 不提交 outputs。不把 wav/mp4 写进理念目录。`products/study-films/src/generated/catalog.json` 是 Remotion 胶水，**不是**用户产物 |
 
 `film.json` 是 **编排合同**（场景序、旁白、引用、output 名），横跨三层，但本身既不是理念源、也不是媒体文件。Agent 经 CLI 写它，不手改当日常路径。
@@ -286,7 +286,7 @@ lineFiles.find((f) => f.locale === locale && f.sceneId === id)
 | 编排合同 | FilmDoc | first-party：`products/study-films/projects/<id>/film.json`；user：`data/projects/<id>/film.json`（`firstPartyRoot` / `userRoot`） | Agent via CLI / Studio PATCH | weaver、Remotion `Root.tsx`、Studio | first-party 提交；user 不提交 | 无 ref；`film.id ===` 目录名 |
 | 方法资产 | recipe | `recipes/lightui-study-explainer/<id>.md` + `index.md` | 维护者 | Agent：`weaver recipe list\|show\|apply` | 已提交 | 文件系统；`recipeRoot() = join(weaverRoot(), "recipes")` |
 | 共享资产登记 | library catalog | `library/assets.json` | `weaver asset add --library` | `findAsset` / `loadLibrary` | 提交 | `library:<id>` |
-| 共享音色 | voice | `library/voices/prompt-{zh,en}.wav` + `.txt` | 人 / assets skill | `runTts` | 提交 | `library:voice.prompt-zh` |
+| 共享音色 | voice | `library/voices/prompt-{zh,en}.wav` + `.txt`，一条资产 `files`/`texts`/`styles` 成对 | 人 / assets skill | `runTts` | 提交 | `library:voice.prompt`（`voices.zh` 与 `voices.en` 同引用） |
 | 共享元素 | element | `library/elements/mark.svg` | 人 | Remotion `Mark.tsx` | 提交 | `library:element.mark` |
 | 片内资产登记 | project catalog | `<project>/assets.json` | `asset add` / `ensureStillStub` / tts upsert | `resolveAssetFile` | first-party 提交 stub | `asset:<id>` |
 | 片内静帧 | still | 引用 **id** = `asset:still.<id>`。**盘上文件名以 `assets.json` `files.<locale>` 为准**，不是从 id 推导。`stillRelPath(name, locale)` = `assets/stills/<locale>/<name>`，**不**自动加 `.png`。新 taxonomy / manual 约定 `<kind>.png`（`docs/conventions.md`）。历史名保留：intent `desktop-full.png` 等；dropdown `comp-02.png` / `select-open.png` / `date-cal.png` | `capture.mjs`（仅 ADAPTERS）或手截 / 上传 | Remotion `staticFile`；`isRenderable` 看每个 locale 文件是否存在 | first-party 完成片提交 png；骨架可不提交 | `asset:still.<id>` |

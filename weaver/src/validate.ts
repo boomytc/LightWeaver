@@ -44,6 +44,11 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     }
   }
 
+  const voiceRefs = [...new Set(locales.map((locale) => film.voices[locale]).filter(Boolean))];
+  if (voiceRefs.length > 1) {
+    issues.push(warn("voices", "中英文必须绑同一套音色，不要拆开点"));
+  }
+
   for (const [index, ref] of (film.kit ?? []).entries()) {
     const parsed = parseAssetRef(ref);
     const path = `kit.${index}`;

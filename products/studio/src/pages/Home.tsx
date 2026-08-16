@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { BriefPanel } from "../components/BriefPanel";
 import { recipeHint } from "../lib/labels";
+import { listVoicePacks } from "../lib/voices";
 import type { Asset, RecipeCard } from "../types";
 
 export function Home() {
@@ -9,8 +10,7 @@ export function Home() {
   const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const [error, setError] = useState<string>();
   const [recipeId, setRecipeId] = useState("");
-  const [voiceZh, setVoiceZh] = useState("");
-  const [voiceEn, setVoiceEn] = useState("");
+  const [voiceRef, setVoiceRef] = useState("");
   const [kit, setKit] = useState<string[]>([]);
 
   useEffect(() => {
@@ -24,17 +24,18 @@ export function Home() {
       .catch((err: Error) => setError(err.message));
   }, []);
 
-  const voices = library.filter((asset) => asset.kind === "voice");
+  const voicePacks = listVoicePacks(library);
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
   const selectedRecipe = recipes.find((item) => item.id === recipeId);
+  const selectedVoice = voicePacks.find((asset) => `library:${asset.id}` === voiceRef);
 
   const voiceLabels = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const asset of voices) {
+    for (const asset of voicePacks) {
       map[`library:${asset.id}`] = asset.label ?? asset.id;
     }
     return map;
-  }, [voices]);
+  }, [voicePacks]);
 
   const kitLabels = useMemo(() => {
     const map: Record<string, string> = {};
@@ -77,29 +78,23 @@ export function Home() {
         </section>
 
         <section>
-          <h2 className="h">音色</h2>
-          <label className="field">
-            <span>中文</span>
-            <select aria-label="中文音色" value={voiceZh} onChange={(event) => setVoiceZh(event.target.value)}>
-              <option value="">未点名</option>
-              {voices.map((asset) => (
-                <option key={asset.id} value={`library:${asset.id}`}>
-                  {asset.label ?? asset.id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>英文</span>
-            <select aria-label="英文音色" value={voiceEn} onChange={(event) => setVoiceEn(event.target.value)}>
-              <option value="">未点名</option>
-              {voices.map((asset) => (
-                <option key={asset.id} value={`library:${asset.id}`}>
-                  {asset.label ?? asset.id}
-                </option>
-              ))}
-            </select>
-          </label>
+          <h2 className="h">音色套</h2>
+          <div className="pick-grid">
+            {voicePacks.map((asset) => {
+              const ref = `library:${asset.id}`;
+              return (
+                <button
+                  key={asset.id}
+                  type="button"
+                  className={voiceRef === ref ? "pick is-on" : "pick"}
+                  onClick={() => setVoiceRef(voiceRef === ref ? "" : ref)}
+                >
+                  <strong>{asset.label ?? asset.id}</strong>
+                  <span className="item-meta">{asset.id} · 中英成对</span>
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         <section>
@@ -134,8 +129,9 @@ export function Home() {
           recipeId: recipeId || undefined,
           recipeTitle: selectedRecipe?.title,
           requiresKinds: selectedRecipe?.requires_kinds,
-          voices: { ...(voiceZh ? { zh: voiceZh } : {}), ...(voiceEn ? { en: voiceEn } : {}) },
+          voices: voiceRef ? { zh: voiceRef, en: voiceRef } : {},
           voiceLabels,
+          voiceSet: selectedVoice ? { ref: voiceRef, label: selectedVoice.label ?? selectedVoice.id } : undefined,
           kit,
           kitLabels,
         }}

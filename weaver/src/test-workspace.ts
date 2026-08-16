@@ -12,8 +12,12 @@ export function tempWorkspace(): string {
     path.join(root, "library/assets.json"),
     `${JSON.stringify({
       assets: [
-        { id: "voice.prompt-zh", kind: "voice", locale: "zh", file: "voices/prompt-zh.wav" },
-        { id: "voice.prompt-en", kind: "voice", locale: "en", file: "voices/prompt-en.wav" },
+        {
+          id: "voice.prompt",
+          kind: "voice",
+          label: "讲解女声",
+          files: { zh: "voices/prompt-zh.wav", en: "voices/prompt-en.wav" },
+        },
       ],
     })}\n`,
   );

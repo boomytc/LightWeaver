@@ -55,7 +55,9 @@ export function addAsset(
     file?: string;
     files?: Record<string, string>;
     text?: string;
+    texts?: Record<string, string>;
     style?: string;
+    styles?: Record<string, string>;
     scene?: string;
     label?: string;
   },
@@ -72,7 +74,9 @@ export function addAsset(
     file: input.file,
     files: input.files,
     text: input.text,
+    texts: input.texts,
     style: input.style,
+    styles: input.styles,
     scene: input.scene,
     label: input.label,
   };
@@ -96,20 +100,80 @@ export function upsertLibraryAsset(asset: Asset, root = weaverRoot()): Asset {
   return asset;
 }
 
+export function voiceCloneText(asset: Asset, locale?: string): string {
+  if (locale && asset.texts?.[locale]) return asset.texts[locale] ?? "";
+  if (locale && asset.locale === locale && asset.text) return asset.text;
+  return asset.text ?? "";
+}
+
+export function voiceSetId(asset: Asset): string {
+  if (asset.files && (asset.files.zh || asset.files.en) && !asset.locale) return asset.id;
+  return asset.id.replace(/[.-](zh|en)$/i, "") || asset.id;
+}
+
+export type VoiceSet = {
+  id: string;
+  label: string;
+  ref: string;
+  asset: Asset;
+  locales: string[];
+};
+
+export function listVoiceSets(assets: Asset[]): VoiceSet[] {
+  const groups = new Map<string, Asset[]>();
+  for (const asset of assets.filter((item) => item.kind === "voice")) {
+    const id = voiceSetId(asset);
+    const bucket = groups.get(id) ?? [];
+    bucket.push(asset);
+    groups.set(id, bucket);
+  }
+  return [...groups.entries()].map(([id, members]) => {
+    const primary = members.find((item) => item.files && (item.files.zh || item.files.en)) ?? members[0]!;
+    const locales = new Set<string>();
+    for (const member of members) {
+      if (member.locale) locales.add(member.locale);
+      for (const locale of Object.keys(member.files ?? {})) locales.add(locale);
+    }
+    return {
+      id,
+      label: primary.label ?? id,
+      ref: `library:${primary.id}`,
+      asset: primary,
+      locales: [...locales],
+    };
+  });
+}
+
 export function patchLibraryAsset(
   id: string,
-  patch: { label?: string; text?: string; style?: string; locale?: string },
+  patch: {
+    label?: string;
+    text?: string;
+    style?: string;
+    locale?: string;
+    texts?: Record<string, string>;
+    styles?: Record<string, string>;
+  },
   root = weaverRoot(),
 ): Asset {
   const assets = loadLibrary(root);
   const current = assets.find((item) => item.id === id);
   if (!current) throw new Error(`找不到库资产 ${id}`);
+  const packed = Boolean(current.files && Object.keys(current.files).length > 1);
+  const texts = { ...(current.texts ?? {}) };
+  const styles = { ...(current.styles ?? {}) };
+  if (patch.texts) Object.assign(texts, patch.texts);
+  if (patch.styles) Object.assign(styles, patch.styles);
+  if (patch.locale && patch.text !== undefined) texts[patch.locale] = patch.text;
+  if (patch.locale && patch.style !== undefined) styles[patch.locale] = patch.style;
   const next: Asset = {
     ...current,
     label: patch.label ?? current.label,
     text: patch.text ?? current.text,
     style: patch.style ?? current.style,
-    locale: patch.locale ?? current.locale,
+    locale: packed ? undefined : (patch.locale ?? current.locale),
+    texts: Object.keys(texts).length ? texts : current.texts,
+    styles: Object.keys(styles).length ? styles : current.styles,
   };
   return upsertLibraryAsset(next, root);
 }

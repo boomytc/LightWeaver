@@ -46,11 +46,11 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((res) => parse<ProjectDetail>(res)),
-  setVoice: (id: string, locale: string, ref: string) =>
+  setVoicePack: (id: string, ref: string) =>
     fetch(`/api/projects/${encodeURIComponent(id)}/voices`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locale, ref }),
+      body: JSON.stringify({ ref }),
     }).then((res) => parse<ProjectDetail>(res)),
   setKit: (id: string, refs: string[]) =>
     fetch(`/api/projects/${encodeURIComponent(id)}/kit`, {
@@ -65,7 +65,17 @@ export const api = {
       body: JSON.stringify({ recipe }),
     }).then((res) => parse<ProjectDetail>(res)),
   recipes: () => fetch("/api/recipes").then((res) => parse<RecipeCard[]>(res)),
-  patchLibrary: (id: string, body: { label?: string; text?: string; style?: string; locale?: string }) =>
+  patchLibrary: (
+    id: string,
+    body: {
+      label?: string;
+      text?: string;
+      style?: string;
+      locale?: string;
+      texts?: Record<string, string>;
+      styles?: Record<string, string>;
+    },
+  ) =>
     fetch(`/api/library/assets/${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

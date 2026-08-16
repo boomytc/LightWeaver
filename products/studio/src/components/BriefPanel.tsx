@@ -32,7 +32,7 @@ export function BriefPanel({ input }: { input: BriefInput }) {
       <p className="item-meta">
         {ready
           ? "把这段贴给 agent。它应按这组去用 LightWeaver，不要自己改组合。"
-          : "先点名方法卡和至少一支音色，说明才会完整。"}
+          : "先点名方法卡和一套音色，说明才会完整。"}
       </p>
       <pre className="brief-text">{text}</pre>
     </section>

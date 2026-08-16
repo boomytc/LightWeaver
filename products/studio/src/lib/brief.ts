@@ -7,6 +7,7 @@ export type BriefInput = {
   requiresKinds?: boolean;
   voices: Record<string, string>;
   voiceLabels?: Record<string, string>;
+  voiceSet?: { ref: string; label?: string };
   kit: string[];
   kitLabels?: Record<string, string>;
 };
@@ -14,6 +15,11 @@ export type BriefInput = {
 function named(ref: string, labels?: Record<string, string>): string {
   const label = labels?.[ref];
   return label ? `${ref}（${label}）` : ref;
+}
+
+function uniqueVoiceRef(voices: Record<string, string>): string | undefined {
+  const refs = [...new Set(Object.values(voices).filter(Boolean))];
+  return refs.length === 1 ? refs[0] : undefined;
 }
 
 export function buildAgentBrief(input: BriefInput): string {
@@ -49,18 +55,21 @@ export function buildAgentBrief(input: BriefInput): string {
     lines.push("方法卡：未点名。先选定一张成片方法卡（对照表阅兵 / 问题然后规则）。");
   }
 
-  const locales = Object.keys(input.voices).filter((locale) => input.voices[locale]);
-  if (locales.length) {
-    lines.push("音色：");
-    for (const locale of locales) {
-      const ref = input.voices[locale]!;
-      lines.push(`  ${locale} = ${named(ref, input.voiceLabels)}`);
-      if (input.projectId) {
-        lines.push(`  weaver voice set --project ${input.projectId} --locale ${locale} --ref ${ref}`);
-      }
+  const packRef =
+    input.voiceSet?.ref ??
+    uniqueVoiceRef(input.voices);
+  if (packRef) {
+    const pack = input.voiceSet?.label
+      ? `${packRef}（${input.voiceSet.label}）`
+      : named(packRef, input.voiceLabels);
+    lines.push(`音色套：${pack}。中英成对，不要拆开换。`);
+    if (input.projectId) {
+      lines.push(`  weaver voice set --project ${input.projectId} --ref ${packRef}`);
     }
+  } else if (Object.values(input.voices).some(Boolean)) {
+    lines.push("音色套：中英未绑成一套。先收成同一引用，再点名。");
   } else {
-    lines.push("音色：未点名。");
+    lines.push("音色套：未点名。");
   }
 
   if (input.kit.length) {

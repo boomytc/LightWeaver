@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { createProject } from "./project.ts";
-import { addScene, moveScene, patchScene, removeScene, setCard, setKit } from "./scenes.ts";
+import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setVoicePack } from "./scenes.ts";
 import { hasErrors, validateProject } from "./validate.ts";
 
 function tempRoot(): string {
@@ -66,5 +66,12 @@ describe("scenes", () => {
     setKit(project, ["library:element.mark", "library:element.mark", " library:reference.board "]);
     assert.deepEqual(project.film.kit, ["library:element.mark", "library:reference.board"]);
     assert.throws(() => setKit(project, ["asset:still.hero"]), /library:/);
+  });
+
+  it("binds one voice pack to every locale", () => {
+    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    setVoicePack(project, "library:voice.prompt");
+    assert.equal(project.film.voices.zh, "library:voice.prompt");
+    assert.equal(project.film.voices.en, "library:voice.prompt");
   });
 });

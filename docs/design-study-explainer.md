@@ -473,7 +473,7 @@ flowchart LR
 
 - `task: "study-explainer"`
 - `brand`: first-party 默认 `LightUI`，user 默认 `LightWeaver`
-- `voices`: `library:voice.prompt-zh` / `library:voice.prompt-en`
+- `voices`: 中英同一引用 `library:voice.prompt`
 - `study.slug` / `publish` / `capture`：按 D7
 - `locales.*.output`：默认 `${id}.mp4` / `${id}.en.mp4`；若传入 `output` / `outputEn` 则用之
 - `locales.*.titleCard.kicker`: `LightUI  ·  Study` 或 `LightWeaver  ·  Film`
@@ -520,7 +520,7 @@ first-party（CLI `--study-slug`）在渲染成功后可再 `weaver publish` 或
 | 绑静帧 | `weaver scene set --project <id> --id floating --still asset:still.floating --fit contain` | `PATCH` `{ still, fit }` | 下拉本项目 still + 「上传并绑定」 |
 | 教学 role | `weaver scene set --project <id> --id floating --role contrast` | `PATCH` `{ role }` | 可选 role 选择器 |
 | 片头/片尾卡 | `weaver card set --project <id> --locale zh --which title --headline ...` | `PATCH /api/projects/:id/cards` | 选中 title/close 时显示卡片表单 |
-| 选音色 | `weaver voice set --project <id> --locale zh --ref library:voice.prompt-zh` | `PATCH /api/projects/:id/voices` | 工具条 locale 旁下拉库内 `kind=voice` |
+| 选音色套 | `weaver voice set --project <id> --ref library:voice.prompt` | `PATCH /api/projects/:id/voices` `{ ref }`（中英一起绑） | 工作台 / 片子页选一套，不要按语种拆 |
 | 校验 | `weaver validate <id>` | 现有 | 现有「校验」 |
 | TTS / 渲染 | 无 id 走 `isRenderable` skip；`tts --project` 允许缺 png；`render --project` 遇 `!isRenderable` error | 现有 jobs（仅 tts \| render） | 「合成旁白」允许只缺 png；**`!isRenderable` 禁渲染** |
 | 只发布 | `weaver publish --project <id> [--locale]` | `POST /api/projects/:id/publish` **同步**，不加 job type | 仅当 `publish.dir` 存在时显示 |
@@ -562,7 +562,7 @@ first-party（CLI `--study-slug`）在渲染成功后可再 `weaver publish` 或
 - 并入 `locales[locale].titleCard` 或 `closeCard`。
 - `which=close` 时若 body 含 `kicker` 或 `tags` → 400（schema 是 `Pick<CardCopy, "headline" | "lede">`）。
 
-`setVoice(locale, ref)`：只替换 `voices[locale]`。
+`setVoicePack(ref)`：每个 locale 写成同一引用。不要按语种拆开点。
 
 HTTP：`lines` 不是 object → 400。测试：PATCH 只改 zh，读回 en 仍在。
 
@@ -716,7 +716,7 @@ weaver task list
 weaver project create <id> --task study-explainer [--title] [--source user|first-party] [--study-slug] [--output] [--output-en]
 weaver scene list|add|rm|move|set --project <id> ...
 weaver card set --project <id> --locale zh --which title|close ...
-weaver voice set --project <id> --locale zh --ref library:voice.prompt-zh
+weaver voice set --project <id> --ref library:voice.prompt
 weaver publish --project <id> [--locale]          # PR3
 weaver capture [--project <id>] [--locale]        # PR3
 ```
@@ -734,7 +734,7 @@ weaver capture [--project <id>] [--locale]        # PR3
 | POST | `/api/projects/:id/scenes/:sceneId/move` | `{ after \| before \| index }` |
 | PATCH | `/api/projects/:id/scenes/:sceneId` | 按字段合并；`lines` 必须是 object |
 | PATCH | `/api/projects/:id/cards` | `{ locale, which, headline, lede, kicker?, tags? }` |
-| PATCH | `/api/projects/:id/voices` | `{ locale, ref }` |
+| PATCH | `/api/projects/:id/voices` | `{ ref }` 中英绑同一套 |
 | POST | `/api/projects/:id/publish` | **同步**调用 `runPublish`；**不**加 `Job["type"]` |
 | PUT | `/api/projects/:id/film` | 逃生舱；未实现 task → 400 |
 

@@ -27,7 +27,7 @@ import {
   setCard,
   setFilmRecipe,
   setKit,
-  setVoice,
+  setVoicePack,
   summarizeRecipe,
   upsertLibraryAsset,
   validateProject,
@@ -204,7 +204,8 @@ app.patch("/api/projects/:id/cards", (req, res) => {
 app.patch("/api/projects/:id/voices", (req, res) => {
   try {
     const project = loadProject(param(req.params.id), root);
-    setVoice(project, String(req.body?.locale ?? ""), String(req.body?.ref ?? ""));
+    const ref = String(req.body?.ref ?? "");
+    setVoicePack(project, ref);
     res.json(detailOf(project));
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
@@ -233,6 +234,8 @@ app.patch("/api/library/assets/:id", (req, res) => {
       text: typeof req.body?.text === "string" ? req.body.text : undefined,
       style: typeof req.body?.style === "string" ? req.body.style : undefined,
       locale: typeof req.body?.locale === "string" ? req.body.locale : undefined,
+      texts: stringMap(req.body?.texts),
+      styles: stringMap(req.body?.styles),
     });
     res.json(asset);
   } catch (error) {
@@ -379,15 +382,27 @@ function ingestUpload(
   if (!id) throw new Error("缺少资产 id");
 
   const ext = path.extname(req.file.originalname || "") || guessExt(req.file.mimetype);
-  const folder = folderFor(kind, locale);
-  const filename = `${id.replace(/[^a-z0-9.-]+/gi, "-")}${ext}`;
-  const rel = path.posix.join(folder, filename);
+  const rel = destRel(kind, id, locale, ext);
 
   if (target.scope === "library") {
     const dest = safeJoin(libraryRoot(root), rel);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, req.file.buffer);
     const existing = loadLibrary(root).find((asset) => asset.id === id);
+    if (kind === "voice" && locale) {
+      const files = { ...(existing?.files ?? {}), [locale]: rel };
+      const texts = { ...(existing?.texts ?? {}), ...(text ? { [locale]: text } : {}) };
+      const styles = { ...(existing?.styles ?? {}), ...(style ? { [locale]: style } : {}) };
+      const next: Asset = {
+        id,
+        kind: "voice",
+        label: label ?? existing?.label ?? id,
+        files,
+        texts,
+        styles,
+      };
+      return upsertLibraryAsset(next, root);
+    }
     if (existing) {
       return upsertLibraryAsset(
         {
@@ -419,14 +434,30 @@ function ingestUpload(
   return addAsset({ kind: "project", project }, { id, kind, locale, file: rel, text, style, label }, root);
 }
 
+function destRel(kind: string, id: string, locale: string | undefined, ext: string): string {
+  const safe = id.replace(/[^a-z0-9.-]+/gi, "-");
+  if (kind === "voice") return locale ? `voices/${safe}-${locale}${ext}` : `voices/${safe}${ext}`;
+  const folder = folderFor(kind, locale);
+  return path.posix.join(folder, `${safe}${ext}`);
+}
+
 function folderFor(kind: string, locale?: string): string {
-  if (kind === "voice") return locale ? `voices/${locale}` : "voices";
+  if (kind === "voice") return "voices";
   if (kind === "still") return locale ? `assets/stills/${locale}` : "assets/stills";
   if (kind === "reference") return "assets/references";
   if (kind === "element") return "elements";
   if (kind === "line") return locale ? `assets/lines/${locale}` : "assets/lines";
   if (kind === "output") return "assets/outputs";
   return "assets/misc";
+}
+
+function stringMap(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const next: Record<string, string> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === "string") next[key] = item;
+  }
+  return next;
 }
 
 function guessExt(mime: string): string {

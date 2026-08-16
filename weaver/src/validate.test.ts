@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { listProjects, loadProject } from "./project.ts";
+import { setVoice } from "./scenes.ts";
 import { hasErrors, isCompletedFilm, isRenderable, validateProject } from "./validate.ts";
 import { tryGetTask } from "./tasks/registry.ts";
 import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
@@ -67,6 +68,14 @@ describe("first-party films", () => {
     const issues = validateProject(fake, root);
     assert.ok(issues.some((issue) => issue.level === "warning" && issue.message.includes("叶子")));
     assert.ok(issues.some((issue) => issue.level === "warning" && issue.message.includes("leaf")));
+  });
+
+  it("warns when zh and en point at different voice refs", () => {
+    const root = tempWorkspace();
+    const project = seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
+    setVoice(project, "en", "library:voice.other");
+    const issues = validateProject(project, root);
+    assert.ok(issues.some((issue) => issue.path === "voices" && issue.message.includes("同一套音色")));
   });
 
   it("does not throw on an unknown task", () => {

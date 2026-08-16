@@ -58,7 +58,9 @@ export type Asset = {
   file?: string;
   files?: Record<string, string>;
   text?: string;
+  texts?: Record<string, string>;
   style?: string;
+  styles?: Record<string, string>;
   scene?: string;
   label?: string;
 };

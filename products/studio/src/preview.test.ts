@@ -19,7 +19,7 @@ function detail(partial: Partial<ProjectDetail["paths"]> = {}): ProjectDetail {
     locales: ["zh", "en"],
     scenes: 1,
     titles: { zh: "菜单" },
-    voices: { zh: "library:voice.prompt-zh" },
+    voices: { zh: "library:voice.prompt", en: "library:voice.prompt" },
     kit: ["library:element.mark"],
     film: {
       id: "intent-cascade",

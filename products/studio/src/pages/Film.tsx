@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Link } from "../components/Link";
 import { BriefPanel } from "../components/BriefPanel";
 import { assetLabel, kindLabel, sourceLabel } from "../lib/labels";
+import { listVoicePacks } from "../lib/voices";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
 import type { Asset, ProjectDetail, RecipeCard } from "../types";
 
@@ -32,14 +33,14 @@ export function Film({ id }: { id: string }) {
   const output = useMemo(() => (detail ? outputPreview(detail, locale) : undefined), [detail, locale]);
   const preview = useMemo(() => (detail ? stillPreviewSrc(detail, scene, locale) : undefined), [detail, scene, locale]);
   const missingStills = useMemo(() => (detail ? missingStillSceneIds(detail, locale) : []), [detail, locale]);
-  const voices = library.filter((asset) => asset.kind === "voice");
+  const voicePacks = listVoicePacks(library);
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
 
-  async function assignVoice(ref: string) {
+  async function assignVoicePack(ref: string) {
     if (!detail) return;
     try {
-      setDetail(await api.setVoice(detail.id, locale, ref));
-      setMessage(`${locale} 已点名 ${assetLabel(library, ref)}`);
+      setDetail(await api.setVoicePack(detail.id, ref));
+      setMessage(`音色套已点名 ${assetLabel(library, ref)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -110,8 +111,8 @@ export function Film({ id }: { id: string }) {
             </select>
           </label>
           <label className="field">
-            <span>语种</span>
-            <select aria-label="语种" value={locale} onChange={(event) => setLocale(event.target.value)}>
+            <span>预览语种</span>
+            <select aria-label="预览语种" value={locale} onChange={(event) => setLocale(event.target.value)}>
               {Object.keys(detail.film.locales).map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -120,27 +121,29 @@ export function Film({ id }: { id: string }) {
             </select>
           </label>
           <label className="field">
-            <span>这语种用哪支声</span>
+            <span>音色套（中英成对）</span>
             <select
-              aria-label="音色"
-              value={detail.film.voices[locale] ?? ""}
-              onChange={(event) => void assignVoice(event.target.value)}
+              aria-label="音色套"
+              value={detail.film.voices.zh ?? detail.film.voices[locale] ?? ""}
+              onChange={(event) => void assignVoicePack(event.target.value)}
             >
               <option value="">未点名</option>
-              {voices.map((asset) => (
+              {voicePacks.map((asset) => (
                 <option key={asset.id} value={`library:${asset.id}`}>
                   {asset.label ?? asset.id}
-                  {asset.locale ? ` · ${asset.locale}` : ""}
                 </option>
               ))}
             </select>
           </label>
           <p className="item-meta">
-            当前：{assetLabel(library, detail.film.voices[locale])}
+            当前：{assetLabel(library, detail.film.voices.zh)}
             {" · "}
             <Link href="/voices" className="text-link">
-              管音色
+              音色
             </Link>
+            {new Set(Object.values(detail.film.voices).filter(Boolean)).size > 1
+              ? " · 中英还没绑成一套，重选一次就会对齐"
+              : ""}
           </p>
 
           <h2 className="h" style={{ marginTop: 20 }}>
@@ -212,8 +215,11 @@ export function Film({ id }: { id: string }) {
             recipeTitle: recipes.find((item) => item.id === detail.film.recipe)?.title,
             requiresKinds: recipes.find((item) => item.id === detail.film.recipe)?.requires_kinds,
             voices: detail.film.voices,
+            voiceSet: detail.film.voices.zh
+              ? { ref: detail.film.voices.zh, label: assetLabel(library, detail.film.voices.zh) }
+              : undefined,
             voiceLabels: Object.fromEntries(
-              library.filter((asset) => asset.kind === "voice").map((asset) => [`library:${asset.id}`, asset.label ?? asset.id]),
+              listVoicePacks(library).map((asset) => [`library:${asset.id}`, asset.label ?? asset.id]),
             ),
             kit: detail.film.kit ?? [],
             kitLabels: Object.fromEntries(

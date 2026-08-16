@@ -81,9 +81,10 @@ export function Films() {
 }
 
 function formatVoices(project: ProjectSummary, library: Asset[]): string {
-  const locales = Object.keys(project.voices ?? {});
-  if (!locales.length) return "未点名";
-  return locales.map((locale) => `${locale} · ${assetLabel(library, project.voices[locale])}`).join("；");
+  const refs = [...new Set(Object.values(project.voices ?? {}).filter(Boolean))];
+  if (!refs.length) return "未点名";
+  if (refs.length > 1) return "中英未绑成一套";
+  return assetLabel(library, refs[0]);
 }
 
 function formatKit(project: ProjectSummary, library: Asset[]): string {
