@@ -1,6 +1,12 @@
 {
   "assets": [
     {
+      "id": "element.mark",
+      "kind": "element",
+      "file": "elements/mark.svg",
+      "label": "Light mark"
+    },
+    {
       "id": "voice.prompt-zh",
       "kind": "voice",
       "locale": "zh",
@@ -17,12 +23,6 @@
       "text": "Name the model, the scene, and the rule before you build the interaction.",
       "style": "youthful female voice, lively but a little composed, clear diction, unhurried pace",
       "label": "Narrator (EN)"
-    },
-    {
-      "id": "element.mark",
-      "kind": "element",
-      "file": "elements/mark.svg",
-      "label": "Light mark"
     }
   ]
 }
