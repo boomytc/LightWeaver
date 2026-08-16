@@ -12,7 +12,7 @@ persist films. `/films` is instances. Agents generate via weaver.
 | --- | --- | --- |
 | `/` 工作台 | human | pick combo (langs + voice + kit + recipe); copy brief; do not persist |
 | `/films` `/f/<id>` | human names; agent produces | voices + kit + recipe; review scenes/mp4 |
-| `/voices` | human | XOR upload vs instruct; kept wav is the clone; film uses Hi-Fi clone |
+| `/voices` | human | one create flow; kept wav enters library read-only; film uses Hi-Fi clone |
 | `/library` | human | accumulate elements and references |
 | `/methods` | human | reusable film cards: when, shape, apply; copy usage |
 

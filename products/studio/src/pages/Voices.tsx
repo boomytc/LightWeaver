@@ -14,11 +14,23 @@ export function Voices() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
-  const [id, setId] = useState("voice.prompt");
+  const [id, setId] = useState("");
   const [label, setLabel] = useState("");
   const [how, setHow] = useState<VoiceOrigin>("instruct");
   const [said, setSaid] = useState("");
   const [instruct, setInstruct] = useState("");
+  const [trial, setTrial] = useState(TRIAL);
+  const [more, setMore] = useState(false);
+  const [denoise, setDenoise] = useState(true);
+  const [doNormalize, setDoNormalize] = useState(true);
+  const [cfgValue, setCfgValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [candidate, setCandidate] = useState<Candidate>();
+  const [filmId, setFilmId] = useState("");
+  const [film, setFilm] = useState<ProjectDetail>();
+  const [lineKey, setLineKey] = useState("");
+
+  const packs = listVoicePacks(library);
 
   async function reload() {
     const [nextLibrary, nextProjects] = await Promise.all([api.library(), api.projects()]);
@@ -30,19 +42,72 @@ export function Voices() {
     reload().catch((err: Error) => setError(err.message));
   }, []);
 
-  async function createPack() {
-    if (!id.trim()) {
+  function taken(nextId: string): boolean {
+    return packs.some((asset) => asset.id === nextId);
+  }
+
+  function resetCreate() {
+    setId("");
+    setLabel("");
+    setSaid("");
+    setInstruct("");
+    setTrial(TRIAL);
+    setCandidate(undefined);
+    setFilmId("");
+    setFilm(undefined);
+    setLineKey("");
+  }
+
+  async function mint() {
+    const nextId = id.trim();
+    if (!nextId) {
       setError("先写音色套 id，例如 voice.prompt");
+      return;
+    }
+    if (taken(nextId)) {
+      setError(`${nextId} 已在音色库里`);
       return;
     }
     if (!instruct.trim()) {
       setError("instruct 铸源要先写一段描述");
       return;
     }
+    setBusy(true);
     try {
-      await api.createVoicePack({ id: id.trim(), label: label.trim() || undefined, style: instruct.trim() });
-      setMessage(`已建套 ${id.trim()}，铸试听后再收成克隆源`);
+      const minted = await api.mintVoice({
+        id: nextId,
+        text: trial.trim() || TRIAL,
+        style: instruct.trim(),
+        denoise,
+        doNormalize,
+        cfgValue: Number.isFinite(Number(cfgValue)) && cfgValue.trim() ? Number(cfgValue) : undefined,
+      });
+      setCandidate(minted);
+      setMessage(`已铸试听 ${minted.seconds.toFixed(1)} 秒，听完再收进音色库`);
       setError(undefined);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function keepDesigned() {
+    if (!candidate) return;
+    const nextId = id.trim();
+    if (!nextId) return;
+    try {
+      await api.keepVoice({
+        id: nextId,
+        origin: "instruct",
+        label: label.trim() || nextId,
+        said: candidate.text,
+        style: instruct,
+        source: { kind: "candidate", rel: candidate.rel },
+      });
+      setMessage(`已把 ${nextId} 收进音色库`);
+      setError(undefined);
+      resetCreate();
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -50,31 +115,85 @@ export function Voices() {
   }
 
   async function upload(file: File) {
-    if (!id.trim()) {
+    const nextId = id.trim();
+    if (!nextId) {
       setError("先写音色套 id，例如 voice.prompt");
+      return;
+    }
+    if (taken(nextId)) {
+      setError(`${nextId} 已在音色库里`);
       return;
     }
     const form = new FormData();
     form.set("file", file);
     form.set("kind", "voice");
-    form.set("id", id.trim());
+    form.set("id", nextId);
     if (label.trim()) form.set("label", label.trim());
     if (said.trim()) form.set("text", said.trim());
     try {
       await api.uploadLibrary(form);
-      setMessage(`已用上传的录音作为 ${id.trim()} 的克隆源`);
+      setMessage(`已把 ${nextId} 收进音色库`);
       setError(undefined);
+      resetCreate();
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   }
 
+  async function pickFilm(nextId: string) {
+    setFilmId(nextId);
+    setLineKey("");
+    if (!nextId) {
+      setFilm(undefined);
+      return;
+    }
+    try {
+      setFilm(await api.project(nextId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function keepLine() {
+    const nextId = id.trim();
+    if (!film || !lineKey || !nextId) return;
+    if (taken(nextId)) {
+      setError(`${nextId} 已在音色库里`);
+      return;
+    }
+    const [lineLocale, sceneId] = lineKey.split(":");
+    const line = film.paths.lineFiles.find((item) => item.locale === lineLocale && item.sceneId === sceneId && item.exists);
+    if (!line?.rel) {
+      setError("这场还没有旁白 wav");
+      return;
+    }
+    try {
+      await api.keepVoice({
+        id: nextId,
+        origin: "upload",
+        label: label.trim() || nextId,
+        said: film.film.scenes.find((scene) => scene.id === sceneId)?.lines[lineLocale ?? ""] ?? "",
+        source: { kind: "project", projectId: film.id, rel: line.rel },
+      });
+      setMessage(`已把 ${nextId} 收进音色库`);
+      setError(undefined);
+      resetCreate();
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  const lines = (film?.paths.lineFiles ?? []).filter((item) => item.exists);
+
   return (
     <div className="page-width page">
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">音色</h1>
-      <p className="lede">上传录音后直接听。instruct 点铸才出试听，收下后才是克隆源。出片 Hi-Fi clone。</p>
+      <p className="lede">
+        上面新建一套，收下后进音色库。库里只听，不在这里改。出片走 Hi-Fi clone。
+      </p>
       <p className="item-meta" style={{ marginTop: 8 }}>
         铸声走{" "}
         <a href={MODELBEST_URL} target="_blank" rel="noreferrer" className="text-link">
@@ -85,68 +204,143 @@ export function Voices() {
       {error ? <div className="banner banner-error">{error}</div> : null}
       {message ? <div className="banner banner-ok">{message}</div> : null}
 
-      <div className="stack">
-        {listVoicePacks(library).map((asset) => (
-          <VoicePackCard
-            key={asset.id}
-            asset={asset}
-            projects={projects}
-            usedBy={projects.filter((project) => Object.values(project.voices ?? {}).includes(`library:${asset.id}`))}
-            onSaved={reload}
-            onError={setError}
-            onMessage={setMessage}
-          />
-        ))}
-      </div>
-
       <section className="section">
-        <h2 className="h">新建克隆源</h2>
+        <h2 className="h">新建</h2>
+        <p className="item-meta">二选一。收进库之后只在下面听。</p>
         <OriginPick name="voice-origin-new" value={how} onChange={setHow} />
         <div className="form-grid">
           <label className="field">
             <span>套 id</span>
-            <input value={id} onChange={(event) => setId(event.target.value)} placeholder="voice.prompt" />
+            <input value={id} onChange={(event) => setId(event.target.value)} placeholder="例如 voice.narrator" />
           </label>
           <label className="field">
             <span>名称</span>
-            <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="讲解女声" />
+            <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如 讲解女声" />
           </label>
           {how === "instruct" ? (
             <>
               <label className="field field-span">
                 <span>instruct</span>
-                <input value={instruct} onChange={(event) => setInstruct(event.target.value)} placeholder="青春女声，吐字清晰，语速从容" />
+                <input value={instruct} onChange={(event) => setInstruct(event.target.value)} placeholder="例如 青春女声，吐字清晰" />
               </label>
-              <div className="create-row">
-                <button type="button" className="btn" onClick={() => void createPack()}>
-                  建套，再铸
-                </button>
-              </div>
+              <label className="field field-span">
+                <span>试听稿</span>
+                <input value={trial} onChange={(event) => setTrial(event.target.value)} />
+              </label>
             </>
           ) : (
-            <>
-              <label className="field field-span">
-                <span>这支在说</span>
-                <input value={said} onChange={(event) => setSaid(event.target.value)} />
-              </label>
-              <div className="create-row">
-                <label className="btn">
-                  上传克隆源
-                  <input
-                    type="file"
-                    accept="audio/wav,audio/*"
-                    hidden
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void upload(file);
-                      event.target.value = "";
-                    }}
-                  />
-                </label>
-              </div>
-            </>
+            <label className="field field-span">
+              <span>这支在说</span>
+              <input value={said} onChange={(event) => setSaid(event.target.value)} />
+            </label>
           )}
         </div>
+        {how === "instruct" ? (
+          <>
+            <button type="button" className="text-link" style={{ border: 0, background: "none", padding: 0 }} onClick={() => setMore((on) => !on)}>
+              {more ? "收起选项" : "更多选项"}
+            </button>
+            {more ? (
+              <div className="create-row">
+                <label className="kit-item">
+                  <input type="checkbox" checked={denoise} onChange={(event) => setDenoise(event.target.checked)} />
+                  <span>去底噪</span>
+                </label>
+                <label className="kit-item">
+                  <input type="checkbox" checked={doNormalize} onChange={(event) => setDoNormalize(event.target.checked)} />
+                  <span>规范化读法</span>
+                </label>
+                <label className="field">
+                  <span>引导强度（可空）</span>
+                  <input value={cfgValue} onChange={(event) => setCfgValue(event.target.value)} placeholder="1–3" />
+                </label>
+              </div>
+            ) : null}
+            <div className="create-row">
+              <button type="button" className="btn" disabled={busy} onClick={() => void mint()}>
+                {busy ? "正在铸…" : "铸试听"}
+              </button>
+            </div>
+            {candidate ? (
+              <div className="voice-mint">
+                <div className="item-title">试听</div>
+                <p className="item-meta">还没进库。听完再收。</p>
+                <audio controls preload="metadata" src={candidateMedia(candidate.rel)} />
+                <p className="item-meta">{candidate.seconds.toFixed(1)} 秒</p>
+                <button type="button" className="btn btn-primary" onClick={() => void keepDesigned()}>
+                  收下进音色库
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div className="create-row">
+              <label className="btn">
+                上传 wav
+                <input
+                  type="file"
+                  accept="audio/wav,audio/*"
+                  hidden
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void upload(file);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            <p className="item-meta" style={{ marginTop: 12 }}>
+              或从片子旁白提一支。
+            </p>
+            <div className="create-row">
+              <select value={filmId} onChange={(event) => void pickFilm(event.target.value)} aria-label="片子">
+                <option value="">选一部片子</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.titles.zh ?? project.id}
+                  </option>
+                ))}
+              </select>
+              <select value={lineKey} onChange={(event) => setLineKey(event.target.value)} aria-label="旁白" disabled={!film}>
+                <option value="">选一场已有的 wav</option>
+                {lines.map((item) => (
+                  <option key={`${item.locale}:${item.sceneId}`} value={`${item.locale}:${item.sceneId}`}>
+                    {item.locale} · {item.sceneId}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="btn" disabled={!lineKey} onClick={() => void keepLine()}>
+                收进音色库
+              </button>
+            </div>
+            {lineKey && film
+              ? (() => {
+                  const [locale, sceneId] = lineKey.split(":");
+                  const line = film.paths.lineFiles.find((item) => item.locale === locale && item.sceneId === sceneId);
+                  return line?.rel ? <audio controls preload="metadata" src={projectMedia(film.id, line.rel)} /> : null;
+                })()
+              : null}
+          </>
+        )}
+      </section>
+
+      <section className="section">
+        <h2 className="h">音色库</h2>
+        <p className="item-meta">已收下的克隆源。听，点名给片子，不在这里改。</p>
+        {packs.length ? (
+          <div className="stack">
+            {packs.map((asset) => (
+              <VoiceLibraryCard
+                key={asset.id}
+                asset={asset}
+                usedBy={projects.filter((project) => Object.values(project.voices ?? {}).includes(`library:${asset.id}`))}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="item-meta">还没有音色。上面新建一套。</p>
+        )}
       </section>
     </div>
   );
@@ -185,302 +379,23 @@ function OriginPick({
   );
 }
 
-function VoicePackCard({
-  asset,
-  projects,
-  usedBy,
-  onSaved,
-  onError,
-  onMessage,
-}: {
-  asset: Asset;
-  projects: ProjectSummary[];
-  usedBy: ProjectSummary[];
-  onSaved: () => Promise<void>;
-  onError: (message: string) => void;
-  onMessage: (message: string) => void;
-}) {
+function VoiceLibraryCard({ asset, usedBy }: { asset: Asset; usedBy: ProjectSummary[] }) {
   const source = voiceCloneSource(asset);
-  const [label, setLabel] = useState(asset.label ?? "");
-  const [how, setHow] = useState<VoiceOrigin>(source.origin);
-  const [said, setSaid] = useState(source.said);
-  const [instruct, setInstruct] = useState(source.instruct);
-  const [trial, setTrial] = useState(source.said || TRIAL);
-  const [more, setMore] = useState(false);
-  const [denoise, setDenoise] = useState(true);
-  const [doNormalize, setDoNormalize] = useState(true);
-  const [cfgValue, setCfgValue] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [candidate, setCandidate] = useState<Candidate>();
-  const [filmId, setFilmId] = useState("");
-  const [film, setFilm] = useState<ProjectDetail>();
-  const [lineKey, setLineKey] = useState("");
-
-  useEffect(() => {
-    const next = voiceCloneSource(asset);
-    setLabel(asset.label ?? "");
-    setHow(next.origin);
-    setSaid(next.said);
-    setInstruct(next.instruct);
-    setTrial((current) => current || next.said || TRIAL);
-  }, [asset]);
-
-  async function saveMeta() {
-    try {
-      await api.patchLibrary(asset.id, {
-        label,
-        text: said,
-        ...(how === "instruct" ? { style: instruct } : {}),
-      });
-      await onSaved();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function mint() {
-    if (!instruct.trim()) {
-      onError("instruct 铸源要先写一段描述");
-      return;
-    }
-    setBusy(true);
-    try {
-      const minted = await api.mintVoice({
-        id: asset.id,
-        text: trial.trim() || TRIAL,
-        style: instruct.trim(),
-        denoise,
-        doNormalize,
-        cfgValue: Number.isFinite(Number(cfgValue)) && cfgValue.trim() ? Number(cfgValue) : undefined,
-      });
-      setCandidate(minted);
-      onMessage(`已铸试听 ${minted.seconds.toFixed(1)} 秒，听完再收成克隆源`);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function keepDesigned() {
-    if (!candidate) return;
-    try {
-      await api.keepVoice({
-        id: asset.id,
-        origin: "instruct",
-        label,
-        said: candidate.text,
-        style: instruct,
-        source: { kind: "candidate", rel: candidate.rel },
-      });
-      setCandidate(undefined);
-      onMessage("已把 instruct 铸出的收成克隆源，出片走 Hi-Fi clone");
-      await onSaved();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function uploadReplace(file: File) {
-    const form = new FormData();
-    form.set("file", file);
-    form.set("kind", "voice");
-    form.set("id", asset.id);
-    if (label.trim()) form.set("label", label.trim());
-    if (said.trim()) form.set("text", said.trim());
-    try {
-      await api.uploadLibrary(form);
-      onMessage("已换成上传的克隆源");
-      await onSaved();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function pickFilm(nextId: string) {
-    setFilmId(nextId);
-    setLineKey("");
-    if (!nextId) {
-      setFilm(undefined);
-      return;
-    }
-    try {
-      setFilm(await api.project(nextId));
-    } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function keepLine() {
-    if (!film || !lineKey) return;
-    const [lineLocale, sceneId] = lineKey.split(":");
-    const line = film.paths.lineFiles.find((item) => item.locale === lineLocale && item.sceneId === sceneId && item.exists);
-    if (!line?.rel) {
-      onError("这场还没有旁白 wav");
-      return;
-    }
-    try {
-      await api.keepVoice({
-        id: asset.id,
-        origin: "upload",
-        label,
-        said: film.film.scenes.find((scene) => scene.id === sceneId)?.lines[lineLocale ?? ""] ?? "",
-        source: { kind: "project", projectId: film.id, rel: line.rel },
-      });
-      onMessage(`已把 ${sceneId} 收成克隆源`);
-      await onSaved();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  const lines = (film?.paths.lineFiles ?? []).filter((item) => item.exists);
-
+  const origin = source.origin === "instruct" ? "instruct 铸出" : "上传";
   return (
     <article className="voice-card">
       <div className="voice-main">
         <div>
           <div className="item-title">{asset.label ?? asset.id}</div>
           <div className="card-id">
-            {asset.id} · 出片 Hi-Fi · {source.file ? (source.origin === "instruct" ? "克隆源来自 instruct" : "克隆源来自上传") : "还没有克隆源"}
+            {asset.id} · 出片 Hi-Fi · {origin}
           </div>
         </div>
+        {source.file ? <audio controls preload="metadata" src={libraryMedia(source.file)} /> : null}
       </div>
-      <label className="field field-span">
-        <span>名称</span>
-        <input value={label} onChange={(event) => setLabel(event.target.value)} onBlur={() => void saveMeta()} />
-      </label>
-
-      <div>
-        <div className="item-title">克隆源怎么来</div>
-        <p className="item-meta">二选一。上传后直接听；instruct 没铸就没有试听。</p>
-        <OriginPick name={`voice-origin-${asset.id}`} value={how} onChange={setHow} />
-      </div>
-
-      {how === "instruct" ? (
-        <div>
-          <label className="field field-span">
-            <span>instruct</span>
-            <input
-              value={instruct}
-              onChange={(event) => setInstruct(event.target.value)}
-              onBlur={() => void saveMeta()}
-              placeholder="青春女声，吐字清晰，语速从容"
-            />
-          </label>
-          <label className="field field-span">
-            <span>试听稿</span>
-            <input value={trial} onChange={(event) => setTrial(event.target.value)} />
-          </label>
-          <button type="button" className="text-link" style={{ border: 0, background: "none", padding: 0 }} onClick={() => setMore((on) => !on)}>
-            {more ? "收起选项" : "更多选项"}
-          </button>
-          {more ? (
-            <div className="create-row">
-              <label className="kit-item">
-                <input type="checkbox" checked={denoise} onChange={(event) => setDenoise(event.target.checked)} />
-                <span>去底噪</span>
-              </label>
-              <label className="kit-item">
-                <input type="checkbox" checked={doNormalize} onChange={(event) => setDoNormalize(event.target.checked)} />
-                <span>规范化读法</span>
-              </label>
-              <label className="field">
-                <span>引导强度（可空）</span>
-                <input value={cfgValue} onChange={(event) => setCfgValue(event.target.value)} placeholder="1–3" />
-              </label>
-            </div>
-          ) : null}
-          <div className="create-row">
-            <button type="button" className="btn" disabled={busy} onClick={() => void mint()}>
-              {busy ? "正在铸…" : source.file ? "再铸一支试听" : "铸试听"}
-            </button>
-          </div>
-          {candidate ? (
-            <div className="voice-mint">
-              <div className="item-title">试听</div>
-              <p className="item-meta">还不是克隆源。听完再收。</p>
-              <audio controls preload="metadata" src={candidateMedia(candidate.rel)} />
-              <p className="item-meta">{candidate.seconds.toFixed(1)} 秒</p>
-              <button type="button" className="btn btn-primary" onClick={() => void keepDesigned()}>
-                收下为克隆源
-              </button>
-            </div>
-          ) : source.file ? (
-            <div className="voice-mint">
-              <div className="item-title">克隆源</div>
-              <p className="item-meta">instruct 铸出后收下的。出片 Hi-Fi 用这支。</p>
-              <audio controls preload="metadata" src={libraryMedia(source.file)} />
-              <label className="field field-span" style={{ marginTop: 8 }}>
-                <span>这支在说</span>
-                <input value={said} onChange={(event) => setSaid(event.target.value)} onBlur={() => void saveMeta()} />
-              </label>
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <div>
-          <label className="field field-span">
-            <span>这支在说</span>
-            <input value={said} onChange={(event) => setSaid(event.target.value)} onBlur={() => void saveMeta()} />
-          </label>
-          <div className="create-row">
-            <label className="btn">
-              {source.file ? "换一支 wav" : "上传 wav"}
-              <input
-                type="file"
-                accept="audio/wav,audio/*"
-                hidden
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void uploadReplace(file);
-                  event.target.value = "";
-                }}
-              />
-            </label>
-          </div>
-          {source.file ? (
-            <div className="voice-mint">
-              <div className="item-title">试听</div>
-              <p className="item-meta">上传的克隆源，出片 Hi-Fi 用这支。</p>
-              <audio controls preload="metadata" src={libraryMedia(source.file)} />
-            </div>
-          ) : null}
-          <p className="item-meta" style={{ marginTop: 12 }}>
-            或从片子旁白提一支。
-          </p>
-          <div className="create-row">
-            <select value={filmId} onChange={(event) => void pickFilm(event.target.value)} aria-label="片子">
-              <option value="">选一部片子</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.titles.zh ?? project.id}
-                </option>
-              ))}
-            </select>
-            <select value={lineKey} onChange={(event) => setLineKey(event.target.value)} aria-label="旁白" disabled={!film}>
-              <option value="">选一场已有的 wav</option>
-              {lines.map((item) => (
-                <option key={`${item.locale}:${item.sceneId}`} value={`${item.locale}:${item.sceneId}`}>
-                  {item.locale} · {item.sceneId}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="btn" disabled={!lineKey} onClick={() => void keepLine()}>
-              收为克隆源
-            </button>
-          </div>
-          {lineKey && film
-            ? (() => {
-                const [locale, sceneId] = lineKey.split(":");
-                const line = film.paths.lineFiles.find((item) => item.locale === locale && item.sceneId === sceneId);
-                return line?.rel ? <audio controls preload="metadata" src={projectMedia(film.id, line.rel)} /> : null;
-              })()
-            : null}
-        </div>
-      )}
-
-      <div className="item-meta" style={{ marginTop: 12 }}>
+      {source.said ? <p className="item-meta">这支在说：{source.said}</p> : null}
+      {source.instruct ? <p className="item-meta">instruct：{source.instruct}</p> : null}
+      <div className="item-meta">
         {usedBy.length
           ? usedBy.map((project, index) => (
               <span key={project.id}>
