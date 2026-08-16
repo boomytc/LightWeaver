@@ -120,6 +120,8 @@ describe("voices catalog contract", () => {
     assert.doesNotMatch(page, /建套，再铸/);
     assert.doesNotMatch(page, /VoicePackCard/);
     assert.doesNotMatch(page, /onBlur/);
+    assert.doesNotMatch(page, /片子点名/);
+    assert.doesNotMatch(page, /usedBy/);
   });
 });
 

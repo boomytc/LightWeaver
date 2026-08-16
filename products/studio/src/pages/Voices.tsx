@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { api, candidateMedia, libraryMedia, projectMedia } from "../api";
-import { Link } from "../components/Link";
 import { listVoicePacks, voiceCloneSource, type VoiceOrigin } from "../lib/voices";
 import { MODELBEST_URL } from "../lib/prefs";
 import type { Asset, ProjectDetail, ProjectSummary } from "../types";
@@ -327,15 +326,11 @@ export function Voices() {
 
       <section className="section">
         <h2 className="h">音色库</h2>
-        <p className="item-meta">已收下的克隆源。听，点名给片子，不在这里改。</p>
+        <p className="item-meta">已收下的克隆源。听，不在这里改。</p>
         {packs.length ? (
           <div className="stack">
             {packs.map((asset) => (
-              <VoiceLibraryCard
-                key={asset.id}
-                asset={asset}
-                usedBy={projects.filter((project) => Object.values(project.voices ?? {}).includes(`library:${asset.id}`))}
-              />
+              <VoiceLibraryCard key={asset.id} asset={asset} />
             ))}
           </div>
         ) : (
@@ -379,7 +374,7 @@ function OriginPick({
   );
 }
 
-function VoiceLibraryCard({ asset, usedBy }: { asset: Asset; usedBy: ProjectSummary[] }) {
+function VoiceLibraryCard({ asset }: { asset: Asset }) {
   const source = voiceCloneSource(asset);
   const origin = source.origin === "instruct" ? "instruct 铸出" : "上传";
   return (
@@ -395,18 +390,6 @@ function VoiceLibraryCard({ asset, usedBy }: { asset: Asset; usedBy: ProjectSumm
       </div>
       {source.said ? <p className="item-meta">这支在说：{source.said}</p> : null}
       {source.instruct ? <p className="item-meta">instruct：{source.instruct}</p> : null}
-      <div className="item-meta">
-        {usedBy.length
-          ? usedBy.map((project, index) => (
-              <span key={project.id}>
-                {index > 0 ? " · " : "片子点名 "}
-                <Link href={`/f/${encodeURIComponent(project.id)}`} className="text-link">
-                  {project.titles.zh ?? project.id}
-                </Link>
-              </span>
-            ))
-          : "还没有片子点名这套声"}
-      </div>
     </article>
   );
 }
