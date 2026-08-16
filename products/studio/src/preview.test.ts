@@ -111,9 +111,12 @@ describe("voices catalog contract", () => {
     assert.match(page, /收下为克隆源/);
     assert.match(page, /二选一/);
     assert.match(page, /type="radio"/);
+    assert.match(page, /点铸才出试听/);
+    assert.match(page, /上传后直接听/);
     assert.doesNotMatch(page, /备声/);
     assert.doesNotMatch(page, /主声/);
     assert.doesNotMatch(page, /收下为试听/);
+    assert.doesNotMatch(page, /还没有。铸试听并收下/);
   });
 });
 

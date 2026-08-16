@@ -74,7 +74,7 @@ export function Voices() {
     <div className="page-width page">
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">音色</h1>
-      <p className="lede">上传录音或 instruct 铸一支，二选一，得到唯一克隆源。出片再 Hi-Fi clone。</p>
+      <p className="lede">上传录音后直接听。instruct 点铸才出试听，收下后才是克隆源。出片 Hi-Fi clone。</p>
       <p className="item-meta" style={{ marginTop: 8 }}>
         铸声走{" "}
         <a href={MODELBEST_URL} target="_blank" rel="noreferrer" className="text-link">
@@ -168,7 +168,7 @@ function OriginPick({
           <input type="radio" name={name} checked={value === "upload"} onChange={() => onChange("upload")} />
           <span>
             <span className="item-title">上传录音</span>
-            <span className="item-meta">现成 wav 当克隆源</span>
+            <span className="item-meta">上传后直接听</span>
           </span>
         </label>
       </li>
@@ -177,7 +177,7 @@ function OriginPick({
           <input type="radio" name={name} checked={value === "instruct"} onChange={() => onChange("instruct")} />
           <span>
             <span className="item-title">instruct 铸</span>
-            <span className="item-meta">铸出的收下后就是克隆源</span>
+            <span className="item-meta">点铸才出试听</span>
           </span>
         </label>
       </li>
@@ -353,12 +353,12 @@ function VoicePackCard({
 
       <div>
         <div className="item-title">克隆源怎么来</div>
-        <p className="item-meta">二选一。换一条路并收下后，会盖掉现在的克隆源。</p>
+        <p className="item-meta">二选一。上传后直接听；instruct 没铸就没有试听。</p>
         <OriginPick name={`voice-origin-${asset.id}`} value={how} onChange={setHow} />
       </div>
 
       {how === "instruct" ? (
-        <div className="voice-mint" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
+        <div>
           <label className="field field-span">
             <span>instruct</span>
             <input
@@ -393,29 +393,40 @@ function VoicePackCard({
           ) : null}
           <div className="create-row">
             <button type="button" className="btn" disabled={busy} onClick={() => void mint()}>
-              {busy ? "正在铸…" : "铸试听"}
+              {busy ? "正在铸…" : source.file ? "再铸一支试听" : "铸试听"}
             </button>
           </div>
           {candidate ? (
-            <div style={{ marginTop: 12 }}>
-              <p className="item-meta">试听还不是克隆源。听完再收。</p>
+            <div className="voice-mint">
+              <div className="item-title">试听</div>
+              <p className="item-meta">还不是克隆源。听完再收。</p>
               <audio controls preload="metadata" src={candidateMedia(candidate.rel)} />
               <p className="item-meta">{candidate.seconds.toFixed(1)} 秒</p>
               <button type="button" className="btn btn-primary" onClick={() => void keepDesigned()}>
                 收下为克隆源
               </button>
             </div>
+          ) : source.file ? (
+            <div className="voice-mint">
+              <div className="item-title">克隆源</div>
+              <p className="item-meta">instruct 铸出后收下的。出片 Hi-Fi 用这支。</p>
+              <audio controls preload="metadata" src={libraryMedia(source.file)} />
+              <label className="field field-span" style={{ marginTop: 8 }}>
+                <span>这支在说</span>
+                <input value={said} onChange={(event) => setSaid(event.target.value)} onBlur={() => void saveMeta()} />
+              </label>
+            </div>
           ) : null}
         </div>
       ) : (
-        <div className="voice-mint" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
+        <div>
           <label className="field field-span">
             <span>这支在说</span>
             <input value={said} onChange={(event) => setSaid(event.target.value)} onBlur={() => void saveMeta()} />
           </label>
           <div className="create-row">
             <label className="btn">
-              上传 wav
+              {source.file ? "换一支 wav" : "上传 wav"}
               <input
                 type="file"
                 accept="audio/wav,audio/*"
@@ -428,8 +439,15 @@ function VoicePackCard({
               />
             </label>
           </div>
+          {source.file ? (
+            <div className="voice-mint">
+              <div className="item-title">试听</div>
+              <p className="item-meta">上传的克隆源，出片 Hi-Fi 用这支。</p>
+              <audio controls preload="metadata" src={libraryMedia(source.file)} />
+            </div>
+          ) : null}
           <p className="item-meta" style={{ marginTop: 12 }}>
-            或从片子旁白提一支，同样当作上传的克隆源。
+            或从片子旁白提一支。
           </p>
           <div className="create-row">
             <select value={filmId} onChange={(event) => void pickFilm(event.target.value)} aria-label="片子">
@@ -461,24 +479,6 @@ function VoicePackCard({
             : null}
         </div>
       )}
-
-      <div className="voice-mint">
-        <h2 className="h">克隆源</h2>
-        <p className="item-meta">出片 Hi-Fi clone 用这支 + 逐字稿。</p>
-        {source.file ? (
-          <>
-            <audio controls preload="metadata" src={libraryMedia(source.file)} />
-            {how === "instruct" ? (
-              <label className="field field-span" style={{ marginTop: 8 }}>
-                <span>这支在说</span>
-                <input value={said} onChange={(event) => setSaid(event.target.value)} onBlur={() => void saveMeta()} />
-              </label>
-            ) : null}
-          </>
-        ) : (
-          <p className="item-meta">{how === "instruct" ? "还没有。铸试听并收下。" : "还没有。上传 wav，或从片子提。"}</p>
-        )}
-      </div>
 
       <div className="item-meta" style={{ marginTop: 12 }}>
         {usedBy.length
