@@ -28,8 +28,9 @@ describe("buildAgentBrief", () => {
     assert.match(text, /recipe apply --project dropdown-taxonomy --recipe taxonomy-parade/);
     assert.match(text, /要出的语言：中文/);
     assert.match(text, /langs set --project dropdown-taxonomy --langs zh/);
-    assert.match(text, /音色套：library:voice\.prompt（讲解女声）/);
+    assert.match(text, /音色套：讲解女声/);
     assert.match(text, /voice set --project dropdown-taxonomy --ref library:voice\.prompt/);
+    assert.doesNotMatch(text, /音色套：library:voice\.prompt/);
     assert.doesNotMatch(text, /中英成对，不要拆开换/);
     assert.match(text, /library:element\.mark（Light mark）/);
     assert.match(text, /kit set --project dropdown-taxonomy --refs library:element\.mark/);

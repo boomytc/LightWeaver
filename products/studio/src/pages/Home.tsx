@@ -121,7 +121,7 @@ export function Home() {
                   onClick={() => setVoiceRef(voiceRef === ref ? "" : ref)}
                 >
                   <strong>{asset.label ?? asset.id}</strong>
-                  <span className="item-meta">{asset.id} · Hi-Fi clone</span>
+                  <span className="item-meta">Hi-Fi clone</span>
                 </button>
               );
             })}

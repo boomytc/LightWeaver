@@ -9,6 +9,35 @@ import type { Asset } from "./schema.ts";
 
 const ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 
+export function voiceNameOf(asset: Pick<Asset, "id" | "label">): string {
+  return (asset.label ?? asset.id).trim();
+}
+
+/** Agent 跟随用的默认 id。人只看名称。 */
+export function voiceIdFromName(name: string, taken: string[] = []): string {
+  const ascii = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const base =
+    ascii && ID_RE.test(ascii) ? (ascii.startsWith("voice.") ? ascii : `voice.${ascii}`) : "voice.pack";
+  if (!taken.includes(base)) return base;
+  for (let n = 2; n < 1000; n++) {
+    const next = `${base}-${n}`;
+    if (!taken.includes(next)) return next;
+  }
+  throw new Error("无法分配音色 id");
+}
+
+export function allocateNewVoice(name: string, root = weaverRoot()): { id: string; label: string } {
+  const label = name.trim();
+  if (!label) throw new Error("先写名称");
+  const voices = loadLibrary(root).filter((item) => item.kind === "voice");
+  if (voices.some((item) => voiceNameOf(item) === label)) throw new Error(`${label} 已在音色库里`);
+  return { id: voiceIdFromName(label, voices.map((item) => item.id)), label };
+}
+
 export type VoiceMintOptions = {
   text: string;
   style?: string;
@@ -30,7 +59,7 @@ export type VoiceMintResult = {
 };
 
 export type KeepLibraryVoiceInput = {
-  id: string;
+  id?: string;
   sourceAbs: string;
   origin?: VoiceOrigin;
   label?: string;
@@ -113,14 +142,23 @@ export function runVoiceMint(options: VoiceMintOptions): VoiceMintResult {
 }
 
 export function keepLibraryVoice(input: KeepLibraryVoiceInput, root = weaverRoot()): Asset {
-  if (!ID_RE.test(input.id)) throw new Error("资产 id 必须是 dotted/kebab 小写");
   assertReadableSource(input.sourceAbs, root);
   const assets = loadLibrary(root);
-  const current = assets.find((item) => item.id === input.id);
-  if (current && current.kind !== "voice") throw new Error(`${input.id} 不是音色`);
+  const wantedName = (input.label ?? "").trim();
+  let id = (input.id ?? "").trim();
+  if (!id) {
+    id = allocateNewVoice(wantedName, root).id;
+  } else if (!ID_RE.test(id)) {
+    throw new Error("资产 id 必须是 dotted/kebab 小写");
+  } else if (wantedName) {
+    const clash = assets.find((item) => item.kind === "voice" && item.id !== id && voiceNameOf(item) === wantedName);
+    if (clash) throw new Error(`${wantedName} 已在音色库里`);
+  }
+  const current = assets.find((item) => item.id === id);
+  if (current && current.kind !== "voice") throw new Error(`${id} 不是音色`);
   const source = voiceCloneSource(current);
   const origin: VoiceOrigin = input.origin ?? (input.style?.trim() ? "instruct" : "upload");
-  const rel = voiceKeepRel(input.id, source.file);
+  const rel = voiceKeepRel(id, source.file);
   const dest = path.join(libraryRoot(root), rel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   if (path.resolve(input.sourceAbs) !== path.resolve(dest)) {
@@ -128,9 +166,9 @@ export function keepLibraryVoice(input: KeepLibraryVoiceInput, root = weaverRoot
   }
   return upsertLibraryAsset(
     {
-      id: input.id,
+      id,
       kind: "voice",
-      label: input.label ?? current?.label ?? input.id,
+      label: wantedName || current?.label || id,
       file: rel,
       text: input.said ?? source.said,
       style: origin === "instruct" ? (input.style ?? source.instruct) : "",

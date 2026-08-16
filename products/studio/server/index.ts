@@ -33,6 +33,7 @@ import {
   upsertLibraryAsset,
   validateProject,
   weaverRoot,
+  allocateNewVoice,
   keepLibraryVoice,
   resolveKeepSource,
   runVoiceMint,
@@ -300,9 +301,10 @@ app.post("/api/voices/keep", (req, res) => {
     }
     const origin = req.body?.origin === "instruct" ? "instruct" : "upload";
     const abs = resolveKeepSource(source, root);
+    const givenId = typeof req.body?.id === "string" ? req.body.id.trim() : "";
     const asset = keepLibraryVoice(
       {
-        id: String(req.body?.id ?? "").trim(),
+        id: givenId || undefined,
         origin,
         sourceAbs: abs,
         label: typeof req.body?.label === "string" ? req.body.label : undefined,
@@ -482,12 +484,15 @@ function ingestUpload(
   req: express.Request,
 ): Asset {
   const kind = String(req.body?.kind ?? "");
-  const id = String(req.body?.id ?? "").trim();
   const locale = typeof req.body?.locale === "string" && req.body.locale ? req.body.locale : undefined;
   const label = typeof req.body?.label === "string" ? req.body.label : undefined;
   const text = typeof req.body?.text === "string" ? req.body.text : undefined;
   const style = typeof req.body?.style === "string" ? req.body.style : undefined;
   if (!req.file) throw new Error("缺少文件");
+  let id = String(req.body?.id ?? "").trim();
+  if (kind === "voice" && target.scope === "library" && !id) {
+    id = allocateNewVoice(label ?? "", root).id;
+  }
   if (!id) throw new Error("缺少资产 id");
 
   const ext = path.extname(req.file.originalname || "") || guessExt(req.file.mimetype);

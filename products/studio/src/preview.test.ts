@@ -124,6 +124,7 @@ describe("voices catalog contract", () => {
     assert.doesNotMatch(page, /onBlur/);
     assert.doesNotMatch(page, /片子点名/);
     assert.doesNotMatch(page, /usedBy/);
+    assert.doesNotMatch(page, /套 id/);
   });
 });
 

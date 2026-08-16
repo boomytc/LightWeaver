@@ -13,7 +13,6 @@ export function Voices() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
-  const [id, setId] = useState("");
   const [label, setLabel] = useState("");
   const [how, setHow] = useState<VoiceOrigin>("instruct");
   const [said, setSaid] = useState("");
@@ -41,12 +40,11 @@ export function Voices() {
     reload().catch((err: Error) => setError(err.message));
   }, []);
 
-  function taken(nextId: string): boolean {
-    return packs.some((asset) => asset.id === nextId);
+  function taken(name: string): boolean {
+    return packs.some((asset) => (asset.label ?? asset.id).trim() === name);
   }
 
   function resetCreate() {
-    setId("");
     setLabel("");
     setSaid("");
     setInstruct("");
@@ -58,13 +56,13 @@ export function Voices() {
   }
 
   async function mint() {
-    const nextId = id.trim();
-    if (!nextId) {
-      setError("先写音色套 id，例如 voice.prompt");
+    const name = label.trim();
+    if (!name) {
+      setError("先写名称");
       return;
     }
-    if (taken(nextId)) {
-      setError(`${nextId} 已在音色库里`);
+    if (taken(name)) {
+      setError(`${name} 已在音色库里`);
       return;
     }
     if (!instruct.trim()) {
@@ -74,7 +72,7 @@ export function Voices() {
     setBusy(true);
     try {
       const minted = await api.mintVoice({
-        id: nextId,
+        id: name,
         text: trial.trim() || TRIAL,
         style: instruct.trim(),
         denoise,
@@ -93,18 +91,17 @@ export function Voices() {
 
   async function keepDesigned() {
     if (!candidate) return;
-    const nextId = id.trim();
-    if (!nextId) return;
+    const name = label.trim();
+    if (!name) return;
     try {
       await api.keepVoice({
-        id: nextId,
         origin: "instruct",
-        label: label.trim() || nextId,
+        label: name,
         said: candidate.text,
         style: instruct,
         source: { kind: "candidate", rel: candidate.rel },
       });
-      setMessage(`已把 ${nextId} 收进音色库`);
+      setMessage(`已把 ${name} 收进音色库`);
       setError(undefined);
       resetCreate();
       await reload();
@@ -114,24 +111,23 @@ export function Voices() {
   }
 
   async function upload(file: File) {
-    const nextId = id.trim();
-    if (!nextId) {
-      setError("先写音色套 id，例如 voice.prompt");
+    const name = label.trim();
+    if (!name) {
+      setError("先写名称");
       return;
     }
-    if (taken(nextId)) {
-      setError(`${nextId} 已在音色库里`);
+    if (taken(name)) {
+      setError(`${name} 已在音色库里`);
       return;
     }
     const form = new FormData();
     form.set("file", file);
     form.set("kind", "voice");
-    form.set("id", nextId);
-    if (label.trim()) form.set("label", label.trim());
+    form.set("label", name);
     if (said.trim()) form.set("text", said.trim());
     try {
       await api.uploadLibrary(form);
-      setMessage(`已把 ${nextId} 收进音色库`);
+      setMessage(`已把 ${name} 收进音色库`);
       setError(undefined);
       resetCreate();
       await reload();
@@ -155,10 +151,10 @@ export function Voices() {
   }
 
   async function keepLine() {
-    const nextId = id.trim();
-    if (!film || !lineKey || !nextId) return;
-    if (taken(nextId)) {
-      setError(`${nextId} 已在音色库里`);
+    const name = label.trim();
+    if (!film || !lineKey || !name) return;
+    if (taken(name)) {
+      setError(`${name} 已在音色库里`);
       return;
     }
     const [lineLocale, sceneId] = lineKey.split(":");
@@ -169,13 +165,12 @@ export function Voices() {
     }
     try {
       await api.keepVoice({
-        id: nextId,
         origin: "upload",
-        label: label.trim() || nextId,
+        label: name,
         said: film.film.scenes.find((scene) => scene.id === sceneId)?.lines[lineLocale ?? ""] ?? "",
         source: { kind: "project", projectId: film.id, rel: line.rel },
       });
-      setMessage(`已把 ${nextId} 收进音色库`);
+      setMessage(`已把 ${name} 收进音色库`);
       setError(undefined);
       resetCreate();
       await reload();
@@ -208,11 +203,7 @@ export function Voices() {
         <p className="item-meta">二选一。收进库之后只在下面听。</p>
         <OriginPick name="voice-origin-new" value={how} onChange={setHow} />
         <div className="form-grid">
-          <label className="field">
-            <span>套 id</span>
-            <input value={id} onChange={(event) => setId(event.target.value)} placeholder="例如 voice.narrator" />
-          </label>
-          <label className="field">
+          <label className="field field-span">
             <span>名称</span>
             <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如 讲解女声" />
           </label>
@@ -382,9 +373,7 @@ function VoiceLibraryCard({ asset }: { asset: Asset }) {
       <div className="voice-main">
         <div>
           <div className="item-title">{asset.label ?? asset.id}</div>
-          <div className="card-id">
-            {asset.id} · 出片 Hi-Fi · {origin}
-          </div>
+          <div className="card-id">出片 Hi-Fi · {origin}</div>
         </div>
         {source.file ? <audio controls preload="metadata" src={libraryMedia(source.file)} /> : null}
       </div>

@@ -127,7 +127,7 @@ export const api = {
       parse<{ rel: string; dest: string; seconds: number; text: string; style: string }>(res),
     ),
   keepVoice: (body: {
-    id: string;
+    id?: string;
     origin?: "instruct" | "upload";
     label?: string;
     said?: string;

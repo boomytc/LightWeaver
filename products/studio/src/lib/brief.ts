@@ -71,10 +71,8 @@ export function buildAgentBrief(input: BriefInput): string {
     input.voiceSet?.ref ??
     uniqueVoiceRef(input.voices);
   if (packRef) {
-    const pack = input.voiceSet?.label
-      ? `${packRef}（${input.voiceSet.label}）`
-      : named(packRef, input.voiceLabels);
-    lines.push(`音色套：${pack}。出片 Hi-Fi clone（克隆源 + 逐字稿）。`);
+    const name = input.voiceSet?.label ?? input.voiceLabels?.[packRef];
+    lines.push(`音色套：${name || packRef}。出片 Hi-Fi clone（克隆源 + 文本）。`);
     if (input.projectId) {
       lines.push(`  weaver voice set --project ${input.projectId} --ref ${packRef}`);
     }

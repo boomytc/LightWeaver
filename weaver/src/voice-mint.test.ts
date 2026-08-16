@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { keepLibraryVoice, resolveKeepSource } from "./voice-mint.ts";
+import { keepLibraryVoice, resolveKeepSource, voiceIdFromName } from "./voice-mint.ts";
 import { loadLibrary, voiceCloneSource } from "./assets.ts";
 import { voiceCandidateRoot } from "./paths.ts";
 import { tempWorkspace, touch } from "./test-workspace.ts";
@@ -52,6 +52,28 @@ describe("keepLibraryVoice", () => {
     assert.equal(asset.style, "");
     assert.equal(voiceCloneSource(asset).origin, "upload");
     assert.equal(fs.readFileSync(path.join(root, "library/voices/prompt-zh.wav"), "utf8"), "uploaded");
+  });
+
+  it("allocates a default id from the name", () => {
+    const root = tempWorkspace();
+    const src = path.join(voiceCandidateRoot(root), "named.wav");
+    touch(src, "bytes");
+    const asset = keepLibraryVoice(
+      { sourceAbs: src, said: "稿", label: "讲解男声", origin: "instruct", style: "稳" },
+      root,
+    );
+    assert.equal(asset.label, "讲解男声");
+    assert.equal(asset.id, "voice.pack");
+    assert.throws(
+      () => keepLibraryVoice({ sourceAbs: src, said: "另一稿", label: "讲解男声", origin: "upload" }, root),
+      /已在音色库里/,
+    );
+  });
+
+  it("slugs an ascii name into the default id", () => {
+    assert.equal(voiceIdFromName("Studio Narrator"), "voice.studio-narrator");
+    assert.equal(voiceIdFromName("讲解女声", ["voice.prompt"]), "voice.pack");
+    assert.equal(voiceIdFromName("讲解男声", ["voice.prompt", "voice.pack"]), "voice.pack-2");
   });
 
   it("opens a new pack when the id is new", () => {
