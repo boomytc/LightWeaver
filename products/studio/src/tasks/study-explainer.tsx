@@ -15,7 +15,7 @@ export function outputPreview(
 ): { src: string; path: string } | undefined {
   const out = detail.paths.outputFiles[locale];
   if (!out?.exists || !out.rel) return undefined;
-  return { src: projectMedia(detail.id, out.rel), path: out.path };
+  return { src: projectMedia(detail.id, out.rel), path: out.rel };
 }
 
 export function missingStillSceneIds(detail: ProjectDetail, locale: string): string[] {

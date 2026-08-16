@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { filmsProductRoot, firstPartyRoot, libraryRoot, userRoot, voiceCandidateRoot, weaverRoot } from "./paths.ts";
-import { loadLibrary, upsertLibraryAsset } from "./assets.ts";
+import { loadLibrary, upsertLibraryAsset, voicePrimaryKey } from "./assets.ts";
 import { loadProject } from "./project.ts";
 import { parseTtsResult } from "./tts.ts";
 import type { Asset, Locale } from "./schema.ts";
@@ -30,7 +30,7 @@ export type VoiceMintResult = {
 
 export type KeepLibraryVoiceInput = {
   id: string;
-  locale: Locale;
+  locale?: Locale;
   sourceAbs: string;
   label?: string;
   said?: string;
@@ -39,6 +39,7 @@ export type KeepLibraryVoiceInput = {
 
 export function voiceKeepRel(id: string, locale: string, current?: string): string {
   if (current) return current;
+  if (locale === "main") return path.posix.join("voices", `${id}.wav`);
   return path.posix.join("voices", `${id}-${locale}.wav`);
 }
 
@@ -92,24 +93,40 @@ export function runVoiceMint(options: VoiceMintOptions): VoiceMintResult {
 
 export function keepLibraryVoice(input: KeepLibraryVoiceInput, root = weaverRoot()): Asset {
   if (!ID_RE.test(input.id)) throw new Error("资产 id 必须是 dotted/kebab 小写");
-  if (!input.locale.trim()) throw new Error("收下时要标明这一边（zh 或 en）");
   assertReadableSource(input.sourceAbs, root);
   const assets = loadLibrary(root);
   const current = assets.find((item) => item.id === input.id);
   if (current && current.kind !== "voice") throw new Error(`${input.id} 不是音色`);
-  const rel = voiceKeepRel(input.id, input.locale, current?.files?.[input.locale]);
+  const slot = input.locale?.trim() || voicePrimaryKey(current);
+  const currentRel = current?.files?.[slot] ?? (slot === voicePrimaryKey(current) ? current?.file : undefined);
+  const rel = voiceKeepRel(input.id, slot, currentRel);
   const dest = path.join(libraryRoot(root), rel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   if (path.resolve(input.sourceAbs) !== path.resolve(dest)) {
     fs.copyFileSync(input.sourceAbs, dest);
   }
   const texts = { ...(current?.texts ?? {}) };
-  if (input.said !== undefined) texts[input.locale] = input.said;
+  if (input.said !== undefined) texts[slot] = input.said;
+  const files = { ...(current?.files ?? {}) };
+  if (slot === "main" && !Object.keys(files).length) {
+    const next: Asset = {
+      id: input.id,
+      kind: "voice",
+      label: input.label ?? current?.label ?? input.id,
+      file: rel,
+      text: input.said ?? current?.text,
+      texts,
+      style: input.style ?? current?.style,
+      styles: current?.styles,
+    };
+    return upsertLibraryAsset(next, root);
+  }
+  files[slot] = rel;
   const next: Asset = {
     id: input.id,
     kind: "voice",
     label: input.label ?? current?.label ?? input.id,
-    files: { ...(current?.files ?? {}), [input.locale]: rel },
+    files,
     texts,
     style: input.style ?? current?.style,
     styles: current?.styles,

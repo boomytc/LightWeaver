@@ -69,6 +69,29 @@ export function voiceStyle(asset: Asset, locale?: string): string {
   return asset.styles?.zh ?? asset.styles?.en ?? asset.style ?? "";
 }
 
+export type VoiceSlot = { key: string; file: string; said: string; primary: boolean };
+
+export function voiceSlots(asset: Asset): VoiceSlot[] {
+  const slots: VoiceSlot[] = [];
+  for (const [key, file] of Object.entries(asset.files ?? {})) {
+    if (file) slots.push({ key, file, said: asset.texts?.[key] ?? "", primary: false });
+  }
+  if (asset.file && !slots.some((slot) => slot.file === asset.file)) {
+    slots.unshift({
+      key: asset.locale || "main",
+      file: asset.file,
+      said: asset.text ?? "",
+      primary: true,
+    });
+  }
+  if (slots[0]) slots[0] = { ...slots[0], primary: true };
+  return slots;
+}
+
+export function voicePrimaryKey(asset?: Asset): string {
+  return voiceSlots(asset ?? { id: "", kind: "voice" })[0]?.key ?? "main";
+}
+
 export function remotionPublicPath(projectId: string, relPath: string): string {
   return `projects/${projectId}/${relPath.replace(/\\/g, "/")}`;
 }

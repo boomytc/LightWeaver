@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { listVoicePacks, voiceFile, voicePackId } from "./voices.ts";
+import { filmVoiceRef, listVoicePacks, voiceFile, voicePackId, voiceSlots } from "./voices.ts";
 import type { Asset } from "../types.ts";
 
 describe("listVoicePacks", () => {
@@ -25,5 +25,17 @@ describe("listVoicePacks", () => {
     ]);
     assert.equal(listed.length, 1);
     assert.equal(voicePackId(listed[0]!), "voice.prompt");
+  });
+
+  it("marks the first kept wav as the primary slot", () => {
+    const slots = voiceSlots({
+      id: "voice.prompt",
+      kind: "voice",
+      files: { zh: "voices/prompt-zh.wav", en: "voices/prompt-en.wav" },
+      texts: { zh: "中", en: "en" },
+    });
+    assert.equal(slots[0]?.primary, true);
+    assert.equal(slots[0]?.key, "zh");
+    assert.equal(filmVoiceRef({ zh: "library:voice.prompt", en: "library:voice.prompt" }), "library:voice.prompt");
   });
 });

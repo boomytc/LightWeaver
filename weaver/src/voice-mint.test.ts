@@ -22,6 +22,16 @@ describe("keepLibraryVoice", () => {
     assert.equal(loadLibrary(root).filter((item) => item.kind === "voice").length, 1);
   });
 
+  it("replaces the primary wav when locale is omitted", () => {
+    const root = tempWorkspace();
+    const src = path.join(voiceCandidateRoot(root), "main.wav");
+    touch(src, "primary");
+    const asset = keepLibraryVoice({ id: "voice.prompt", sourceAbs: src, said: "主声稿" }, root);
+    assert.equal(asset.files?.zh, "voices/prompt-zh.wav");
+    assert.equal(asset.texts?.zh, "主声稿");
+    assert.equal(fs.readFileSync(path.join(root, "library/voices/prompt-zh.wav"), "utf8"), "primary");
+  });
+
   it("opens a new pack when the id is new", () => {
     const root = tempWorkspace();
     const src = path.join(voiceCandidateRoot(root), "new.wav");

@@ -46,7 +46,7 @@ assets/outputs/           渲染 mp4（不提交）
 - **点名资产：** `film.voices` 各语言同一套音色；`film.langs` 是要出的语言（可只出中文或只出英文）；`film.kit` 是人勾选的 `library:element|reference`。agent 先读这三项再写片子。Studio `/voices` `/library` 监管库，`/f/<id>` 点名。
 - **要点板：** title / close 的正文是 `points`（2–4 条），按旁白进度出现。lede 只留一句。对照条写成 `左 || 右`。不要一段 lede 铺满，不要另写 mermaid 渲染器
 - 静帧：`scenes[].still = "asset:still.<id>"`
-- 音色套：一套引用 `library:voice.prompt`。**收下的 wav 才是这套声**。人在 Studio `/voices` 铸、听、留；出片 `tts` 只读参考 wav，不改库，不加 `--seed`。声音描述和引导强度只在铸库时用，不写进 `film.json`。要出的语言用 `weaver langs set --project <id> --langs zh`（或 `zh,en`）。VoxCPM2 控制台：https://platform.modelbest.cn/console/login?ref=B08B4DDF
+- 音色套：一套引用 `library:voice.prompt`。主声克隆要出的语言；备声可选。人在 Studio `/voices` 铸、听、留；出片 `tts` 只读参考 wav，不改库，不加 `--seed`。声音描述和引导强度只在铸库时用，不写进 `film.json`。要出的语言用 `weaver langs set --project <id> --langs zh`（或 `zh,en`）。VoxCPM2 控制台：https://platform.modelbest.cn/console/login?ref=B08B4DDF
 - 有 `publish.dir` 才发布到 LightUI `studies/<slug>/references/`
 
 ```bash

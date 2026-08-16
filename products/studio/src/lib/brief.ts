@@ -74,7 +74,7 @@ export function buildAgentBrief(input: BriefInput): string {
     const pack = input.voiceSet?.label
       ? `${packRef}（${input.voiceSet.label}）`
       : named(packRef, input.voiceLabels);
-    lines.push(`音色套：${pack}。各语言用同一套，不要拆成两套声。`);
+    lines.push(`音色套：${pack}。一套参考声克隆要出的语言。`);
     if (input.projectId) {
       lines.push(`  weaver voice set --project ${input.projectId} --ref ${packRef}`);
     }
@@ -103,7 +103,7 @@ export function buildAgentBrief(input: BriefInput): string {
     lines.push("先 weaver project create，再 langs set / voice set / kit set / recipe apply。");
   }
   lines.push("然后按 skill lightweaver-film：校验 → 缺静帧再截 → 写旁白 → tts → render。");
-  lines.push("tts 按 VoxCPM2：克隆只传参考声，风格写在正文前缀，不要给模型加语言标签。");
+  lines.push("tts 按 VoxCPM2：克隆只传参考声，不要加语言标签。");
   lines.push("不要换声，不要加 kit 外元素，不要在 Studio 里排场或出片。");
 
   return `${lines.join("\n")}\n`;

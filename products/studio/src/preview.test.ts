@@ -104,7 +104,7 @@ describe("outputPreview", () => {
 describe("voices catalog contract", () => {
   it("treats kept wav as the pack and does not seed from film tts", () => {
     const page = fs.readFileSync(path.join(here, "pages/Voices.tsx"), "utf8");
-    assert.match(page, /收下的 wav 才是这套声/);
+    assert.match(page, /一支参考声就能克隆/);
     assert.match(page, /MODELBEST_URL/);
     assert.match(page, /keepVoice/);
     assert.match(page, /mintVoice/);

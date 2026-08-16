@@ -292,7 +292,7 @@ app.post("/api/voices/keep", (req, res) => {
     const asset = keepLibraryVoice(
       {
         id: String(req.body?.id ?? "").trim(),
-        locale: String(req.body?.locale ?? "").trim(),
+        locale: typeof req.body?.locale === "string" ? req.body.locale.trim() : undefined,
         sourceAbs: abs,
         label: typeof req.body?.label === "string" ? req.body.label : undefined,
         said: typeof req.body?.said === "string" ? req.body.said : undefined,

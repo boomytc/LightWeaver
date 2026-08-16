@@ -124,7 +124,7 @@ export const api = {
     ),
   keepVoice: (body: {
     id: string;
-    locale: string;
+    locale?: string;
     label?: string;
     said?: string;
     style?: string;

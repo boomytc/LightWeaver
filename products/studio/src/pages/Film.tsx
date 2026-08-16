@@ -4,7 +4,7 @@ import { Link } from "../components/Link";
 import { BriefPanel } from "../components/BriefPanel";
 import { assetLabel, kindLabel, sourceLabel } from "../lib/labels";
 import { filmLangs, langLabel } from "../lib/langs";
-import { listVoicePacks } from "../lib/voices";
+import { filmVoiceRef, listVoicePacks } from "../lib/voices";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
 import type { Asset, ProjectDetail, RecipeCard } from "../types";
 
@@ -22,7 +22,11 @@ export function Film({ id }: { id: string }) {
     setDetail(next);
     setLibrary(nextLibrary);
     setRecipes(nextRecipes.filter((item) => item.level === "film"));
-    setLocale((current) => (next.film.locales[current] ? current : Object.keys(next.film.locales)[0] ?? "zh"));
+    setLocale((current) => {
+      const langs = filmLangs(next.film);
+      if (langs.includes(current)) return current;
+      return langs[0] ?? Object.keys(next.film.locales)[0] ?? "zh";
+    });
     setSceneId((current) => next.film.scenes.find((scene) => scene.id === current)?.id ?? next.film.scenes[0]?.id);
   }, [id]);
 
@@ -78,7 +82,7 @@ export function Film({ id }: { id: string }) {
   }
 
   const copy = detail.film.locales[locale];
-  const packRef = detail.film.voices.zh ?? detail.film.voices[locale] ?? "";
+  const packRef = filmVoiceRef(detail.film.voices);
 
   return (
     <div className="film-page">
@@ -123,20 +127,10 @@ export function Film({ id }: { id: string }) {
             </select>
           </label>
           <label className="field">
-            <span>预览语种</span>
-            <select aria-label="预览语种" value={locale} onChange={(event) => setLocale(event.target.value)}>
-              {Object.keys(detail.film.locales).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
             <span>音色套</span>
             <select
               aria-label="音色套"
-              value={detail.film.voices.zh ?? detail.film.voices[locale] ?? ""}
+              value={packRef}
               onChange={(event) => void assignVoicePack(event.target.value)}
             >
               <option value="">未点名</option>
@@ -161,6 +155,7 @@ export function Film({ id }: { id: string }) {
           <h2 className="h" style={{ marginTop: 20 }}>
             要出的语言
           </h2>
+          <p className="item-meta">勾选要出的；点名称看这一边的成片和旁白。</p>
           <ul className="kit-list lang-picks">
             {Object.keys(detail.film.locales).map((item) => {
               const selected = filmLangs(detail.film);
@@ -172,13 +167,30 @@ export function Film({ id }: { id: string }) {
                       type="checkbox"
                       checked={on}
                       onChange={() => {
-                        const next = on ? selected.filter((locale) => locale !== item) : [...selected, item];
-                        void assignLangs(next);
+                        const next = on ? selected.filter((entry) => entry !== item) : [...selected, item];
+                        if (next.length) {
+                          if (!next.includes(locale)) setLocale(next[0] ?? item);
+                          void assignLangs(next);
+                        }
                       }}
                     />
                     <span>
-                      <span className="item-title">{langLabel(item)}</span>
-                      <span className="item-meta">{item}</span>
+                      <button
+                        type="button"
+                        className="text-link"
+                        style={{ border: 0, background: "none", padding: 0 }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setLocale(item);
+                        }}
+                      >
+                        {langLabel(item)}
+                      </button>
+                      <span className="item-meta">
+                        {item}
+                        {item === locale ? " · 正在看" : ""}
+                      </span>
                     </span>
                   </label>
                 </li>
