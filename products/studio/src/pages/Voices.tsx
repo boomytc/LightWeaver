@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, candidateMedia, libraryMedia, type AsrStatus, type ModelbestStatus } from "../api";
+import { api, candidateMedia, libraryMedia, type ModelbestStatus } from "../api";
 import { listVoicePacks, voiceCloneSource, type VoiceOrigin } from "../lib/voices";
 import { MODELBEST_URL } from "../lib/prefs";
 import type { Asset } from "../types";
@@ -23,7 +23,6 @@ export function Voices() {
   const [busy, setBusy] = useState(false);
   const [candidate, setCandidate] = useState<Candidate>();
   const [modelbest, setModelbest] = useState<ModelbestStatus>();
-  const [asr, setAsr] = useState<AsrStatus>();
   const [probing, setProbing] = useState(false);
   const [probe, setProbe] = useState<{ ok: boolean; message: string }>();
 
@@ -31,14 +30,9 @@ export function Voices() {
   const canMint = Boolean(modelbest?.configured);
 
   async function reload() {
-    const [nextLibrary, nextModelbest, nextAsr] = await Promise.all([
-      api.library(),
-      api.modelbest(),
-      api.asr().catch(() => ({ ready: false, hint: "转写状态读不到" })),
-    ]);
+    const [nextLibrary, nextModelbest] = await Promise.all([api.library(), api.modelbest()]);
     setLibrary(nextLibrary);
     setModelbest(nextModelbest);
-    setAsr(nextAsr);
     setProbe(nextModelbest.probe);
   }
 
@@ -137,7 +131,6 @@ export function Voices() {
     const form = new FormData();
     form.set("file", file);
     if (replace) form.set("force", "1");
-    else if (said.trim()) form.set("text", said.trim());
     setBusy(true);
     if (replace) setSaid("");
     try {
@@ -149,8 +142,6 @@ export function Voices() {
         setMessage("转写没写成，请手写这句");
       } else if (staged.asr) {
         setMessage(replace ? "已按新录音重新转写" : "已转写文本");
-      } else {
-        setMessage("已用你写的文本");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -259,14 +250,6 @@ export function Voices() {
             </>
           ) : (
             <>
-              <label className="field">
-                <span>文本</span>
-                <input
-                  value={said}
-                  onChange={(event) => setSaid(event.target.value)}
-                  placeholder={asr?.ready ? "可空，上传后自动转写" : (asr?.hint ?? "转写未就绪，先手写这句")}
-                />
-              </label>
               <div className="create-media">
                 <label className="btn">
                   {busy ? "正在转写…" : candidate ? "换一支再转写" : "上传 wav"}
@@ -285,11 +268,21 @@ export function Voices() {
                 {candidate ? <audio controls preload="metadata" src={candidateMedia(candidate.rel)} /> : null}
               </div>
               {candidate ? (
-                <div className="create-save">
-                  <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void keepUploaded()}>
-                    保存音色
-                  </button>
-                </div>
+                <>
+                  <label className="field">
+                    <span>文本</span>
+                    <input
+                      value={said}
+                      onChange={(event) => setSaid(event.target.value)}
+                      placeholder="转写结果可改"
+                    />
+                  </label>
+                  <div className="create-save">
+                    <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void keepUploaded()}>
+                      保存音色
+                    </button>
+                  </div>
+                </>
               ) : null}
             </>
           )}

@@ -118,11 +118,12 @@ describe("voices catalog contract", () => {
     assert.match(page, /keepUploaded/);
     assert.match(page, /keepName/);
     assert.match(page, /先写名称再保存/);
-    assert.match(page, /自动转写/);
     assert.match(page, /form\.set\("force"/);
     assert.match(page, /换一支再转写/);
+    assert.match(page, /转写结果可改/);
     assert.doesNotMatch(page, /收下进音色库/);
     assert.doesNotMatch(page, /还没进库/);
+    assert.doesNotMatch(page, /可空，上传后自动转写/);
     assert.doesNotMatch(page, /上传后直接听，空着的文本/);
     assert.doesNotMatch(page, /uploadLibrary/);
     assert.doesNotMatch(page, /这支在说/);
