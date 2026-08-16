@@ -101,6 +101,16 @@ describe("outputPreview", () => {
   });
 });
 
+describe("methods catalog contract", () => {
+  it("shows a reusable apply contract, not recipe markdown or instance-bound copy", () => {
+    const page = fs.readFileSync(path.join(here, "pages/Methods.tsx"), "utf8");
+    assert.match(page, /buildMethodBrief/);
+    assert.match(page, /methodApplyLine/);
+    assert.doesNotMatch(page, /recipe\.body/);
+    assert.doesNotMatch(page, /还没有片子点名这张卡/);
+  });
+});
+
 describe("preview source contract", () => {
   it("Film video src is outputPreview, not an absolute path field", () => {
     const film = fs.readFileSync(path.join(here, "pages/Film.tsx"), "utf8");

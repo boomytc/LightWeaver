@@ -35,7 +35,7 @@ export type Recipe = {
   body: string;
 };
 
-export type RecipeSummary = Omit<Recipe, "body" | "default_scenes"> & { title: string };
+export type RecipeSummary = Omit<Recipe, "body"> & { title: string };
 
 export function recipeTitle(body: string, id: string): string {
   const match = /^#\s+(.+)$/m.exec(body);
@@ -287,6 +287,7 @@ export function summarizeRecipe(recipe: Recipe): RecipeSummary {
     when: recipe.when,
     canon: recipe.canon,
     requires_kinds: recipe.requires_kinds,
+    default_scenes: recipe.default_scenes,
     path: recipe.path,
     title: recipeTitle(recipe.body, recipe.id),
   };

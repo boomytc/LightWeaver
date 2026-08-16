@@ -33,7 +33,7 @@ assets/outputs/           渲染 mp4（不提交）
 - 文件名与 LightUI `studies/<slug>/references/SOURCE.md` 一致：intent `status.png`；dropdown `select-open.png`；nav `drawer-open.png`；sidebar `offcanvas-open.png`。
 - 必须先写进 `assets.json` 再落盘。不要再发明 `comp-01.png`、`desktop-full.png`。
 
-**方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>`。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
+**方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。卡是可复用骨架，片子是实例。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>` / `recipe apply`。Studio `/methods` 只展示何时用、怎么 apply，不把某一张片子的场次当卡。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
 
 发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 

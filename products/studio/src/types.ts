@@ -114,6 +114,7 @@ export type RecipeCard = {
   title: string;
   requires_kinds?: boolean;
   canon?: string[];
+  default_scenes?: { id: string; kind: string; role?: string }[];
 };
 
 export type Job = {

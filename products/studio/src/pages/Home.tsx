@@ -102,7 +102,7 @@ export function Home() {
               >
                 <strong>{recipe.title}</strong>
                 <span className="item-meta">{recipe.id}</span>
-                <span className="item-meta">{recipeHint(recipe.id)}</span>
+                <span className="item-meta">{recipeHint(recipe)}</span>
               </button>
             ))}
           </div>

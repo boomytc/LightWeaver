@@ -19,7 +19,7 @@ description: >
 - 任务实例：LightUI 顾客片 `data/first-party/<id>/`；用户片 `data/projects/<id>/`。**不提交**
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）
 - 产物：`<project>/assets/lines/<locale>/*.wav`；`<project>/assets/outputs/<output>`
-- 方法：`recipes/lightui-study-explainer/`（`weaver recipe list --task study-explainer` / `show`；index 六行）
+- 方法：`recipes/lightui-study-explainer/`（可复用骨架，不是某一张片子。`weaver recipe list --task study-explainer` / `show` / `apply`）
 - 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.langs`、`film.voices`、`film.kit`、`film.recipe`：人点名要出的语言、音色、素材、方法卡，不要自己换。
 
 ## 结合规则

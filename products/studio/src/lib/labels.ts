@@ -19,8 +19,18 @@ export function sourceLabel(source: string): string {
   return source === "first-party" ? "顾客片" : "本机片";
 }
 
-export function recipeHint(id: string): string {
-  if (id === "taxonomy-parade") return "一种模型一场，最后点破容易混的一对。";
-  if (id === "problem-then-rule") return "先讲会坏的那条，再讲规则。";
-  return id;
+export function compactWhen(when?: string): string {
+  if (!when) return "";
+  return when.split(/\n/).map((line) => line.trim()).filter(Boolean)[0] ?? "";
+}
+
+export function roleLabel(role?: string): string {
+  if (role === "problem") return "问题";
+  if (role === "rule") return "规则";
+  if (role === "contrast") return "对照";
+  return role ?? "";
+}
+
+export function recipeHint(recipe: { id: string; when?: string }): string {
+  return compactWhen(recipe.when) || recipe.id;
 }

@@ -566,7 +566,7 @@ Frontmatter 字段（`weaver/src/recipes.ts` 解析，未知键忽略）：
 | `when` | string | agent 选卡依据。SKILL 只列 id+一行 when，全文按需读 |
 | `canon` | string[] | 可选。活模板片子 id |
 | `requires_kinds` | boolean | true → `apply` 无 `--kinds` 则 exit 2 |
-| `default_scenes` | object[] | 可选。`problem-then-rule` 用固定 id，不靠 kinds |
+| `default_scenes` | object[] | 可选。可复用骨架（如 problem / rule / contrast），不写某一张片子的场次名 |
 
 `default_scenes` 项：`{ id, kind, role?, still?, fit? }`。`kind` 只能是该 TaskModule 的 `sceneKinds`。`apply` 拒绝 `beat` / `clip` / 任何不在 `task.sceneKinds` 的值——这是「agent 发明新 scene kind」的硬闸。
 
@@ -802,7 +802,7 @@ export function applyRecipe(
 3. 若存在 `id === "hero"` 且 kind=still → `removeScene`（此时至少还有 title/close；若 hero 是唯一 still，先加新 still 再删 hero，顺序写进函数注释）。
 4. `requires_kinds`：无 `--kinds` → throw 中文「taxonomy-parade 需要 --kinds（由 agent 从 kinds.ts 读入，不要让 weaver 解析 LightUI）」。
 5. 对每个 kind：已有同 id 场景 → 记入 `skipped`（**不**覆盖旁白，**不**推进 `Issue[]`）。否则 `addScene({ id, kind: "still", still: "asset:still."+id, fit: "contain", role: "contrast" })`。`addScene` 会把 `lines[locale]` 写成 **id 占位**（非空，validate Q3 会过）。**阶段 3 必须 `scene set` 换成真旁白**；agent 不得把占位当成完稿。
-6. `problem-then-rule` 走 `default_scenes`：`problem`（role=problem）、其余按卡。canon 以外的 id 必须来自 `--kinds` 或卡上写死的列表。v1 卡把 intent 四场写死，避免 apply 猜 `diagonal`。
+6. `problem-then-rule` 走可复用 `default_scenes`：`problem` / `rule` / `contrast`。实例场次名（如 intent-cascade 的 `status`）留在片子里，不写进卡。
 7. 不改 `locales`、`publish`、`voices`、`output`。
 8. `--json` 信封：`{ ok, project: projectSummary, film, issues, skipped, paths }`。`skipped` 是字符串数组，不是 Issue。
 
@@ -851,8 +851,8 @@ Studio「新建」仍只写 `data/projects/`、忽略 source（D6）。First-par
 - **canon：** `intent-cascade`
 - **骨架：** title → `problem`（role=problem）→ 一条或多条 rule still → 至少一条 contrast still → close。
 - **实证：** `products/study-films/projects/intent-cascade/film.json`：`problem=problem`，`diagonal=rule`，`vertical=contrast`，`third=rule`。
-- **apply：** `default_scenes` 写死 `problem, diagonal, vertical, third`（与 canon 相同）。新片子若只要三场，agent 在 apply 后 `scene rm`，不要让 apply 接受自由 id 列表而失去「问题场」约束。
-- **旁白义务：** problem 场说「会坏什么」；rule 场说走廊/规则；contrast 场说朴素 delay 为什么更差（对 `idea.md`「和加 delay 的差别」）。**只读** `idea.md` / `idea.en.md` / `study.json`——intent-cascade **没有** `kinds.ts`。
+- **apply：** `default_scenes` 是 `problem` / `rule` / `contrast`。新片子按这副骨架铺；还要加场就 `scene add`。不要把某一张片子的场次名写进卡。
+- **旁白义务：** problem 场说「会坏什么」；rule 场说正确做法；contrast 场说旁边那条为什么更差。**只读** `idea.md` / `idea.en.md` / `study.json`。
 
 #### R2 · `taxonomy-parade`（film）
 

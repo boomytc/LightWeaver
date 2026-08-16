@@ -367,7 +367,7 @@ button:disabled {
 }
 .pill-ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
 
-.voice-card {
+.voice-card, .method-card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-elevated);
@@ -376,6 +376,17 @@ button:disabled {
   flex-direction: column;
   gap: 12px;
   box-shadow: var(--shadow);
+}
+.method-card { gap: 0; }
+.method-card h2 { margin: 0; font-size: 1.15rem; letter-spacing: -0.02em; }
+.method-card .film-card-top { flex-wrap: wrap; align-items: center; }
+.method-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-top: 12px;
 }
 .voice-main {
   display: flex;
@@ -636,6 +647,7 @@ html[data-theme="light"] .btn-primary { color: #fff; }
   .site-foot-inner { flex-direction: column; align-items: flex-start; }
   .page-title { font-size: 1.6rem; }
   .form-grid { grid-template-columns: 1fr; }
+  .method-card .film-card-top { flex-direction: column; align-items: stretch; }
 }
 
 @media (prefers-reduced-motion: reduce) {

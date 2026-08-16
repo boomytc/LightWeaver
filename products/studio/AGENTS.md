@@ -14,7 +14,7 @@ persist films. `/films` is instances. Agents generate via weaver.
 | `/films` `/f/<id>` | human names; agent produces | voices + kit + recipe; review scenes/mp4 |
 | `/voices` | human | one pack binds zh+en; listen, add, edit clone text/style |
 | `/library` | human | accumulate elements and references |
-| `/methods` | human | film-level method cards; which films use them |
+| `/methods` | human | reusable film cards: when, shape, apply; copy usage |
 
 ## Rules
 

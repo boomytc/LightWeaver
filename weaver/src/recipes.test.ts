@@ -148,11 +148,11 @@ describe("listRecipes / loadRecipe", () => {
     const recipe = loadRecipe("problem-then-rule");
     assert.deepEqual(
       recipe.default_scenes?.map((scene) => scene.id),
-      ["status", "diagonal", "project", "third"],
+      ["problem", "rule", "contrast"],
     );
     assert.deepEqual(
       recipe.default_scenes?.map((scene) => scene.role),
-      ["problem", "rule", "contrast", "rule"],
+      ["problem", "rule", "contrast"],
     );
     assert.throws(() => loadRecipe("no-such-recipe"), /找不到 recipe/);
     assert.throws(() => loadRecipe("../etc/passwd"), /非法 recipe id/);
@@ -274,12 +274,11 @@ default_scenes:
     applyRecipe(project, "problem-then-rule", { kinds: ["nope"] }, weaverRoot());
     assert.deepEqual(
       project.film.scenes.map((scene) => scene.id),
-      ["title", "status", "diagonal", "project", "third", "close"],
+      ["title", "problem", "rule", "contrast", "close"],
     );
-    assert.equal(project.film.scenes.find((scene) => scene.id === "status")?.role, "problem");
-    assert.equal(project.film.scenes.find((scene) => scene.id === "diagonal")?.role, "rule");
-    assert.equal(project.film.scenes.find((scene) => scene.id === "project")?.role, "contrast");
-    assert.equal(project.film.scenes.find((scene) => scene.id === "third")?.role, "rule");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "problem")?.role, "problem");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "rule")?.role, "rule");
+    assert.equal(project.film.scenes.find((scene) => scene.id === "contrast")?.role, "contrast");
     assert.equal(project.film.scenes.some((scene) => scene.id === "nope"), false);
   });
 });
