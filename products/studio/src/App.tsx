@@ -5,6 +5,7 @@ import { Film } from "./pages/Film";
 import { Films } from "./pages/Films";
 import { Home } from "./pages/Home";
 import { Library } from "./pages/Library";
+import { Methods } from "./pages/Methods";
 import { Voices } from "./pages/Voices";
 
 export function App() {
@@ -17,6 +18,7 @@ export function App() {
       {route.name === "film" ? <Film id={route.id} /> : null}
       {route.name === "voices" ? <Voices /> : null}
       {route.name === "library" ? <Library /> : null}
+      {route.name === "methods" ? <Methods /> : null}
       {route.name === "missing" ? (
         <div className="page-width page">
           <p className="eyebrow">404</p>

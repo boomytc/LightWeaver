@@ -27,6 +27,7 @@ export type Route =
   | { name: "film"; id: string }
   | { name: "voices" }
   | { name: "library" }
+  | { name: "methods" }
   | { name: "missing"; path: string };
 
 export function parseRoute(path: string): Route {
@@ -35,6 +36,7 @@ export function parseRoute(path: string): Route {
   if (clean === "/films") return { name: "films" };
   if (clean === "/voices") return { name: "voices" };
   if (clean === "/library") return { name: "library" };
+  if (clean === "/methods") return { name: "methods" };
   const film = /^\/f\/([^/]+)$/.exec(clean);
   if (film?.[1]) return { name: "film", id: decodeURIComponent(film[1]) };
   return { name: "missing", path };

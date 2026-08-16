@@ -18,3 +18,9 @@ export function kindLabel(kind: string): string {
 export function sourceLabel(source: string): string {
   return source === "first-party" ? "顾客片" : "本机片";
 }
+
+export function recipeHint(id: string): string {
+  if (id === "taxonomy-parade") return "一种模型一场，最后点破容易混的一对。";
+  if (id === "problem-then-rule") return "先讲会坏的那条，再讲规则。";
+  return id;
+}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { BriefPanel } from "../components/BriefPanel";
 import { Link } from "../components/Link";
-import { assetLabel, sourceLabel } from "../lib/labels";
+import { assetLabel, recipeHint, sourceLabel } from "../lib/labels";
 import type { Asset, ProjectSummary, RecipeCard } from "../types";
 
 export function Home() {
@@ -23,8 +23,10 @@ export function Home() {
         setProjects(nextProjects);
         setLibrary(nextLibrary);
         setRecipes(nextRecipes.filter((item) => item.level === "film"));
-        const first = nextProjects[0];
+        const wanted = new URLSearchParams(window.location.search).get("recipe") ?? "";
+        const first = nextProjects.find((item) => item.recipe === wanted) ?? nextProjects[0];
         if (first) applyProject(first);
+        if (wanted) setRecipeId(wanted);
       })
       .catch((err: Error) => setError(err.message));
   }, []);
@@ -179,7 +181,11 @@ export function Home() {
           <p className="item-meta">
             库不够去{" "}
             <Link href="/voices" className="text-link">
-              管音色
+              音色
+            </Link>
+            ；方法卡目录在{" "}
+            <Link href="/methods" className="text-link">
+              方法
             </Link>
           </p>
         </section>
@@ -267,12 +273,6 @@ export function Home() {
       </section>
     </div>
   );
-}
-
-function recipeHint(id: string): string {
-  if (id === "taxonomy-parade") return "一种模型一场，最后点破容易混的一对。";
-  if (id === "problem-then-rule") return "先讲会坏的那条，再讲规则。";
-  return id;
 }
 
 function voiceSummary(project: ProjectSummary, library: Asset[]): string {

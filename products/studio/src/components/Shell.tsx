@@ -8,6 +8,7 @@ const NAV = [
   { href: "/films", label: "片子", match: (path: string) => path === "/films" || path.startsWith("/f/") },
   { href: "/voices", label: "音色", match: (path: string) => path === "/voices" },
   { href: "/library", label: "素材", match: (path: string) => path === "/library" },
+  { href: "/methods", label: "方法", match: (path: string) => path === "/methods" },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {

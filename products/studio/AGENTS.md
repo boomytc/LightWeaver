@@ -11,10 +11,11 @@ author or render films.
 
 | Path | Who | What |
 | --- | --- | --- |
-| `/` | both | map: films, voices, materials |
-| `/films` `/f/<id>` | human names; agent produces | voices + `kit`; review scenes/mp4 |
+| `/` | both | compose voice + kit + recipe; copy agent brief |
+| `/films` `/f/<id>` | human names; agent produces | voices + kit + recipe; review scenes/mp4 |
 | `/voices` | human | listen, add, edit clone text/style |
 | `/library` | human | accumulate elements and references |
+| `/methods` | human | film-level method cards; which films use them |
 
 ## Rules
 

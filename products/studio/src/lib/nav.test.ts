@@ -8,6 +8,7 @@ describe("parseRoute", () => {
     assert.deepEqual(parseRoute("/films"), { name: "films" });
     assert.deepEqual(parseRoute("/voices"), { name: "voices" });
     assert.deepEqual(parseRoute("/library"), { name: "library" });
+    assert.deepEqual(parseRoute("/methods"), { name: "methods" });
     assert.deepEqual(parseRoute("/f/intent-cascade"), { name: "film", id: "intent-cascade" });
     assert.deepEqual(parseRoute("/f/nav-taxonomy/"), { name: "film", id: "nav-taxonomy" });
   });
