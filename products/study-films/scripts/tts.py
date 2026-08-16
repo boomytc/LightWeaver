@@ -2,10 +2,10 @@
 """Synthesize project narration via VoxCPM2.
 
 Mint (Studio /voices):
-  instruct     input = "(style)text" without ref_audio → 试听
-  clone        ref_audio from 克隆源 only (not 试听)
+  instruct     input = "(style)text" without ref_audio
+               keep the result as the clone source
 Film lines:
-  hifi-clone   试听优先，否则克隆源；ref_audio + ref_text，保证一致性
+  hifi-clone   the one clone source + ref_text，保证一致性
 
 Language is not an API parameter; change input text only.
 

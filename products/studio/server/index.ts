@@ -33,13 +33,12 @@ import {
   upsertLibraryAsset,
   validateProject,
   weaverRoot,
-  findAsset,
   keepLibraryVoice,
   resolveKeepSource,
   runVoiceMint,
   upsertVoicePack,
   voiceCandidateRoot,
-  voiceParts,
+  voiceCloneSource,
   type Asset,
   type FilmDoc,
 } from "@lightweaver/weaver";
@@ -271,27 +270,11 @@ app.post("/api/voices/mint", (req, res) => {
   res.setTimeout(200000);
   try {
     const id = typeof req.body?.id === "string" ? req.body.id.trim() : "";
-    const ref = typeof req.body?.ref === "string" ? req.body.ref : "";
     const instruct = typeof req.body?.style === "string" ? req.body.style : "";
-    let refAudio: string | undefined;
-    let refText = "";
-    if (ref && ref !== "none") {
-      const packRef = ref.startsWith("library:") ? ref : `library:${ref}`;
-      const asset = findAsset(null, packRef, root);
-      const clone = voiceParts(asset).clone;
-      if (!asset || !clone) throw new Error("铸试听只按克隆源铸。没有克隆源就只用 instruct。");
-      const dest = path.join(libraryRoot(root), clone.file);
-      if (!fs.existsSync(dest)) throw new Error("克隆源 wav 不在盘上");
-      refAudio = dest;
-      refText = clone.said;
-    } else if (!instruct.trim()) {
-      throw new Error("没有克隆源时，需要一段 instruct 描述");
-    }
+    if (!instruct.trim()) throw new Error("铸试听需要一段 instruct");
     const minted = runVoiceMint({
       text: String(req.body?.text ?? ""),
       style: instruct,
-      refAudio,
-      refText,
       destName: `${id || "mint"}-${Date.now()}.wav`,
       denoise: typeof req.body?.denoise === "boolean" ? req.body.denoise : undefined,
       doNormalize: typeof req.body?.doNormalize === "boolean" ? req.body.doNormalize : true,
@@ -315,12 +298,12 @@ app.post("/api/voices/keep", (req, res) => {
       res.status(400).json({ error: "收下需要 candidate 或片子旁白路径" });
       return;
     }
-    const as = req.body?.as === "clone" ? "clone" : "preview";
+    const origin = req.body?.origin === "instruct" ? "instruct" : "upload";
     const abs = resolveKeepSource(source, root);
     const asset = keepLibraryVoice(
       {
         id: String(req.body?.id ?? "").trim(),
-        as,
+        origin,
         sourceAbs: abs,
         label: typeof req.body?.label === "string" ? req.body.label : undefined,
         said: typeof req.body?.said === "string" ? req.body.said : undefined,
@@ -513,24 +496,19 @@ function ingestUpload(
   if (target.scope === "library") {
     const existing = loadLibrary(root).find((asset) => asset.id === id);
     if (kind === "voice") {
-      const parts = voiceParts(existing);
-      const cloneRel = parts.clone?.file ?? `voices/${id.replace(/[^a-z0-9.-]+/gi, "-")}.clone${ext}`;
+      const source = voiceCloneSource(existing);
+      const cloneRel = source.file ?? `voices/${id.replace(/[^a-z0-9.-]+/gi, "-")}${ext}`;
       const dest = safeJoin(libraryRoot(root), cloneRel);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       fs.writeFileSync(dest, req.file.buffer);
-      const files = { ...(existing?.files ?? {}), clone: cloneRel };
-      const texts = { ...(existing?.texts ?? {}) };
-      if (text !== undefined) texts.clone = text;
       return upsertLibraryAsset(
         {
           id,
           kind: "voice",
           label: label ?? existing?.label ?? id,
-          file: existing?.file,
-          text: existing?.text,
-          style: style ?? existing?.style ?? parts.instruct,
-          files,
-          texts,
+          file: cloneRel,
+          text: text ?? source.said,
+          style: "",
         },
         root,
       );

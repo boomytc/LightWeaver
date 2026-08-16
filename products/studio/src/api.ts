@@ -115,7 +115,6 @@ export const api = {
     id?: string;
     text: string;
     style?: string;
-    ref?: string;
     denoise?: boolean;
     doNormalize?: boolean;
     cfgValue?: number;
@@ -129,7 +128,7 @@ export const api = {
     ),
   keepVoice: (body: {
     id: string;
-    as?: "preview" | "clone";
+    origin?: "instruct" | "upload";
     label?: string;
     said?: string;
     style?: string;

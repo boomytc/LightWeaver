@@ -3,44 +3,55 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { keepLibraryVoice, resolveKeepSource } from "./voice-mint.ts";
-import { loadLibrary, voiceParts } from "./assets.ts";
+import { loadLibrary, voiceCloneSource } from "./assets.ts";
 import { voiceCandidateRoot } from "./paths.ts";
 import { tempWorkspace, touch } from "./test-workspace.ts";
 
 describe("keepLibraryVoice", () => {
-  it("stores a minted preview, not a clone source", () => {
+  it("keeps an instruct design as the one clone source", () => {
     const root = tempWorkspace();
     const src = path.join(voiceCandidateRoot(root), "trial.wav");
     touch(src, "wav-bytes");
     const asset = keepLibraryVoice(
-      { id: "voice.prompt", sourceAbs: src, said: "hello there", label: "讲解女声" },
+      {
+        id: "voice.prompt",
+        sourceAbs: src,
+        said: "hello there",
+        label: "讲解女声",
+        origin: "instruct",
+        style: "青春女声",
+      },
       root,
     );
     assert.equal(asset.file, "voices/prompt-zh.wav");
     assert.equal(asset.text, "hello there");
-    assert.equal(asset.files?.clone, undefined);
+    assert.equal(asset.style, "青春女声");
+    assert.equal(asset.files, undefined);
     assert.equal(fs.readFileSync(path.join(root, "library/voices/prompt-zh.wav"), "utf8"), "wav-bytes");
     assert.equal(loadLibrary(root).filter((item) => item.kind === "voice").length, 1);
-    assert.equal(voiceParts(asset).preview?.file, "voices/prompt-zh.wav");
-    assert.equal(voiceParts(asset).clone, undefined);
+    assert.equal(voiceCloneSource(asset).origin, "instruct");
+    assert.equal(voiceCloneSource(asset).file, "voices/prompt-zh.wav");
   });
 
-  it("keeps a recording as clone without replacing preview", () => {
+  it("upload replaces the clone and clears instruct", () => {
     const root = tempWorkspace();
-    const preview = path.join(voiceCandidateRoot(root), "prev.wav");
-    const clone = path.join(voiceCandidateRoot(root), "clone.wav");
-    touch(preview, "preview");
-    touch(clone, "clone");
-    keepLibraryVoice({ id: "voice.prompt", sourceAbs: preview, said: "试听稿", as: "preview" }, root);
+    const designed = path.join(voiceCandidateRoot(root), "designed.wav");
+    const uploaded = path.join(voiceCandidateRoot(root), "uploaded.wav");
+    touch(designed, "designed");
+    touch(uploaded, "uploaded");
+    keepLibraryVoice(
+      { id: "voice.prompt", sourceAbs: designed, said: "铸出的", origin: "instruct", style: "青春女声" },
+      root,
+    );
     const asset = keepLibraryVoice(
-      { id: "voice.prompt", sourceAbs: clone, said: "克隆稿", as: "clone" },
+      { id: "voice.prompt", sourceAbs: uploaded, said: "录音稿", origin: "upload" },
       root,
     );
     assert.equal(asset.file, "voices/prompt-zh.wav");
-    assert.equal(asset.text, "试听稿");
-    assert.equal(asset.files?.clone, "voices/voice.prompt.clone.wav");
-    assert.equal(asset.texts?.clone, "克隆稿");
-    assert.equal(fs.readFileSync(path.join(root, "library/voices/voice.prompt.clone.wav"), "utf8"), "clone");
+    assert.equal(asset.text, "录音稿");
+    assert.equal(asset.style, "");
+    assert.equal(voiceCloneSource(asset).origin, "upload");
+    assert.equal(fs.readFileSync(path.join(root, "library/voices/prompt-zh.wav"), "utf8"), "uploaded");
   });
 
   it("opens a new pack when the id is new", () => {

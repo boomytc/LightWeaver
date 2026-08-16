@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { listVoiceSets, patchLibraryAsset, resolveVoicePrompt, voiceCloneText, voiceHifiRef, voiceParts, voiceSetId, voiceStyle } from "./assets.ts";
+import { listVoiceSets, patchLibraryAsset, resolveVoicePrompt, voiceCloneSource, voiceCloneText, voiceHifiRef, voiceSetId, voiceStyle } from "./assets.ts";
 import { tempWorkspace, touch } from "./test-workspace.ts";
 import type { Asset } from "./schema.ts";
 
@@ -47,7 +47,7 @@ describe("voice packs", () => {
     assert.equal(next.locale, undefined);
   });
 
-  it("treats leftover locale wavs as preview, not clone", () => {
+  it("treats leftover locale wavs as the one clone source", () => {
     const asset: Asset = {
       id: "voice.prompt",
       kind: "voice",
@@ -55,25 +55,24 @@ describe("voice packs", () => {
       texts: { zh: "中文稿", en: "English prompt" },
       style: "青春女声",
     };
-    const parts = voiceParts(asset);
-    assert.equal(parts.preview?.file, "voices/prompt-zh.wav");
-    assert.equal(parts.preview?.said, "中文稿");
-    assert.equal(parts.clone, undefined);
-    assert.equal(parts.instruct, "青春女声");
+    const source = voiceCloneSource(asset);
+    assert.equal(source.file, "voices/prompt-zh.wav");
+    assert.equal(source.said, "中文稿");
+    assert.equal(source.instruct, "青春女声");
+    assert.equal(source.origin, "instruct");
     assert.equal(voiceHifiRef(asset)?.file, "voices/prompt-zh.wav");
   });
 
-  it("prefers preview over clone for Hi-Fi", () => {
+  it("treats a wav without instruct as an uploaded clone", () => {
     const asset: Asset = {
       id: "voice.prompt",
       kind: "voice",
       file: "voices/voice.prompt.wav",
-      text: "试听稿",
-      files: { clone: "voices/voice.prompt.clone.wav" },
-      texts: { clone: "克隆稿" },
+      text: "录音稿",
     };
-    assert.equal(voiceHifiRef(asset)?.file, "voices/voice.prompt.wav");
-    assert.equal(voiceHifiRef(asset)?.said, "试听稿");
+    const source = voiceCloneSource(asset);
+    assert.equal(source.origin, "upload");
+    assert.equal(voiceHifiRef(asset)?.said, "录音稿");
   });
 
   it("falls back to the other side of a voice pack", () => {

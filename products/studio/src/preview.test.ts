@@ -108,12 +108,12 @@ describe("voices catalog contract", () => {
     assert.match(page, /instruct/);
     assert.match(page, /MODELBEST_URL/);
     assert.match(page, /keepVoice/);
-    assert.match(page, /收下为试听/);
-    assert.match(page, /收为克隆源/);
-    assert.match(page, /instruct 铸出的放试听/);
+    assert.match(page, /收下为克隆源/);
+    assert.match(page, /二选一/);
+    assert.match(page, /type="radio"/);
     assert.doesNotMatch(page, /备声/);
     assert.doesNotMatch(page, /主声/);
-    assert.doesNotMatch(page, /收下为克隆源/);
+    assert.doesNotMatch(page, /收下为试听/);
   });
 });
 

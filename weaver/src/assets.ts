@@ -42,38 +42,37 @@ export function resolveAssetFile(
   return { asset, relPath, scopeRoot, absPath: path.join(scopeRoot, relPath) };
 }
 
-/** files.clone / texts.clone = 上传或从片子提出的克隆源。file/text = 试听。 */
-export const VOICE_CLONE_KEY = "clone";
+export type VoiceOrigin = "upload" | "instruct";
 
 export type VoiceClip = { file: string; said: string };
 
-export type VoiceParts = {
-  clone?: VoiceClip;
-  preview?: VoiceClip;
+export type VoiceClone = {
+  file?: string;
+  said: string;
   instruct: string;
+  origin: VoiceOrigin;
 };
 
-function clipOf(file?: string, said?: string): VoiceClip | undefined {
-  return file ? { file, said: (said ?? "").trim() } : undefined;
-}
-
-/** 克隆源只认 files.clone。其余 wav（含旧的 files.zh/en）都是试听。 */
-export function voiceParts(asset?: Asset): VoiceParts {
-  if (!asset) return { instruct: "" };
+/** 一套声只有一支克隆源。有 instruct 就是铸出来的；没有就是上传的。 */
+export function voiceCloneSource(asset?: Asset): VoiceClone {
+  if (!asset) return { said: "", instruct: "", origin: "instruct" };
   const instruct = (asset.style || asset.styles?.zh || asset.styles?.en || "").trim();
-  const clone = clipOf(asset.files?.[VOICE_CLONE_KEY], asset.texts?.[VOICE_CLONE_KEY]);
-  let preview = clipOf(asset.file, asset.text);
-  if (!preview) {
-    const entry = Object.entries(asset.files ?? {}).find(([key, file]) => key !== VOICE_CLONE_KEY && file);
-    if (entry) preview = clipOf(entry[1], asset.texts?.[entry[0]] ?? asset.text);
+  let file = asset.file;
+  let said = (asset.text ?? "").trim();
+  if (!file) {
+    const entry = Object.entries(asset.files ?? {}).find(([, item]) => item);
+    if (entry) {
+      file = entry[1];
+      said = (asset.texts?.[entry[0]] ?? said).trim();
+    }
   }
-  return { clone, preview, instruct };
+  return { file, said, instruct, origin: instruct ? "instruct" : "upload" };
 }
 
-/** 出片 Hi-Fi：试听优先（instruct 铸出的身份），没有再克隆源。 */
+/** 出片 Hi-Fi 用的那支克隆源。 */
 export function voiceHifiRef(asset?: Asset): VoiceClip | undefined {
-  const parts = voiceParts(asset);
-  return parts.preview ?? parts.clone;
+  const source = voiceCloneSource(asset);
+  return source.file ? { file: source.file, said: source.said } : undefined;
 }
 
 /** 出片用的那支 wav。VoxCPM2 不按语言标签分流。 */

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { filmsProductRoot, firstPartyRoot, libraryRoot, userRoot, voiceCandidateRoot, weaverRoot } from "./paths.ts";
-import { loadLibrary, upsertLibraryAsset, VOICE_CLONE_KEY, voiceParts } from "./assets.ts";
+import { loadLibrary, upsertLibraryAsset, voiceCloneSource, type VoiceOrigin } from "./assets.ts";
 import { loadProject } from "./project.ts";
 import { parseTtsResult } from "./tts.ts";
 import type { Asset } from "./schema.ts";
@@ -29,21 +29,17 @@ export type VoiceMintResult = {
   style: string;
 };
 
-export type VoiceKeepAs = "preview" | "clone";
-
 export type KeepLibraryVoiceInput = {
   id: string;
   sourceAbs: string;
-  as?: VoiceKeepAs;
+  origin?: VoiceOrigin;
   label?: string;
   said?: string;
   style?: string;
 };
 
-export function voiceKeepRel(id: string, as: VoiceKeepAs, current?: string): string {
-  if (current) return current;
-  const name = as === "clone" ? `${id}.clone.wav` : `${id}.wav`;
-  return path.posix.join("voices", name);
+export function voiceKeepRel(id: string, current?: string): string {
+  return current || path.posix.join("voices", `${id}.wav`);
 }
 
 export function upsertVoicePack(
@@ -53,18 +49,15 @@ export function upsertVoicePack(
   if (!ID_RE.test(input.id)) throw new Error("资产 id 必须是 dotted/kebab 小写");
   const current = loadLibrary(root).find((item) => item.id === input.id);
   if (current && current.kind !== "voice") throw new Error(`${input.id} 不是音色`);
-  const parts = voiceParts(current);
+  const source = voiceCloneSource(current);
   return upsertLibraryAsset(
     {
       id: input.id,
       kind: "voice",
       label: input.label ?? current?.label ?? input.id,
-      style: input.style ?? current?.style ?? parts.instruct,
-      file: current?.file,
-      text: current?.text,
-      files: current?.files,
-      texts: current?.texts,
-      styles: current?.styles,
+      style: input.style ?? source.instruct,
+      file: source.file,
+      text: current?.text ?? source.said,
     },
     root,
   );
@@ -125,48 +118,22 @@ export function keepLibraryVoice(input: KeepLibraryVoiceInput, root = weaverRoot
   const assets = loadLibrary(root);
   const current = assets.find((item) => item.id === input.id);
   if (current && current.kind !== "voice") throw new Error(`${input.id} 不是音色`);
-  const parts = voiceParts(current);
-  const as: VoiceKeepAs = input.as ?? "preview";
-  const currentRel = as === "clone" ? parts.clone?.file : parts.preview?.file;
-  const rel = voiceKeepRel(input.id, as, currentRel);
+  const source = voiceCloneSource(current);
+  const origin: VoiceOrigin = input.origin ?? (input.style?.trim() ? "instruct" : "upload");
+  const rel = voiceKeepRel(input.id, source.file);
   const dest = path.join(libraryRoot(root), rel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   if (path.resolve(input.sourceAbs) !== path.resolve(dest)) {
     fs.copyFileSync(input.sourceAbs, dest);
   }
-  const cloneFile = as === "clone" ? rel : parts.clone?.file;
-  const cloneSaid = as === "clone" ? (input.said ?? parts.clone?.said ?? "") : (parts.clone?.said ?? "");
-  const files = { ...(current?.files ?? {}) };
-  const texts = { ...(current?.texts ?? {}) };
-  if (as === "clone") {
-    files[VOICE_CLONE_KEY] = rel;
-    texts[VOICE_CLONE_KEY] = cloneSaid;
-    return upsertLibraryAsset(
-      {
-        id: input.id,
-        kind: "voice",
-        label: input.label ?? current?.label ?? input.id,
-        file: current?.file,
-        text: current?.text,
-        style: input.style ?? current?.style ?? parts.instruct,
-        files,
-        texts,
-      },
-      root,
-    );
-  }
-  const nextFiles = cloneFile ? { [VOICE_CLONE_KEY]: cloneFile } : undefined;
-  const nextTexts = cloneFile ? { [VOICE_CLONE_KEY]: cloneSaid } : undefined;
   return upsertLibraryAsset(
     {
       id: input.id,
       kind: "voice",
       label: input.label ?? current?.label ?? input.id,
       file: rel,
-      text: input.said ?? parts.preview?.said ?? "",
-      style: input.style ?? current?.style ?? parts.instruct,
-      files: nextFiles,
-      texts: nextTexts,
+      text: input.said ?? source.said,
+      style: origin === "instruct" ? (input.style ?? source.instruct) : "",
     },
     root,
   );
