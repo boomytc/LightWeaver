@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { keepLibraryVoice, resolveKeepSource, voiceIdFromName } from "./voice-mint.ts";
-import { loadLibrary, voiceCloneSource } from "./assets.ts";
+import { keepLibraryVoice, resolveKeepSource, updateLibraryVoice, voiceIdFromName } from "./voice-mint.ts";
+import { loadLibrary, removeLibraryAsset, voiceCloneSource } from "./assets.ts";
 import { voiceCandidateRoot } from "./paths.ts";
 import { tempWorkspace, touch } from "./test-workspace.ts";
 
@@ -64,6 +64,7 @@ describe("keepLibraryVoice", () => {
     );
     assert.equal(asset.label, "讲解男声");
     assert.equal(asset.id, "voice.pack");
+    touch(src, "bytes");
     assert.throws(
       () => keepLibraryVoice({ sourceAbs: src, said: "另一稿", label: "讲解男声", origin: "upload" }, root),
       /已在音色库里/,
@@ -99,6 +100,39 @@ describe("keepLibraryVoice", () => {
     assert.equal(asset.text, "自动转写稿");
     assert.equal(asset.label, "讲解男声");
     assert.equal(voiceCloneSource(asset).origin, "upload");
+  });
+
+  it("drops the trial wav after keep", () => {
+    const root = tempWorkspace();
+    const src = path.join(voiceCandidateRoot(root), "drop-me.wav");
+    touch(src, "bytes");
+    keepLibraryVoice({ sourceAbs: src, said: "稿", label: "临时声", origin: "upload" }, root);
+    assert.equal(fs.existsSync(src), false);
+  });
+
+  it("renames a voice without changing the id", () => {
+    const root = tempWorkspace();
+    const src = path.join(voiceCandidateRoot(root), "named.wav");
+    touch(src, "bytes");
+    keepLibraryVoice({ sourceAbs: src, said: "稿", label: "旧名", origin: "upload" }, root);
+    const next = updateLibraryVoice("voice.pack", { label: "新名", text: "改正文" }, root);
+    assert.equal(next.id, "voice.pack");
+    assert.equal(next.label, "新名");
+    assert.equal(next.text, "改正文");
+    assert.throws(() => updateLibraryVoice("voice.pack", { label: "讲解女声" }, root), /已在音色库里/);
+    assert.throws(() => updateLibraryVoice("voice.pack", { text: "  " }, root), /文本不能空/);
+  });
+
+  it("removes the library wav with the catalog row", () => {
+    const root = tempWorkspace();
+    const src = path.join(voiceCandidateRoot(root), "gone.wav");
+    touch(src, "bytes");
+    const asset = keepLibraryVoice({ sourceAbs: src, said: "稿", label: "可删", origin: "upload" }, root);
+    const dest = path.join(root, "library", asset.file!);
+    assert.ok(fs.existsSync(dest));
+    removeLibraryAsset(asset.id, root);
+    assert.equal(fs.existsSync(dest), false);
+    assert.equal(loadLibrary(root).some((item) => item.id === asset.id), false);
   });
 
   it("refuses a file outside the workspace trees", () => {

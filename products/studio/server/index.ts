@@ -16,6 +16,8 @@ import {
   loadProject,
   moveScene,
   patchLibraryAsset,
+  removeLibraryAsset,
+  updateLibraryVoice,
   patchScene,
   projectPaths,
   projectSummary,
@@ -433,7 +435,22 @@ app.get("/api/media/candidate/:file", (req, res) => {
 
 app.patch("/api/library/assets/:id", (req, res) => {
   try {
-    const asset = patchLibraryAsset(param(req.params.id), {
+    const id = param(req.params.id);
+    const current = loadLibrary(root).find((item) => item.id === id);
+    if (current?.kind === "voice") {
+      res.json(
+        updateLibraryVoice(
+          id,
+          {
+            label: typeof req.body?.label === "string" ? req.body.label : undefined,
+            text: typeof req.body?.text === "string" ? req.body.text : undefined,
+          },
+          root,
+        ),
+      );
+      return;
+    }
+    const asset = patchLibraryAsset(id, {
       label: typeof req.body?.label === "string" ? req.body.label : undefined,
       text: typeof req.body?.text === "string" ? req.body.text : undefined,
       style: typeof req.body?.style === "string" ? req.body.style : undefined,
@@ -442,6 +459,15 @@ app.patch("/api/library/assets/:id", (req, res) => {
       styles: stringMap(req.body?.styles),
     });
     res.json(asset);
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.delete("/api/library/assets/:id", (req, res) => {
+  try {
+    const removed = removeLibraryAsset(param(req.params.id), root);
+    res.json({ ok: true, id: removed.id, label: removed.label ?? removed.id });
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
   }

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { filmsProductRoot, firstPartyRoot, libraryRoot, userRoot, voiceCandidateRoot, weaverRoot } from "./paths.ts";
-import { loadLibrary, upsertLibraryAsset, voiceCloneSource, type VoiceOrigin } from "./assets.ts";
+import { loadLibrary, patchLibraryAsset, upsertLibraryAsset, voiceCloneSource, type VoiceOrigin } from "./assets.ts";
 import { loadProject } from "./project.ts";
 import { parseTtsResult } from "./tts.ts";
 import { ensureVoiceSaid, type TranscribeFn } from "./asr.ts";
@@ -166,20 +166,47 @@ export function keepLibraryVoice(
   const rel = voiceKeepRel(id, source.file);
   const dest = path.join(libraryRoot(root), rel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const said = ensureVoiceSaid(input.sourceAbs, input.said, root, transcribe);
   if (path.resolve(input.sourceAbs) !== path.resolve(dest)) {
     fs.copyFileSync(input.sourceAbs, dest);
   }
-  return upsertLibraryAsset(
+  const asset = upsertLibraryAsset(
     {
       id,
       kind: "voice",
       label: wantedName || current?.label || id,
       file: rel,
-      text: ensureVoiceSaid(input.sourceAbs, input.said, root, transcribe),
+      text: said,
       style: origin === "instruct" ? (input.style ?? source.instruct) : "",
     },
     root,
   );
+  const trialRoot = path.resolve(voiceCandidateRoot(root));
+  const src = path.resolve(input.sourceAbs);
+  if (src === trialRoot || src.startsWith(`${trialRoot}${path.sep}`)) {
+    fs.rmSync(src, { force: true });
+  }
+  return asset;
+}
+
+export function updateLibraryVoice(
+  id: string,
+  patch: { label?: string; text?: string },
+  root = weaverRoot(),
+): Asset {
+  const assets = loadLibrary(root);
+  const current = assets.find((item) => item.id === id);
+  if (!current) throw new Error(`找不到库资产 ${id}`);
+  if (current.kind !== "voice") throw new Error(`${id} 不是音色`);
+  const label = patch.label !== undefined ? patch.label.trim() : undefined;
+  const text = patch.text !== undefined ? patch.text.trim() : undefined;
+  if (label !== undefined) {
+    if (!label) throw new Error("先写名称");
+    const clash = assets.find((item) => item.kind === "voice" && item.id !== id && voiceNameOf(item) === label);
+    if (clash) throw new Error(`${label} 已在音色库里`);
+  }
+  if (text !== undefined && !text) throw new Error("文本不能空");
+  return patchLibraryAsset(id, { label, text }, root);
 }
 
 export function resolveKeepSource(

@@ -362,6 +362,17 @@ button:disabled {
   background: var(--bg-elevated);
   box-shadow: var(--shadow);
 }
+.voice-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
 .modal {
   width: min(440px, calc(100vw - 32px));
   margin: auto;
@@ -672,6 +683,13 @@ html[data-theme="light"] .modal::backdrop {
 }
 html[data-theme="light"] .btn-primary { color: #fff; }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.05); background: var(--accent); }
+.btn-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, var(--bg-elevated));
+}
 
 .pane { min-height: 0; }
 

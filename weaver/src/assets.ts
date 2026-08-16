@@ -157,6 +157,25 @@ export function upsertLibraryAsset(asset: Asset, root = weaverRoot()): Asset {
   return asset;
 }
 
+export function removeLibraryAsset(id: string, root = weaverRoot()): Asset {
+  const assets = loadLibrary(root);
+  const current = assets.find((item) => item.id === id);
+  if (!current) throw new Error(`找不到库资产 ${id}`);
+  const files = new Set<string>();
+  if (current.file) files.add(current.file);
+  for (const rel of Object.values(current.files ?? {})) {
+    if (rel) files.add(rel);
+  }
+  saveLibrary(
+    assets.filter((item) => item.id !== id),
+    root,
+  );
+  for (const rel of files) {
+    fs.rmSync(path.join(libraryRoot(root), rel), { force: true });
+  }
+  return current;
+}
+
 export function voiceCloneText(asset: Asset, locale?: string): string {
   if (locale && asset.texts?.[locale]) return asset.texts[locale] ?? "";
   if (locale && asset.locale === locale && asset.text) return asset.text;

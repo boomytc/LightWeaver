@@ -283,7 +283,14 @@ export function Voices() {
           {packs.length ? (
             <div className="stack">
               {packs.map((asset) => (
-                <VoiceLibraryCard key={asset.id} asset={asset} />
+                <VoiceLibraryCard
+                  key={asset.id}
+                  asset={asset}
+                  taken={(name) => packs.some((item) => item.id !== asset.id && (item.label ?? item.id).trim() === name)}
+                  onChanged={reload}
+                  onError={setError}
+                  onMessage={setMessage}
+                />
               ))}
             </div>
           ) : (
@@ -430,31 +437,92 @@ function OriginPick({
   );
 }
 
-function VoiceLibraryCard({ asset }: { asset: Asset }) {
+function VoiceLibraryCard({
+  asset,
+  taken,
+  onChanged,
+  onError,
+  onMessage,
+}: {
+  asset: Asset;
+  taken: (name: string) => boolean;
+  onChanged: () => Promise<void>;
+  onError: (message?: string) => void;
+  onMessage: (message?: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const source = voiceCloneSource(asset);
   const origin = source.origin === "instruct" ? "设计指令合成" : "上传";
+  const name = asset.label ?? asset.id;
+
+  async function remove() {
+    if (!window.confirm(`删除后，点过这套声的片子会缺音色。确定删除「${name}」？`)) return;
+    try {
+      await api.removeLibrary(asset.id);
+      onError(undefined);
+      onMessage(`已删除 ${name}`);
+      setOpen(false);
+      await onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   return (
     <>
       <article className="voice-row">
         <div>
-          <div className="item-title">{asset.label ?? asset.id}</div>
+          <div className="item-title">{name}</div>
           <div className="card-id">Hi-Fi · {origin}</div>
         </div>
-        <button type="button" className="btn" onClick={() => setOpen(true)}>
-          详情
-        </button>
+        <div className="voice-row-actions">
+          <button type="button" className="btn" onClick={() => setOpen(true)}>
+            详情
+          </button>
+          <button type="button" className="btn btn-danger" onClick={() => void remove()}>
+            删除
+          </button>
+        </div>
       </article>
-      {open ? <VoiceDetail asset={asset} onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        <VoiceDetail
+          asset={asset}
+          taken={taken}
+          onClose={() => setOpen(false)}
+          onChanged={onChanged}
+          onError={onError}
+          onMessage={onMessage}
+          onRemove={() => void remove()}
+        />
+      ) : null}
     </>
   );
 }
 
-function VoiceDetail({ asset, onClose }: { asset: Asset; onClose: () => void }) {
+function VoiceDetail({
+  asset,
+  taken,
+  onClose,
+  onChanged,
+  onError,
+  onMessage,
+  onRemove,
+}: {
+  asset: Asset;
+  taken: (name: string) => boolean;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+  onError: (message?: string) => void;
+  onMessage: (message?: string) => void;
+  onRemove: () => void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const source = voiceCloneSource(asset);
   const origin = source.origin === "instruct" ? "设计指令合成" : "上传";
   const titleId = `voice-detail-${asset.id}`;
+  const [name, setName] = useState(asset.label ?? asset.id);
+  const [said, setSaid] = useState(source.said);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const el = dialog.current;
@@ -470,6 +538,35 @@ function VoiceDetail({ asset, onClose }: { asset: Asset; onClose: () => void }) 
       if (el.open) el.close();
     };
   }, []);
+
+  async function save() {
+    const label = name.trim();
+    const text = said.trim();
+    if (!label) {
+      onError("先写名称");
+      return;
+    }
+    if (taken(label)) {
+      onError(`${label} 已在音色库里`);
+      return;
+    }
+    if (!text) {
+      onError("文本不能空");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.patchLibrary(asset.id, { label, text });
+      onError(undefined);
+      onMessage(`已保存 ${label}`);
+      await onChanged();
+      onClose();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <dialog
@@ -491,26 +588,34 @@ function VoiceDetail({ asset, onClose }: { asset: Asset; onClose: () => void }) 
           </span>
         </div>
         {source.file ? <audio controls preload="metadata" src={libraryMedia(source.file)} /> : null}
-        {source.said || source.instruct ? (
+        <label className="field">
+          <span>名称</span>
+          <input value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>文本</span>
+          <input value={said} onChange={(event) => setSaid(event.target.value)} />
+        </label>
+        {source.instruct ? (
           <dl className="voice-dl">
-            {source.said ? (
-              <div>
-                <dt>文本</dt>
-                <dd>{source.said}</dd>
-              </div>
-            ) : null}
-            {source.instruct ? (
-              <div>
-                <dt>设计指令</dt>
-                <dd>{source.instruct}</dd>
-              </div>
-            ) : null}
+            <div>
+              <dt>设计指令</dt>
+              <dd>{source.instruct}</dd>
+            </div>
           </dl>
         ) : null}
-        <div className="create-actions">
-          <button type="button" className="btn" onClick={onClose}>
-            关闭
+        <div className="modal-actions">
+          <button type="button" className="btn btn-danger" onClick={onRemove}>
+            删除
           </button>
+          <div className="create-actions">
+            <button type="button" className="btn" onClick={onClose}>
+              关闭
+            </button>
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>
+              {busy ? "正在保存…" : "保存"}
+            </button>
+          </div>
         </div>
       </div>
     </dialog>

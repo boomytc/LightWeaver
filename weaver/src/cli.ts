@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import { parseArgs } from "node:util";
-import { addAsset, loadLibrary, patchLibraryAsset, resolveVoicePrompt } from "./assets.ts";
+import { addAsset, loadLibrary, patchLibraryAsset, removeLibraryAsset, resolveVoicePrompt } from "./assets.ts";
 import { runAsr } from "./asr.ts";
-import { voiceNameOf } from "./voice-mint.ts";
+import { updateLibraryVoice, voiceNameOf } from "./voice-mint.ts";
 import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
@@ -364,7 +364,29 @@ function main(): void {
       );
       return;
     }
-    fail(`用法: weaver asset list|add（kind: ${ASSET_KINDS.join(", ")}）`);
+    if (sub === "set") {
+      if (!values.library) fail("用法: weaver asset set --library --id <id> [--label] [--text]");
+      const id = str(values, "id") ?? "";
+      if (!id) fail("需要 --id");
+      print(updateLibraryVoice(id, { label: str(values, "label"), text: str(values, "text") }, root));
+      return;
+    }
+    if (sub === "rm") {
+      if (!values.library) fail("用法: weaver asset rm --library --id <id> 或 --label <名称>");
+      const id = str(values, "id");
+      const label = str(values, "label");
+      const assets = loadLibrary(root);
+      const asset = id
+        ? assets.find((item) => item.id === id)
+        : label
+          ? assets.find((item) => item.kind === "voice" && voiceNameOf(item) === label.trim())
+          : undefined;
+      if (!asset) fail("用法: weaver asset rm --library --id <id> 或 --label <名称>");
+      const removed = removeLibraryAsset(asset.id, root);
+      print({ ok: true, id: removed.id, label: removed.label ?? removed.id });
+      return;
+    }
+    fail(`用法: weaver asset list|add|set|rm（kind: ${ASSET_KINDS.join(", ")}）`);
   }
 
   if (command === "recipe") {
@@ -520,7 +542,7 @@ function main(): void {
   weaver voice set|asr
   weaver langs set
   weaver kit set
-  weaver asset list|add
+  weaver asset list|add|set|rm
   weaver validate [id]
   weaver capture [--project]
   weaver publish --project

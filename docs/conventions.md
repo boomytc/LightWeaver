@@ -46,7 +46,7 @@ assets/outputs/           渲染 mp4（不提交）
 - **点名资产：** `film.voices` 各语言同一套音色；`film.langs` 是要出的语言（可只出中文或只出英文）；`film.kit` 是人勾选的 `library:element|reference`。agent 先读这三项再写片子。Studio `/voices` `/library` 监管库，`/f/<id>` 点名。
 - **要点板：** title / close 的正文是 `points`（2–4 条），按旁白进度出现。lede 只留一句。对照条写成 `左 || 右`。不要一段 lede 铺满，不要另写 mermaid 渲染器
 - 静帧：`scenes[].still = "asset:still.<id>"`
-- 音色套：一套引用 `library:voice.prompt`。克隆源二选一：上传录音，或写设计指令铸完再收。上传后自动转写「文本」（Qwen3-ASR，人可改再收）。铸出的 wav 就是克隆源。出片固定 Hi-Fi clone（`ref_audio` + 文本）。人在 Studio `/voices` 铸、听、留；`tts` 不改库，不加 `--seed`。缺文本：`weaver voice asr --id` 或 `--label`。要出的语言用 `weaver langs set --project <id> --langs zh`。VoxCPM2 控制台：https://platform.modelbest.cn/console/login?ref=B08B4DDF
+- 音色套：一套引用 `library:voice.prompt`。克隆源二选一：上传录音，或写设计指令铸完再收。上传后自动转写「文本」（Qwen3-ASR，人可改再收）。铸出的 wav 就是克隆源。出片固定 Hi-Fi clone（`ref_audio` + 文本）。人在 Studio `/voices` 铸、听、留；详情可改名称和文本，可删。`tts` 不改库，不加 `--seed`。缺文本：`weaver voice asr --id` 或 `--label`。要出的语言用 `weaver langs set --project <id> --langs zh`。VoxCPM2 控制台：https://platform.modelbest.cn/console/login?ref=B08B4DDF
 - 有 `publish.dir` 才发布到 LightUI `studies/<slug>/references/`
 
 ```bash

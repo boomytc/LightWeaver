@@ -115,6 +115,10 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((res) => parse<Asset>(res)),
+  removeLibrary: (id: string) =>
+    fetch(`/api/library/assets/${encodeURIComponent(id)}`, { method: "DELETE" }).then((res) =>
+      parse<{ ok: boolean; id: string; label: string }>(res),
+    ),
   publish: (id: string, locale?: string) =>
     fetch(`/api/projects/${encodeURIComponent(id)}/publish`, {
       method: "POST",
