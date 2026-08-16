@@ -34,7 +34,7 @@ describe("buildAgentBrief", () => {
       voices: {},
       kit: [],
     });
-    assert.match(text, /还没有点名/);
+    assert.match(text, /片子：未指定/);
     assert.match(text, /方法卡：未点名/);
     assert.match(text, /project create/);
   });

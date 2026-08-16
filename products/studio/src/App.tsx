@@ -24,7 +24,7 @@ export function App() {
           <p className="eyebrow">404</p>
           <h1 className="page-title">没有这个页面</h1>
           <p className="lede">
-            找不到 {route.path}。回 <Link href="/">首页</Link>，或去 <Link href="/films">片子</Link>。
+            找不到 {route.path}。回 <Link href="/">工作台</Link>，或去 <Link href="/films">片子</Link>。
           </p>
         </div>
       ) : null}

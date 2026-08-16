@@ -2,16 +2,16 @@
 
 Local control site for LightWeaver (`http://127.0.0.1:5175/`).
 
-Humans pick a combo on `/` (voices + kit + film-level recipe) and copy
-the agent brief. They supervise catalogs at `/voices` and `/library`.
-Agents write scenes and generate video via weaver. This site does not
-author or render films.
+The workbench (`/`) only picks a combo (voices + kit + film-level recipe)
+and copies the agent brief. It does not write films. Catalogs stay at
+`/voices` `/library` `/methods` (not top nav). `/films` is instances.
+Agents write scenes and generate video via weaver.
 
 ## Routes
 
 | Path | Who | What |
 | --- | --- | --- |
-| `/` | both | compose voice + kit + recipe; copy agent brief |
+| `/` 工作台 | human | pick combo; copy brief; do not persist |
 | `/films` `/f/<id>` | human names; agent produces | voices + kit + recipe; review scenes/mp4 |
 | `/voices` | human | listen, add, edit clone text/style |
 | `/library` | human | accumulate elements and references |

@@ -22,7 +22,7 @@ npx weaver project list --json
 npx weaver project show <id> --json   # paths + renderable
 ```
 
-Studio 是本机控制站（人选音色 / 素材 / 方法卡，复制说明给 agent；出片仍走 agent）：
+Studio 工作台只点名组合并复制给 agent；片子页看实例。出片仍走 agent：
 
 ```bash
 make install

@@ -26,7 +26,7 @@ export function buildAgentBrief(input: BriefInput): string {
   if (input.projectId) {
     lines.push(`片子：${input.projectId}${input.title ? `（${input.title}）` : ""}`);
   } else {
-    lines.push("片子：还没有点名。先 weaver project create <kebab-id> --task study-explainer，再按下面绑定。");
+    lines.push("片子：未指定。agent 按任务新建，或选用已有片子后再绑定这组。");
   }
 
   lines.push(`任务：${task}`);
