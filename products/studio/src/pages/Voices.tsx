@@ -72,7 +72,7 @@ export function Voices() {
   function keepName(): string | undefined {
     const name = label.trim();
     if (!name) {
-      setError("先写名称再收进音色库");
+      setError("先写名称再保存");
       return;
     }
     if (taken(name)) {
@@ -102,7 +102,7 @@ export function Voices() {
         cfgValue: Number.isFinite(Number(cfgValue)) && cfgValue.trim() ? Number(cfgValue) : undefined,
       });
       setCandidate(minted);
-      setMessage(`已合成试听 ${minted.seconds.toFixed(1)} 秒，听完再收进音色库`);
+      setMessage(`已合成试听 ${minted.seconds.toFixed(1)} 秒`);
       setError(undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -123,7 +123,7 @@ export function Voices() {
         style: instruct,
         source: { kind: "candidate", rel: candidate.rel },
       });
-      setMessage(`已把 ${name} 收进音色库`);
+      setMessage(`已保存 ${name}`);
       setError(undefined);
       resetCreate();
       await reload();
@@ -146,13 +146,11 @@ export function Voices() {
       setSaid(staged.text);
       setError(staged.error);
       if (staged.error) {
-        setMessage("上传后直接听。转写没写成，请手写这句再说的话再收");
+        setMessage("转写没写成，请手写这句");
       } else if (staged.asr) {
-        setMessage(
-          `${replace ? "已按新录音重新转写" : "已转写文本"}，听完可改再收进音色库${staged.seconds ? ` · ${staged.seconds.toFixed(1)} 秒` : ""}`,
-        );
+        setMessage(replace ? "已按新录音重新转写" : "已转写文本");
       } else {
-        setMessage("上传后直接听。文本用你写的。听完再收");
+        setMessage("已用你写的文本");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -176,7 +174,7 @@ export function Voices() {
         said: said.trim(),
         source: { kind: "candidate", rel: candidate.rel },
       });
-      setMessage(`已把 ${name} 收进音色库`);
+      setMessage(`已保存 ${name}`);
       setError(undefined);
       resetCreate();
       await reload();
@@ -221,31 +219,16 @@ export function Voices() {
               setCandidate(undefined);
             }}
           />
-          <div className="form-grid">
-            {how === "instruct" ? (
+          {how === "instruct" ? (
+            <>
               <label className="field">
                 <span>设计指令</span>
                 <input value={instruct} onChange={(event) => setInstruct(event.target.value)} placeholder="例如 青春女声，吐字清晰" />
               </label>
-            ) : candidate ? null : (
-              <label className="field">
-                <span>文本</span>
-                <input
-                  value={said}
-                  onChange={(event) => setSaid(event.target.value)}
-                  placeholder={asr?.ready ? "可空，上传后自动转写" : "转写未就绪，先手写这句"}
-                />
-              </label>
-            )}
-            {how === "instruct" ? (
               <label className="field">
                 <span>文本</span>
                 <input value={trial} onChange={(event) => setTrial(event.target.value)} />
               </label>
-            ) : null}
-          </div>
-          {how === "instruct" ? (
-            <>
               <div className="create-opts">
                 <label className={denoise ? "kit-item is-on" : "kit-item"}>
                   <input type="checkbox" checked={denoise} onChange={(event) => setDenoise(event.target.checked)} />
@@ -260,35 +243,31 @@ export function Voices() {
                   <input value={cfgValue} onChange={(event) => setCfgValue(event.target.value)} placeholder="1–3" />
                 </label>
               </div>
-              <p className="item-meta">引导强度可空。加大更贴指令和稿，减小更自然，太高容易噪。</p>
-              <div className="create-actions">
+              <div className="create-media">
                 <button type="button" className="btn" disabled={busy || !canMint} onClick={() => void mint()}>
                   {busy ? "正在合成…" : "合成试听"}
                 </button>
+                {candidate ? <audio controls preload="metadata" src={candidateMedia(candidate.rel)} /> : null}
               </div>
               {candidate ? (
-                <div className="create-result">
-                  <div className="voice-main">
-                    <div>
-                      <div className="item-title">试听</div>
-                      <p className="item-meta">还没进库。听完再收。 · {candidate.seconds.toFixed(1)} 秒</p>
-                    </div>
-                    <audio controls preload="metadata" src={candidateMedia(candidate.rel)} />
-                  </div>
-                  <div className="create-actions">
-                    <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void keepDesigned()}>
-                      收下进音色库
-                    </button>
-                  </div>
+                <div className="create-save">
+                  <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void keepDesigned()}>
+                    保存音色
+                  </button>
                 </div>
               ) : null}
             </>
           ) : (
             <>
-              <p className="item-meta">
-                {asr?.ready ? "上传后直接听，空着的文本会自动转写，改完再收。" : (asr?.hint ?? "转写未就绪，上传后请手写文本再收。")}
-              </p>
-              <div className="create-actions">
+              <label className="field">
+                <span>文本</span>
+                <input
+                  value={said}
+                  onChange={(event) => setSaid(event.target.value)}
+                  placeholder={asr?.ready ? "可空，上传后自动转写" : (asr?.hint ?? "转写未就绪，先手写这句")}
+                />
+              </label>
+              <div className="create-media">
                 <label className="btn">
                   {busy ? "正在转写…" : candidate ? "换一支再转写" : "上传 wav"}
                   <input
@@ -303,25 +282,13 @@ export function Voices() {
                     }}
                   />
                 </label>
+                {candidate ? <audio controls preload="metadata" src={candidateMedia(candidate.rel)} /> : null}
               </div>
               {candidate ? (
-                <div className="create-result">
-                  <div className="voice-main">
-                    <div>
-                      <div className="item-title">试听</div>
-                      <p className="item-meta">还没进库。听完再收。{candidate.seconds ? ` · ${candidate.seconds.toFixed(1)} 秒` : ""}</p>
-                    </div>
-                    <audio controls preload="metadata" src={candidateMedia(candidate.rel)} />
-                  </div>
-                  <label className="field">
-                    <span>文本</span>
-                    <input value={said} onChange={(event) => setSaid(event.target.value)} />
-                  </label>
-                  <div className="create-actions">
-                    <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void keepUploaded()}>
-                      收下进音色库
-                    </button>
-                  </div>
+                <div className="create-save">
+                  <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void keepUploaded()}>
+                    保存音色
+                  </button>
                 </div>
               ) : null}
             </>
@@ -384,7 +351,6 @@ function OriginPick({
           <input type="radio" name={name} checked={value === "instruct"} onChange={() => onChange("instruct")} />
           <span>
             <strong>设计指令</strong>
-            <span className="item-meta">合成后才出试听</span>
           </span>
         </label>
       </li>
@@ -393,7 +359,6 @@ function OriginPick({
           <input type="radio" name={name} checked={value === "upload"} onChange={() => onChange("upload")} />
           <span>
             <strong>上传录音</strong>
-            <span className="item-meta">上传后直接听</span>
           </span>
         </label>
       </li>

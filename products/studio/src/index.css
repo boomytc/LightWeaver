@@ -490,14 +490,14 @@ html[data-theme="light"] .modal::backdrop {
 .origin-picks li { min-width: 0; }
 .origin-picks .pick {
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   height: 100%;
   padding: 8px 10px;
   cursor: pointer;
   background: var(--bg);
 }
-.origin-picks .pick input { margin-top: 3px; }
+.origin-picks .pick input { margin: 0; }
 .origin-picks .pick span { display: flex; flex-direction: column; gap: 1px; }
 .origin-picks .pick strong { font-size: 13px; }
 .create-opts {
@@ -518,6 +518,23 @@ html[data-theme="light"] .modal::backdrop {
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
+}
+.create-media {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.create-media .btn { flex-shrink: 0; }
+.create-media audio {
+  flex: 1 1 0;
+  min-width: 160px;
+  width: auto;
+}
+.create-save {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
 }
 .create-result {
   display: flex;
@@ -789,6 +806,8 @@ html[data-theme="light"] .btn-primary { color: #fff; }
   .form-grid,
   .origin-picks,
   .create-opts { grid-template-columns: 1fr; }
+  .create-media { flex-wrap: wrap; }
+  .create-media audio { flex: 1 1 100%; }
   .method-card .film-card-top { flex-direction: column; align-items: stretch; }
 }
 
