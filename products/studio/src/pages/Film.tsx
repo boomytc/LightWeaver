@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Link } from "../components/Link";
 import { BriefPanel } from "../components/BriefPanel";
 import { assetLabel, kindLabel, sourceLabel } from "../lib/labels";
+import { useFlash } from "../lib/flash";
 import { filmLangs, langLabel } from "../lib/langs";
 import { filmVoiceRef, listVoicePacks } from "../lib/voices";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
@@ -14,7 +15,7 @@ export function Film({ id }: { id: string }) {
   const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const [locale, setLocale] = useState("zh");
   const [error, setError] = useState<string>();
-  const [message, setMessage] = useState<string>();
+  const [message, setMessage] = useFlash();
   const [sceneId, setSceneId] = useState<string>();
 
   const load = useCallback(async () => {
@@ -103,7 +104,11 @@ export function Film({ id }: { id: string }) {
         </p>
         <p className="lede">人在这里点名音色、素材和方法卡，复制说明给 agent。这个站不排、不渲。</p>
         {error ? <div className="banner banner-error">{error}</div> : null}
-        {message ? <div className="banner banner-ok">{message}</div> : null}
+        {message ? (
+          <div className="banner banner-ok" role="status">
+            {message}
+          </div>
+        ) : null}
       </div>
 
       <div className="page-width film-board">

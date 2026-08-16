@@ -109,6 +109,7 @@ describe("voices catalog contract", () => {
     assert.match(page, /文本/);
     assert.match(page, /MODELBEST_URL/);
     assert.match(page, /keepVoice/);
+    assert.match(page, /useFlash/);
     assert.match(page, /保存音色/);
     assert.match(page, /删除/);
     assert.match(page, /确定删除/);

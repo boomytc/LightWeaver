@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, candidateMedia, libraryMedia, type ModelbestStatus } from "../api";
+import { useFlash } from "../lib/flash";
 import { listVoicePacks, voiceCloneSource, type VoiceOrigin } from "../lib/voices";
 import { IconUpload } from "../icons";
 import { MODELBEST_URL } from "../lib/prefs";
@@ -12,7 +13,7 @@ type Candidate = { rel: string; seconds: number; text: string; style: string; as
 export function Voices() {
   const [library, setLibrary] = useState<Asset[]>([]);
   const [error, setError] = useState<string>();
-  const [message, setMessage] = useState<string>();
+  const [message, setMessage] = useFlash();
   const [label, setLabel] = useState("");
   const [how, setHow] = useState<VoiceOrigin>("instruct");
   const [said, setSaid] = useState("");
@@ -179,7 +180,11 @@ export function Voices() {
     <div className="page-width page">
       <h1 className="sr">音色</h1>
       {error ? <div className="banner banner-error">{error}</div> : null}
-      {message ? <div className="banner banner-ok">{message}</div> : null}
+      {message ? (
+        <div className="banner banner-ok" role="status">
+          {message}
+        </div>
+      ) : null}
 
       <section className="surface settings-row" aria-label="语音合成">
         <div className="settings-status">
