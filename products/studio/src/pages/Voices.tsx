@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, candidateMedia, libraryMedia, type ModelbestStatus } from "../api";
 import { listVoicePacks, voiceCloneSource, type VoiceOrigin } from "../lib/voices";
+import { IconUpload } from "../icons";
 import { MODELBEST_URL } from "../lib/prefs";
 import type { Asset } from "../types";
 
@@ -250,23 +251,12 @@ export function Voices() {
             </>
           ) : (
             <>
-              <div className="create-media">
-                <label className="btn">
-                  {busy ? "正在转写…" : candidate ? "换一支再转写" : "上传 wav"}
-                  <input
-                    type="file"
-                    accept="audio/wav,audio/*"
-                    hidden
-                    disabled={busy}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void upload(file);
-                      event.target.value = "";
-                    }}
-                  />
-                </label>
-                {candidate ? <audio controls preload="metadata" src={candidateMedia(candidate.rel)} /> : null}
-              </div>
+              <VoiceDrop
+                busy={busy}
+                src={candidate ? candidateMedia(candidate.rel) : undefined}
+                onFile={(file) => void upload(file)}
+                onReject={() => setError("请选一支音频")}
+              />
               {candidate ? (
                 <>
                   <label className="field">
@@ -326,6 +316,87 @@ function ttsPillClass(
   if (probe && !probe.ok) return "pill pill-bad";
   if (!probing && modelbest && !modelbest.configured) return "pill pill-bad";
   return "pill";
+}
+
+function isAudioFile(file: File): boolean {
+  if (file.type.startsWith("audio/")) return true;
+  return /\.(wav|wave|mp3|m4a|flac|ogg|aac|webm)$/i.test(file.name);
+}
+
+function VoiceDrop({
+  busy,
+  src,
+  onFile,
+  onReject,
+}: {
+  busy: boolean;
+  src?: string;
+  onFile: (file: File) => void;
+  onReject: () => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+
+  function take(file?: File | null) {
+    if (!file || busy) return;
+    if (!isAudioFile(file)) {
+      onReject();
+      return;
+    }
+    onFile(file);
+  }
+
+  function openPicker() {
+    if (!busy) input.current?.click();
+  }
+
+  return (
+    <div
+      className={["voice-drop", over ? "is-over" : "", src ? "has-audio" : "", busy ? "is-busy" : ""]
+        .filter(Boolean)
+        .join(" ")}
+      role="button"
+      tabIndex={busy ? -1 : 0}
+      aria-label={src ? "换一支录音" : "点击或拖入 wav"}
+      onClick={openPicker}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        openPicker();
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!busy) setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setOver(false);
+        take(event.dataTransfer.files?.[0]);
+      }}
+    >
+      <input
+        ref={input}
+        type="file"
+        accept="audio/wav,audio/*"
+        hidden
+        disabled={busy}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          take(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+      {src ? (
+        <audio controls preload="metadata" src={src} onClick={(event) => event.stopPropagation()} />
+      ) : (
+        <>
+          <IconUpload />
+          <span className="voice-drop-prompt">{busy ? "正在转写…" : "点击或拖入 wav"}</span>
+        </>
+      )}
+    </div>
+  );
 }
 
 function OriginPick({

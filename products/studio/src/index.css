@@ -531,6 +531,55 @@ html[data-theme="light"] .modal::backdrop {
   min-width: 160px;
   width: auto;
 }
+.voice-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 104px;
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  text-align: center;
+}
+.voice-drop:hover,
+.voice-drop:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+  color: var(--text);
+  outline: none;
+}
+.voice-drop.is-over {
+  border-color: var(--accent);
+  border-style: solid;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  color: var(--text);
+}
+.voice-drop.is-busy {
+  cursor: wait;
+  pointer-events: none;
+  opacity: 0.78;
+}
+.voice-drop.has-audio {
+  min-height: 0;
+  padding: 10px 12px;
+  align-items: stretch;
+  border-style: solid;
+  color: var(--text);
+}
+.voice-drop-prompt {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.voice-drop.has-audio audio {
+  width: 100%;
+  min-width: 0;
+}
 .create-save {
   display: flex;
   justify-content: flex-end;
@@ -808,6 +857,7 @@ html[data-theme="light"] .btn-primary { color: #fff; }
   .create-opts { grid-template-columns: 1fr; }
   .create-media { flex-wrap: wrap; }
   .create-media audio { flex: 1 1 100%; }
+  .voice-drop { min-height: 88px; }
   .method-card .film-card-top { flex-direction: column; align-items: stretch; }
 }
 
