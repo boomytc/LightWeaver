@@ -109,6 +109,10 @@ button:disabled {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  --site-bar-bottom: 58px;
+}
+.site:has(.sub-bar) {
+  --site-bar-bottom: 100px;
 }
 
 .site-bar {
@@ -786,7 +790,7 @@ html[data-theme="light"] .btn-primary { color: #fff; }
 
 .toast {
   position: fixed;
-  top: 16px;
+  top: calc(var(--site-bar-bottom) + 12px);
   right: 16px;
   z-index: 40;
   max-width: min(360px, calc(100vw - 32px));
@@ -878,6 +882,8 @@ html[data-theme="light"] .btn-primary { color: #fff; }
 }
 
 @media (max-width: 720px) {
+  .site { --site-bar-bottom: 86px; }
+  .site:has(.sub-bar) { --site-bar-bottom: 128px; }
   .page-width { width: min(1080px, calc(100% - 28px)); }
   .page { padding: 18px 0 36px; }
   .site-bar-inner {
