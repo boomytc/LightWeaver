@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { IconMark } from "../icons";
+import { IconGitHub, IconMark, IconMoon, IconSun } from "../icons";
 import { usePath } from "../lib/nav";
+import { GITHUB_URL, usePrefs } from "../lib/prefs";
 import { Link } from "./Link";
 
 const NAV = [
@@ -11,6 +12,7 @@ const NAV = [
 
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePath();
+  const { theme, toggleTheme } = usePrefs();
 
   return (
     <div className="site">
@@ -40,11 +42,41 @@ export function Shell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
+          <div className="site-tools">
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "切换到浅色" : "切换到深色"}
+              title={theme === "dark" ? "浅色" : "深色"}
+            >
+              {theme === "dark" ? <IconSun /> : <IconMoon />}
+              <span className="icon-btn-text">{theme === "dark" ? "浅色" : "深色"}</span>
+            </button>
+            <a
+              className="icon-btn"
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="在 GitHub 打开 LightWeaver"
+              title="GitHub"
+            >
+              <IconGitHub />
+            </a>
+          </div>
         </div>
       </header>
       <div className="site-body" id="main">
         {children}
       </div>
+      <footer className="site-foot">
+        <div className="page-width site-foot-inner">
+          <p>本机控制站 · 127.0.0.1 · 人管音色和素材，片子交给 agent。</p>
+          <a href={GITHUB_URL} target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }

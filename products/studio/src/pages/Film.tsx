@@ -67,7 +67,7 @@ export function Film({ id }: { id: string }) {
   return (
     <div className="film-page">
       <div className="page-width page film-head">
-        <p className="eyebrow">
+        <p className="eyebrow crumb">
           <Link href="/films" className="text-link">
             片子
           </Link>
@@ -86,8 +86,8 @@ export function Film({ id }: { id: string }) {
         {message ? <div className="banner banner-ok">{message}</div> : null}
       </div>
 
-      <div className="film-layout page-width">
-        <section className="pane film-assign-pane">
+      <div className="page-width film-board">
+        <section className="surface">
           <h2 className="h">点名给 agent</h2>
           <label className="field">
             <span>语种</span>
@@ -162,7 +162,27 @@ export function Film({ id }: { id: string }) {
           </p>
         </section>
 
-        <section className="pane film-review">
+        <aside className="surface">
+          <h2 className="h">成片 / 静帧</h2>
+          <div className="preview-frame">
+            {output ? (
+              <video controls playsInline preload="metadata" src={output.src} />
+            ) : preview ? (
+              <img src={preview} alt={scene?.id ?? "静帧"} />
+            ) : (
+              <span>还没有成片。agent 渲完会出现在这里。</span>
+            )}
+          </div>
+          {output ? (
+            <label className="field" style={{ marginTop: 12 }}>
+              <span>成片路径</span>
+              <input readOnly value={output.path} onFocus={(event) => event.currentTarget.select()} />
+            </label>
+          ) : null}
+        </aside>
+      </div>
+
+      <section className="page-width surface film-scenes">
           <h2 className="h">场次一览</h2>
           <p className="item-meta">只看 agent 写好的场。缺静帧可以在本片补绑，不加场。</p>
           {missingStills.length ? <p className="issue issue-warning">缺 png：{missingStills.join(", ")}</p> : null}
@@ -198,27 +218,7 @@ export function Film({ id }: { id: string }) {
               ))}
             </section>
           ) : null}
-        </section>
-
-        <aside className="pane preview">
-          <h2 className="h">成片 / 静帧</h2>
-          <div className="preview-frame">
-            {output ? (
-              <video controls playsInline preload="metadata" src={output.src} />
-            ) : preview ? (
-              <img src={preview} alt={scene?.id ?? "静帧"} />
-            ) : (
-              <span>还没有成片。agent 渲完会出现在这里。</span>
-            )}
-          </div>
-          {output ? (
-            <label className="field" style={{ marginTop: 12 }}>
-              <span>成片路径</span>
-              <input readOnly value={output.path} onFocus={(event) => event.currentTarget.select()} />
-            </label>
-          ) : null}
-        </aside>
-      </div>
+      </section>
     </div>
   );
 }

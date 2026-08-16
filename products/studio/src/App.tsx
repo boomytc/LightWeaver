@@ -1,3 +1,4 @@
+import { Link } from "./components/Link";
 import { Shell } from "./components/Shell";
 import { parseRoute, usePath } from "./lib/nav";
 import { Film } from "./pages/Film";
@@ -18,7 +19,11 @@ export function App() {
       {route.name === "library" ? <Library /> : null}
       {route.name === "missing" ? (
         <div className="page-width page">
-          <p className="item-meta">没有这个页面：{route.path}</p>
+          <p className="eyebrow">404</p>
+          <h1 className="page-title">没有这个页面</h1>
+          <p className="lede">
+            找不到 {route.path}。回 <Link href="/">首页</Link>，或去 <Link href="/films">片子</Link>。
+          </p>
         </div>
       ) : null}
     </Shell>

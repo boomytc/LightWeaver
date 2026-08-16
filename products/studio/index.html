@@ -2,8 +2,27 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="LightWeaver 本机控制站：人管音色和可复用素材，片子由 agent 编排生成。" />
     <title>LightWeaver</title>
+    <script>
+      (function () {
+        try {
+          var theme = new URLSearchParams(location.search).get("theme");
+          if (theme !== "light" && theme !== "dark") theme = localStorage.getItem("lightweaver-theme");
+          if (theme !== "light" && theme !== "dark") {
+            theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap"
+    />
   </head>
   <body>
     <div id="root"></div>

@@ -28,3 +28,4 @@ generate video via weaver. This site does not author or render films.
 - `film.kit` is `library:element|reference` only.
 - Chinese UI labels. Identifiers English.
 - Site density, not a marketing page. Token-first CSS in `src/index.css`.
+- Theme is `data-theme` on `<html>`, persisted as `lightweaver-theme`. GitHub is this repo.

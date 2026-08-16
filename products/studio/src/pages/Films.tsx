@@ -47,16 +47,16 @@ export function Films() {
             <p className="item-meta">
               {sourceLabel(project.source)} · {project.task ?? "study-explainer"} · {project.scenes} 场
             </p>
-            <dl className="assign-dl">
-              <div>
-                <dt>音色</dt>
-                <dd>{formatVoices(project, library)}</dd>
-              </div>
-              <div>
-                <dt>素材</dt>
-                <dd>{formatKit(project, library)}</dd>
-              </div>
-            </dl>
+            <div className="film-assign" style={{ justifyContent: "flex-start", marginTop: 12 }}>
+              <span className="chip">
+                <em>音色</em>
+                {formatVoices(project, library)}
+              </span>
+              <span className="chip">
+                <em>素材</em>
+                {formatKit(project, library)}
+              </span>
+            </div>
           </Link>
         ))}
       </div>

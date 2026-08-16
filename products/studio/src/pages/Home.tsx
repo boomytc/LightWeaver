@@ -72,8 +72,14 @@ export function Home() {
                   </div>
                 </div>
                 <div className="film-assign">
-                  <span>音色 {voiceSummary(project, library)}</span>
-                  <span>素材 {kitSummary(project, library)}</span>
+                  <span className="chip">
+                    <em>音色</em>
+                    {voiceSummary(project, library)}
+                  </span>
+                  <span className="chip">
+                    <em>素材</em>
+                    {kitSummary(project, library)}
+                  </span>
                   <span className={project.renderable ? "pill pill-ok" : "pill"}>{project.renderable ? "可渲" : "未齐"}</span>
                 </div>
               </Link>
@@ -87,12 +93,12 @@ export function Home() {
 
 function voiceSummary(project: ProjectSummary, library: Asset[]): string {
   const refs = Object.values(project.voices ?? {}).filter(Boolean);
-  if (!refs.length) return "未点名音色";
+  if (!refs.length) return "未点名";
   return [...new Set(refs.map((ref) => assetLabel(library, ref)))].join(" / ");
 }
 
 function kitSummary(project: ProjectSummary, library: Asset[]): string {
   const kit = project.kit ?? [];
-  if (!kit.length) return "未点名素材";
+  if (!kit.length) return "未点名";
   return kit.map((ref) => assetLabel(library, ref)).join("、");
 }
