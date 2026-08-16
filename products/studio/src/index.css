@@ -801,14 +801,27 @@ html[data-theme="light"] .btn-primary { color: #fff; }
   font-size: 13px;
   line-height: 1.4;
   pointer-events: none;
+  animation: toast-ring 1s ease-out;
 }
 .toast-ok {
+  --toast-ring: var(--ok);
   background: color-mix(in srgb, var(--ok) 18%, var(--bg-elevated));
   color: var(--text);
 }
 .toast-error {
+  --toast-ring: var(--danger);
   background: color-mix(in srgb, var(--danger) 16%, var(--bg-elevated));
   color: var(--text);
+}
+@keyframes toast-ring {
+  from {
+    border-color: var(--toast-ring);
+    box-shadow: var(--shadow), 0 0 0 2px color-mix(in srgb, var(--toast-ring) 55%, transparent);
+  }
+  to {
+    border-color: var(--border);
+    box-shadow: var(--shadow);
+  }
 }
 
 .compose-grid {
@@ -910,4 +923,5 @@ html[data-theme="light"] .btn-primary { color: #fff; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+  .toast { animation: none; }
 }

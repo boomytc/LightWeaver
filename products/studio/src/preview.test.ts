@@ -111,6 +111,10 @@ describe("voices catalog contract", () => {
     assert.match(page, /keepVoice/);
     assert.match(page, /useFlash/);
     assert.match(page, /from "\.\.\/components\/Toast"/);
+    const toast = fs.readFileSync(path.join(here, "components/Toast.tsx"), "utf8");
+    assert.match(toast, /toast-/);
+    const css = fs.readFileSync(path.join(here, "index.css"), "utf8");
+    assert.match(css, /toast-ring 1s/);
     assert.doesNotMatch(page, /banner-ok/);
     assert.doesNotMatch(page, /banner-error/);
     assert.match(page, /保存音色/);
