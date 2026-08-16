@@ -123,6 +123,7 @@ describe("voices catalog contract", () => {
     assert.doesNotMatch(page, /VoicePackCard/);
     assert.doesNotMatch(page, /onBlur/);
     assert.doesNotMatch(page, /片子点名/);
+    assert.doesNotMatch(page, /从片子旁白提一支/);
     assert.doesNotMatch(page, /usedBy/);
     assert.doesNotMatch(page, /套 id/);
   });

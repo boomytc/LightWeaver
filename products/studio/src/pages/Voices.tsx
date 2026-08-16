@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { api, candidateMedia, libraryMedia, projectMedia, type ModelbestStatus } from "../api";
+import { api, candidateMedia, libraryMedia, type ModelbestStatus } from "../api";
 import { listVoicePacks, voiceCloneSource, type VoiceOrigin } from "../lib/voices";
 import { MODELBEST_URL } from "../lib/prefs";
-import type { Asset, ProjectDetail, ProjectSummary } from "../types";
+import type { Asset } from "../types";
 
 const TRIAL = "先把名称、场景和规则说清楚，再动手做交互。";
 
@@ -10,7 +10,6 @@ type Candidate = { rel: string; seconds: number; text: string; style: string };
 
 export function Voices() {
   const [library, setLibrary] = useState<Asset[]>([]);
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [label, setLabel] = useState("");
@@ -23,9 +22,6 @@ export function Voices() {
   const [cfgValue, setCfgValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [candidate, setCandidate] = useState<Candidate>();
-  const [filmId, setFilmId] = useState("");
-  const [film, setFilm] = useState<ProjectDetail>();
-  const [lineKey, setLineKey] = useState("");
   const [modelbest, setModelbest] = useState<ModelbestStatus>();
   const [probing, setProbing] = useState(false);
   const [probe, setProbe] = useState<{ ok: boolean; message: string }>();
@@ -34,13 +30,8 @@ export function Voices() {
   const canMint = Boolean(modelbest?.configured);
 
   async function reload() {
-    const [nextLibrary, nextProjects, nextModelbest] = await Promise.all([
-      api.library(),
-      api.projects(),
-      api.modelbest(),
-    ]);
+    const [nextLibrary, nextModelbest] = await Promise.all([api.library(), api.modelbest()]);
     setLibrary(nextLibrary);
-    setProjects(nextProjects);
     setModelbest(nextModelbest);
     setProbe(nextModelbest.probe);
   }
@@ -70,9 +61,6 @@ export function Voices() {
     setInstruct("");
     setTrial(TRIAL);
     setCandidate(undefined);
-    setFilmId("");
-    setFilm(undefined);
-    setLineKey("");
   }
 
   async function mint() {
@@ -160,54 +148,6 @@ export function Voices() {
     }
   }
 
-  async function pickFilm(nextId: string) {
-    setFilmId(nextId);
-    setLineKey("");
-    if (!nextId) {
-      setFilm(undefined);
-      return;
-    }
-    try {
-      setFilm(await api.project(nextId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function keepLine() {
-    const name = label.trim();
-    if (!film || !lineKey || !name) return;
-    if (taken(name)) {
-      setError(`${name} 已在音色库里`);
-      return;
-    }
-    const [lineLocale, sceneId] = lineKey.split(":");
-    const line = film.paths.lineFiles.find((item) => item.locale === lineLocale && item.sceneId === sceneId && item.exists);
-    if (!line?.rel) {
-      setError("这场还没有旁白 wav");
-      return;
-    }
-    try {
-      await api.keepVoice({
-        origin: "upload",
-        label: name,
-        said: film.film.scenes.find((scene) => scene.id === sceneId)?.lines[lineLocale ?? ""] ?? "",
-        source: { kind: "project", projectId: film.id, rel: line.rel },
-      });
-      setMessage(`已把 ${name} 收进音色库`);
-      setError(undefined);
-      resetCreate();
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  const lines = (film?.paths.lineFiles ?? []).filter((item) => item.exists);
-  const pickedLine = lineKey
-    ? lines.find((item) => `${item.locale}:${item.sceneId}` === lineKey)
-    : undefined;
-
   return (
     <div className="page-width page">
       <h1 className="sr">音色</h1>
@@ -232,12 +172,12 @@ export function Voices() {
       <div className="voice-board">
         <section className="surface create-panel">
           <h2 className="sr">新建</h2>
+          <label className="field">
+            <span>名称</span>
+            <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如 讲解女声" />
+          </label>
           <OriginPick name="voice-origin-new" value={how} onChange={setHow} />
           <div className="form-grid">
-            <label className="field">
-              <span>名称</span>
-              <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如 讲解女声" />
-            </label>
             {how === "instruct" ? (
               <label className="field">
                 <span>设计指令</span>
@@ -250,7 +190,7 @@ export function Voices() {
               </label>
             )}
             {how === "instruct" ? (
-              <label className="field field-span">
+              <label className="field">
                 <span>文本</span>
                 <input value={trial} onChange={(event) => setTrial(event.target.value)} />
               </label>
@@ -311,43 +251,6 @@ export function Voices() {
                     }}
                   />
                 </label>
-              </div>
-              <div className="create-sub">
-                <h3 className="h">从片子旁白提一支</h3>
-                <div className="form-grid">
-                  <label className="field">
-                    <span>片子</span>
-                    <select value={filmId} onChange={(event) => void pickFilm(event.target.value)} aria-label="片子">
-                      <option value="">选一部片子</option>
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.titles.zh ?? project.id}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>旁白</span>
-                    <select value={lineKey} onChange={(event) => setLineKey(event.target.value)} aria-label="旁白" disabled={!film}>
-                      <option value="">选一场已有的 wav</option>
-                      {lines.map((item) => (
-                        <option key={`${item.locale}:${item.sceneId}`} value={`${item.locale}:${item.sceneId}`}>
-                          {item.locale} · {item.sceneId}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                {pickedLine?.rel && film ? (
-                  <div className="voice-main">
-                    <audio controls preload="metadata" src={projectMedia(film.id, pickedLine.rel)} />
-                  </div>
-                ) : null}
-                <div className="create-actions">
-                  <button type="button" className="btn" disabled={!lineKey} onClick={() => void keepLine()}>
-                    收进音色库
-                  </button>
-                </div>
               </div>
             </>
           )}

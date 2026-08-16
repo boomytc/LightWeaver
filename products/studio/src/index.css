@@ -519,7 +519,6 @@ html[data-theme="light"] .modal::backdrop {
   gap: 12px;
   align-items: center;
 }
-.create-sub,
 .create-result {
   display: flex;
   flex-direction: column;
@@ -527,7 +526,6 @@ html[data-theme="light"] .modal::backdrop {
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
-.create-sub .h { margin: 0; }
 
 .form-grid {
   display: grid;
