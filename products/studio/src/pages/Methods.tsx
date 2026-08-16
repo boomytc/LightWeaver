@@ -23,10 +23,10 @@ export function Methods() {
 
   return (
     <div className="page-width page">
-      <p className="eyebrow">人点名</p>
+      <p className="eyebrow">工作台</p>
       <h1 className="page-title">方法</h1>
       <p className="lede">
-        成片方法卡和音色、素材一样，是给 agent 的参数。点一张去首页拼进组合。场级卡只随成片卡带上，不单独点名。
+        成片方法卡和音色、素材一样，是给 agent 的参数。点一张去组合页拼进说明。场级卡只随成片卡带上，不单独点名。
       </p>
       {error ? <div className="banner banner-error">{error}</div> : null}
 

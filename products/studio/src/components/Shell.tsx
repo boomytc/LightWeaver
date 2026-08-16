@@ -1,12 +1,19 @@
 import type { ReactNode } from "react";
 import { IconGitHub, IconMark, IconMoon, IconSun } from "../icons";
-import { usePath } from "../lib/nav";
+import { isWorkbench, usePath } from "../lib/nav";
 import { GITHUB_URL, usePrefs } from "../lib/prefs";
 import { Link } from "./Link";
 
 const NAV = [
-  { href: "/", label: "工作台", match: (path: string) => path === "/" },
+  { href: "/", label: "工作台", match: (path: string) => isWorkbench(path) },
   { href: "/films", label: "片子", match: (path: string) => path === "/films" || path.startsWith("/f/") },
+];
+
+const BENCH = [
+  { href: "/", label: "组合", match: (path: string) => path === "/" },
+  { href: "/methods", label: "方法", match: (path: string) => path === "/methods" },
+  { href: "/voices", label: "音色", match: (path: string) => path === "/voices" },
+  { href: "/library", label: "素材", match: (path: string) => path === "/library" },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -64,6 +71,25 @@ export function Shell({ children }: { children: ReactNode }) {
             </a>
           </div>
         </div>
+        {isWorkbench(path) ? (
+          <div className="sub-bar">
+            <nav className="page-width sub-nav" aria-label="工作台">
+              {BENCH.map((item) => {
+                const active = item.match(path);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    ariaCurrent={active ? "page" : undefined}
+                    className={active ? "sub-link is-active" : "sub-link"}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ) : null}
       </header>
       <div className="site-body" id="main">
         {children}

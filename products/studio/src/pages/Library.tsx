@@ -47,7 +47,7 @@ export function Library() {
 
   return (
     <div className="page-width page">
-      <p className="eyebrow">人管</p>
+      <p className="eyebrow">工作台</p>
       <h1 className="page-title">素材</h1>
       <p className="lede">
         只收会进片子的元素和参考图，不是通用文件库。片子页勾选之后，agent 按这份清单用，不自己加。

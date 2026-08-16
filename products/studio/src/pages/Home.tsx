@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { BriefPanel } from "../components/BriefPanel";
-import { Link } from "../components/Link";
 import { recipeHint } from "../lib/labels";
 import type { Asset, RecipeCard } from "../types";
 
@@ -60,12 +59,7 @@ export function Home() {
 
       <div className="compose-grid">
         <section>
-          <div className="section-head">
-            <h2 className="h">方法卡</h2>
-            <Link href="/methods" className="text-link">
-              目录
-            </Link>
-          </div>
+          <h2 className="h">方法卡</h2>
           <div className="pick-grid">
             {recipes.map((recipe) => (
               <button
@@ -83,12 +77,7 @@ export function Home() {
         </section>
 
         <section>
-          <div className="section-head">
-            <h2 className="h">音色</h2>
-            <Link href="/voices" className="text-link">
-              入库
-            </Link>
-          </div>
+          <h2 className="h">音色</h2>
           <label className="field">
             <span>中文</span>
             <select aria-label="中文音色" value={voiceZh} onChange={(event) => setVoiceZh(event.target.value)}>
@@ -114,12 +103,7 @@ export function Home() {
         </section>
 
         <section>
-          <div className="section-head">
-            <h2 className="h">素材组</h2>
-            <Link href="/library" className="text-link">
-              入库
-            </Link>
-          </div>
+          <h2 className="h">素材组</h2>
           {materials.length === 0 ? (
             <p className="item-meta">还没有元素。先入库，再来勾选。</p>
           ) : (

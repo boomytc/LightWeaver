@@ -61,7 +61,7 @@ export function Voices() {
 
   return (
     <div className="page-width page">
-      <p className="eyebrow">人管</p>
+      <p className="eyebrow">工作台</p>
       <h1 className="page-title">音色</h1>
       <p className="lede">人决定库里有哪些声、听起来对不对。片子页再点名用哪一支。agent 不自己换声。</p>
       {error ? <div className="banner banner-error">{error}</div> : null}

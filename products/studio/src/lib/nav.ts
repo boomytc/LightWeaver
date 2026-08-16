@@ -30,6 +30,11 @@ export type Route =
   | { name: "methods" }
   | { name: "missing"; path: string };
 
+export function isWorkbench(path: string): boolean {
+  const clean = path.replace(/\/+$/, "") || "/";
+  return clean === "/" || clean === "/methods" || clean === "/voices" || clean === "/library";
+}
+
 export function parseRoute(path: string): Route {
   const clean = path.replace(/\/+$/, "") || "/";
   if (clean === "/") return { name: "home" };

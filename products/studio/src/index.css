@@ -161,6 +161,31 @@ button:disabled {
 
 .site-tools { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
 
+.sub-bar {
+  border-top: 1px solid var(--border);
+}
+
+.sub-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 0 10px;
+}
+
+.sub-link {
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.sub-link:hover { color: var(--text); background: var(--bg-hover); }
+.sub-link.is-active {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--accent-soft);
+}
+
 .icon-btn {
   display: inline-flex;
   align-items: center;

@@ -2,10 +2,9 @@
 
 Local control site for LightWeaver (`http://127.0.0.1:5175/`).
 
-The workbench (`/`) only picks a combo (voices + kit + film-level recipe)
-and copies the agent brief. It does not write films. Catalogs stay at
-`/voices` `/library` `/methods` (not top nav). `/films` is instances.
-Agents write scenes and generate video via weaver.
+Top nav is 工作台 / 片子. Under 工作台 a second nav: 组合 / 方法 / 音色 / 素材.
+组合 (`/`) only picks a combo and copies the brief. Catalogs do not
+persist films. `/films` is instances. Agents generate via weaver.
 
 ## Routes
 
