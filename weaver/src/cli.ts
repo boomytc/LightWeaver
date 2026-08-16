@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import { parseArgs } from "node:util";
-import { addAsset, loadLibrary } from "./assets.ts";
+import { addAsset, loadLibrary, patchLibraryAsset, resolveVoicePrompt } from "./assets.ts";
+import { runAsr } from "./asr.ts";
+import { voiceNameOf } from "./voice-mint.ts";
 import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
@@ -245,7 +247,30 @@ function main(): void {
   }
 
   if (command === "voice") {
-    if (rest[0] !== "set") fail("用法: weaver voice set --project <id> --ref library:voice.prompt");
+    const sub = rest[0];
+    if (sub === "asr") {
+      const file = str(values, "file");
+      const id = str(values, "id");
+      const label = str(values, "label");
+      if (file) {
+        print(runAsr({ audio: file, root }));
+        return;
+      }
+      const assets = loadLibrary(root).filter((item) => item.kind === "voice");
+      const asset = id
+        ? assets.find((item) => item.id === id)
+        : label
+          ? assets.find((item) => voiceNameOf(item) === label.trim())
+          : undefined;
+      if (!asset) fail("用法: weaver voice asr --file <wav> 或 --id <voice.id> 或 --label <名称>");
+      const resolved = resolveVoicePrompt(null, `library:${asset.id}`, undefined, root);
+      if (!resolved) fail(`音色 ${asset.label ?? asset.id} 还没有克隆源 wav`);
+      const result = runAsr({ audio: resolved.absPath, root });
+      const next = patchLibraryAsset(asset.id, { text: result.text }, root);
+      print({ ...result, id: next.id, label: next.label ?? next.id });
+      return;
+    }
+    if (sub !== "set") fail("用法: weaver voice set --project <id> --ref library:voice.prompt\n       weaver voice asr --file <wav> | --id <voice.id> | --label <名称>");
     const project = requireProject(str(values, "project") ?? "");
     if (str(values, "locale")) fail("一套音色给要出的语言，不要加 --locale");
     const ref = str(values, "ref");
@@ -492,7 +517,7 @@ function main(): void {
   weaver recipe list|show|apply
   weaver scene list|add|rm|move|set
   weaver card set
-  weaver voice set
+  weaver voice set|asr
   weaver langs set
   weaver kit set
   weaver asset list|add

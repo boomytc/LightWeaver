@@ -46,6 +46,8 @@ or `skills/`.
 
 - **CineWeaver** — AI commentary and automated cutting of existing footage.
 - **LightTTS** — TTS model exploration. This repo calls a speech API.
+- **LightASR** — ASR model exploration. LightWeaver only shells `asr.py`
+  (Qwen3-ASR-1.7B GGUF) for clone-source text. Do not import `explore/`.
 - **LightCanvas** — asset libraries and relation canvases.
 - **LightUI** — UI studies. Capture may HTTP the lab; publish may copy
   into `LIGHTUI_ROOT`.

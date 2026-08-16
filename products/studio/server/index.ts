@@ -34,14 +34,17 @@ import {
   validateProject,
   weaverRoot,
   allocateNewVoice,
+  asrRuntime,
   keepLibraryVoice,
   modelbestStatus,
   probeModelbest,
   resolveKeepSource,
+  runAsr,
   runVoiceMint,
+  voiceCandidateRoot,
+  wavFileSeconds,
   setModelbestApiKey,
   upsertVoicePack,
-  voiceCandidateRoot,
   voiceCloneSource,
   type Asset,
   type FilmDoc,
@@ -85,6 +88,11 @@ app.put("/api/settings/modelbest", (req, res) => {
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
   }
+});
+
+app.get("/api/settings/asr", (_req, res) => {
+  const runtime = asrRuntime(root);
+  res.json({ ready: runtime.ready, hint: runtime.hint });
 });
 
 app.post("/api/settings/modelbest/probe", async (_req, res) => {
@@ -312,7 +320,68 @@ app.post("/api/voices/mint", (req, res) => {
   }
 });
 
+app.post("/api/voices/stage", upload.single("file"), (req, res) => {
+  req.setTimeout(200000);
+  res.setTimeout(200000);
+  try {
+    if (!req.file) throw new Error("缺少文件");
+    const given = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    const folder = voiceCandidateRoot(root);
+    fs.mkdirSync(folder, { recursive: true });
+    const ext = path.extname(req.file.originalname || "") || guessExt(req.file.mimetype) || ".wav";
+    const rel = `upload-${Date.now()}-${process.pid}${ext}`.replace(/[^a-z0-9._-]+/gi, "-");
+    const dest = path.join(folder, rel);
+    fs.writeFileSync(dest, req.file.buffer);
+    let text = given;
+    let language = "";
+    let asr = false;
+    let error: string | undefined;
+    if (!text) {
+      try {
+        const transcribed = runAsr({ audio: dest, root });
+        text = transcribed.text;
+        language = transcribed.language;
+        asr = true;
+      } catch (err) {
+        error = messageOf(err);
+      }
+    }
+    res.json({
+      rel,
+      dest,
+      seconds: wavFileSeconds(dest),
+      text,
+      language,
+      asr,
+      error,
+    });
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
+app.post("/api/voices/asr", (req, res) => {
+  req.setTimeout(200000);
+  res.setTimeout(200000);
+  try {
+    const source = req.body?.source as
+      | { kind: "candidate"; rel: string }
+      | { kind: "project"; projectId: string; rel: string }
+      | undefined;
+    if (!source || (source.kind !== "candidate" && source.kind !== "project")) {
+      res.status(400).json({ error: "转写需要 candidate 或片子旁白路径" });
+      return;
+    }
+    const abs = resolveKeepSource(source, root);
+    res.json(runAsr({ audio: abs, root }));
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
+});
+
 app.post("/api/voices/keep", (req, res) => {
+  req.setTimeout(200000);
+  res.setTimeout(200000);
   try {
     const source = req.body?.source as
       | { kind: "candidate"; rel: string }

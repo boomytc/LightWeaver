@@ -9,6 +9,10 @@ export function localConfigPath(root = weaverRoot()): string {
   return path.join(root, "config.local.yaml");
 }
 
+export function localConfigValue(name: string, root = weaverRoot()): string {
+  return readYamlScalar(localConfigPath(root), name);
+}
+
 export type ModelbestProbe = { ok: boolean; message: string };
 
 export type ModelbestStatus = {

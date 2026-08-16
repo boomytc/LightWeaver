@@ -17,6 +17,7 @@ src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
 src/sync.ts            Remotion public links + catalog
 src/tts.ts             VoxCPM2 line job（Hi-Fi：唯一克隆源）
+src/asr.ts             Qwen3-ASR GGUF 转写 job（上传克隆源填文本）
 src/voice-mint.ts      设计指令铸试听 / 收下为克隆源
 src/render.ts          Remotion + publish
 src/cli.ts             JSON/human CLI
@@ -29,7 +30,7 @@ src/cli.ts             JSON/human CLI
 - Do not import `products/*`.
 - No LLM in weaver. No model client, no `produce` / `plan`, no narration
   generator inside this package. Agent drafts `lines` in its own process;
-  weaver only writes files and runs jobs (`tts.py`, Remotion, `capture.mjs`).
+  weaver only writes files and runs jobs (`tts.py`, `asr.py`, Remotion, `capture.mjs`).
 - `recipeRoot` lives in `paths.ts` next to `libraryRoot`. Product default is
   the repo-root `recipes/` directory. Never `library/recipes/` or
   `skills/**/recipes/`. `LIGHTWEAVER_RECIPES` is test-fixture only — do not

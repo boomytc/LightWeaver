@@ -80,6 +80,15 @@ describe("first-party films", () => {
     assert.ok(issues.some((issue) => issue.path === "voices" && issue.message.includes("同一套音色")));
   });
 
+  it("warns when the clone wav has no text", () => {
+    const root = tempWorkspace();
+    const project = seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
+    fs.mkdirSync(path.join(root, "library/voices"), { recursive: true });
+    fs.writeFileSync(path.join(root, "library/voices/prompt-zh.wav"), "wav");
+    const issues = validateProject(project, root);
+    assert.ok(issues.some((issue) => issue.level === "warning" && issue.message.includes("缺文本")));
+  });
+
   it("does not require the unselected language", () => {
     const root = tempWorkspace();
     const project = seedLabFilm(

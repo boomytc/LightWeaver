@@ -39,6 +39,12 @@ export function lightuiRoot(root = weaverRoot()): string {
   return path.resolve(root, "../LightUI");
 }
 
+export function lightasrRoot(root = weaverRoot(), env: NodeJS.ProcessEnv = process.env): string {
+  const override = (env.LIGHTASR_ROOT ?? "").trim();
+  if (override) return path.resolve(override);
+  return path.resolve(root, "../LightASR");
+}
+
 export function labUrl(): string {
   return process.env.LAB_URL ?? "http://127.0.0.1:5173";
 }

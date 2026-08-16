@@ -9,6 +9,7 @@ export * from "./assets.ts";
 export * from "./validate.ts";
 export * from "./sync.ts";
 export * from "./tts.ts";
+export * from "./asr.ts";
 export * from "./voice-mint.ts";
 export * from "./render.ts";
 export * from "./scenes.ts";

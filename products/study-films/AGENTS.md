@@ -9,4 +9,5 @@ Remotion renderer and LightUI lab capture adapter. Film data lives in
 - Capture may know LightUI selectors. Write stills into
   `projects/<slug>/assets/stills/<locale>/`.
 - Brand and copy come from `film.json`.
+- `scripts/tts.py` is VoxCPM2. `scripts/asr.py` is Qwen3-ASR GGUF for clone-source text. Do not import LightASR.
 - Comments and operator logs: Chinese. Identifiers: English.

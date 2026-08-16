@@ -85,6 +85,8 @@ npx weaver scene move --project <id> --id <scene> --after <id>
 npx weaver scene set --project <id> --id <scene> --locale zh --text "..."
 npx weaver card set --project <id> --locale zh --which title --headline "..." --lede "..." --points "要点一;要点二"
 npx weaver voice set --project <id> --ref library:voice.prompt
+npx weaver voice asr --id voice.prompt
+npx weaver voice asr --label 讲解女声
 npx weaver langs set --project <id> --langs zh
 npx weaver kit set --project <id> --refs library:element.mark
 npx weaver validate <id>

@@ -114,6 +114,10 @@ describe("voices catalog contract", () => {
     assert.match(page, /type="radio"/);
     assert.match(page, /合成后才出试听/);
     assert.match(page, /上传后直接听/);
+    assert.match(page, /stageVoice/);
+    assert.match(page, /keepUploaded/);
+    assert.match(page, /自动转写/);
+    assert.doesNotMatch(page, /uploadLibrary/);
     assert.doesNotMatch(page, /这支在说/);
     assert.match(page, /VoiceLibraryCard/);
     assert.doesNotMatch(page, /备声/);

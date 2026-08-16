@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { err, filmLangs, filmTask, isImplementedTask, parseAssetRef, type Issue, type ProjectRecord, warn } from "./schema.ts";
-import { findAsset, resolveAssetFile, resolveVoicePrompt } from "./assets.ts";
+import { findAsset, resolveAssetFile, resolveVoicePrompt, voiceHifiRef } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { loadRecipe } from "./recipes.ts";
@@ -41,6 +41,8 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
       const resolved = resolveVoicePrompt(project, voiceRef, locale, root);
       if (!resolved) {
         issues.push(warn(`voices.${locale}`, `还没有克隆源 wav：${voiceRef}`));
+      } else if (!voiceHifiRef(findAsset(project, voiceRef, root))?.said) {
+        issues.push(warn(`voices.${locale}`, `缺文本：${voiceRef}。上传会自动转写，或 weaver voice asr --id`));
       }
     }
   }

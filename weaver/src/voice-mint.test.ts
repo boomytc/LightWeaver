@@ -87,6 +87,20 @@ describe("keepLibraryVoice", () => {
     assert.ok(fs.existsSync(path.join(root, "library", asset.file!)));
   });
 
+  it("transcribes when upload keep has no text", () => {
+    const root = tempWorkspace();
+    const src = path.join(voiceCandidateRoot(root), "bare.wav");
+    touch(src, "bytes");
+    const asset = keepLibraryVoice(
+      { sourceAbs: src, label: "讲解男声", origin: "upload" },
+      root,
+      () => ({ text: "自动转写稿" }),
+    );
+    assert.equal(asset.text, "自动转写稿");
+    assert.equal(asset.label, "讲解男声");
+    assert.equal(voiceCloneSource(asset).origin, "upload");
+  });
+
   it("refuses a file outside the workspace trees", () => {
     const root = tempWorkspace();
     const outside = path.join(root, "nope.wav");

@@ -5,6 +5,7 @@ import { filmsProductRoot, firstPartyRoot, libraryRoot, userRoot, voiceCandidate
 import { loadLibrary, upsertLibraryAsset, voiceCloneSource, type VoiceOrigin } from "./assets.ts";
 import { loadProject } from "./project.ts";
 import { parseTtsResult } from "./tts.ts";
+import { ensureVoiceSaid, type TranscribeFn } from "./asr.ts";
 import type { Asset } from "./schema.ts";
 
 const ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -141,7 +142,11 @@ export function runVoiceMint(options: VoiceMintOptions): VoiceMintResult {
   }
 }
 
-export function keepLibraryVoice(input: KeepLibraryVoiceInput, root = weaverRoot()): Asset {
+export function keepLibraryVoice(
+  input: KeepLibraryVoiceInput,
+  root = weaverRoot(),
+  transcribe?: TranscribeFn,
+): Asset {
   assertReadableSource(input.sourceAbs, root);
   const assets = loadLibrary(root);
   const wantedName = (input.label ?? "").trim();
@@ -170,7 +175,7 @@ export function keepLibraryVoice(input: KeepLibraryVoiceInput, root = weaverRoot
       kind: "voice",
       label: wantedName || current?.label || id,
       file: rel,
-      text: input.said ?? source.said,
+      text: ensureVoiceSaid(input.sourceAbs, input.said, root, transcribe),
       style: origin === "instruct" ? (input.style ?? source.instruct) : "",
     },
     root,

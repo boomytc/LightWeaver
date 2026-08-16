@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { api, candidateMedia, libraryMedia, type ModelbestStatus } from "../api";
+import { api, candidateMedia, libraryMedia, type AsrStatus, type ModelbestStatus } from "../api";
 import { listVoicePacks, voiceCloneSource, type VoiceOrigin } from "../lib/voices";
 import { MODELBEST_URL } from "../lib/prefs";
 import type { Asset } from "../types";
 
 const TRIAL = "先把名称、场景和规则说清楚，再动手做交互。";
 
-type Candidate = { rel: string; seconds: number; text: string; style: string };
+type Candidate = { rel: string; seconds: number; text: string; style: string; asr?: boolean };
 
 export function Voices() {
   const [library, setLibrary] = useState<Asset[]>([]);
@@ -23,6 +23,7 @@ export function Voices() {
   const [busy, setBusy] = useState(false);
   const [candidate, setCandidate] = useState<Candidate>();
   const [modelbest, setModelbest] = useState<ModelbestStatus>();
+  const [asr, setAsr] = useState<AsrStatus>();
   const [probing, setProbing] = useState(false);
   const [probe, setProbe] = useState<{ ok: boolean; message: string }>();
 
@@ -30,9 +31,14 @@ export function Voices() {
   const canMint = Boolean(modelbest?.configured);
 
   async function reload() {
-    const [nextLibrary, nextModelbest] = await Promise.all([api.library(), api.modelbest()]);
+    const [nextLibrary, nextModelbest, nextAsr] = await Promise.all([
+      api.library(),
+      api.modelbest(),
+      api.asr().catch(() => ({ ready: false, hint: "转写状态读不到" })),
+    ]);
     setLibrary(nextLibrary);
     setModelbest(nextModelbest);
+    setAsr(nextAsr);
     setProbe(nextModelbest.probe);
   }
 
@@ -134,11 +140,42 @@ export function Voices() {
     }
     const form = new FormData();
     form.set("file", file);
-    form.set("kind", "voice");
-    form.set("label", name);
     if (said.trim()) form.set("text", said.trim());
+    setBusy(true);
     try {
-      await api.uploadLibrary(form);
+      const staged = await api.stageVoice(form);
+      setCandidate({ rel: staged.rel, seconds: staged.seconds, text: staged.text, style: "", asr: staged.asr });
+      setSaid(staged.text);
+      setError(staged.error);
+      if (staged.error) {
+        setMessage("上传后直接听。转写没写成，请手写这句再说的话再收");
+      } else if (staged.asr) {
+        setMessage(`已转写文本，听完可改再收进音色库 · ${staged.seconds ? `${staged.seconds.toFixed(1)} 秒` : ""}`.trim());
+      } else {
+        setMessage("上传后直接听。文本用你写的。听完再收");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function keepUploaded() {
+    if (!candidate) return;
+    const name = label.trim();
+    if (!name) return;
+    if (!said.trim()) {
+      setError("先写文本，或等转写完成");
+      return;
+    }
+    try {
+      await api.keepVoice({
+        origin: "upload",
+        label: name,
+        said: said.trim(),
+        source: { kind: "candidate", rel: candidate.rel },
+      });
       setMessage(`已把 ${name} 收进音色库`);
       setError(undefined);
       resetCreate();
@@ -176,17 +213,28 @@ export function Voices() {
             <span>名称</span>
             <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如 讲解女声" />
           </label>
-          <OriginPick name="voice-origin-new" value={how} onChange={setHow} />
+          <OriginPick
+            name="voice-origin-new"
+            value={how}
+            onChange={(next) => {
+              setHow(next);
+              setCandidate(undefined);
+            }}
+          />
           <div className="form-grid">
             {how === "instruct" ? (
               <label className="field">
                 <span>设计指令</span>
                 <input value={instruct} onChange={(event) => setInstruct(event.target.value)} placeholder="例如 青春女声，吐字清晰" />
               </label>
-            ) : (
+            ) : candidate ? null : (
               <label className="field">
                 <span>文本</span>
-                <input value={said} onChange={(event) => setSaid(event.target.value)} />
+                <input
+                  value={said}
+                  onChange={(event) => setSaid(event.target.value)}
+                  placeholder={asr?.ready ? "可空，上传后自动转写" : "转写未就绪，先手写这句"}
+                />
               </label>
             )}
             {how === "instruct" ? (
@@ -237,13 +285,17 @@ export function Voices() {
             </>
           ) : (
             <>
+              <p className="item-meta">
+                {asr?.ready ? "上传后直接听，空着的文本会自动转写，改完再收。" : (asr?.hint ?? "转写未就绪，上传后请手写文本再收。")}
+              </p>
               <div className="create-actions">
                 <label className="btn">
-                  上传 wav
+                  {busy ? "正在转写…" : "上传 wav"}
                   <input
                     type="file"
                     accept="audio/wav,audio/*"
                     hidden
+                    disabled={busy}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (file) void upload(file);
@@ -252,6 +304,26 @@ export function Voices() {
                   />
                 </label>
               </div>
+              {candidate ? (
+                <div className="create-result">
+                  <div className="voice-main">
+                    <div>
+                      <div className="item-title">试听</div>
+                      <p className="item-meta">还没进库。听完再收。{candidate.seconds ? ` · ${candidate.seconds.toFixed(1)} 秒` : ""}</p>
+                    </div>
+                    <audio controls preload="metadata" src={candidateMedia(candidate.rel)} />
+                  </div>
+                  <label className="field">
+                    <span>文本</span>
+                    <input value={said} onChange={(event) => setSaid(event.target.value)} />
+                  </label>
+                  <div className="create-actions">
+                    <button type="button" className="btn btn-primary" onClick={() => void keepUploaded()}>
+                      收下进音色库
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </>
           )}
         </section>
