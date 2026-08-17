@@ -107,12 +107,9 @@ export function Film({ id }: { id: string }) {
               return (
                 <li key={item}>
                   <button type="button" className={on ? "kit-item is-on" : "kit-item"} onClick={() => setLocale(item)}>
-                    <span>
-                      <span className="item-title">{langLabel(item)}</span>
-                      <span className="item-meta">
-                        {item}
-                        {on ? " · 正在看" : langs.includes(item) ? "" : " · 这次没出"}
-                      </span>
+                    <span className="item-title">
+                      {langLabel(item)}
+                      {on ? " · 正在看" : langs.includes(item) ? "" : " · 这次没出"}
                     </span>
                   </button>
                 </li>

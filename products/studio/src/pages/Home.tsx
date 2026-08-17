@@ -83,10 +83,7 @@ export function Home() {
                       )
                     }
                   />
-                  <span>
-                    <span className="item-title">{langLabel(item)}</span>
-                    <span className="item-meta">{item}</span>
-                  </span>
+                  <span className="item-title">{langLabel(item)}</span>
                 </label>
               </li>
             );
