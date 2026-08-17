@@ -19,4 +19,4 @@
 | 4 | Stills | Agent 或人 | 仅 lab+adapter 时 `capture --project`；manual 只手截 + `asset add` | `assets.json` 登记的 png |
 | 5 | Voice | Job | `tts --project`（只出 `film.langs`；允许缺 png） | `assets/lines/<lang>/*.wav` |
 | 6 | QA | Agent 必跑 | `validate --json`；读 `renderable` | error 或 `!isRenderable` → 不得进 7 的 render |
-| 7 | Deliver | Job | `render --project`；有 `publish.dir` 才 `publish` | `assets/outputs/<output>` |
+| 7 | Deliver | Job | `render --project`；有 `publish.dir` 才 `publish` | 只写该片子在 `data/` 下的 `assets/outputs/<output>`。不要写 `products/study-films/` |

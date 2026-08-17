@@ -284,6 +284,15 @@ export function Film({ id }: { id: string }) {
                 .filter((asset) => asset.kind === "element" || asset.kind === "reference")
                 .map((asset) => [`library:${asset.id}`, asset.label ?? asset.id]),
             ),
+            outputHome: detail.source,
+            publish: Boolean(detail.film.publish?.dir),
+            publishDir: detail.film.publish?.dir,
+            outputs: Object.fromEntries(
+              filmLangs(detail.film).flatMap((locale) => {
+                const name = detail.film.locales[locale]?.output;
+                return name ? [[locale, name]] : [];
+              }),
+            ),
           }}
         />
       </div>

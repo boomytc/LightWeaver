@@ -18,7 +18,8 @@ description: >
 - 用户片理念：`data/projects/<id>/brief.md`
 - 任务实例：LightUI 顾客片 `data/first-party/<id>/`；用户片 `data/projects/<id>/`。**不提交**
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）
-- 产物：`<project>/assets/lines/<locale>/*.wav`；`<project>/assets/outputs/<output>`
+- 产物：只在任务实例里。用户片 `data/projects/<id>/assets/outputs/`；顾客片 `data/first-party/<slug>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/out` 或 `products/study-films/projects`
+- 工作台说明若写「产物位置：未指定」，**开始前先问人**（用户片还是顾客片，要不要再拷到 LightUI）。问清再 `create` / `render`
 - 方法：`recipes/lightui-study-explainer/`（可复用骨架，不是某一张片子。`weaver recipe list --task study-explainer` / `show` / `apply`）
 - 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.langs`、`film.voices`、`film.kit`、`film.recipe`：人点名要出的语言、音色、素材、方法卡，不要自己换。
 
@@ -45,7 +46,7 @@ description: >
 
 ## 十条原则
 
-1. 按图存放。理念跟主题走；资产 `library:` / `asset:`；产物进 `assets/lines` 与 `assets/outputs`。不发明顶层目录，不把产物写进理念目录，不把 `idea.md` 拷进片子。
+1. 按图存放。理念跟主题走；资产 `library:` / `asset:`；产物进该片子在 `data/` 下的 `assets/lines` 与 `assets/outputs`。不发明顶层目录，不把产物写进理念目录或 `products/study-films/`，不把 `idea.md` 拷进片子。工作台没点产物位置就先问。
 2. 脚本即片子。`film.json` 是编排合同。不手写 Remotion TSX。
 3. 一种 LightUI kind 一场 still。禁止合并。
 4. 真 lab 静帧。不要手绘假 UI。

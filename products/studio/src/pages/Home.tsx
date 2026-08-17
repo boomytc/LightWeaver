@@ -4,6 +4,7 @@ import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { BriefPanel } from "../components/BriefPanel";
 import { recipeHint } from "../lib/labels";
+import type { OutputHome } from "../lib/brief";
 import { langLabel } from "../lib/langs";
 import { listVoicePacks } from "../lib/voices";
 import type { Asset, RecipeCard } from "../types";
@@ -16,6 +17,8 @@ export function Home() {
   const [voiceRef, setVoiceRef] = useState("");
   const [langs, setLangs] = useState<string[]>(["zh", "en"]);
   const [kit, setKit] = useState<string[]>([]);
+  const [outputHome, setOutputHome] = useState<OutputHome | "">("");
+  const [publishLightui, setPublishLightui] = useState(true);
 
   useEffect(() => {
     Promise.all([api.library(), api.recipes()])
@@ -58,7 +61,7 @@ export function Home() {
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">选出一组，复制给 agent。</h1>
       <p className="lede">
-        点名音色、素材组、方法卡，以及要出哪些语言。不写进片子，不在这里排场。agent 拿说明去用 LightWeaver。
+        点名音色、素材组、方法卡、要出哪些语言，以及成片写到哪。不写进片子，不在这里排场。agent 拿说明去用 LightWeaver。
       </p>
       <Toast flash={flash} />
 
@@ -89,6 +92,42 @@ export function Home() {
             );
           })}
         </ul>
+      </section>
+
+      <section>
+        <h2 className="h">产物写到哪</h2>
+        <p className="item-meta">成片跟片子走，只进 data/，不进渲染器。没点就让 agent 先问。</p>
+        <div className="pick-grid pick-grid-row">
+          <button
+            type="button"
+            className={outputHome === "user" ? "pick is-on" : "pick"}
+            onClick={() => setOutputHome(outputHome === "user" ? "" : "user")}
+          >
+            <strong>用户片</strong>
+            <span className="item-meta">data/projects/&lt;id&gt;/assets/outputs/</span>
+          </button>
+          <button
+            type="button"
+            className={outputHome === "first-party" ? "pick is-on" : "pick"}
+            onClick={() => setOutputHome(outputHome === "first-party" ? "" : "first-party")}
+          >
+            <strong>LightUI 顾客片</strong>
+            <span className="item-meta">data/first-party/&lt;slug&gt;/assets/outputs/</span>
+          </button>
+        </div>
+        {outputHome === "first-party" ? (
+          <label className={publishLightui ? "kit-item is-on" : "kit-item"} style={{ marginTop: 8 }}>
+            <input
+              type="checkbox"
+              checked={publishLightui}
+              onChange={() => setPublishLightui((current) => !current)}
+            />
+            <span>
+              <span className="item-title">再拷一份到 LightUI</span>
+              <span className="item-meta">studies/&lt;slug&gt;/references/，只 mp4</span>
+            </span>
+          </label>
+        ) : null}
       </section>
 
       <div className="compose-grid">
@@ -169,6 +208,8 @@ export function Home() {
           langLabels: Object.fromEntries(langs.map((locale) => [locale, langLabel(locale)])),
           kit,
           kitLabels,
+          outputHome: outputHome || undefined,
+          publish: outputHome === "first-party" ? publishLightui : outputHome === "user" ? false : undefined,
         }}
       />
     </div>

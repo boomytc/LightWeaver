@@ -283,7 +283,7 @@ lineFiles.find((f) => f.locale === locale && f.sceneId === id)
 | 理念 · 模型清单 | kind list | **仅 taxonomy：** `…/studies/<slug>/src/lib/kinds.ts`（dropdown / nav / sidebar）。intent-cascade **没有** 此文件 | LightUI | Agent 读 `KindId` / `oneLiner` 再传入 `--kinds`。`problem-then-rule` 只读 `idea.md` + `study.json`。weaver **不** parse TS | LightUI | 文件系统；`paths.brief.files.kinds.exists` 可为 false |
 | 理念 · 成片文件名 | publish name | `…/studies/<slug>/references/SOURCE.md` | LightUI | Agent；`studyExplainer.validate` 若文件在则 warning 未点名 | LightUI | 文件系统（正文须含 `locales.*.output`） |
 | 理念 · 用户片 brief | project brief | `data/projects/<id>/brief.md`、可选 `brief.en.md` | Agent | Agent。weaver 不读 | `data/projects/` 整树 gitignore（`.gitignore`） | 文件系统 |
-| 编排合同 | FilmDoc | first-party：`products/study-films/projects/<id>/film.json`；user：`data/projects/<id>/film.json`（`firstPartyRoot` / `userRoot`） | Agent via CLI / Studio PATCH | weaver、Remotion `Root.tsx`、Studio | first-party 提交；user 不提交 | 无 ref；`film.id ===` 目录名 |
+| 编排合同 | FilmDoc | first-party：`data/first-party/<id>/film.json`；user：`data/projects/<id>/film.json`（`firstPartyRoot` / `userRoot`） | Agent via CLI / Studio PATCH | weaver、Remotion `Root.tsx`、Studio | `data/` 整树不提交 | 无 ref；`film.id ===` 目录名 |
 | 方法资产 | recipe | `recipes/lightui-study-explainer/<id>.md` + `index.md` | 维护者 | Agent：`weaver recipe list\|show\|apply` | 已提交 | 文件系统；`recipeRoot() = join(weaverRoot(), "recipes")` |
 | 共享资产登记 | library catalog | `library/assets.json` | `weaver asset add --library` | `findAsset` / `loadLibrary` | 提交 | `library:<id>` |
 | 共享音色 | voice | 克隆源二选一：上传录音（空文本则 Qwen3-ASR 转写，人可改再收），或写设计指令铸完再收。铸/听/留在 Studio `/voices` | 人 | 出片 `runTts` 固定 Hi-Fi clone（`ref_audio` + `ref_text`） | 提交 wav | `library:voice.prompt` |

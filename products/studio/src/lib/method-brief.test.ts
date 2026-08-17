@@ -32,6 +32,7 @@ describe("buildMethodBrief", () => {
     assert.match(text, /taxonomy-parade/);
     assert.match(text, /kinds\.ts/);
     assert.match(text, /recipe apply --project <id> --recipe taxonomy-parade --kinds/);
+    assert.match(text, /成片写到该片子在 data\/ 下的 assets\/outputs/);
     assert.doesNotMatch(text, /dropdown-taxonomy/);
     assert.equal(methodApplyLine(parade).includes("--kinds"), true);
   });

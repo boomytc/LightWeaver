@@ -9,6 +9,7 @@ and writes stills into `data/first-party/<id>/assets/stills/`.
 npm run sync       # link public/projects + catalog
 npm run studio     # Remotion preview
 npx weaver capture --project intent-cascade
+npx weaver render --project intent-cascade   # writes data/first-party/<id>/assets/outputs/
 ```
 
 TTS / render / scene CRUD go through `npx weaver`.

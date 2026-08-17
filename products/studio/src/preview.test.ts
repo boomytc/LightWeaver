@@ -54,7 +54,7 @@ describe("outputPreview", () => {
       detail({
         outputFiles: {
           zh: {
-            path: "/Users/boom/workspace/LightWeaver/products/study-films/projects/intent-cascade/assets/outputs/cursor-movement.mp4",
+            path: "/Users/boom/workspace/LightWeaver/data/first-party/intent-cascade/assets/outputs/cursor-movement.mp4",
             exists: true,
             rel: "assets/outputs/cursor-movement.mp4",
           },
@@ -150,6 +150,21 @@ describe("voices catalog contract", () => {
     assert.doesNotMatch(page, /从片子旁白提一支/);
     assert.doesNotMatch(page, /usedBy/);
     assert.doesNotMatch(page, /套 id/);
+  });
+});
+
+describe("workbench contract", () => {
+  it("lets the human name the output home and tells the agent to ask when missing", () => {
+    const page = fs.readFileSync(path.join(here, "pages/Home.tsx"), "utf8");
+    assert.match(page, /产物写到哪/);
+    assert.match(page, /outputHome/);
+    assert.match(page, /data\/projects/);
+    assert.match(page, /data\/first-party/);
+    assert.match(page, /publishLightui/);
+    const brief = fs.readFileSync(path.join(here, "lib/brief.ts"), "utf8");
+    assert.match(brief, /产物位置：未指定/);
+    assert.match(brief, /开始前先问人/);
+    assert.match(brief, /不要写到 products\/study-films/);
   });
 });
 

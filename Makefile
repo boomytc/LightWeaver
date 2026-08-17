@@ -54,6 +54,6 @@ films: ## 截图 + 旁白 + 渲染
 	$(MAKE) films-render PROJECT="$(PROJECT)"
 
 clean: ## 清理构建缓存
-	@rm -rf products/study-films/out products/study-films/.cache products/studio/dist
+	@rm -rf products/study-films/out products/study-films/projects products/study-films/.cache products/studio/dist
 	@find . -name '.DS_Store' -delete
 	@echo "Cleaning completed."

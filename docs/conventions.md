@@ -14,7 +14,7 @@ assets/outputs/           渲染 mp4（不提交）
 
 任务实例都在 `data/`（整树 gitignore），**不提交**。LightUI 顾客片：`data/first-party/<slug>/`，且 `film.id === study.slug === 目录名`。用户片：`data/projects/<id>/`。
 
-仓库只留可复用物：`weaver/`、`recipes/`、`library/`、`products/study-films/`（渲染器，不含片子）、`products/studio/`、`skills/`。
+仓库只留可复用物：`weaver/`、`recipes/`、`library/`、`products/study-films/`（渲染器，不含片子、不含成片）、`products/studio/`、`skills/`。
 
 ## 三层存放
 
@@ -24,7 +24,7 @@ assets/outputs/           渲染 mp4（不提交）
 | --- | --- | --- |
 | **理念** | first-party：`$LIGHTUI_ROOT/studies/<slug>/`（`idea.md`、`idea.en.md`、`study.json`；taxonomy 另有 `src/lib/kinds.ts`；成片文件名看 `references/SOURCE.md`）。用户片：`data/projects/<id>/brief.md`（可选 `brief.en.md`） | 不把 `idea.md` / `kinds.ts` 拷进片子目录。不把 wav/mp4 写进理念目录 |
 | **资产** | `library/`（`library:` 音色 / 元素）+ 项目 `assets.json` + `assets/stills/<locale>/` | `library/` 不是 DAM。不把 stills 写进 LightUI `references/`。不发明第三套 ref |
-| **产物** | 旁白 `assets/lines/<locale>/<scene>.wav`；成片 `assets/outputs/<output>`。整份任务实例在 `data/`。有 `publish.dir` 才拷 **mp4** 到 LightUI `references/` | 不把 `data/` 提交进 LightWeaver。不把 wav/mp4 写进 study 源码树 |
+| **产物** | 旁白 `assets/lines/<locale>/<scene>.wav`；成片 `assets/outputs/<output>`。整份任务实例在 `data/`（用户片 `data/projects/<id>/`，顾客片 `data/first-party/<slug>/`）。有 `publish.dir` 才拷 **mp4** 到 LightUI `references/` | 不把 `data/` 提交进 LightWeaver。不把 wav/mp4 写进 study 源码树。不把成片写进 `products/study-films/out` 或 `products/study-films/projects` |
 
 **用户片 brief：** 没有 LightUI study 时，理念写在 `data/projects/<id>/brief.md`。Agent 写正文；`createProject` **不**代写。weaver **不**解析 brief。没有 brief 就先写 brief，再写 `lines`。用户片若同时带了 `study.slug`，主理念仍读 LightUI idea（文件在的话），否则用 brief；**不要**把 idea 拷进项目。
 
@@ -48,6 +48,7 @@ assets/outputs/           渲染 mp4（不提交）
 - 静帧：`scenes[].still = "asset:still.<id>"`
 - 音色套：一套引用 `library:voice.prompt`。克隆源二选一：上传录音，或写设计指令铸完再收。上传后自动转写「文本」（Qwen3-ASR，人可改再收）。铸出的 wav 就是克隆源。出片固定 Hi-Fi clone（`ref_audio` + 文本）。人在 Studio `/voices` 铸、听、留；详情可改名称和文本，可删。`tts` 不改库，不加 `--seed`。缺文本：`weaver voice asr --id` 或 `--label`。要出的语言用 `weaver langs set --project <id> --langs zh`。VoxCPM2 控制台：https://platform.modelbest.cn/console/login?ref=B08B4DDF
 - 有 `publish.dir` 才发布到 LightUI `studies/<slug>/references/`
+- 工作台说明必须写产物位置。没点名就让 agent 开始前先问：用户片还是顾客片，要不要再拷到 LightUI。不要默认写进渲染器目录。
 
 ```bash
 npx weaver project create my-film --title "演示"

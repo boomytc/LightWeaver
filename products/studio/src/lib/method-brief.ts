@@ -35,5 +35,6 @@ export function buildMethodBrief(recipe: RecipeCard): string {
   }
   lines.push(`  ${methodApplyLine(recipe)}`);
   lines.push("片子是实例。这张卡是可复用方法。");
+  lines.push("成片写到该片子在 data/ 下的 assets/outputs/，不要写 products/study-films/。位置没点名就先问人。");
   return `${lines.join("\n")}\n`;
 }

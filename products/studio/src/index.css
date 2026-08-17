@@ -836,6 +836,11 @@ html[data-theme="light"] .btn-primary { color: #fff; }
   flex-direction: column;
   gap: 8px;
 }
+.pick-grid-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.pick-grid-row .pick { flex: 1 1 220px; }
 
 .pick {
   display: flex;

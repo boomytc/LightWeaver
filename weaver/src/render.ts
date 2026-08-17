@@ -68,8 +68,6 @@ export function runRender(options: RenderOptions): RenderResult {
   if (!fs.existsSync(remotion)) {
     throw new Error("找不到 remotion。先在仓库根执行 npm install。");
   }
-  const outDir = path.join(filmsRoot, "out");
-  fs.mkdirSync(outDir, { recursive: true });
 
   const locales = options.locale ? [options.locale] : filmLangs(project.film);
   const files: RenderResult["files"] = [];
@@ -87,35 +85,36 @@ export function runRender(options: RenderOptions): RenderResult {
       );
     }
     const compId = `${project.id}-${locale}`;
-    const raw = path.join(outDir, `raw-${copy.output}`);
-    const dest = path.join(outDir, copy.output);
-    options.onLog?.(`render ${compId}`);
-    execFileSync(
-      remotion,
-      [
-        "render",
-        compId,
-        raw,
-        "--codec",
-        "h264",
-        "--crf",
-        "26",
-        "--jpeg-quality",
-        "80",
-        "--audio-bitrate",
-        "128k",
-        "--concurrency",
-        "50%",
-      ],
-      { cwd: filmsRoot, stdio: "inherit" },
-    );
-    options.onLog?.(`compress ${copy.output}`);
-    compressMp4(raw, dest);
-    fs.rmSync(raw, { force: true });
-
     const projectOut = path.join(project.root, outputRelPath(copy.output));
+    const raw = path.join(path.dirname(projectOut), `.raw-${path.basename(copy.output)}`);
     fs.mkdirSync(path.dirname(projectOut), { recursive: true });
-    fs.copyFileSync(dest, projectOut);
+    options.onLog?.(`render ${compId}`);
+    try {
+      execFileSync(
+        remotion,
+        [
+          "render",
+          compId,
+          raw,
+          "--codec",
+          "h264",
+          "--crf",
+          "26",
+          "--jpeg-quality",
+          "80",
+          "--audio-bitrate",
+          "128k",
+          "--concurrency",
+          "50%",
+        ],
+        { cwd: filmsRoot, stdio: "inherit" },
+      );
+      options.onLog?.(`compress ${copy.output}`);
+      compressMp4(raw, projectOut);
+    } finally {
+      fs.rmSync(raw, { force: true });
+    }
+
     upsertAsset(project, {
       id: `output.${locale}`,
       kind: "output",
