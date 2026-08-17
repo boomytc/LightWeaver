@@ -203,8 +203,14 @@ describe("films review contract", () => {
 });
 
 describe("library catalog contract", () => {
-  it("does not list films that picked a material", () => {
+  it("lets the catalog add, rename, delete without typing an id", () => {
     const page = fs.readFileSync(path.join(here, "pages/Library.tsx"), "utf8");
+    assert.match(page, /uploadLibrary/);
+    assert.match(page, /保存素材/);
+    assert.match(page, /removeLibrary/);
+    assert.match(page, /patchLibrary/);
+    assert.doesNotMatch(page, /element\.mark/);
+    assert.doesNotMatch(page, /先写素材 id/);
     assert.doesNotMatch(page, /usedBy/);
     assert.doesNotMatch(page, /还没有片子点名/);
     assert.doesNotMatch(page, /api\.projects/);

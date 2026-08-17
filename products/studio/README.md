@@ -15,7 +15,7 @@ make studio
 | `/` | 点名组合，复制说明 |
 | `/films` `/f/<id>` | 复盘场次和成片 |
 | `/voices` | 听、铸、收下 wav |
-| `/library` | 收可供参考的元素和参考图 |
+| `/library` | 素材增强：加、改、删 |
 | `/methods` | 方法增强：加、改、删，再点去组合 |
 
 - 片子主路径是 agent + `weaver`

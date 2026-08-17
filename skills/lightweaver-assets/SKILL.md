@@ -21,6 +21,8 @@ npx weaver asset add --library --id voice.prompt --kind voice --file voices/prom
 # 改名/改正文：npx weaver asset set --library --id voice.prompt --label 讲解女声 --text "…"
 # 删除：npx weaver asset rm --library --label 讲解女声
 # 出片 Hi-Fi clone。不要用 tts --seed 改库。不要在库卡上再铸或再传。
+# 素材：npx weaver asset add --library --kind element --label 角标 --file elements/pack.svg
+#       （不写 --id 时按名称分配 element.* / reference.*）
 # 方法：npx weaver method add --label 对照练习 --text "有一份互斥模型清单" --expand list
 #       npx weaver method add --label 规则卡 --text "先问题" --expand fixed --scenes problem:problem,rule:rule,contrast:contrast
 #       npx weaver method set --id method.taxonomy-parade --text "…" --expand list
@@ -36,4 +38,4 @@ npx weaver asset add --project <id> --id still.hero --kind still --file assets/s
 Then set `scenes[].still` to `asset:still.hero`. Locale variants use
 `files: { "zh": "...", "en": "..." }` in `assets.json`.
 
-人在 Studio `/voices` 管音色（wav 是身份）、`/methods` 管成片骨架、`/library` 管可供参考的元素和参考图。元素不强制进片。不要把通用文件柜做进这里。片子静帧仍是任务实例，不是共享库。制作循环中的 still 入库由 film skill 在阶段 4 调用本 skill，不要在这里教叙事。铸声平台：https://platform.modelbest.cn/console/login?ref=B08B4DDF
+人在 Studio `/voices` 管音色（wav 是身份）、`/methods` 管成片骨架、`/library` 管素材（人只填名称，id 自动分配）。元素不强制进片。不要把通用文件柜做进这里。片子静帧仍是任务实例，不是共享库。制作循环中的 still 入库由 film skill 在阶段 4 调用本 skill，不要在这里教叙事。铸声平台：https://platform.modelbest.cn/console/login?ref=B08B4DDF

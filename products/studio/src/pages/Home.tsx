@@ -169,7 +169,9 @@ export function Home() {
           <h2 className="h">素材</h2>
           <p className="item-meta">可选。点上的给 agent 作参考，不强制。</p>
           {materials.length === 0 ? (
-            <p className="item-meta">库里还没有素材。</p>
+            <p className="item-meta">
+              库里还没有素材。<Link href="/library">去素材页</Link>
+            </p>
           ) : (
             <ul className="kit-list">
               {materials.map((asset) => {

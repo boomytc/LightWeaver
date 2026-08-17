@@ -14,6 +14,7 @@ src/project.ts         list / load / save / create
 src/project-paths.ts   project show 的 paths（禁止并进 project.ts）
 src/recipes.ts         recipe list/show/apply
 src/library-method.ts  方法插件 CRUD（写 library/methods + catalog）
+src/library-material.ts 素材插件：按名称分配 element.* / reference.*
 src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
 src/sync.ts            Remotion public links + catalog

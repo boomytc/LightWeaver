@@ -355,6 +355,25 @@ button:disabled {
 .pill-ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
 .pill-bad { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
 
+.material-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--bg);
+}
+.material-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.material-preview img {
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+}
 .voice-row {
   display: flex;
   justify-content: space-between;

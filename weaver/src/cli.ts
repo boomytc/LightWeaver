@@ -10,6 +10,7 @@ import {
   parseMethodScenes,
   updateLibraryMethod,
 } from "./library-method.ts";
+import { allocateNewMaterial, isMaterialKind, updateLibraryMaterial } from "./library-material.ts";
 import { updateLibraryVoice, voiceNameOf } from "./voice-mint.ts";
 import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
@@ -343,10 +344,13 @@ function main(): void {
     }
     if (sub === "add") {
       const kind = str(values, "kind") ?? "";
-      const id = str(values, "id") ?? "";
+      let id = str(values, "id") ?? "";
       const file = str(values, "file");
       if (kind === "method") {
         fail("方法用 weaver method add --label <名称> --text <何时用> --expand fixed|list [--scenes id:role,...]");
+      }
+      if (isMaterialKind(kind) && values.library && !id) {
+        id = allocateNewMaterial(kind, str(values, "label") ?? "", root).id;
       }
       if (!kind || !id) fail("用法: weaver asset add --id <id> --kind still|voice|... [--file]");
       if (values.library) {
@@ -408,6 +412,10 @@ function main(): void {
             root,
           ),
         );
+        return;
+      }
+      if (isMaterialKind(current.kind)) {
+        print(updateLibraryMaterial(id, { label: str(values, "label") }, root));
         return;
       }
       print(

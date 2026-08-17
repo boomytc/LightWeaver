@@ -36,6 +36,9 @@ import {
   validateProject,
   weaverRoot,
   allocateNewVoice,
+  allocateNewMaterial,
+  isMaterialKind,
+  updateLibraryMaterial,
   createLibraryMethod,
   parseMethodExpand,
   parseMethodScenes,
@@ -469,6 +472,16 @@ app.patch("/api/library/assets/:id", (req, res) => {
       );
       return;
     }
+    if (current && isMaterialKind(current.kind)) {
+      res.json(
+        updateLibraryMaterial(
+          id,
+          { label: typeof req.body?.label === "string" ? req.body.label : undefined },
+          root,
+        ),
+      );
+      return;
+    }
     const asset = patchLibraryAsset(id, {
       label: typeof req.body?.label === "string" ? req.body.label : undefined,
       text: typeof req.body?.text === "string" ? req.body.text : undefined,
@@ -651,6 +664,9 @@ function ingestUpload(
   if (kind === "voice" && target.scope === "library" && !id) {
     id = allocateNewVoice(label ?? "", root).id;
   }
+  if (isMaterialKind(kind) && target.scope === "library" && !id) {
+    id = allocateNewMaterial(kind, label ?? "", root).id;
+  }
   if (!id) throw new Error("缺少资产 id");
 
   const ext = path.extname(req.file.originalname || "") || guessExt(req.file.mimetype);
@@ -714,7 +730,8 @@ function destRel(kind: string, id: string, locale: string | undefined, ext: stri
   const safe = id.replace(/[^a-z0-9.-]+/gi, "-");
   if (kind === "voice") return locale ? `voices/${safe}-${locale}${ext}` : `voices/${safe}${ext}`;
   const folder = folderFor(kind, locale);
-  return path.posix.join(folder, `${safe}${ext}`);
+  const leaf = isMaterialKind(kind) ? safe.replace(new RegExp(`^${kind}\\.`), "") || safe : safe;
+  return path.posix.join(folder, `${leaf}${ext}`);
 }
 
 function folderFor(kind: string, locale?: string): string {
