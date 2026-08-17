@@ -1,5 +1,7 @@
 # LightWeaver 任务场景：先做 study-explainer
 
+> 现网路径以 [`docs/conventions.md`](./conventions.md) 为准。本文是任务核当时的设计记录。片子实例已在 `data/`，不要再往 `products/study-films/projects/` 写。
+
 | 字段 | 值 |
 | --- | --- |
 | 文档标题 | LightWeaver 任务场景设计：教学讲解片优先 |

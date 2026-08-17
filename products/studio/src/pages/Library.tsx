@@ -1,23 +1,19 @@
 import { useEffect, useState } from "react";
 import { api, libraryMedia } from "../api";
-import { Link } from "../components/Link";
 import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { kindLabel } from "../lib/labels";
-import type { Asset, ProjectSummary } from "../types";
+import type { Asset } from "../types";
 
 export function Library() {
   const [library, setLibrary] = useState<Asset[]>([]);
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const { flash, ok, error } = useFlash();
   const [id, setId] = useState("");
   const [kind, setKind] = useState<"element" | "reference">("element");
   const [label, setLabel] = useState("");
 
   async function reload() {
-    const [nextLibrary, nextProjects] = await Promise.all([api.library(), api.projects()]);
-    setLibrary(nextLibrary);
-    setProjects(nextProjects);
+    setLibrary(await api.library());
   }
 
   useEffect(() => {
@@ -57,7 +53,6 @@ export function Library() {
       <div className="assets">
         {materials.map((asset) => {
           const href = asset.file ? libraryMedia(asset.file) : undefined;
-          const usedBy = projects.filter((project) => (project.kit ?? []).includes(`library:${asset.id}`));
           return (
             <article key={asset.id} className="card">
               <div className="thumb">
@@ -67,18 +62,6 @@ export function Library() {
                 <div>{asset.label ?? asset.id}</div>
                 <div className="card-id">
                   {kindLabel(asset.kind)} · {asset.id}
-                </div>
-                <div className="item-meta" style={{ marginTop: 6 }}>
-                  {usedBy.length
-                    ? usedBy.map((project, index) => (
-                        <span key={project.id}>
-                          {index > 0 ? " · " : null}
-                          <Link href={`/f/${encodeURIComponent(project.id)}`} className="text-link">
-                            {project.titles.zh ?? project.id}
-                          </Link>
-                        </span>
-                      ))
-                    : "还没有片子点名"}
                 </div>
               </div>
             </article>

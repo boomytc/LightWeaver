@@ -1,5 +1,7 @@
 # LightWeaver 产品形态：理念 / 资产 / 产物 存放契约
 
+> 现网路径以 [`docs/conventions.md`](./conventions.md) 为准。本文是 2026-08-15 的设计记录。其中 `products/study-films/projects/` 已迁到 `data/first-party/`，不要再按本文旧路径写盘。
+
 | 字段 | 值 |
 | --- | --- |
 | 文档标题 | LightWeaver 产品形态设计：存放契约 + Agent 按图出片 |

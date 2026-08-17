@@ -31,11 +31,11 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | Shared voice / element / reference | `library/` |
 | Recipe / 方法卡 | `recipes/lightui-study-explainer/` |
 | LightUI / 顾客片实例 | `data/first-party/<id>/`（不提交） |
-| User film | `data/projects/<id>/` or Studio「新建」（不提交） |
+| User film | `data/projects/<id>/`（不提交） |
 | Remotion cards / capture adapter | `products/study-films/` |
-| Control site | `products/studio/`（`/` `/films` `/voices` `/library`） |
+| Control site | `products/studio/`（`/` `/methods` `/voices` `/library` `/films`） |
 | Agent procedure | `skills/lightweaver*` |
-| 存放契约 / 按图出片 | `docs/design-placement-contract.md`、`docs/conventions.md` |
+| 现网存放图 | `docs/conventions.md`（`docs/design-*.md` 是当时的设计记录，路径可能过期） |
 
 Do not re-home the engine under LightUI. Do not fold auto-cutting of
 existing footage into this repo (CineWeaver). Do not turn `library/` into
@@ -71,4 +71,4 @@ make remotion        # Remotion preview
 
 ## Cleanup
 
-Remove transient `out/`, `.cache/`, and leftover `data/` task instances.
+Remove transient `out/`, `.cache/`, leftover `data/voice-candidates/`, and leftover `data/` task instances.

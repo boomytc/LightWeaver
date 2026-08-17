@@ -8,7 +8,7 @@ description: >
 
 # LightWeaver workspace router
 
-Read `AGENTS.md` first.
+Read `AGENTS.md` and `docs/conventions.md` first. `docs/design-*.md` is historical.
 
 | Ask | Go to |
 | --- | --- |

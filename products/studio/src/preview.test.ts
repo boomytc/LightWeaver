@@ -168,6 +168,15 @@ describe("workbench contract", () => {
   });
 });
 
+describe("library catalog contract", () => {
+  it("does not list films that picked a material", () => {
+    const page = fs.readFileSync(path.join(here, "pages/Library.tsx"), "utf8");
+    assert.doesNotMatch(page, /usedBy/);
+    assert.doesNotMatch(page, /还没有片子点名/);
+    assert.doesNotMatch(page, /api\.projects/);
+  });
+});
+
 describe("methods catalog contract", () => {
   it("shows a reusable apply contract, not recipe markdown or instance-bound copy", () => {
     const page = fs.readFileSync(path.join(here, "pages/Methods.tsx"), "utf8");

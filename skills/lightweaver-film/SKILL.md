@@ -9,8 +9,7 @@ description: >
 
 # 制作一部 study-explainer
 
-先读 `AGENTS.md` 与 `docs/design-study-explainer.md` 的 D1–D13（核）。
-先读存放图：理念 / 资产 / 产物。方法论细节按需读 `references/`。
+先读 `AGENTS.md` 与 `docs/conventions.md`（现网存放图）。不要按 `docs/design-*.md` 里的旧路径写盘。方法论细节按需读 `references/`。
 
 ## 存放图（约定路径）
 
@@ -50,7 +49,7 @@ description: >
 2. 脚本即片子。`film.json` 是编排合同。不手写 Remotion TSX。
 3. 一种 LightUI kind 一场 still。禁止合并。
 4. 真 lab 静帧。不要手绘假 UI。
-5. 双语成对写完再 TTS。
+5. 只写 `film.langs` 点名的语言再 TTS。没点英文就不要硬写英文。
 6. 先形状后媒体；能复用就不重生。`validate` error 未清不得交付；`!isRenderable` 不得 `render`。人在 Studio `/voices` `/library` 监管库，在 `/f/<id>` 点名 `voices` / `kit`。agent 只按点名用。`tts` 走 Hi-Fi clone（克隆源 + 逐字稿），不用 `--seed` 改库。
 7. 先名称 / 场景 / 规则，再谈外观。口播用听者的话：一场只留一个要记住的名字，解释用动作和后果。`idea.md` 可以写「叶子」「安全三角」「sticky」「观察器」，片子里改成「不能再往下点的那一级」「斜着走过去先别换菜单」「跟着页面走、停在靠近顶部」「先别跟着滚动来回改高亮」。`validate` 对忌语出 warning。title/close 用 `points` 做要点板，不要空海报。
 8. 不发明 scene kind。只能 `title | still | close`。

@@ -16,7 +16,7 @@ export function kindLabel(kind: string): string {
 }
 
 export function sourceLabel(source: string): string {
-  return source === "first-party" ? "顾客片" : "本机片";
+  return source === "first-party" ? "顾客片" : "用户片";
 }
 
 export function compactWhen(when?: string): string {
