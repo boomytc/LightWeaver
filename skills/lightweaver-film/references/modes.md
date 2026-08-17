@@ -8,7 +8,7 @@
 | --- | --- |
 | 没选模式，也没点名 canon 片 | 三种模式 + 推荐一句 |
 | 找不到 `study.json` 且用户片没有 `brief.md` | slug 是否错、是否先写 `brief.md` |
-| `recipe list` 没有 `when` 能对上的 **film** 卡 | 是新形状（先 `co-create` 定结构）还是硬套 |
+| `recipe list` 没有 `when` 能对上的 **film** 卡 | 没点方法就自己铺场；要复用就先在 `/methods` 或 `weaver method add` 收下，再 apply |
 | `capture.kind=manual` 且 png 不在 | 手截；**不要** `weaver capture` |
 | `hasErrors(validate)` | 先修形状。停全部生成 |
 | 将要 render 且 `!isRenderable` | 列出缺的 png；禁止 render。仅缺 png 仍可 tts |

@@ -14,7 +14,7 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
 | `/films` `/f/<id>` | human reviews | read-only trajectory: what was used, scenes, mp4 |
 | `/voices` | human | voice plugin payloads: upload or instruct, keep, rename/text/delete |
 | `/library` | human | material plugin payloads: elements and references |
-| `/methods` | human | library method plugins: when + shape; go to `/`. No edit/delete |
+| `/methods` | human | method plugins: name + when + shape; create / edit / delete; go to `/` |
 
 ## Rules
 
@@ -31,7 +31,8 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
 - Method, voice, and material catalogs are library plugins. Picking on
   `/` constrains the agent; leaving one empty does not. Method files
   live in `library/methods/` and are catalogued as `kind: method`.
-  Studio `/methods` does not create, edit, or delete them.
+  Studio `/methods` creates, edits, and deletes them (name / when /
+  shape). Humans do not type method ids.
 - Chinese UI labels. Identifiers English.
 - Site density, not a marketing page. Token-first CSS in `src/index.css`.
 - Theme is `data-theme` on `<html>`, persisted as `lightweaver-theme`. GitHub is this repo. ModelBest console: `MODELBEST_URL`.

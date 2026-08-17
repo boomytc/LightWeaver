@@ -17,7 +17,7 @@ description: >
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）。元素是参考权能，不强制
 - 产物：只在任务实例里。`data/projects/<id>/assets/outputs/` 或 `data/first-party/<id>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/`
 - 工作台说明若写「产物位置：未指定」，**开始前先问人**写到哪棵 data 树。人没另给拷贝位置，不要拷到仓库外
-- 方法 / 音色 / 素材都在 `library/`，都是可选增强。方法是 `library:method.*`（文件在 `library/methods/`）。只 `list` / `show` / `apply`，不要新建或改卡
+- 方法 / 音色 / 素材都在 `library/`，都是可选增强。方法是 `library:method.*`（文件在 `library/methods/`）。出片时只 `list` / `show` / `apply`，不要为这一部片子新建方法。库的增删改在 Studio `/methods` 或 `weaver method`
 - 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.langs`、`film.voices`、`film.kit`、`film.recipe`
 
 ## 结合规则
@@ -48,7 +48,7 @@ description: >
 3. 方法卡若按模型分场，一种模型一场。禁止合并。
 4. 真静帧。不要手绘假 UI。
 5. 只写 `film.langs` 点名的语言再 TTS。没点英文就不要硬写英文。
-6. 先形状后媒体；能复用就不重生。`validate`  error 未清不得交付；`!isRenderable` 不得 `render`。人在 Studio `/voices` `/library` 监管库，在工作台复制说明，在 `/f/<id>` 复盘。`film.kit` 只是参考权能。`tts` 走 Hi-Fi clone，不用 `--seed` 改库。
+6. 先形状后媒体；能复用就不重生。`validate`  error 未清不得交付；`!isRenderable` 不得 `render`。人在 Studio `/methods` `/voices` `/library` 监管库，在工作台复制说明，在 `/f/<id>` 复盘。`film.kit` 只是参考权能。`tts` 走 Hi-Fi clone，不用 `--seed` 改库。
 7. 先名称 / 场景 / 规则，再谈外观。口播用听者的话。`validate` 对忌语出 warning。title/close 用 `points`。
 8. 不发明 scene kind。只能 `title | still | close`。
 9. 模式未定就停。缺静帧且无适配器就停。不要空转 `capture`。

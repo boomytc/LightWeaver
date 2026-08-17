@@ -13,6 +13,7 @@ src/paths.ts           workspace roots（libraryRoot 与 recipeRoot 并列）
 src/project.ts         list / load / save / create
 src/project-paths.ts   project show 的 paths（禁止并进 project.ts）
 src/recipes.ts         recipe list/show/apply
+src/library-method.ts  方法插件 CRUD（写 library/methods + catalog）
 src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
 src/sync.ts            Remotion public links + catalog
@@ -39,5 +40,7 @@ src/cli.ts             JSON/human CLI
   import is a cycle). Put `projectPaths` only in `project-paths.ts`.
 - Task instances live under `data/` (gitignored): `data/first-party/`
   and `data/projects/`. Voices, elements, and methods live in `library/`.
-  Film-level methods are catalogued as `kind: method`. Apply reads
-  `library/methods/<recipePack>/`. This package does not write recipe files.
+  Film-level methods are catalogued as `kind: method`.
+  `createLibraryMethod` / `updateLibraryMethod` write
+  `library/methods/<recipePack>/*.md` and the catalog. Apply reads those
+  files. Scene cards stay as apply internals and are not catalog plugins.

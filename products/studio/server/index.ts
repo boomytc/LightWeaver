@@ -36,6 +36,9 @@ import {
   validateProject,
   weaverRoot,
   allocateNewVoice,
+  createLibraryMethod,
+  parseMethodShape,
+  updateLibraryMethod,
   asrRuntime,
   keepLibraryVoice,
   modelbestStatus,
@@ -450,6 +453,20 @@ app.patch("/api/library/assets/:id", (req, res) => {
       );
       return;
     }
+    if (current?.kind === "method") {
+      res.json(
+        updateLibraryMethod(
+          id,
+          {
+            label: typeof req.body?.label === "string" ? req.body.label : undefined,
+            text: typeof req.body?.text === "string" ? req.body.text : undefined,
+            shape: req.body?.shape !== undefined ? parseMethodShape(req.body.shape) : undefined,
+          },
+          root,
+        ),
+      );
+      return;
+    }
     const asset = patchLibraryAsset(id, {
       label: typeof req.body?.label === "string" ? req.body.label : undefined,
       text: typeof req.body?.text === "string" ? req.body.text : undefined,
@@ -485,6 +502,22 @@ app.post("/api/projects/:id/publish", (req, res) => {
 
 app.get("/api/library", (_req, res) => {
   res.json(loadLibrary(root));
+});
+
+app.post("/api/library/methods", (req, res) => {
+  try {
+    const asset = createLibraryMethod(
+      {
+        label: String(req.body?.label ?? ""),
+        text: String(req.body?.text ?? ""),
+        shape: parseMethodShape(req.body?.shape),
+      },
+      root,
+    );
+    res.status(201).json(asset);
+  } catch (error) {
+    res.status(400).json({ error: messageOf(error) });
+  }
 });
 
 app.get("/api/recipes", (_req, res) => {

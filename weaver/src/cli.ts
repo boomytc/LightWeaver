@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { parseArgs } from "node:util";
 import { addAsset, loadLibrary, patchLibraryAsset, removeLibraryAsset, resolveVoicePrompt } from "./assets.ts";
 import { runAsr } from "./asr.ts";
+import { createLibraryMethod, methodNameOf, parseMethodShape, updateLibraryMethod } from "./library-method.ts";
 import { updateLibraryVoice, voiceNameOf } from "./voice-mint.ts";
 import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
@@ -85,6 +86,7 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       recipe: { type: "string" },
       kinds: { type: "string" },
       langs: { type: "string" },
+      shape: { type: "string" },
     },
   });
   wantJson = Boolean(values.json);
@@ -103,6 +105,13 @@ function projectIdOf(rest: string[], values: Flags, at = 0): string {
 function requireProject(id: string): ProjectRecord {
   if (!id) fail("需要 --project <id>");
   return loadProject(id);
+}
+
+function findLibraryMethod(id: string | undefined, label: string | undefined, root: string) {
+  const methods = loadLibrary(root).filter((item) => item.kind === "method");
+  if (id) return methods.find((item) => item.id === id);
+  if (label) return methods.find((item) => methodNameOf(item) === label.trim());
+  return undefined;
 }
 
 function main(): void {
@@ -327,6 +336,9 @@ function main(): void {
       const kind = str(values, "kind") ?? "";
       const id = str(values, "id") ?? "";
       const file = str(values, "file");
+      if (kind === "method") {
+        fail("方法用 weaver method add --label <名称> --text <何时用> --shape kinds|problem-then-rule");
+      }
       if (!kind || !id) fail("用法: weaver asset add --id <id> --kind still|voice|... [--file]");
       if (values.library) {
         print(
@@ -365,10 +377,36 @@ function main(): void {
       return;
     }
     if (sub === "set") {
-      if (!values.library) fail("用法: weaver asset set --library --id <id> [--label] [--text]");
+      if (!values.library) fail("用法: weaver asset set --library --id <id> [--label] [--text] [--shape]");
       const id = str(values, "id") ?? "";
       if (!id) fail("需要 --id");
-      print(updateLibraryVoice(id, { label: str(values, "label"), text: str(values, "text") }, root));
+      const current = loadLibrary(root).find((item) => item.id === id);
+      if (!current) fail(`找不到库资产 ${id}`);
+      if (current.kind === "voice") {
+        print(updateLibraryVoice(id, { label: str(values, "label"), text: str(values, "text") }, root));
+        return;
+      }
+      if (current.kind === "method") {
+        print(
+          updateLibraryMethod(
+            id,
+            {
+              label: str(values, "label"),
+              text: str(values, "text"),
+              shape: str(values, "shape") ? parseMethodShape(str(values, "shape")) : undefined,
+            },
+            root,
+          ),
+        );
+        return;
+      }
+      print(
+        patchLibraryAsset(
+          id,
+          { label: str(values, "label"), text: str(values, "text"), style: str(values, "style") },
+          root,
+        ),
+      );
       return;
     }
     if (sub === "rm") {
@@ -379,7 +417,7 @@ function main(): void {
       const asset = id
         ? assets.find((item) => item.id === id)
         : label
-          ? assets.find((item) => item.kind === "voice" && voiceNameOf(item) === label.trim())
+          ? assets.find((item) => (item.label ?? item.id).trim() === label.trim())
           : undefined;
       if (!asset) fail("用法: weaver asset rm --library --id <id> 或 --label <名称>");
       const removed = removeLibraryAsset(asset.id, root);
@@ -387,6 +425,55 @@ function main(): void {
       return;
     }
     fail(`用法: weaver asset list|add|set|rm（kind: ${ASSET_KINDS.join(", ")}）`);
+  }
+
+  if (command === "method") {
+    const sub = rest[0];
+    if (sub === "add") {
+      try {
+        print(
+          createLibraryMethod(
+            {
+              label: str(values, "label") ?? "",
+              text: str(values, "text") ?? "",
+              shape: parseMethodShape(str(values, "shape")),
+            },
+            root,
+          ),
+        );
+      } catch (error) {
+        fail(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+    if (sub === "set") {
+      const method = findLibraryMethod(str(values, "id"), undefined, root);
+      if (!method) fail("用法: weaver method set --id <id> [--label] [--text] [--shape]");
+      try {
+        print(
+          updateLibraryMethod(
+            method.id,
+            {
+              label: str(values, "label"),
+              text: str(values, "text"),
+              shape: str(values, "shape") ? parseMethodShape(str(values, "shape")) : undefined,
+            },
+            root,
+          ),
+        );
+      } catch (error) {
+        fail(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+    if (sub === "rm") {
+      const method = findLibraryMethod(str(values, "id"), str(values, "label"), root);
+      if (!method) fail("用法: weaver method rm --id <id> 或 --label <名称>");
+      const removed = removeLibraryAsset(method.id, root);
+      print({ ok: true, id: removed.id, label: removed.label ?? removed.id });
+      return;
+    }
+    fail("用法: weaver method add|set|rm");
   }
 
   if (command === "recipe") {

@@ -99,6 +99,12 @@ export const api = {
       body: JSON.stringify({ recipe }),
     }).then((res) => parse<ProjectDetail>(res)),
   recipes: () => fetch("/api/recipes").then((res) => parse<RecipeCard[]>(res)),
+  createMethod: (body: { label: string; text: string; shape: "kinds" | "problem-then-rule" }) =>
+    fetch("/api/library/methods", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((res) => parse<Asset>(res)),
   patchLibrary: (
     id: string,
     body: {
@@ -108,6 +114,7 @@ export const api = {
       locale?: string;
       texts?: Record<string, string>;
       styles?: Record<string, string>;
+      shape?: "kinds" | "problem-then-rule";
     },
   ) =>
     fetch(`/api/library/assets/${encodeURIComponent(id)}`, {

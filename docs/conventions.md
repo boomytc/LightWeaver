@@ -30,7 +30,7 @@ assets/outputs/           渲染 mp4（不提交）
 
 **静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。必须先写进 `assets.json` 再落盘。
 
-**可选增强（方法 / 音色 / 素材）：** 三套都在 `library/`。工作台点了才约束 agent，没点就让它自己定，不要代点。方法资产 `library:method.*`，配方文件在 `library/methods/<pack>/`。音色、素材同样登记在 `library/assets.json`。agent 出片时不新建方法卡。Studio `/methods` 从库里读，不改不删。禁止把方法写进 `skills/`。
+**可选增强（方法 / 音色 / 素材）：** 三套都在 `library/`，同一套可增删改的插件。工作台点了才约束 agent，没点就让它自己定，不要代点。方法资产 `library:method.*`，人只填名称 / 何时用 / 骨架；文件在 `library/methods/<pack>/`。音色、素材同样登记在 `library/assets.json`。出片时不要为这一部片子新建方法。库的增删改在 Studio `/methods` `/voices` `/library`，或 `weaver method` / `weaver asset`。禁止把方法写进 `skills/`。
 
 发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 

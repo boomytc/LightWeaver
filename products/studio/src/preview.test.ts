@@ -210,24 +210,26 @@ describe("library catalog contract", () => {
 });
 
 describe("methods catalog contract", () => {
-  it("shows when and shape, then sends the card to the workbench", () => {
+  it("lets the catalog add, edit, delete, then send a card to the workbench", () => {
     const page = fs.readFileSync(path.join(here, "pages/Methods.tsx"), "utf8");
     assert.match(page, /methodShape/);
+    assert.match(page, /createMethod/);
+    assert.match(page, /patchLibrary/);
+    assert.match(page, /removeLibrary/);
     assert.match(page, /去组合/);
     assert.match(page, /\/\?recipe=/);
     assert.match(page, /kind === "method"/);
+    assert.match(page, /保存方法/);
+    assert.match(page, /删除/);
+    assert.match(page, /可选成片骨架/);
+    assert.doesNotMatch(page, /不改不删/);
     assert.doesNotMatch(page, /buildMethodBrief/);
     assert.doesNotMatch(page, /methodApplyLine/);
     assert.doesNotMatch(page, /复制用法/);
     assert.doesNotMatch(page, /举过例/);
     assert.doesNotMatch(page, /api\.projects/);
     assert.doesNotMatch(page, /recipe\.body/);
-    assert.doesNotMatch(page, /card-id/);
     assert.doesNotMatch(page, /kinds\.ts/);
-    assert.match(page, /可选成片骨架/);
-    assert.match(page, /不改不删/);
-    assert.doesNotMatch(page, /删除/);
-    assert.doesNotMatch(page, /onChange/);
   });
 });
 

@@ -148,9 +148,9 @@ describe("listRecipes / loadRecipe", () => {
     assert.equal(shown.task, "study-explainer");
     assert.equal(shown.level, "film");
     assert.equal(shown.requires_kinds, true);
-    assert.deepEqual(shown.canon, ["dropdown-taxonomy", "nav-taxonomy", "sidebar-taxonomy"]);
+    assert.equal(shown.canon, undefined);
     assert.ok(shown.path.endsWith(path.join("library", "methods", "lightui-study-explainer", "taxonomy-parade.md")));
-    assert.match(shown.body, /一种模型一场 still/);
+    assert.match(shown.body, /# 对照表阅兵/);
   });
 
   it("loads problem-then-rule default scenes and rejects bad ids", () => {

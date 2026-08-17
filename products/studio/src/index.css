@@ -370,6 +370,8 @@ button:disabled {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .modal-actions {
   display: flex;

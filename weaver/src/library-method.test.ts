@@ -1,0 +1,72 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { describe, it } from "node:test";
+import { createLibraryMethod, methodIdFromName, updateLibraryMethod } from "./library-method.ts";
+import { loadLibrary, removeLibraryAsset } from "./assets.ts";
+import { loadRecipe } from "./recipes.ts";
+import { tempWorkspace } from "./test-workspace.ts";
+
+describe("createLibraryMethod", () => {
+  it("writes a library method and a film recipe file", () => {
+    const root = tempWorkspace();
+    const asset = createLibraryMethod(
+      { label: "对照练习", text: "有一份互斥模型清单", shape: "kinds" },
+      root,
+    );
+    assert.equal(asset.kind, "method");
+    assert.equal(asset.label, "对照练习");
+    assert.equal(asset.id, "method.pack");
+    assert.ok(asset.file?.endsWith("methods/lightui-study-explainer/pack.md"));
+    const recipe = loadRecipe("pack", root);
+    assert.equal(recipe.level, "film");
+    assert.equal(recipe.requires_kinds, true);
+    assert.equal(recipe.when, "有一份互斥模型清单");
+    assert.match(fs.readFileSync(path.join(root, "library", asset.file!), "utf8"), /# 对照练习/);
+  });
+
+  it("refuses a duplicate name", () => {
+    const root = tempWorkspace();
+    createLibraryMethod({ label: "规则卡", text: "先问题", shape: "problem-then-rule" }, root);
+    assert.throws(
+      () => createLibraryMethod({ label: "规则卡", text: "另一段", shape: "kinds" }, root),
+      /已在方法库里/,
+    );
+  });
+
+  it("renames without changing the id and can be removed", () => {
+    const root = tempWorkspace();
+    const created = createLibraryMethod(
+      { label: "旧名", text: "何时", shape: "problem-then-rule" },
+      root,
+    );
+    const updated = updateLibraryMethod(created.id, { label: "新名", text: "新的何时" }, root);
+    assert.equal(updated.id, created.id);
+    assert.equal(updated.label, "新名");
+    assert.equal(loadRecipe(created.id, root).when, "新的何时");
+    removeLibraryAsset(created.id, root);
+    assert.equal(loadLibrary(root).some((item) => item.id === created.id), false);
+    assert.equal(fs.existsSync(path.join(root, "library", created.file!)), false);
+  });
+
+  it("slugs an ascii name into the default id", () => {
+    assert.equal(methodIdFromName("Taxonomy Parade"), "method.taxonomy-parade");
+  });
+
+  it("rewrites the skeleton when the shape changes", () => {
+    const root = tempWorkspace();
+    const created = createLibraryMethod(
+      { label: "先对照", text: "有清单", shape: "kinds" },
+      root,
+    );
+    const updated = updateLibraryMethod(created.id, { shape: "problem-then-rule" }, root);
+    const recipe = loadRecipe(created.id, root);
+    assert.equal(updated.id, created.id);
+    assert.equal(recipe.requires_kinds, undefined);
+    assert.deepEqual(
+      recipe.default_scenes?.map((scene) => scene.id),
+      ["problem", "rule", "contrast"],
+    );
+    removeLibraryAsset(created.id, root);
+  });
+});

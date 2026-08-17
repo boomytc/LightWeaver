@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { BriefPanel } from "../components/BriefPanel";
+import { Link } from "../components/Link";
 import { recipeHint } from "../lib/labels";
 import type { OutputHome } from "../lib/brief";
 import { langLabel } from "../lib/langs";
@@ -121,6 +122,11 @@ export function Home() {
         <section>
           <h2 className="h">方法</h2>
           <p className="item-meta">可选。库里的成片骨架，不点就让 agent 自己铺场。</p>
+          {methods.length === 0 ? (
+            <p className="item-meta">
+              库里还没有方法。<Link href="/methods">去方法页</Link>
+            </p>
+          ) : null}
           <div className="pick-grid">
             {methods.map((asset) => {
               const id = asset.id.replace(/^method\./, "");

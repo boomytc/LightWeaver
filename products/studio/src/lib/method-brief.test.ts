@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { methodShape } from "./method-brief.ts";
+import { methodShape, methodShapeKind, recipeIdOfMethod } from "./method-brief.ts";
 import type { RecipeCard } from "../types";
 
 const parade: RecipeCard = {
@@ -32,5 +32,11 @@ describe("methodShape", () => {
 
   it("describes a role skeleton, not a film's scene ids", () => {
     assert.equal(methodShape(rule), "问题 → 规则 → 对照");
+  });
+
+  it("maps a catalog id and recipe into the two shapes", () => {
+    assert.equal(recipeIdOfMethod({ id: "method.taxonomy-parade" }), "taxonomy-parade");
+    assert.equal(methodShapeKind(parade), "kinds");
+    assert.equal(methodShapeKind(rule), "problem-then-rule");
   });
 });
