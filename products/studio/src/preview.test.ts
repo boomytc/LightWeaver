@@ -209,12 +209,18 @@ describe("library catalog contract", () => {
 });
 
 describe("methods catalog contract", () => {
-  it("shows a reusable apply contract, not recipe markdown or instance-bound copy", () => {
+  it("shows when and shape, then sends the card to the workbench", () => {
     const page = fs.readFileSync(path.join(here, "pages/Methods.tsx"), "utf8");
-    assert.match(page, /buildMethodBrief/);
-    assert.match(page, /methodApplyLine/);
+    assert.match(page, /methodShape/);
+    assert.match(page, /去组合/);
+    assert.match(page, /\/\?recipe=/);
+    assert.doesNotMatch(page, /buildMethodBrief/);
+    assert.doesNotMatch(page, /methodApplyLine/);
+    assert.doesNotMatch(page, /复制用法/);
+    assert.doesNotMatch(page, /举过例/);
+    assert.doesNotMatch(page, /api\.projects/);
     assert.doesNotMatch(page, /recipe\.body/);
-    assert.doesNotMatch(page, /还没有片子点名这张卡/);
+    assert.doesNotMatch(page, /card-id/);
     assert.doesNotMatch(page, /kinds\.ts/);
   });
 });

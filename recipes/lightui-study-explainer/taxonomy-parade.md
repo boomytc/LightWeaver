@@ -3,8 +3,7 @@ id: taxonomy-parade
 task: study-explainer
 level: film
 when: |
-  study 以 kinds.ts 列出互斥模型，idea.md 用「名称/场景/规则」
-  收束，close 要点破易混对。
+  有一份互斥模型清单，一种模型一场，收束点破最容易混的一对。
 canon:
   - dropdown-taxonomy
   - nav-taxonomy

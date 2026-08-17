@@ -14,7 +14,7 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
 | `/films` `/f/<id>` | human reviews | read-only trajectory: what was used, scenes, mp4 |
 | `/voices` | human | one create flow; upload plays then keep; empty 文本 is ASR-filled; library can rename/fix text/delete; film uses Hi-Fi clone |
 | `/library` | human | reference elements and images; not a required kit |
-| `/methods` | human | reusable film cards: when, shape, apply; copy usage |
+| `/methods` | human | film skeletons only: when + shape; go to `/` with that card. No copy, no film list |
 
 ## Rules
 

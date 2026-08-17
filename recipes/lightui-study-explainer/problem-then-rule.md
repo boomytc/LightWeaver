@@ -3,7 +3,7 @@ id: problem-then-rule
 task: study-explainer
 level: film
 when: |
-  study 讲一条会坏的交互规则，而不是一张模型对照表。
+  讲一条会坏的交互规则：先问题，再做法，再对照。
 canon:
   - intent-cascade
 default_scenes:

@@ -437,14 +437,7 @@ html[data-theme="light"] .modal::backdrop {
 .method-card { gap: 0; }
 .method-card h2 { margin: 0; font-size: 1.15rem; letter-spacing: -0.02em; }
 .method-card .film-card-top { flex-wrap: wrap; align-items: center; }
-.method-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: baseline;
-  margin-top: 12px;
-}
+.method-card .item-meta { margin: 4px 0 0; }
 .voice-main {
   display: flex;
   justify-content: space-between;
