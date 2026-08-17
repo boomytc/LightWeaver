@@ -84,8 +84,7 @@ export function Library() {
 
   return (
     <div className="page-width page">
-      <p className="eyebrow">工作台</p>
-      <h1 className="page-title">素材</h1>
+      <h1 className="sr">素材</h1>
       <p className="lede">
         可选画面增强，和音色、方法同类。这里管库：加、改、删。点上才给 agent 作参考，不点就不强制。选用在组合页。
       </p>

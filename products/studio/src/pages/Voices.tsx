@@ -175,8 +175,7 @@ export function Voices() {
 
   return (
     <div className="page-width page">
-      <p className="eyebrow">工作台</p>
-      <h1 className="page-title">音色</h1>
+      <h1 className="sr">音色</h1>
       <p className="lede">
         可选配音增强，和方法、素材同类。点上的那套，出片就用它做 Hi-Fi clone。内容在库里监管，选用在组合页。
       </p>

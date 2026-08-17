@@ -58,8 +58,7 @@ export function Home() {
 
   return (
     <div className="page-width page">
-      <p className="eyebrow">工作台</p>
-      <h1 className="page-title">选出一组，复制给 agent。</h1>
+      <h1 className="sr">组合</h1>
       <p className="lede">
         方法、音色、素材都是可选增强，点上的才约束 agent。再点要出的语言，和成片写到哪。说明只在这里复制。
       </p>
@@ -67,7 +66,6 @@ export function Home() {
 
       <section>
         <h2 className="h">要出的语言</h2>
-        <p className="item-meta">可选中文、英文，或两个都出。音色还是一套，不必两种都勾。</p>
         <ul className="kit-list lang-picks">
           {["zh", "en"].map((item) => {
             const on = langs.includes(item);
@@ -93,7 +91,6 @@ export function Home() {
 
       <section>
         <h2 className="h">产物写到哪</h2>
-        <p className="item-meta">成片只进本仓 data/ 对应任务目录。没点就让 agent 先问。不要默认拷到仓库外。</p>
         <div className="pick-grid pick-grid-row">
           <button
             type="button"
@@ -117,7 +114,6 @@ export function Home() {
       <div className="compose-grid">
         <section>
           <h2 className="h">方法</h2>
-          <p className="item-meta">可选。库里的成片骨架，不点就让 agent 自己铺场。</p>
           {methods.length === 0 ? (
             <p className="item-meta">
               库里还没有方法。<Link href="/methods">去方法页</Link>
@@ -143,7 +139,6 @@ export function Home() {
 
         <section>
           <h2 className="h">音色</h2>
-          <p className="item-meta">可选。点上的那套，出片就用它克隆。</p>
           <div className="pick-grid">
             {voicePacks.map((asset) => {
               const ref = `library:${asset.id}`;
@@ -164,7 +159,6 @@ export function Home() {
 
         <section>
           <h2 className="h">素材</h2>
-          <p className="item-meta">可选。点上的给 agent 作参考，不强制。</p>
           {materials.length === 0 ? (
             <p className="item-meta">
               库里还没有素材。<Link href="/library">去素材页</Link>

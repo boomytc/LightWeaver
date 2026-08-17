@@ -186,7 +186,7 @@ describe("films review contract", () => {
   it("reviews trajectory and does not copy an agent brief", () => {
     const films = fs.readFileSync(path.join(here, "pages/Films.tsx"), "utf8");
     const film = fs.readFileSync(path.join(here, "pages/Film.tsx"), "utf8");
-    assert.match(films, /复盘/);
+    assert.match(films, /看 agent 出过的任务/);
     assert.match(films, /methodLabel/);
     assert.doesNotMatch(films, /空壳/);
     assert.doesNotMatch(films, /createProject/);

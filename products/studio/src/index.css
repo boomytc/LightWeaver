@@ -235,10 +235,12 @@ button:disabled {
 }
 
 .lede {
-  max-width: 42rem;
   color: var(--text-secondary);
-  margin: 6px 0 0;
+  margin: 0 0 16px;
   font-size: 14px;
+}
+.page-title + .lede {
+  margin-top: 6px;
 }
 
 .section { margin-top: 28px; }

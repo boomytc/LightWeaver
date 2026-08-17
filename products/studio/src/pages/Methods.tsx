@@ -79,8 +79,7 @@ export function Methods() {
 
   return (
     <div className="page-width page">
-      <p className="eyebrow">工作台</p>
-      <h1 className="page-title">方法</h1>
+      <h1 className="sr">方法</h1>
       <p className="lede">
         可选铺场方案，和音色、素材同类。写名称、何时用，再决定是固定这几场，还是清单里一项一场。点去组合，说明只在那边复制。
       </p>

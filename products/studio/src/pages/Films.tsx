@@ -24,8 +24,7 @@ export function Films() {
 
   return (
     <div className="page-width page">
-      <p className="eyebrow">复盘</p>
-      <h1 className="page-title">片子</h1>
+      <h1 className="sr">片子</h1>
       <p className="lede">看 agent 出过的任务：用了什么、渲到哪、齐不齐。给 agent 的说明只在工作台复制。</p>
       <Toast flash={flash} />
 
