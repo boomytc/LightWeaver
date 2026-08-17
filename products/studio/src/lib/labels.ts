@@ -19,19 +19,3 @@ export function kindLabel(kind: string): string {
 export function sourceLabel(source: string): string {
   return source === "first-party" ? "data/first-party" : "data/projects";
 }
-
-export function compactWhen(when?: string): string {
-  if (!when) return "";
-  return when.split(/\n/).map((line) => line.trim()).filter(Boolean)[0] ?? "";
-}
-
-export function roleLabel(role?: string): string {
-  if (role === "problem") return "问题";
-  if (role === "rule") return "规则";
-  if (role === "contrast") return "对照";
-  return role ?? "";
-}
-
-export function recipeHint(recipe: { id: string; when?: string }): string {
-  return compactWhen(recipe.when) || recipe.id;
-}

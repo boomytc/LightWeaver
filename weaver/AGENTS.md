@@ -41,6 +41,8 @@ src/cli.ts             JSON/human CLI
 - Task instances live under `data/` (gitignored): `data/first-party/`
   and `data/projects/`. Voices, elements, and methods live in `library/`.
   Film-level methods are catalogued as `kind: method`.
-  `createLibraryMethod` / `updateLibraryMethod` write
-  `library/methods/<recipePack>/*.md` and the catalog. Apply reads those
-  files. Scene cards stay as apply internals and are not catalog plugins.
+  `createLibraryMethod` / `updateLibraryMethod` write the catalog
+  (name / when / shape) and a projection file under
+  `library/methods/<recipePack>/`. Studio reads the catalog only.
+  Apply still reads the projection file. Scene cards stay as apply
+  internals and are not catalog plugins.

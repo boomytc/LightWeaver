@@ -2,23 +2,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { libraryRoot, weaverRoot } from "./paths.ts";
 import { loadLibrary, upsertLibraryAsset } from "./assets.ts";
-import { loadRecipe, recipeIdOf } from "./recipes.ts";
+import { recipeIdOf } from "./recipes.ts";
 import { getTask } from "./tasks/registry.ts";
-import type { Asset } from "./schema.ts";
-
-export type MethodShape = "kinds" | "problem-then-rule";
+import { isMethodShape, type Asset, type MethodShape } from "./schema.ts";
 
 const ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
-
-export function isMethodShape(value: unknown): value is MethodShape {
-  return value === "kinds" || value === "problem-then-rule";
-}
 
 export function parseMethodShape(value: unknown): MethodShape {
   if (value === "一种模型一场") return "kinds";
   if (value === "问题然后规则" || value === "问题 → 规则 → 对照") return "problem-then-rule";
   if (isMethodShape(value)) return value;
   throw new Error("骨架只能是一种模型一场，或问题 → 规则 → 对照");
+}
+
+export function methodShapeOf(asset: Pick<Asset, "shape">): MethodShape {
+  return isMethodShape(asset.shape) ? asset.shape : "problem-then-rule";
 }
 
 export function methodNameOf(asset: Pick<Asset, "id" | "label">): string {
@@ -111,7 +109,7 @@ export function createLibraryMethod(
   const recipeId = recipeIdOf(id);
   const rel = methodRel(recipeId);
   writeMethodFile(rel, { recipeId, title: label, when: text, shape }, root);
-  return upsertLibraryAsset({ id, kind: "method", label, text, file: rel }, root);
+  return upsertLibraryAsset({ id, kind: "method", label, text, file: rel, shape }, root);
 }
 
 export function updateLibraryMethod(
@@ -130,20 +128,9 @@ export function updateLibraryMethod(
   if (clash) throw new Error(`${label} 已在方法库里`);
   const recipeId = recipeIdOf(id);
   const rel = current.file || methodRel(recipeId);
-  const shape = patch.shape !== undefined ? parseMethodShape(patch.shape) : inferShape(rel, root);
+  const shape = patch.shape !== undefined ? parseMethodShape(patch.shape) : methodShapeOf(current);
   writeMethodFile(rel, { recipeId, title: label, when: text, shape }, root);
-  return upsertLibraryAsset({ ...current, label, text, file: rel }, root);
-}
-
-function inferShape(rel: string, root: string): MethodShape {
-  const abs = path.join(libraryRoot(root), rel);
-  if (!fs.existsSync(abs)) return "problem-then-rule";
-  try {
-    return loadRecipe(path.basename(rel, ".md"), root).requires_kinds ? "kinds" : "problem-then-rule";
-  } catch {
-    const raw = fs.readFileSync(abs, "utf8");
-    return raw.includes("requires_kinds:") ? "kinds" : "problem-then-rule";
-  }
+  return upsertLibraryAsset({ ...current, label, text, file: rel, shape }, root);
 }
 
 export function listLibraryMethods(root = weaverRoot()): Array<{
@@ -153,15 +140,11 @@ export function listLibraryMethods(root = weaverRoot()): Array<{
   text: string;
   shape: MethodShape;
 }> {
-  return methodsIn(root).map((item) => {
-    const recipe = recipeIdOf(item.id);
-    const rel = item.file || methodRel(recipe);
-    return {
-      id: item.id,
-      recipe,
-      label: methodNameOf(item),
-      text: (item.text ?? "").trim(),
-      shape: inferShape(rel, root),
-    };
-  });
+  return methodsIn(root).map((item) => ({
+    id: item.id,
+    recipe: recipeIdOf(item.id),
+    label: methodNameOf(item),
+    text: (item.text ?? "").trim(),
+    shape: methodShapeOf(item),
+  }));
 }

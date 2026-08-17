@@ -169,6 +169,7 @@ describe("workbench contract", () => {
     assert.match(page, /data\/first-party/);
     assert.match(page, /可选增强/);
     assert.match(page, /素材/);
+    assert.doesNotMatch(page, /api\.recipes/);
     assert.doesNotMatch(page, /publishLightui/);
     assert.doesNotMatch(page, /LightUI/);
     const brief = fs.readFileSync(path.join(here, "lib/brief.ts"), "utf8");
@@ -213,7 +214,9 @@ describe("library catalog contract", () => {
 describe("methods catalog contract", () => {
   it("lets the catalog add, edit, delete, then send a card to the workbench", () => {
     const page = fs.readFileSync(path.join(here, "pages/Methods.tsx"), "utf8");
-    assert.match(page, /methodShape/);
+    assert.match(page, /methodShapeName/);
+    assert.match(page, /methodShapeOf/);
+    assert.doesNotMatch(page, /api\.recipes/);
     assert.match(page, /createMethod/);
     assert.match(page, /patchLibrary/);
     assert.match(page, /removeLibrary/);

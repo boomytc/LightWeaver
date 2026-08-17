@@ -1,4 +1,4 @@
-import type { Asset, Job, ProjectDetail, ProjectSummary, RecipeCard } from "./types";
+import type { Asset, Job, ProjectDetail, ProjectSummary } from "./types";
 
 async function parse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -98,7 +98,6 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ recipe }),
     }).then((res) => parse<ProjectDetail>(res)),
-  recipes: () => fetch("/api/recipes").then((res) => parse<RecipeCard[]>(res)),
   createMethod: (body: { label: string; text: string; shape: "kinds" | "problem-then-rule" }) =>
     fetch("/api/library/methods", {
       method: "POST",

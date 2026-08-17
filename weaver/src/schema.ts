@@ -1,6 +1,13 @@
 export const ASSET_KINDS = ["element", "voice", "still", "reference", "line", "output", "method"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
+export const METHOD_SHAPES = ["kinds", "problem-then-rule"] as const;
+export type MethodShape = (typeof METHOD_SHAPES)[number];
+
+export function isMethodShape(value: unknown): value is MethodShape {
+  return value === "kinds" || value === "problem-then-rule";
+}
+
 export const TASK_IDS = ["study-explainer"] as const;
 export type TaskId = (typeof TASK_IDS)[number];
 
@@ -32,6 +39,8 @@ export type Asset = {
   styles?: Record<Locale, string>;
   scene?: string;
   label?: string;
+  /** 方法插件的成片骨架。其它 kind 不用。 */
+  shape?: MethodShape;
 };
 
 export type AssetDoc = {

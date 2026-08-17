@@ -16,6 +16,7 @@ describe("createLibraryMethod", () => {
     );
     assert.equal(asset.kind, "method");
     assert.equal(asset.label, "对照练习");
+    assert.equal(asset.shape, "kinds");
     assert.equal(asset.id, "method.pack");
     assert.ok(asset.file?.endsWith("methods/lightui-study-explainer/pack.md"));
     const recipe = loadRecipe("pack", root);
@@ -61,6 +62,7 @@ describe("createLibraryMethod", () => {
     );
     const updated = updateLibraryMethod(created.id, { shape: "problem-then-rule" }, root);
     const recipe = loadRecipe(created.id, root);
+    assert.equal(updated.shape, "problem-then-rule");
     assert.equal(updated.id, created.id);
     assert.equal(recipe.requires_kinds, undefined);
     assert.deepEqual(

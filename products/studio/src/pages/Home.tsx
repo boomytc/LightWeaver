@@ -4,16 +4,14 @@ import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { BriefPanel } from "../components/BriefPanel";
 import { Link } from "../components/Link";
-import { recipeHint } from "../lib/labels";
 import type { OutputHome } from "../lib/brief";
 import { langLabel } from "../lib/langs";
-import { recipeIdOfMethod } from "../lib/method-brief";
+import { methodShapeOf, recipeIdOfMethod } from "../lib/method-brief";
 import { listVoicePacks } from "../lib/voices";
-import type { Asset, RecipeCard } from "../types";
+import type { Asset } from "../types";
 
 export function Home() {
   const [library, setLibrary] = useState<Asset[]>([]);
-  const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const { flash, error } = useFlash();
   const [recipeId, setRecipeId] = useState("");
   const [voiceRef, setVoiceRef] = useState("");
@@ -22,10 +20,10 @@ export function Home() {
   const [outputHome, setOutputHome] = useState<OutputHome | "">("");
 
   useEffect(() => {
-    Promise.all([api.library(), api.recipes()])
-      .then(([nextLibrary, nextRecipes]) => {
+    api
+      .library()
+      .then((nextLibrary) => {
         setLibrary(nextLibrary);
-        setRecipes(nextRecipes.filter((item) => item.level === "film"));
         const wanted = new URLSearchParams(window.location.search).get("recipe") ?? "";
         if (wanted) setRecipeId(wanted);
       })
@@ -36,7 +34,6 @@ export function Home() {
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
   const methods = library.filter((asset) => asset.kind === "method");
   const selectedMethod = methods.find((asset) => recipeIdOfMethod(asset) === recipeId);
-  const selectedRecipe = recipes.find((item) => item.id === recipeId);
   const selectedVoice = voicePacks.find((asset) => `library:${asset.id}` === voiceRef);
 
   const voiceLabels = useMemo(() => {
@@ -132,7 +129,6 @@ export function Home() {
           <div className="pick-grid">
             {methods.map((asset) => {
               const id = recipeIdOfMethod(asset);
-              const recipe = recipes.find((item) => item.id === id);
               return (
                 <button
                   key={asset.id}
@@ -140,8 +136,8 @@ export function Home() {
                   className={id === recipeId ? "pick is-on" : "pick"}
                   onClick={() => setRecipeId(id === recipeId ? "" : id)}
                 >
-                  <strong>{asset.label ?? recipe?.title ?? id}</strong>
-                  <span className="item-meta">{asset.text?.trim() || (recipe ? recipeHint(recipe) : "")}</span>
+                  <strong>{asset.label ?? id}</strong>
+                  <span className="item-meta">{asset.text?.trim() ?? ""}</span>
                 </button>
               );
             })}
@@ -199,8 +195,8 @@ export function Home() {
         input={{
           task: "study-explainer",
           recipeId: recipeId || undefined,
-          recipeTitle: selectedMethod?.label ?? selectedRecipe?.title,
-          requiresKinds: selectedRecipe?.requires_kinds,
+          recipeTitle: selectedMethod?.label,
+          requiresKinds: selectedMethod ? methodShapeOf(selectedMethod) === "kinds" : undefined,
           voices: Object.fromEntries(langs.map((locale) => [locale, voiceRef])),
           voiceLabels,
           voiceSet: selectedVoice ? { ref: voiceRef, label: selectedVoice.label ?? selectedVoice.id } : undefined,

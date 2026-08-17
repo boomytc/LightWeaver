@@ -3,13 +3,11 @@ import { api } from "../api";
 import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { Link } from "../components/Link";
-import { compactWhen, recipeHint } from "../lib/labels";
-import { methodShape, methodShapeKind, methodShapeName, recipeIdOfMethod, type MethodShape } from "../lib/method-brief";
-import type { Asset, RecipeCard } from "../types";
+import { methodShapeName, methodShapeOf, recipeIdOfMethod, type MethodShape } from "../lib/method-brief";
+import type { Asset } from "../types";
 
 export function Methods() {
   const [methods, setMethods] = useState<Asset[]>([]);
-  const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const { flash, ok, error } = useFlash();
   const [label, setLabel] = useState("");
   const [when, setWhen] = useState("");
@@ -17,9 +15,8 @@ export function Methods() {
   const [busy, setBusy] = useState(false);
 
   async function reload() {
-    const [library, nextRecipes] = await Promise.all([api.library(), api.recipes()]);
+    const library = await api.library();
     setMethods(library.filter((item) => item.kind === "method"));
-    setRecipes(nextRecipes.filter((item) => item.level === "film"));
   }
 
   useEffect(() => {
@@ -100,7 +97,6 @@ export function Methods() {
                 <MethodLibraryCard
                   key={asset.id}
                   asset={asset}
-                  recipe={recipes.find((item) => item.id === recipeIdOfMethod(asset))}
                   taken={(name) => taken(name, asset.id)}
                   onChanged={reload}
                   onError={error}
@@ -155,23 +151,21 @@ function ShapePick({
 
 function MethodLibraryCard({
   asset,
-  recipe,
   taken,
   onChanged,
   onError,
   onMessage,
 }: {
   asset: Asset;
-  recipe?: RecipeCard;
   taken: (name: string) => boolean;
   onChanged: () => Promise<void>;
   onError: (message?: string) => void;
   onMessage: (message?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const title = asset.label ?? recipe?.title ?? recipeIdOfMethod(asset);
-  const when = asset.text?.trim() || (recipe ? recipeHint(recipe) : "") || compactWhen(recipe?.when);
-  const shape = recipe ? methodShape(recipe) : "";
+  const title = asset.label ?? recipeIdOfMethod(asset);
+  const when = asset.text?.trim() ?? "";
+  const shape = methodShapeOf(asset);
 
   async function remove() {
     if (!window.confirm(`删除后，点过这个方法的片子会缺骨架。确定删除「${title}」？`)) return;
@@ -192,7 +186,7 @@ function MethodLibraryCard({
         <div>
           <div className="item-title">{title}</div>
           {when ? <div className="item-meta">{when}</div> : null}
-          {shape ? <div className="item-meta">骨架 · {shape}</div> : null}
+          <div className="item-meta">骨架 · {methodShapeName(shape)}</div>
         </div>
         <div className="voice-row-actions">
           <Link href={`/?recipe=${encodeURIComponent(recipeIdOfMethod(asset))}`} className="btn btn-primary">
@@ -209,7 +203,6 @@ function MethodLibraryCard({
       {open ? (
         <MethodDetail
           asset={asset}
-          recipe={recipe}
           taken={taken}
           onClose={() => setOpen(false)}
           onChanged={onChanged}
@@ -224,7 +217,6 @@ function MethodLibraryCard({
 
 function MethodDetail({
   asset,
-  recipe,
   taken,
   onClose,
   onChanged,
@@ -233,7 +225,6 @@ function MethodDetail({
   onRemove,
 }: {
   asset: Asset;
-  recipe?: RecipeCard;
   taken: (name: string) => boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
@@ -243,9 +234,9 @@ function MethodDetail({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = `method-detail-${asset.id}`;
-  const [name, setName] = useState(asset.label ?? recipe?.title ?? recipeIdOfMethod(asset));
-  const [when, setWhen] = useState(asset.text?.trim() || recipe?.when || "");
-  const [shape, setShape] = useState<MethodShape>(methodShapeKind(recipe));
+  const [name, setName] = useState(asset.label ?? recipeIdOfMethod(asset));
+  const [when, setWhen] = useState(asset.text?.trim() ?? "");
+  const [shape, setShape] = useState<MethodShape>(methodShapeOf(asset));
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -304,7 +295,7 @@ function MethodDetail({
       <div className="modal-card">
         <div className="voice-card-top">
           <h3 className="item-title" id={titleId}>
-            {asset.label ?? recipe?.title ?? recipeIdOfMethod(asset)}
+            {asset.label ?? recipeIdOfMethod(asset)}
           </h3>
         </div>
         <label className="field">

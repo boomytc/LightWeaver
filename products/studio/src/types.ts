@@ -65,6 +65,7 @@ export type Asset = {
   styles?: Record<string, string>;
   scene?: string;
   label?: string;
+  shape?: "kinds" | "problem-then-rule";
 };
 
 /** 项目外路径（brief.files）。不要依赖 rel。 */
@@ -104,17 +105,6 @@ export type ProjectDetail = ProjectSummary & {
   issues: Issue[];
   renderable: boolean;
   paths: ProjectPaths;
-};
-
-export type RecipeCard = {
-  id: string;
-  task: string;
-  level: "film" | "scene";
-  when: string;
-  title: string;
-  requires_kinds?: boolean;
-  canon?: string[];
-  default_scenes?: { id: string; kind: string; role?: string }[];
 };
 
 export type Job = {

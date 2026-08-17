@@ -8,22 +8,20 @@ import { filmLangs, langLabel } from "../lib/langs";
 import { methodLabel } from "../lib/method-brief";
 import { filmVoiceRef } from "../lib/voices";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
-import type { Asset, ProjectDetail, RecipeCard } from "../types";
+import type { Asset, ProjectDetail } from "../types";
 
 export function Film({ id }: { id: string }) {
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [library, setLibrary] = useState<Asset[]>([]);
-  const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const [locale, setLocale] = useState("zh");
   const { flash, error } = useFlash();
   const [loadFailed, setLoadFailed] = useState(false);
   const [sceneId, setSceneId] = useState<string>();
 
   const load = useCallback(async () => {
-    const [next, nextLibrary, nextRecipes] = await Promise.all([api.project(id), api.library(), api.recipes()]);
+    const [next, nextLibrary] = await Promise.all([api.project(id), api.library()]);
     setDetail(next);
     setLibrary(nextLibrary);
-    setRecipes(nextRecipes.filter((item) => item.level === "film"));
     setLocale((current) => {
       const langs = filmLangs(next.film);
       if (langs.includes(current)) return current;
@@ -55,10 +53,7 @@ export function Film({ id }: { id: string }) {
 
   const copy = detail.film.locales[locale];
   const packRef = filmVoiceRef(detail.film.voices);
-  const recipeTitle =
-    methodLabel(library, detail.film.recipe) ||
-    recipes.find((item) => item.id === detail.film.recipe)?.title ||
-    detail.film.recipe;
+  const recipeTitle = methodLabel(library, detail.film.recipe) || detail.film.recipe;
   const langs = filmLangs(detail.film);
   const kit = detail.film.kit ?? [];
 
