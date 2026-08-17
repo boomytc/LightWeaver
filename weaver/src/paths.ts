@@ -15,7 +15,7 @@ export function libraryRoot(root = weaverRoot()): string {
 
 export function recipeRoot(root = weaverRoot()): string {
   if (process.env.LIGHTWEAVER_RECIPES) return path.resolve(process.env.LIGHTWEAVER_RECIPES);
-  return path.join(root, "recipes");
+  return path.join(libraryRoot(root), "methods");
 }
 
 export function firstPartyRoot(root = weaverRoot()): string {

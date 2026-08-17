@@ -1,4 +1,4 @@
-export const ASSET_KINDS = ["element", "voice", "still", "reference", "line", "output"] as const;
+export const ASSET_KINDS = ["element", "voice", "still", "reference", "line", "output", "method"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
 export const TASK_IDS = ["study-explainer"] as const;
@@ -76,9 +76,9 @@ export type FilmDoc = {
   publish?: { dir: string };
   capture?: { kind: string; slug?: string };
   voices: Record<Locale, AssetRef>;
-  /** 人指定的可复用素材（只允许 library:element|reference）。agent 按这份清单用，不自己加库外元素。 */
+  /** 可选素材增强（library:element|reference）。 */
   kit?: AssetRef[];
-  /** 人点名的成片方法卡（film-level recipe id）。agent 按这张卡铺骨架，不另选。 */
+  /** 可选方法增强。存 recipe id，或 library:method.<id>。 */
   recipe?: string;
   /** 要出的语言。省略则按 locales 里已有的键都出。 */
   langs?: Locale[];

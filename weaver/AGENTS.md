@@ -31,16 +31,13 @@ src/cli.ts             JSON/human CLI
 - No LLM in weaver. No model client, no `produce` / `plan`, no narration
   generator inside this package. Agent drafts `lines` in its own process;
   weaver only writes files and runs jobs (`tts.py`, `asr.py`, Remotion, `capture.mjs`).
-- `recipeRoot` lives in `paths.ts` next to `libraryRoot`. Product default is
-  the repo-root `recipes/` directory. Never `library/recipes/` or
-  `skills/**/recipes/`. `LIGHTWEAVER_RECIPES` is test-fixture only — do not
-  put scratch paths in this file.
+- `recipeRoot` is `library/methods` (method plugins live in the library).
+  `LIGHTWEAVER_RECIPES` is test-fixture only. Never `skills/**/recipes/`.
 - `project.ts` must not import `project-paths.ts`, `assets.ts`, or
   `validate.ts`. `project-paths.ts` must not import `validate.ts`
   (`assets.ts` already imports `saveAssets` from `project.ts`; a reverse
   import is a cycle). Put `projectPaths` only in `project-paths.ts`.
 - Task instances live under `data/` (gitignored): `data/first-party/`
-  and `data/projects/`. Shared voices live in `library/`. Method cards
-  are human-authored markdown in `recipes/lightui-study-explainer/`
-  (`TaskModule.recipePack`; task id remains `study-explainer`). This
-  package lists / shows / applies them. It does not write recipe files.
+  and `data/projects/`. Voices, elements, and methods live in `library/`.
+  Film-level methods are catalogued as `kind: method`. Apply reads
+  `library/methods/<recipePack>/`. This package does not write recipe files.

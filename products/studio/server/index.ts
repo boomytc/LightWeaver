@@ -609,6 +609,9 @@ function ingestUpload(
   const style = typeof req.body?.style === "string" ? req.body.style : undefined;
   if (!req.file) throw new Error("缺少文件");
   let id = String(req.body?.id ?? "").trim();
+  if (kind === "method") {
+    throw new Error("方法进库要写 methods/ 下的配方并登记，不要当文件上传");
+  }
   if (kind === "voice" && target.scope === "library" && !id) {
     id = allocateNewVoice(label ?? "", root).id;
   }

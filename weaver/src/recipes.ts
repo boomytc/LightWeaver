@@ -6,6 +6,7 @@ import {
   filmTask,
   isImplementedTask,
   isStudyRole,
+  parseAssetRef,
   type ProjectRecord,
   type StudyRole,
   type TaskId,
@@ -267,12 +268,27 @@ export function listRecipes(root = weaverRoot(), task?: string): Recipe[] {
   return found;
 }
 
+/** 片子上的 recipe、library:method.*、method.* 都收成 apply 用的 id。 */
+export function recipeIdOf(ref: string): string {
+  const trimmed = ref.trim();
+  if (!trimmed) return "";
+  const parsed = parseAssetRef(trimmed);
+  const raw = parsed?.id ?? trimmed;
+  return raw.replace(/^method\./, "");
+}
+
+export function methodAssetId(recipeId: string): string {
+  const id = recipeIdOf(recipeId);
+  return id ? `method.${id}` : "";
+}
+
 export function loadRecipe(id: string, root = weaverRoot()): Recipe {
-  if (!ID_RE.test(id)) throw new Error(`非法 recipe id：${id}`);
+  const wanted = recipeIdOf(id);
+  if (!ID_RE.test(wanted)) throw new Error(`非法 recipe id：${id}`);
   for (const recipe of listRecipes(root)) {
-    if (recipe.id === id) return recipe;
+    if (recipe.id === wanted) return recipe;
   }
-  throw new Error(`找不到 recipe：${id}`);
+  throw new Error(`找不到 recipe：${wanted}`);
 }
 
 export function showRecipe(id: string, root = weaverRoot()): Recipe {
@@ -392,7 +408,7 @@ export function applyRecipe(
 }
 
 export function setFilmRecipe(project: ProjectRecord, recipeId: string, root = weaverRoot()): ProjectRecord {
-  const id = recipeId.trim();
+  const id = recipeIdOf(recipeId);
   if (id) {
     const recipe = loadRecipe(id, root);
     if (recipe.level !== "film") throw new Error(`只能点名成片方法卡，${id} 是 ${recipe.level} 卡`);

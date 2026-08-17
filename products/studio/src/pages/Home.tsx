@@ -32,6 +32,7 @@ export function Home() {
 
   const voicePacks = listVoicePacks(library);
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
+  const methods = library.filter((asset) => asset.kind === "method");
   const selectedRecipe = recipes.find((item) => item.id === recipeId);
   const selectedVoice = voicePacks.find((asset) => `library:${asset.id}` === voiceRef);
 
@@ -119,19 +120,23 @@ export function Home() {
       <div className="compose-grid">
         <section>
           <h2 className="h">方法</h2>
-          <p className="item-meta">可选。不点就让 agent 自己铺场。</p>
+          <p className="item-meta">可选。库里的成片骨架，不点就让 agent 自己铺场。</p>
           <div className="pick-grid">
-            {recipes.map((recipe) => (
-              <button
-                key={recipe.id}
-                type="button"
-                className={recipe.id === recipeId ? "pick is-on" : "pick"}
-                onClick={() => setRecipeId(recipe.id === recipeId ? "" : recipe.id)}
-              >
-                <strong>{recipe.title}</strong>
-                <span className="item-meta">{recipeHint(recipe)}</span>
-              </button>
-            ))}
+            {methods.map((asset) => {
+              const id = asset.id.replace(/^method\./, "");
+              const recipe = recipes.find((item) => item.id === id);
+              return (
+                <button
+                  key={asset.id}
+                  type="button"
+                  className={id === recipeId ? "pick is-on" : "pick"}
+                  onClick={() => setRecipeId(id === recipeId ? "" : id)}
+                >
+                  <strong>{asset.label ?? recipe?.title ?? id}</strong>
+                  <span className="item-meta">{asset.text?.trim() || (recipe ? recipeHint(recipe) : "")}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
 

@@ -13,8 +13,7 @@ Shared objects live in `weaver/`. Products consume that package.
 
 ```
 weaver/                         schema, projects, assets, CLI, jobs
-library/                        shared voices / elements / references
-recipes/                        method cards（怎么结合，不是媒体）
+library/                        可选增强：voices / elements / methods
 data/                           任务实例（gitignore）：data/first-party + data/projects
 products/study-films/           Remotion 渲染器 + 可选截图脚本
 products/studio/                local WebUI
@@ -28,8 +27,7 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | Change | Put it here |
 | --- | --- |
 | Film / asset / job model, CLI | `weaver/` |
-| Shared voice / element / reference | `library/` |
-| Recipe / 方法卡 | `recipes/lightui-study-explainer/` |
+| Shared voice / element / method | `library/`（方法在 `library/methods/`） |
 | Task instance | `data/projects/<id>/` or `data/first-party/<id>/`（不提交） |
 | Remotion cards / capture adapter | `products/study-films/` |
 | Control site | `products/studio/`（`/` `/methods` `/voices` `/library` `/films`） |
@@ -37,9 +35,9 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | 现网存放图 | `docs/conventions.md` |
 
 Do not fold auto-cutting of existing footage into this repo. Do not turn
-`library/` into a generic file cabinet. Do not put recipe markdown under
-`library/` or `skills/`. Do not describe other repositories as part of
-this product. Upstream copy and stills arrive with the task.
+`library/` into a generic file cabinet. Method plugins live in
+`library/methods/`, not `skills/`. Do not describe other repositories as
+part of this product. Upstream copy and stills arrive with the task.
 
 ## Skills
 

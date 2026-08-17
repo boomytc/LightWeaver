@@ -215,6 +215,7 @@ describe("methods catalog contract", () => {
     assert.match(page, /methodShape/);
     assert.match(page, /去组合/);
     assert.match(page, /\/\?recipe=/);
+    assert.match(page, /kind === "method"/);
     assert.doesNotMatch(page, /buildMethodBrief/);
     assert.doesNotMatch(page, /methodApplyLine/);
     assert.doesNotMatch(page, /复制用法/);

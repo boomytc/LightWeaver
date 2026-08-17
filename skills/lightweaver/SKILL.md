@@ -13,7 +13,7 @@ Read `AGENTS.md` and `docs/conventions.md` first.
 | Ask | Go to |
 | --- | --- |
 | Schema, CLI, validate, tts/render jobs | `weaver/` |
-| Shared voice / element / reference | `library/` |
+| Shared voice / element / method | `library/`（方法在 `library/methods/`） |
 | Task instance | `data/first-party/<id>/` or `data/projects/<id>/`（gitignore） |
 | Remotion cards, optional capture | `products/study-films/` |
 | Control site（工作台复制说明，片子页复盘） | `products/studio/` `http://127.0.0.1:5175/` |

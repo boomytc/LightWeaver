@@ -5,16 +5,23 @@ import { useFlash } from "../lib/flash";
 import { Link } from "../components/Link";
 import { compactWhen, recipeHint, roleLabel } from "../lib/labels";
 import { methodShape } from "../lib/method-brief";
-import type { RecipeCard } from "../types";
+import type { Asset, RecipeCard } from "../types";
+
+function recipeIdOf(asset: Asset): string {
+  return asset.id.replace(/^method\./, "");
+}
 
 export function Methods() {
+  const [methods, setMethods] = useState<Asset[]>([]);
   const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const { flash, error } = useFlash();
 
   useEffect(() => {
-    api
-      .recipes()
-      .then((next) => setRecipes(next.filter((item) => item.level === "film")))
+    Promise.all([api.library(), api.recipes()])
+      .then(([library, nextRecipes]) => {
+        setMethods(library.filter((item) => item.kind === "method"));
+        setRecipes(nextRecipes.filter((item) => item.level === "film"));
+      })
       .catch((err: Error) => error(err.message));
   }, []);
 
@@ -23,16 +30,20 @@ export function Methods() {
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">方法</h1>
       <p className="lede">
-        可选成片骨架，和音色、素材同类：点上才用，不点就让 agent 自己铺场。内容写在仓库配方里，这里不改不删。点去组合，说明只在那边复制。
+        和音色、素材一样在库里。可选成片骨架：点上才用，不点就让 agent 自己铺场。内容是库里的方法资产，这里不改不删。点去组合，说明只在那边复制。
       </p>
       <Toast flash={flash} />
 
-      {recipes.length === 0 ? (
-        <p className="item-meta">还没有成片卡。</p>
+      {methods.length === 0 ? (
+        <p className="item-meta">库里还没有方法。</p>
       ) : (
         <div className="stack" style={{ marginTop: 8 }}>
-          {recipes.map((recipe) => (
-            <MethodCard key={recipe.id} recipe={recipe} />
+          {methods.map((asset) => (
+            <MethodCard
+              key={asset.id}
+              asset={asset}
+              recipe={recipes.find((item) => item.id === recipeIdOf(asset))}
+            />
           ))}
         </div>
       )}
@@ -40,19 +51,20 @@ export function Methods() {
   );
 }
 
-function MethodCard({ recipe }: { recipe: RecipeCard }) {
-  const shape = methodShape(recipe);
-  const when = recipeHint(recipe) || compactWhen(recipe.when);
-  const roles = (recipe.default_scenes ?? []).map((scene) => roleLabel(scene.role)).filter(Boolean);
+function MethodCard({ asset, recipe }: { asset: Asset; recipe?: RecipeCard }) {
+  const shape = recipe ? methodShape(recipe) : "";
+  const when = asset.text?.trim() || (recipe ? recipeHint(recipe) : "") || compactWhen(recipe?.when);
+  const roles = (recipe?.default_scenes ?? []).map((scene) => roleLabel(scene.role)).filter(Boolean);
+  const title = asset.label ?? recipe?.title ?? recipeIdOf(asset);
 
   return (
     <article className="method-card">
       <div className="film-card-top">
         <div>
-          <h2>{recipe.title}</h2>
+          <h2>{title}</h2>
           {when ? <p className="item-meta">{when}</p> : null}
         </div>
-        <Link href={`/?recipe=${encodeURIComponent(recipe.id)}`} className="btn btn-primary">
+        <Link href={`/?recipe=${encodeURIComponent(recipeIdOf(asset))}`} className="btn btn-primary">
           去组合
         </Link>
       </div>
@@ -69,7 +81,7 @@ function MethodCard({ recipe }: { recipe: RecipeCard }) {
             </span>
           ))}
         </div>
-      ) : recipe.requires_kinds ? (
+      ) : recipe?.requires_kinds ? (
         <p className="item-meta" style={{ marginTop: 8 }}>
           一种模型一场，不要合并。
         </p>

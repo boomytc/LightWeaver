@@ -127,8 +127,8 @@ describe("projectPaths", () => {
   });
 
   it("honors recipeRoot default and LIGHTWEAVER_RECIPES", () => {
-    assert.equal(recipeRoot("/ws"), path.join("/ws", "recipes"));
-    assert.equal(recipeRoot(), path.join(weaverRoot(), "recipes"));
+    assert.equal(recipeRoot("/ws"), path.join("/ws", "library/methods"));
+    assert.equal(recipeRoot(), path.join(weaverRoot(), "library/methods"));
     const prev = process.env.LIGHTWEAVER_RECIPES;
     const fixture = path.join(os.tmpdir(), "lw-recipes-fixture");
     process.env.LIGHTWEAVER_RECIPES = fixture;

@@ -37,8 +37,7 @@ npx weaver render --project <id> --locale zh
 
 ```
 weaver/                         稳定核与 CLI
-library/                        共享音色 / 元素 / 参考
-recipes/                        方法卡（怎么结合，不是媒体）
+library/                        可选增强：音色 / 素材 / 方法
 data/                           任务实例（gitignore）
 products/study-films/           Remotion + 可选截图
 products/studio/                工作台 + 复盘

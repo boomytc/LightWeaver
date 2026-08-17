@@ -6,7 +6,7 @@ import { afterEach, describe, it } from "node:test";
 import { filmTask } from "./schema.ts";
 import { createProject, loadProject } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
-import { applyRecipe, listRecipes, loadRecipe, showRecipe } from "./recipes.ts";
+import { applyRecipe, listRecipes, loadRecipe, methodAssetId, recipeIdOf, showRecipe } from "./recipes.ts";
 import { recipeRoot, weaverRoot } from "./paths.ts";
 import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 import { patchScene, removeScene } from "./scenes.ts";
@@ -92,6 +92,15 @@ when: no
   return root;
 }
 
+describe("recipeIdOf", () => {
+  it("accepts bare ids and library method refs", () => {
+    assert.equal(recipeIdOf("taxonomy-parade"), "taxonomy-parade");
+    assert.equal(recipeIdOf("library:method.taxonomy-parade"), "taxonomy-parade");
+    assert.equal(recipeIdOf("method.taxonomy-parade"), "taxonomy-parade");
+    assert.equal(methodAssetId("taxonomy-parade"), "method.taxonomy-parade");
+  });
+});
+
 describe("listRecipes / loadRecipe", () => {
   const previous = process.env.LIGHTWEAVER_RECIPES;
   afterEach(() => {
@@ -140,7 +149,7 @@ describe("listRecipes / loadRecipe", () => {
     assert.equal(shown.level, "film");
     assert.equal(shown.requires_kinds, true);
     assert.deepEqual(shown.canon, ["dropdown-taxonomy", "nav-taxonomy", "sidebar-taxonomy"]);
-    assert.ok(shown.path.endsWith(path.join("recipes", "lightui-study-explainer", "taxonomy-parade.md")));
+    assert.ok(shown.path.endsWith(path.join("library", "methods", "lightui-study-explainer", "taxonomy-parade.md")));
     assert.match(shown.body, /一种模型一场 still/);
   });
 
@@ -175,7 +184,7 @@ describe("listRecipes / loadRecipe", () => {
     const paths = projectPaths(project, root);
     assert.equal(paths.recipes, path.join(recipeRoot(root), "lightui-study-explainer"));
     assert.equal(filmTask(project.film), "study-explainer");
-    assert.ok(paths.recipes.endsWith(path.join("recipes", "lightui-study-explainer")));
+    assert.ok(paths.recipes.endsWith(path.join("library", "methods", "lightui-study-explainer")));
     assert.notEqual(paths.recipes, recipeRoot(root));
   });
 });
@@ -235,7 +244,7 @@ describe("applyRecipe", () => {
   it("rejects unknown scene kinds before writing", () => {
     const root = tempProjectRoot();
     write(
-      path.join(root, "recipes/lightui-study-explainer/bad-beat.md"),
+      path.join(root, "library/methods/lightui-study-explainer/bad-beat.md"),
       `---
 id: bad-beat
 task: study-explainer

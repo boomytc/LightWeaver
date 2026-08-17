@@ -14,7 +14,7 @@ export type CreateFilmInput = {
 
 export type TaskModule = {
   id: TaskId;
-  /** 仓库根 `recipes/<recipePack>/`，可以和 task id 不同。 */
+  /** `library/methods/<recipePack>/`，可以和 task id 不同。 */
   recipePack: string;
   label: { zh: string; en: string };
   sceneKinds: readonly string[];

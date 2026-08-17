@@ -13,6 +13,20 @@
       "file": "voices/prompt-zh.wav",
       "text": "先把名称、场景和规则说清楚，再动手做交互。",
       "style": "青春女声，灵动里带一点稳重，吐字清晰，语速从容"
+    },
+    {
+      "id": "method.problem-then-rule",
+      "kind": "method",
+      "label": "问题然后规则",
+      "file": "methods/lightui-study-explainer/problem-then-rule.md",
+      "text": "讲一条会坏的交互规则：先问题，再做法，再对照。"
+    },
+    {
+      "id": "method.taxonomy-parade",
+      "kind": "method",
+      "label": "对照表阅兵",
+      "file": "methods/lightui-study-explainer/taxonomy-parade.md",
+      "text": "有一份互斥模型清单，一种模型一场，收束点破最容易混的一对。"
     }
   ]
 }

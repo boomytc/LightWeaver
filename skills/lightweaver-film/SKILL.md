@@ -17,7 +17,7 @@ description: >
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）。元素是参考权能，不强制
 - 产物：只在任务实例里。`data/projects/<id>/assets/outputs/` 或 `data/first-party/<id>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/`
 - 工作台说明若写「产物位置：未指定」，**开始前先问人**写到哪棵 data 树。人没另给拷贝位置，不要拷到仓库外
-- 方法 / 音色 / 素材都是可选增强。工作台点了按点的用，没点就自己定，不要代点。方法内容在 `recipes/`：只 `list` / `show` / `apply`，不要新建或改卡
+- 方法 / 音色 / 素材都在 `library/`，都是可选增强。方法是 `library:method.*`（文件在 `library/methods/`）。只 `list` / `show` / `apply`，不要新建或改卡
 - 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.langs`、`film.voices`、`film.kit`、`film.recipe`
 
 ## 结合规则
@@ -59,7 +59,7 @@ description: >
 | 时机 | 读 |
 | --- | --- |
 | 找齐三层 | 先按存放图；再 `weaver project show --json` |
-| 选卡 | `npx weaver recipe list --task study-explainer`；一眼看 `recipes/lightui-study-explainer/index.md`。对上后再 `npx weaver recipe show <id>` |
+| 选卡 | `npx weaver recipe list --task study-explainer`；一眼看 `library/methods/lightui-study-explainer/index.md`。对上后再 `npx weaver recipe show <id>` |
 | 展开骨架 | `recipe apply`；补场才 `scene add`。`lines[locale] === <sceneId>` 是占位，阶段 3 必须 `scene set` |
 | 手截 | `docs/conventions.md` |
 | QA | `references/qa.md` |

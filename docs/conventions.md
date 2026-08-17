@@ -14,7 +14,7 @@ assets/outputs/           渲染 mp4（不提交）
 
 任务实例都在 `data/`（整树 gitignore），**不提交**。两棵树：`data/projects/<id>/`，以及现网已有的 `data/first-party/<id>/`。`film.id` 等于目录名。
 
-仓库只留可复用物：`weaver/`、`recipes/`、`library/`、`products/study-films/`（渲染器，不含片子、不含成片）、`products/studio/`、`skills/`。
+仓库只留可复用物：`weaver/`、`library/`（含 `library/methods/`）、`products/study-films/`（渲染器，不含片子、不含成片）、`products/studio/`、`skills/`。
 
 ## 三层存放
 
@@ -30,7 +30,7 @@ assets/outputs/           渲染 mp4（不提交）
 
 **静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。必须先写进 `assets.json` 再落盘。
 
-**可选增强（方法 / 音色 / 素材）：** 三套同一类。工作台点了才约束 agent，没点就让它自己定，不要代点。方法内容在 `recipes/`（人写 md 再提交）；音色和素材内容在 `library/`（Studio 监管）。agent 出片时不新建方法卡。Studio `/methods` 不改不删卡。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
+**可选增强（方法 / 音色 / 素材）：** 三套都在 `library/`。工作台点了才约束 agent，没点就让它自己定，不要代点。方法资产 `library:method.*`，配方文件在 `library/methods/<pack>/`。音色、素材同样登记在 `library/assets.json`。agent 出片时不新建方法卡。Studio `/methods` 从库里读，不改不删。禁止把方法写进 `skills/`。
 
 发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 
