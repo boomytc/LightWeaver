@@ -1,5 +1,5 @@
 # Makefile
-.PHONY: help install studio remotion typecheck test weaver films films-capture films-tts films-render sync clean
+.PHONY: help install studio remotion typecheck test weaver films films-capture films-tts films-render films-clean sync clean
 
 .DEFAULT_GOAL := help
 
@@ -52,6 +52,12 @@ films: ## 截图 + 旁白 + 渲染
 	$(MAKE) films-capture PROJECT="$(PROJECT)"
 	$(MAKE) films-tts PROJECT="$(PROJECT)"
 	$(MAKE) films-render PROJECT="$(PROJECT)"
+
+films-clean: ## 清掉成片（data/.../assets/outputs 与渲染器残留）。旁白 wav 保留
+	@rm -rf data/first-party/*/assets/outputs data/projects/*/assets/outputs
+	@rm -rf products/study-films/out products/study-films/projects
+	@find data -name '.raw-*' -delete
+	@echo "Film outputs removed."
 
 clean: ## 清理构建缓存
 	@rm -rf products/study-films/out products/study-films/projects products/study-films/.cache products/studio/dist
