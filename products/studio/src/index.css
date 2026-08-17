@@ -993,12 +993,38 @@ html[data-theme="light"] .btn-primary { color: #fff; }
   }
 }
 
-.compose-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 0.9fr 0.9fr;
-  gap: 16px;
+.compose-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin: 20px 0 16px;
 }
+.compose-field { margin-bottom: 0; }
+.compose-kit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.compose-kit select {
+  flex: 1 1 240px;
+  width: auto;
+  min-width: 0;
+}
+.compose-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px;
+  min-height: 36px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: inherit;
+  font: inherit;
+}
+.compose-chip span { color: var(--muted); }
 
 .pick-grid {
   display: flex;
@@ -1022,6 +1048,10 @@ html[data-theme="light"] .btn-primary { color: #fff; }
   background: var(--bg-elevated);
   border-radius: var(--radius);
   padding: 12px 14px;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.pick:hover {
+  border-color: var(--border-strong);
 }
 .pick strong { font-size: 14px; }
 .pick.is-on {
@@ -1061,7 +1091,6 @@ html[data-theme="light"] .btn-primary { color: #fff; }
 
 @media (max-width: 900px) {
   .door-grid { grid-template-columns: 1fr; }
-  .compose-grid { grid-template-columns: 1fr; }
   .film-board,
   .voice-board { grid-template-columns: 1fr; }
   .film-row { flex-direction: column; }

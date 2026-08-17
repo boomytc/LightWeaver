@@ -5,6 +5,7 @@ import { useFlash } from "../lib/flash";
 import { BriefPanel } from "../components/BriefPanel";
 import { Link } from "../components/Link";
 import type { OutputHome } from "../lib/brief";
+import { kindLabel } from "../lib/labels";
 import { langLabel } from "../lib/langs";
 import { methodExpandOf, recipeIdOfMethod } from "../lib/method-brief";
 import { listVoicePacks } from "../lib/voices";
@@ -52,8 +53,13 @@ export function Home() {
     return map;
   }, [materials]);
 
-  function toggleMaterial(ref: string) {
-    setKit((current) => (current.includes(ref) ? current.filter((item) => item !== ref) : [...current, ref]));
+  function addMaterial(ref: string) {
+    if (!ref || kit.includes(ref)) return;
+    setKit((current) => [...current, ref]);
+  }
+
+  function dropMaterial(ref: string) {
+    setKit((current) => current.filter((item) => item !== ref));
   }
 
   return (
@@ -111,78 +117,92 @@ export function Home() {
         </div>
       </section>
 
-      <div className="compose-grid">
-        <section>
-          <h2 className="h">方法</h2>
-          {methods.length === 0 ? (
-            <p className="item-meta">
-              库里还没有方法。<Link href="/methods">去方法页</Link>
-            </p>
-          ) : null}
-          <div className="pick-grid">
+      <section className="compose-fields" aria-label="可选增强">
+        <label className="field compose-field">
+          <span>方法</span>
+          <select
+            value={recipeId}
+            disabled={methods.length === 0}
+            onChange={(event) => setRecipeId(event.target.value)}
+          >
+            <option value="">{methods.length ? "不指定" : "库里还没有方法"}</option>
             {methods.map((asset) => {
               const id = recipeIdOfMethod(asset);
               return (
-                <button
-                  key={asset.id}
-                  type="button"
-                  className={id === recipeId ? "pick is-on" : "pick"}
-                  onClick={() => setRecipeId(id === recipeId ? "" : id)}
-                >
-                  <strong>{asset.label ?? id}</strong>
-                  <span className="item-meta">{asset.text?.trim() ?? ""}</span>
-                </button>
+                <option key={asset.id} value={id}>
+                  {asset.label ?? id}
+                </option>
               );
             })}
-          </div>
-        </section>
+          </select>
+          {methods.length === 0 ? (
+            <span className="item-meta">
+              <Link href="/methods">去方法页</Link>
+            </span>
+          ) : null}
+        </label>
 
-        <section>
-          <h2 className="h">音色</h2>
-          <div className="pick-grid">
-            {voicePacks.map((asset) => {
-              const ref = `library:${asset.id}`;
-              return (
-                <button
-                  key={asset.id}
-                  type="button"
-                  className={voiceRef === ref ? "pick is-on" : "pick"}
-                  onClick={() => setVoiceRef(voiceRef === ref ? "" : ref)}
-                >
-                  <strong>{asset.label ?? asset.id}</strong>
-                  <span className="item-meta">Hi-Fi clone</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        <label className="field compose-field">
+          <span>音色</span>
+          <select
+            value={voiceRef}
+            disabled={voicePacks.length === 0}
+            onChange={(event) => setVoiceRef(event.target.value)}
+          >
+            <option value="">{voicePacks.length ? "不指定" : "库里还没有音色"}</option>
+            {voicePacks.map((asset) => (
+              <option key={asset.id} value={`library:${asset.id}`}>
+                {asset.label ?? asset.id}
+              </option>
+            ))}
+          </select>
+          {voicePacks.length === 0 ? (
+            <span className="item-meta">
+              <Link href="/voices">去音色页</Link>
+            </span>
+          ) : null}
+        </label>
 
-        <section>
-          <h2 className="h">素材</h2>
+        <div className="field compose-field">
+          <span>素材</span>
+          <div className="compose-kit">
+            <select
+              aria-label="素材"
+              value=""
+              disabled={materials.length === 0 || kit.length === materials.length}
+              onChange={(event) => addMaterial(event.target.value)}
+            >
+              <option value="">
+                {materials.length === 0 ? "库里还没有素材" : kit.length ? "再加一件" : "不指定"}
+              </option>
+              {materials
+                .filter((asset) => !kit.includes(`library:${asset.id}`))
+                .map((asset) => (
+                  <option key={asset.id} value={`library:${asset.id}`}>
+                    {asset.label ?? asset.id} · {kindLabel(asset.kind)}
+                  </option>
+                ))}
+            </select>
+            {kit.map((ref) => (
+              <button
+                key={ref}
+                type="button"
+                className="compose-chip"
+                aria-label={`去掉 ${kitLabels[ref] ?? ref}`}
+                onClick={() => dropMaterial(ref)}
+              >
+                {kitLabels[ref] ?? ref}
+                <span aria-hidden="true">×</span>
+              </button>
+            ))}
+          </div>
           {materials.length === 0 ? (
-            <p className="item-meta">
-              库里还没有素材。<Link href="/library">去素材页</Link>
-            </p>
-          ) : (
-            <ul className="kit-list">
-              {materials.map((asset) => {
-                const ref = `library:${asset.id}`;
-                const on = kit.includes(ref);
-                return (
-                  <li key={asset.id}>
-                    <label className={on ? "kit-item is-on" : "kit-item"}>
-                      <input type="checkbox" checked={on} onChange={() => toggleMaterial(ref)} />
-                      <span>
-                        <span className="item-title">{asset.label ?? asset.id}</span>
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      </div>
+            <span className="item-meta">
+              <Link href="/library">去素材页</Link>
+            </span>
+          ) : null}
+        </div>
+      </section>
 
       <BriefPanel
         input={{
