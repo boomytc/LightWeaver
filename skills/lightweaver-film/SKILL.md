@@ -17,7 +17,7 @@ description: >
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）。元素是参考权能，不强制
 - 产物：只在任务实例里。`data/projects/<id>/assets/outputs/` 或 `data/first-party/<id>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/`
 - 工作台说明若写「产物位置：未指定」，**开始前先问人**写到哪棵 data 树。人没另给拷贝位置，不要拷到仓库外
-- 方法：`recipes/lightui-study-explainer/`。卡是人写进仓库的骨架。agent 只 `list` / `show` / `apply`，不要新建、改写或删除方法卡，不要把卡写进 `data/`
+- 方法 / 音色 / 素材都是可选增强。工作台点了按点的用，没点就自己定，不要代点。方法内容在 `recipes/`：只 `list` / `show` / `apply`，不要新建或改卡
 - 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.langs`、`film.voices`、`film.kit`、`film.recipe`
 
 ## 结合规则

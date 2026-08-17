@@ -10,11 +10,11 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
 
 | Path | Who | What |
 | --- | --- | --- |
-| `/` 工作台 | human | pick combo (langs + voice + optional kit + recipe + output home); copy brief; do not persist |
+| `/` 工作台 | human | optional plugins (method / voice / material) + langs + output home; copy brief |
 | `/films` `/f/<id>` | human reviews | read-only trajectory: what was used, scenes, mp4 |
-| `/voices` | human | one create flow; upload plays then keep; empty 文本 is ASR-filled; library can rename/fix text/delete; film uses Hi-Fi clone |
-| `/library` | human | reference elements and images; not a required kit |
-| `/methods` | human | read-only film skeletons (human-authored in `recipes/`); when + shape; go to `/`. No copy, no edit, no delete, no film list |
+| `/voices` | human | voice plugin payloads: upload or instruct, keep, rename/text/delete |
+| `/library` | human | material plugin payloads: elements and references |
+| `/methods` | human | method plugins: when + shape; go to `/`. Content lives in `recipes/`; no edit/delete here |
 
 ## Rules
 
@@ -28,7 +28,10 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
   Remotion Player. Do not add scene-authoring as the primary path.
 - `film.kit` is optional `library:element|reference` (reference only).
 - Agent brief lives only on `/`. Film pages do not copy a brief.
-- Method cards are written in `recipes/` by a human and committed. Agents apply them. Studio `/methods` does not create, edit, or delete cards.
+- Method, voice, and material catalogs are the same kind of optional
+  plugin. Picking on `/` constrains the agent; leaving one empty does
+  not. Method payloads live in `recipes/` (no Studio edit/delete).
+  Voice and material payloads live in `library/` (Studio supervises).
 - Chinese UI labels. Identifiers English.
 - Site density, not a marketing page. Token-first CSS in `src/index.css`.
 - Theme is `data-theme` on `<html>`, persisted as `lightweaver-theme`. GitHub is this repo. ModelBest console: `MODELBEST_URL`.

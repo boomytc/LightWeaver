@@ -26,14 +26,14 @@ describe("buildAgentBrief", () => {
     });
     assert.match(text, /后处理出片/);
     assert.match(text, /片子：dropdown-taxonomy（给下拉起对名字）/);
-    assert.match(text, /方法卡：taxonomy-parade（对照表阅兵）/);
+    assert.match(text, /方法：对照表阅兵/);
     assert.match(text, /recipe apply --project dropdown-taxonomy --recipe taxonomy-parade/);
     assert.match(text, /要出的语言：中文/);
     assert.match(text, /langs set --project dropdown-taxonomy --langs zh/);
-    assert.match(text, /音色套：讲解女声/);
+    assert.match(text, /音色：讲解女声/);
     assert.match(text, /voice set --project dropdown-taxonomy --ref library:voice\.prompt/);
-    assert.doesNotMatch(text, /音色套：library:voice\.prompt/);
-    assert.match(text, /参考权能/);
+    assert.doesNotMatch(text, /音色：library:voice\.prompt/);
+    assert.match(text, /素材（可选增强/);
     assert.match(text, /library:element\.mark（Light mark）/);
     assert.match(text, /有自己想法可以不用或另找/);
     assert.match(text, /kit set --project dropdown-taxonomy --refs library:element\.mark/);
@@ -61,11 +61,12 @@ describe("buildAgentBrief", () => {
       kit: [],
     });
     assert.match(text, /片子：未指定/);
-    assert.match(text, /方法卡：未点名/);
+    assert.match(text, /方法：未点/);
     assert.match(text, /产物位置：未指定/);
     assert.match(text, /开始前先问人/);
-    assert.match(text, /参考权能：未点名/);
+    assert.match(text, /素材：未点/);
     assert.match(text, /产物位置问清后再 weaver project create/);
+    assert.match(text, /可选增强/);
     assert.doesNotMatch(text, /不要自己加 library 外/);
   });
 

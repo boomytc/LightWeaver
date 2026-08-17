@@ -23,7 +23,7 @@ export function Methods() {
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">方法</h1>
       <p className="lede">
-        这些卡是人写进仓库的可复用骨架，不是 agent 出片时攒出来的。这里只看何时用、骨架长什么样，点去组合。不在这里改、不在这里删。说明只在组合页复制。
+        可选成片骨架，和音色、素材同类：点上才用，不点就让 agent 自己铺场。内容写在仓库配方里，这里不改不删。点去组合，说明只在那边复制。
       </p>
       <Toast flash={flash} />
 

@@ -60,7 +60,7 @@ export function Home() {
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">选出一组，复制给 agent。</h1>
       <p className="lede">
-        后处理出片：点名音色、参考权能、方法卡、要出哪些语言，以及成片写到本仓哪棵 data 树。说明只在这里复制。
+        方法、音色、素材都是可选增强，点上的才约束 agent。再点要出的语言，和成片写到哪。说明只在这里复制。
       </p>
       <Toast flash={flash} />
 
@@ -118,7 +118,8 @@ export function Home() {
 
       <div className="compose-grid">
         <section>
-          <h2 className="h">方法卡</h2>
+          <h2 className="h">方法</h2>
+          <p className="item-meta">可选。不点就让 agent 自己铺场。</p>
           <div className="pick-grid">
             {recipes.map((recipe) => (
               <button
@@ -128,7 +129,6 @@ export function Home() {
                 onClick={() => setRecipeId(recipe.id === recipeId ? "" : recipe.id)}
               >
                 <strong>{recipe.title}</strong>
-                <span className="item-meta">{recipe.id}</span>
                 <span className="item-meta">{recipeHint(recipe)}</span>
               </button>
             ))}
@@ -136,7 +136,8 @@ export function Home() {
         </section>
 
         <section>
-          <h2 className="h">音色套</h2>
+          <h2 className="h">音色</h2>
+          <p className="item-meta">可选。点上的那套，出片就用它克隆。</p>
           <div className="pick-grid">
             {voicePacks.map((asset) => {
               const ref = `library:${asset.id}`;
@@ -156,9 +157,10 @@ export function Home() {
         </section>
 
         <section>
-          <h2 className="h">参考权能</h2>
+          <h2 className="h">素材</h2>
+          <p className="item-meta">可选。点上的给 agent 作参考，不强制。</p>
           {materials.length === 0 ? (
-            <p className="item-meta">库里还没有可供参考的元素。</p>
+            <p className="item-meta">库里还没有素材。</p>
           ) : (
             <ul className="kit-list">
               {materials.map((asset) => {
@@ -170,7 +172,6 @@ export function Home() {
                       <input type="checkbox" checked={on} onChange={() => toggleMaterial(ref)} />
                       <span>
                         <span className="item-title">{asset.label ?? asset.id}</span>
-                        <span className="item-meta">{asset.id}</span>
                       </span>
                     </label>
                   </li>

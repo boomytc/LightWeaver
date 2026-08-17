@@ -167,14 +167,15 @@ describe("workbench contract", () => {
     assert.match(page, /outputHome/);
     assert.match(page, /data\/projects/);
     assert.match(page, /data\/first-party/);
-    assert.match(page, /参考权能/);
+    assert.match(page, /可选增强/);
+    assert.match(page, /素材/);
     assert.doesNotMatch(page, /publishLightui/);
     assert.doesNotMatch(page, /LightUI/);
     const brief = fs.readFileSync(path.join(here, "lib/brief.ts"), "utf8");
     assert.match(brief, /产物位置：未指定/);
     assert.match(brief, /开始前先问人/);
     assert.match(brief, /不要写到 products\/study-films/);
-    assert.match(brief, /参考权能/);
+    assert.match(brief, /可选增强/);
     assert.doesNotMatch(brief, /只准用这些/);
     assert.doesNotMatch(brief, /LightUI/);
   });
@@ -222,8 +223,8 @@ describe("methods catalog contract", () => {
     assert.doesNotMatch(page, /recipe\.body/);
     assert.doesNotMatch(page, /card-id/);
     assert.doesNotMatch(page, /kinds\.ts/);
-    assert.match(page, /人写进仓库/);
-    assert.match(page, /不在这里改/);
+    assert.match(page, /可选成片骨架/);
+    assert.match(page, /不改不删/);
     assert.doesNotMatch(page, /删除/);
     assert.doesNotMatch(page, /onChange/);
   });

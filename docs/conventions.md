@@ -30,7 +30,7 @@ assets/outputs/           渲染 mp4（不提交）
 
 **静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。必须先写进 `assets.json` 再落盘。
 
-**方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。卡是人写进仓库的可复用骨架，片子是实例。agent 只 `list` / `show` / `apply`，不在出片时新建或改卡。新卡写 `recipes/<pack>/*.md` 再提交，不进 `data/`，不在 Studio 里改删。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>` / `recipe apply`。Studio `/methods` 只给人看何时用、骨架长什么样，点去工作台带上这张卡。不复制说明，不列片子，不提供编辑/删除。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
+**可选增强（方法 / 音色 / 素材）：** 三套同一类。工作台点了才约束 agent，没点就让它自己定，不要代点。方法内容在 `recipes/`（人写 md 再提交）；音色和素材内容在 `library/`（Studio 监管）。agent 出片时不新建方法卡。Studio `/methods` 不改不删卡。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
 
 发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 
@@ -40,7 +40,7 @@ assets/outputs/           渲染 mp4（不提交）
 - 场景形状：title 在首、close 在末、至少一场 still
 - 旁白写在 `scenes[].lines`
 - **口播通俗：** 上游文案可以写实现词；片子 `lines` 与 title/close 卡片必须改成听者的话。一场只留一个要记住的名字。`validate` 对忌语出 warning。「路径」可以留
-- **点名：** `film.voices` 各语言同一套音色；`film.langs` 是要出的语言；`film.kit` 是可选的参考权能。agent 先读这三项。Studio 工作台复制说明；`/f/<id>` 只复盘
+- **点名：** `film.langs` 是要出的语言。方法、音色、素材都是可选增强：`film.recipe` / `film.voices` / `film.kit` 点了按点的用。Studio 工作台复制说明；`/f/<id>` 只复盘
 - **要点板：** title / close 的正文是 `points`（2–4 条）。lede 只留一句。对照条写成 `左 || 右`
 - 静帧：`scenes[].still = "asset:still.<id>"`
 - 音色套：克隆源二选一。上传后自动转写「文本」。出片固定 Hi-Fi clone。人在 `/voices` 铸、听、留。`tts` 不改库，不加 `--seed`
