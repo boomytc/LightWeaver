@@ -82,3 +82,27 @@ export function IconWave({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+
+export function IconPlay({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="currentColor" aria-hidden="true">
+      <path d="M24 16v32l28-16L24 16z" />
+    </svg>
+  );
+}
+
+export function IconPause({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="currentColor" aria-hidden="true">
+      <path d="M20 16h8v32h-8V16zm16 0h8v32h-8V16z" />
+    </svg>
+  );
+}
+
+export function IconClose({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}

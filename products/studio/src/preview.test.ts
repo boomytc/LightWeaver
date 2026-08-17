@@ -124,6 +124,13 @@ describe("voices catalog contract", () => {
     assert.match(page, /音色库/);
     assert.match(page, /type="radio"/);
     assert.match(page, /VoiceDrop/);
+    assert.match(page, /VoiceWave/);
+    assert.match(page, /onClear/);
+    const wave = fs.readFileSync(path.join(here, "components/VoiceWave.tsx"), "utf8");
+    assert.match(wave, /清除已选录音/);
+    assert.match(wave, /音频波形，点击跳转播放位置/);
+    assert.match(css, /voice-wave-close/);
+    assert.match(css, /voice-wave-canvas/);
     assert.match(page, /create-save/);
     assert.match(page, /stageVoice/);
     assert.match(page, /keepUploaded/);

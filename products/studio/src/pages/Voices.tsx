@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, candidateMedia, libraryMedia, type ModelbestStatus } from "../api";
 import { Toast } from "../components/Toast";
+import { VoiceWave } from "../components/VoiceWave";
 import { useFlash } from "../lib/flash";
 import { listVoicePacks, voiceCloneSource, type VoiceOrigin } from "../lib/voices";
 import { IconUpload } from "../icons";
@@ -252,6 +253,10 @@ export function Voices() {
                 src={candidate ? candidateMedia(candidate.rel) : undefined}
                 onFile={(file) => void upload(file)}
                 onReject={() => error("请选一支音频")}
+                onClear={() => {
+                  setCandidate(undefined);
+                  setSaid("");
+                }}
               />
               {candidate ? (
                 <>
@@ -331,11 +336,13 @@ function VoiceDrop({
   src,
   onFile,
   onReject,
+  onClear,
 }: {
   busy: boolean;
   src?: string;
   onFile: (file: File) => void;
   onReject: () => void;
+  onClear: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -350,7 +357,7 @@ function VoiceDrop({
   }
 
   function openPicker() {
-    if (!busy) input.current?.click();
+    if (!busy && !src) input.current?.click();
   }
 
   return (
@@ -358,11 +365,12 @@ function VoiceDrop({
       className={["voice-drop", over ? "is-over" : "", src ? "has-audio" : "", busy ? "is-busy" : ""]
         .filter(Boolean)
         .join(" ")}
-      role="button"
-      tabIndex={busy ? -1 : 0}
-      aria-label={src ? "换一支录音" : "点击或拖入 wav"}
+      role={src ? undefined : "button"}
+      tabIndex={src || busy ? -1 : 0}
+      aria-label={src ? undefined : "点击或拖入 wav"}
       onClick={openPicker}
       onKeyDown={(event) => {
+        if (src) return;
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
         openPicker();
@@ -391,7 +399,7 @@ function VoiceDrop({
         }}
       />
       {src ? (
-        <audio controls preload="metadata" src={src} onClick={(event) => event.stopPropagation()} />
+        <VoiceWave src={src} busy={busy} onClear={onClear} />
       ) : (
         <>
           <IconUpload />
