@@ -54,7 +54,7 @@ describe("projectPaths", () => {
     assert.equal(statusZh.exists, true);
     assert.ok(project.root.startsWith(firstPartyRoot(root)));
     assert.equal(paths.outputFiles.zh.rel, "assets/outputs/intent-cascade.mp4");
-    assert.equal(paths.recipes, path.join(recipeRoot(root), "lightui-study-explainer"));
+    assert.equal(paths.recipes, path.join(recipeRoot(root), "study-explainer"));
     assert.equal(paths.labUrl, `${labUrl()}/s/intent-cascade`);
     assert.equal(paths.publishDir, "studies/intent-cascade/references");
     assert.equal(paths.film, filmPath(project.root));
@@ -137,7 +137,7 @@ describe("projectPaths", () => {
       const root = tempWorkspace();
       const project = seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
       const paths = projectPaths(project, root);
-      assert.equal(paths.recipes, path.join(path.resolve(fixture), "lightui-study-explainer"));
+      assert.equal(paths.recipes, path.join(path.resolve(fixture), "study-explainer"));
     } finally {
       if (prev === undefined) delete process.env.LIGHTWEAVER_RECIPES;
       else process.env.LIGHTWEAVER_RECIPES = prev;

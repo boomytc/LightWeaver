@@ -4,19 +4,54 @@ import { libraryRoot, weaverRoot } from "./paths.ts";
 import { loadLibrary, upsertLibraryAsset } from "./assets.ts";
 import { recipeIdOf } from "./recipes.ts";
 import { getTask } from "./tasks/registry.ts";
-import { isMethodShape, type Asset, type MethodShape } from "./schema.ts";
+import {
+  isMethodExpand,
+  methodExpandOf,
+  type Asset,
+  type MethodExpand,
+  type MethodScene,
+} from "./schema.ts";
 
 const ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 
-export function parseMethodShape(value: unknown): MethodShape {
-  if (value === "一种模型一场") return "kinds";
-  if (value === "问题然后规则" || value === "问题 → 规则 → 对照") return "problem-then-rule";
-  if (isMethodShape(value)) return value;
-  throw new Error("骨架只能是一种模型一场，或问题 → 规则 → 对照");
+export function parseMethodExpand(value: unknown): MethodExpand {
+  if (value === "固定" || value === "固定场次") return "fixed";
+  if (value === "清单" || value === "一项一场" || value === "清单一项一场") return "list";
+  if (isMethodExpand(value)) return value;
+  throw new Error("铺场只能是固定场次，或清单一项一场");
 }
 
-export function methodShapeOf(asset: Pick<Asset, "shape">): MethodShape {
-  return isMethodShape(asset.shape) ? asset.shape : "problem-then-rule";
+export function parseMethodScenes(value: unknown): MethodScene[] {
+  if (value === undefined || value === null || value === "") return [];
+  if (typeof value === "string") {
+    return normalizeMethodScenes(
+      value
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => {
+          const [id, role] = part.split(":").map((item) => item.trim());
+          return { id: id ?? "", role: role || undefined };
+        }),
+    );
+  }
+  if (!Array.isArray(value)) throw new Error("场次必须是列表");
+  return normalizeMethodScenes(value);
+}
+
+export function normalizeMethodScenes(value: unknown[]): MethodScene[] {
+  const scenes: MethodScene[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const id = String(row.id ?? "").trim();
+    if (!id) continue;
+    if (!ID_RE.test(id)) throw new Error(`场次 id 必须是 dotted/kebab 小写：${id}`);
+    const role = typeof row.role === "string" && row.role.trim() ? row.role.trim() : undefined;
+    const fit = row.fit === "cover" || row.fit === "contain" ? row.fit : "contain";
+    scenes.push({ id, role, fit });
+  }
+  return scenes;
 }
 
 export function methodNameOf(asset: Pick<Asset, "id" | "label">): string {
@@ -44,7 +79,7 @@ function methodsIn(root: string): Asset[] {
 }
 
 function methodRel(recipeId: string): string {
-  const pack = getTask("study-explainer").recipePack;
+  const pack = getTask().recipePack;
   return path.posix.join("methods", pack, `${recipeId}.md`);
 }
 
@@ -52,36 +87,31 @@ function serializeMethodFile(input: {
   recipeId: string;
   title: string;
   when: string;
-  shape: MethodShape;
+  expand: MethodExpand;
+  scenes: MethodScene[];
 }): string {
   const when = input.when.trim();
   const whenBlock = when.includes("\n")
     ? `when: |\n${when.split("\n").map((line) => `  ${line}`).join("\n")}`
     : `when: ${JSON.stringify(when)}`;
-  const shape =
-    input.shape === "kinds"
-      ? "requires_kinds: true"
+  const plan =
+    input.expand === "list"
+      ? "requires_items: true"
       : [
           "default_scenes:",
-          "  - id: problem",
-          "    kind: still",
-          "    role: problem",
-          "    fit: contain",
-          "  - id: rule",
-          "    kind: still",
-          "    role: rule",
-          "    fit: contain",
-          "  - id: contrast",
-          "    kind: still",
-          "    role: contrast",
-          "    fit: contain",
+          ...input.scenes.flatMap((scene) => [
+            `  - id: ${scene.id}`,
+            `    kind: still`,
+            ...(scene.role ? [`    role: ${scene.role}`] : []),
+            `    fit: ${scene.fit ?? "contain"}`,
+          ]),
         ].join("\n");
   return `---
 id: ${input.recipeId}
-task: study-explainer
+task: ${getTask().id}
 level: film
 ${whenBlock}
-${shape}
+${plan}
 ---
 
 # ${input.title}
@@ -95,26 +125,40 @@ function writeMethodFile(rel: string, input: Parameters<typeof serializeMethodFi
 }
 
 export function createLibraryMethod(
-  input: { label: string; text: string; shape: MethodShape },
+  input: { label: string; text: string; expand: MethodExpand; scenes?: unknown },
   root = weaverRoot(),
 ): Asset {
   const label = input.label.trim();
   const text = input.text.trim();
   if (!label) throw new Error("先写名称");
   if (!text) throw new Error("先写何时用");
-  const shape = parseMethodShape(input.shape);
+  const expand = parseMethodExpand(input.expand);
+  const scenes = expand === "list" ? [] : parseMethodScenes(input.scenes);
+  if (expand === "fixed" && scenes.length === 0) throw new Error("固定场次至少写一场");
   const existing = methodsIn(root);
   if (existing.some((item) => methodNameOf(item) === label)) throw new Error(`${label} 已在方法库里`);
   const id = methodIdFromName(label, existing.map((item) => item.id));
   const recipeId = recipeIdOf(id);
   const rel = methodRel(recipeId);
-  writeMethodFile(rel, { recipeId, title: label, when: text, shape }, root);
-  return upsertLibraryAsset({ id, kind: "method", label, text, file: rel, shape }, root);
+  writeMethodFile(rel, { recipeId, title: label, when: text, expand, scenes }, root);
+  return upsertLibraryAsset(
+    {
+      id,
+      kind: "method",
+      label,
+      text,
+      file: rel,
+      task: getTask().id,
+      expand,
+      scenes: expand === "fixed" ? scenes : undefined,
+    },
+    root,
+  );
 }
 
 export function updateLibraryMethod(
   id: string,
-  patch: { label?: string; text?: string; shape?: MethodShape },
+  patch: { label?: string; text?: string; expand?: MethodExpand; scenes?: unknown },
   root = weaverRoot(),
 ): Asset {
   const current = loadLibrary(root).find((item) => item.id === id);
@@ -126,11 +170,26 @@ export function updateLibraryMethod(
   if (!text) throw new Error("先写何时用");
   const clash = methodsIn(root).find((item) => item.id !== id && methodNameOf(item) === label);
   if (clash) throw new Error(`${label} 已在方法库里`);
+  const expand = patch.expand !== undefined ? parseMethodExpand(patch.expand) : methodExpandOf(current);
+  const scenes =
+    expand === "list"
+      ? []
+      : patch.scenes !== undefined
+        ? parseMethodScenes(patch.scenes)
+        : (current.scenes ?? []);
+  if (expand === "fixed" && scenes.length === 0) throw new Error("固定场次至少写一场");
   const recipeId = recipeIdOf(id);
   const rel = current.file || methodRel(recipeId);
-  const shape = patch.shape !== undefined ? parseMethodShape(patch.shape) : methodShapeOf(current);
-  writeMethodFile(rel, { recipeId, title: label, when: text, shape }, root);
-  return upsertLibraryAsset({ ...current, label, text, file: rel, shape }, root);
+  writeMethodFile(rel, { recipeId, title: label, when: text, expand, scenes }, root);
+  return upsertLibraryAsset({
+    ...current,
+    label,
+    text,
+    file: rel,
+    task: current.task ?? getTask().id,
+    expand,
+    scenes: expand === "fixed" ? scenes : undefined,
+  }, root);
 }
 
 export function listLibraryMethods(root = weaverRoot()): Array<{
@@ -138,13 +197,15 @@ export function listLibraryMethods(root = weaverRoot()): Array<{
   recipe: string;
   label: string;
   text: string;
-  shape: MethodShape;
+  expand: MethodExpand;
+  scenes: MethodScene[];
 }> {
   return methodsIn(root).map((item) => ({
     id: item.id,
     recipe: recipeIdOf(item.id),
     label: methodNameOf(item),
     text: (item.text ?? "").trim(),
-    shape: methodShapeOf(item),
+    expand: methodExpandOf(item),
+    scenes: item.scenes ?? [],
   }));
 }

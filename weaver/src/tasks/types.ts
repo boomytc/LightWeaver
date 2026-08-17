@@ -18,6 +18,8 @@ export type TaskModule = {
   recipePack: string;
   label: { zh: string; en: string };
   sceneKinds: readonly string[];
+  /** 该任务 still 可用的 role。方法固定场次从这里选。 */
+  roles?: readonly string[];
   createFilm: (input: CreateFilmInput, root: string) => FilmDoc;
   validate: (project: ProjectRecord, root: string) => Issue[];
 };

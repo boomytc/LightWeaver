@@ -3,7 +3,7 @@ import { err, filmLangs, filmTask, isImplementedTask, parseAssetRef, type Issue,
 import { findAsset, resolveAssetFile, resolveVoicePrompt, voiceHifiRef } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
-import { loadRecipe } from "./recipes.ts";
+import { assertFilmMethod } from "./recipes.ts";
 import { taskAllowsKind, tryGetTask } from "./tasks/registry.ts";
 
 export function validateProject(project: ProjectRecord, root = weaverRoot()): Issue[] {
@@ -71,12 +71,9 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
 
   if (film.recipe) {
     try {
-      const recipe = loadRecipe(film.recipe, root);
-      if (recipe.level !== "film") {
-        issues.push(err("recipe", `只能点名成片方法卡，${film.recipe} 是 ${recipe.level} 卡`));
-      }
-    } catch {
-      issues.push(err("recipe", `找不到方法卡 ${film.recipe}`));
+      assertFilmMethod(film.recipe, root);
+    } catch (error) {
+      issues.push(err("recipe", error instanceof Error ? error.message : `找不到方法卡 ${film.recipe}`));
     }
   }
 

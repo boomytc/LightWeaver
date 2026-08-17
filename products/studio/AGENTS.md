@@ -14,7 +14,7 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
 | `/films` `/f/<id>` | human reviews | read-only trajectory: what was used, scenes, mp4 |
 | `/voices` | human | voice plugin payloads: upload or instruct, keep, rename/text/delete |
 | `/library` | human | material plugin payloads: elements and references |
-| `/methods` | human | method plugins: name + when + shape; create / edit / delete; go to `/` |
+| `/methods` | human | method plugins: name + when + expand + scenes; create / edit / delete; go to `/` |
 
 ## Rules
 
@@ -30,10 +30,10 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
 - Agent brief lives only on `/`. Film pages do not copy a brief.
 - Method, voice, and material catalogs are library plugins. Picking on
   `/` constrains the agent; leaving one empty does not. Methods are
-  catalog rows (`kind: method`, name / when / shape). Studio reads
-  `/api/library` only — do not join `/api/recipes`. Projection files
-  under `library/methods/` are for weaver apply, not the UI. Humans
-  do not type method ids.
+  catalog rows (`kind: method`, name / when / expand / scenes).
+  Studio reads `/api/library` only — do not join `/api/recipes`.
+  `fixed` is an authored still list; `list` expands one still per
+  apply-time item. Humans do not type method ids.
 - Chinese UI labels. Identifiers English.
 - Site density, not a marketing page. Token-first CSS in `src/index.css`.
 - Theme is `data-theme` on `<html>`, persisted as `lightweaver-theme`. GitHub is this repo. ModelBest console: `MODELBEST_URL`.

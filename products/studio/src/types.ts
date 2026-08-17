@@ -65,7 +65,9 @@ export type Asset = {
   styles?: Record<string, string>;
   scene?: string;
   label?: string;
-  shape?: "kinds" | "problem-then-rule";
+  expand?: "fixed" | "list";
+  scenes?: { id: string; role?: string; fit?: "cover" | "contain" }[];
+  task?: string;
 };
 
 /** 项目外路径（brief.files）。不要依赖 rel。 */

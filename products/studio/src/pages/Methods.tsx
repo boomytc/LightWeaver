@@ -3,20 +3,34 @@ import { api } from "../api";
 import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { Link } from "../components/Link";
-import { methodShapeName, methodShapeOf, recipeIdOfMethod, type MethodShape } from "../lib/method-brief";
+import {
+  methodExpandName,
+  methodExpandOf,
+  methodPlanLine,
+  recipeIdOfMethod,
+  type MethodExpand,
+} from "../lib/method-brief";
 import type { Asset } from "../types";
+
+type SceneDraft = { id: string; role: string };
+
+const emptyScene = (): SceneDraft => ({ id: "", role: "" });
 
 export function Methods() {
   const [methods, setMethods] = useState<Asset[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
   const { flash, ok, error } = useFlash();
   const [label, setLabel] = useState("");
   const [when, setWhen] = useState("");
-  const [shape, setShape] = useState<MethodShape>("problem-then-rule");
+  const [expand, setExpand] = useState<MethodExpand>("fixed");
+  const [scenes, setScenes] = useState<SceneDraft[]>([emptyScene()]);
   const [busy, setBusy] = useState(false);
 
   async function reload() {
-    const library = await api.library();
+    const [library, tasks] = await Promise.all([api.library(), api.tasks()]);
     setMethods(library.filter((item) => item.kind === "method"));
+    const task = tasks.find((item) => item.id === "study-explainer") ?? tasks[0];
+    setRoles(task?.roles ?? []);
   }
 
   useEffect(() => {
@@ -42,13 +56,19 @@ export function Methods() {
       error(`${name} 已在方法库里`);
       return;
     }
+    const nextScenes = scenes.map((scene) => ({ id: scene.id.trim(), role: scene.role || undefined })).filter((scene) => scene.id);
+    if (expand === "fixed" && nextScenes.length === 0) {
+      error("固定场次至少写一场");
+      return;
+    }
     setBusy(true);
     try {
-      await api.createMethod({ label: name, text, shape });
+      await api.createMethod({ label: name, text, expand, scenes: expand === "fixed" ? nextScenes : undefined });
       ok(`已保存 ${name}`);
       setLabel("");
       setWhen("");
-      setShape("problem-then-rule");
+      setExpand("fixed");
+      setScenes([emptyScene()]);
       await reload();
     } catch (err) {
       error(err instanceof Error ? err.message : String(err));
@@ -62,7 +82,7 @@ export function Methods() {
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">方法</h1>
       <p className="lede">
-        可选成片骨架，和音色、素材同类。这里管库：加、改、删。点上才约束 agent，不点就让它自己铺场。点去组合，说明只在那边复制。
+        可选铺场方案，和音色、素材同类。写名称、何时用，再决定是固定这几场，还是清单里一项一场。点去组合，说明只在那边复制。
       </p>
       <Toast flash={flash} />
 
@@ -78,10 +98,13 @@ export function Methods() {
             <textarea
               value={when}
               onChange={(event) => setWhen(event.target.value)}
-              placeholder="一句话：什么片子该点这套骨架"
+              placeholder="一句话：什么片子该点这套铺场"
             />
           </label>
-          <ShapePick name="method-shape-new" value={shape} onChange={setShape} />
+          <ExpandPick name="method-expand-new" value={expand} onChange={setExpand} />
+          {expand === "fixed" ? <SceneEditor roles={roles} scenes={scenes} onChange={setScenes} /> : (
+            <p className="item-meta">apply 时再给清单。一项一场，不要合并。</p>
+          )}
           <div className="create-save">
             <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void create()}>
               {busy ? "正在保存…" : "保存方法"}
@@ -97,6 +120,7 @@ export function Methods() {
                 <MethodLibraryCard
                   key={asset.id}
                   asset={asset}
+                  roles={roles}
                   taken={(name) => taken(name, asset.id)}
                   onChanged={reload}
                   onError={error}
@@ -113,35 +137,30 @@ export function Methods() {
   );
 }
 
-function ShapePick({
+function ExpandPick({
   name,
   value,
   onChange,
 }: {
   name: string;
-  value: MethodShape;
-  onChange: (next: MethodShape) => void;
+  value: MethodExpand;
+  onChange: (next: MethodExpand) => void;
 }) {
   return (
     <ul className="origin-picks">
       <li>
-        <label className={value === "problem-then-rule" ? "pick is-on" : "pick"}>
-          <input
-            type="radio"
-            name={name}
-            checked={value === "problem-then-rule"}
-            onChange={() => onChange("problem-then-rule")}
-          />
+        <label className={value === "fixed" ? "pick is-on" : "pick"}>
+          <input type="radio" name={name} checked={value === "fixed"} onChange={() => onChange("fixed")} />
           <span>
-            <strong>{methodShapeName("problem-then-rule")}</strong>
+            <strong>{methodExpandName("fixed")}</strong>
           </span>
         </label>
       </li>
       <li>
-        <label className={value === "kinds" ? "pick is-on" : "pick"}>
-          <input type="radio" name={name} checked={value === "kinds"} onChange={() => onChange("kinds")} />
+        <label className={value === "list" ? "pick is-on" : "pick"}>
+          <input type="radio" name={name} checked={value === "list"} onChange={() => onChange("list")} />
           <span>
-            <strong>{methodShapeName("kinds")}</strong>
+            <strong>{methodExpandName("list")}</strong>
           </span>
         </label>
       </li>
@@ -149,14 +168,64 @@ function ShapePick({
   );
 }
 
+function SceneEditor({
+  roles,
+  scenes,
+  onChange,
+}: {
+  roles: string[];
+  scenes: SceneDraft[];
+  onChange: (next: SceneDraft[]) => void;
+}) {
+  function patch(index: number, next: Partial<SceneDraft>) {
+    onChange(scenes.map((scene, i) => (i === index ? { ...scene, ...next } : scene)));
+  }
+
+  return (
+    <div className="stack">
+      {scenes.map((scene, index) => (
+        <div key={index} className="create-row">
+          <input
+            aria-label={`场次 ${index + 1} id`}
+            placeholder="id"
+            value={scene.id}
+            onChange={(event) => patch(index, { id: event.target.value })}
+          />
+          <select aria-label={`场次 ${index + 1} role`} value={scene.role} onChange={(event) => patch(index, { role: event.target.value })}>
+            <option value="">role 可选</option>
+            {roles.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn"
+            disabled={scenes.length <= 1}
+            onClick={() => onChange(scenes.filter((_, i) => i !== index))}
+          >
+            去掉
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn" onClick={() => onChange([...scenes, emptyScene()])}>
+        加一场
+      </button>
+    </div>
+  );
+}
+
 function MethodLibraryCard({
   asset,
+  roles,
   taken,
   onChanged,
   onError,
   onMessage,
 }: {
   asset: Asset;
+  roles: string[];
   taken: (name: string) => boolean;
   onChanged: () => Promise<void>;
   onError: (message?: string) => void;
@@ -165,10 +234,9 @@ function MethodLibraryCard({
   const [open, setOpen] = useState(false);
   const title = asset.label ?? recipeIdOfMethod(asset);
   const when = asset.text?.trim() ?? "";
-  const shape = methodShapeOf(asset);
 
   async function remove() {
-    if (!window.confirm(`删除后，点过这个方法的片子会缺骨架。确定删除「${title}」？`)) return;
+    if (!window.confirm(`删除后，点过这个方法的片子会缺铺场。确定删除「${title}」？`)) return;
     try {
       await api.removeLibrary(asset.id);
       onError(undefined);
@@ -186,7 +254,7 @@ function MethodLibraryCard({
         <div>
           <div className="item-title">{title}</div>
           {when ? <div className="item-meta">{when}</div> : null}
-          <div className="item-meta">骨架 · {methodShapeName(shape)}</div>
+          <div className="item-meta">铺场 · {methodPlanLine(asset)}</div>
         </div>
         <div className="voice-row-actions">
           <Link href={`/?recipe=${encodeURIComponent(recipeIdOfMethod(asset))}`} className="btn btn-primary">
@@ -203,6 +271,7 @@ function MethodLibraryCard({
       {open ? (
         <MethodDetail
           asset={asset}
+          roles={roles}
           taken={taken}
           onClose={() => setOpen(false)}
           onChanged={onChanged}
@@ -217,6 +286,7 @@ function MethodLibraryCard({
 
 function MethodDetail({
   asset,
+  roles,
   taken,
   onClose,
   onChanged,
@@ -225,6 +295,7 @@ function MethodDetail({
   onRemove,
 }: {
   asset: Asset;
+  roles: string[];
   taken: (name: string) => boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
@@ -236,7 +307,10 @@ function MethodDetail({
   const titleId = `method-detail-${asset.id}`;
   const [name, setName] = useState(asset.label ?? recipeIdOfMethod(asset));
   const [when, setWhen] = useState(asset.text?.trim() ?? "");
-  const [shape, setShape] = useState<MethodShape>(methodShapeOf(asset));
+  const [expand, setExpand] = useState<MethodExpand>(methodExpandOf(asset));
+  const [scenes, setScenes] = useState<SceneDraft[]>(
+    (asset.scenes ?? []).map((scene) => ({ id: scene.id, role: scene.role ?? "" })),
+  );
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -269,9 +343,19 @@ function MethodDetail({
       onError("先写何时用");
       return;
     }
+    const nextScenes = scenes.map((scene) => ({ id: scene.id.trim(), role: scene.role || undefined })).filter((scene) => scene.id);
+    if (expand === "fixed" && nextScenes.length === 0) {
+      onError("固定场次至少写一场");
+      return;
+    }
     setBusy(true);
     try {
-      await api.patchLibrary(asset.id, { label, text, shape });
+      await api.patchLibrary(asset.id, {
+        label,
+        text,
+        expand,
+        scenes: expand === "fixed" ? nextScenes : [],
+      });
       onError(undefined);
       onMessage(`已保存 ${label}`);
       await onChanged();
@@ -306,8 +390,16 @@ function MethodDetail({
           <span>何时用</span>
           <textarea value={when} onChange={(event) => setWhen(event.target.value)} />
         </label>
-        <ShapePick name={`method-shape-${asset.id}`} value={shape} onChange={setShape} />
-        <p className="item-meta">{shape === "kinds" ? "一种模型一场，不要合并。" : "先问题，再做法，再对照。"}</p>
+        <ExpandPick name={`method-expand-${asset.id}`} value={expand} onChange={setExpand} />
+        {expand === "fixed" ? (
+          <SceneEditor
+            roles={roles}
+            scenes={scenes.length ? scenes : [emptyScene()]}
+            onChange={setScenes}
+          />
+        ) : (
+          <p className="item-meta">apply 时再给清单。一项一场，不要合并。</p>
+        )}
         <div className="modal-actions">
           <button type="button" className="btn btn-danger" onClick={onRemove}>
             删除

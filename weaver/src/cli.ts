@@ -6,7 +6,8 @@ import {
   createLibraryMethod,
   listLibraryMethods,
   methodNameOf,
-  parseMethodShape,
+  parseMethodExpand,
+  parseMethodScenes,
   updateLibraryMethod,
 } from "./library-method.ts";
 import { updateLibraryVoice, voiceNameOf } from "./voice-mint.ts";
@@ -91,8 +92,10 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       refs: { type: "string" },
       recipe: { type: "string" },
       kinds: { type: "string" },
+      items: { type: "string" },
       langs: { type: "string" },
-      shape: { type: "string" },
+      expand: { type: "string" },
+      scenes: { type: "string" },
     },
   });
   wantJson = Boolean(values.json);
@@ -343,7 +346,7 @@ function main(): void {
       const id = str(values, "id") ?? "";
       const file = str(values, "file");
       if (kind === "method") {
-        fail("方法用 weaver method add --label <名称> --text <何时用> --shape kinds|problem-then-rule");
+        fail("方法用 weaver method add --label <名称> --text <何时用> --expand fixed|list [--scenes id:role,...]");
       }
       if (!kind || !id) fail("用法: weaver asset add --id <id> --kind still|voice|... [--file]");
       if (values.library) {
@@ -383,7 +386,7 @@ function main(): void {
       return;
     }
     if (sub === "set") {
-      if (!values.library) fail("用法: weaver asset set --library --id <id> [--label] [--text] [--shape]");
+      if (!values.library) fail("用法: weaver asset set --library --id <id> [--label] [--text] [--expand] [--scenes]");
       const id = str(values, "id") ?? "";
       if (!id) fail("需要 --id");
       const current = loadLibrary(root).find((item) => item.id === id);
@@ -399,7 +402,8 @@ function main(): void {
             {
               label: str(values, "label"),
               text: str(values, "text"),
-              shape: str(values, "shape") ? parseMethodShape(str(values, "shape")) : undefined,
+              expand: str(values, "expand") ? parseMethodExpand(str(values, "expand")) : undefined,
+              scenes: str(values, "scenes") ? parseMethodScenes(str(values, "scenes")) : undefined,
             },
             root,
           ),
@@ -446,7 +450,8 @@ function main(): void {
             {
               label: str(values, "label") ?? "",
               text: str(values, "text") ?? "",
-              shape: parseMethodShape(str(values, "shape")),
+              expand: parseMethodExpand(str(values, "expand")),
+              scenes: str(values, "scenes") ? parseMethodScenes(str(values, "scenes")) : undefined,
             },
             root,
           ),
@@ -458,7 +463,7 @@ function main(): void {
     }
     if (sub === "set") {
       const method = findLibraryMethod(str(values, "id"), undefined, root);
-      if (!method) fail("用法: weaver method set --id <id> [--label] [--text] [--shape]");
+      if (!method) fail("用法: weaver method set --id <id> [--label] [--text] [--expand] [--scenes]");
       try {
         print(
           updateLibraryMethod(
@@ -466,7 +471,8 @@ function main(): void {
             {
               label: str(values, "label"),
               text: str(values, "text"),
-              shape: str(values, "shape") ? parseMethodShape(str(values, "shape")) : undefined,
+              expand: str(values, "expand") ? parseMethodExpand(str(values, "expand")) : undefined,
+              scenes: str(values, "scenes") ? parseMethodScenes(str(values, "scenes")) : undefined,
             },
             root,
           ),
@@ -506,7 +512,7 @@ function main(): void {
             level: recipe.level,
             when: recipe.when,
             canon: recipe.canon,
-            requires_kinds: recipe.requires_kinds,
+            requires_items: recipe.requires_items,
             default_scenes: recipe.default_scenes,
             path: recipe.path,
             body: recipe.body,
@@ -530,13 +536,14 @@ function main(): void {
     if (sub === "apply") {
       const project = requireProject(str(values, "project") ?? "");
       const recipeId = str(values, "recipe") ?? "";
-      if (!recipeId) fail("用法: weaver recipe apply --project <id> --recipe <id> [--kinds a,b,c]");
-      const kindsRaw = str(values, "kinds");
-      const kinds = kindsRaw
-        ? kindsRaw.split(",").map((item) => item.trim()).filter(Boolean)
-        : [];
+      if (!recipeId) fail("用法: weaver recipe apply --project <id> --recipe <id> [--items a,b,c]");
+      const split = (key: string) =>
+        (str(values, key) ?? "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
       try {
-        const { skipped } = applyRecipe(project, recipeId, { kinds }, root);
+        const { skipped } = applyRecipe(project, recipeId, { items: split("items"), kinds: split("kinds") }, root);
         print({ ...envelope(project, root), skipped });
       } catch (error) {
         fail(error instanceof Error ? error.message : String(error), 2);

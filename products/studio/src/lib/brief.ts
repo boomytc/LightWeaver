@@ -6,7 +6,7 @@ export type BriefInput = {
   task?: string;
   recipeId?: string;
   recipeTitle?: string;
-  requiresKinds?: boolean;
+  requiresList?: boolean;
   voices: Record<string, string>;
   voiceLabels?: Record<string, string>;
   voiceSet?: { ref: string; label?: string };
@@ -88,11 +88,11 @@ export function buildAgentBrief(input: BriefInput): string {
   if (input.recipeId) {
     lines.push(`方法：${input.recipeTitle || input.recipeId}`);
     if (input.projectId) {
-      const kinds = input.requiresKinds ? " --kinds <人给或任务自带的清单，逗号分隔>" : "";
-      lines.push(`  weaver recipe apply --project ${input.projectId} --recipe ${input.recipeId}${kinds}`);
+      const items = input.requiresList ? " --items <人给或任务自带的清单，逗号分隔>" : "";
+      lines.push(`  weaver recipe apply --project ${input.projectId} --recipe ${input.recipeId}${items}`);
     }
-    if (input.requiresKinds) {
-      lines.push("  一种模型一场，不要合并。kinds 从人给的清单或任务自带清单读，不要去翻别的仓库。");
+    if (input.requiresList) {
+      lines.push("  清单一项一场，不要合并。清单从人给或任务自带读，不要去翻别的仓库。");
     }
   } else {
     lines.push("方法：未点。可选增强，自行铺场，不要停下来先选卡。");

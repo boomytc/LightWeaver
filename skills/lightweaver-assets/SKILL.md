@@ -21,8 +21,9 @@ npx weaver asset add --library --id voice.prompt --kind voice --file voices/prom
 # 改名/改正文：npx weaver asset set --library --id voice.prompt --label 讲解女声 --text "…"
 # 删除：npx weaver asset rm --library --label 讲解女声
 # 出片 Hi-Fi clone。不要用 tts --seed 改库。不要在库卡上再铸或再传。
-# 方法：npx weaver method add --label 对照练习 --text "有一份互斥模型清单" --shape kinds
-#       npx weaver method set --id method.taxonomy-parade --text "…" --shape kinds
+# 方法：npx weaver method add --label 对照练习 --text "有一份互斥模型清单" --expand list
+#       npx weaver method add --label 规则卡 --text "先问题" --expand fixed --scenes problem:problem,rule:rule,contrast:contrast
+#       npx weaver method set --id method.taxonomy-parade --text "…" --expand list
 #       npx weaver method rm --label 对照练习
 ```
 

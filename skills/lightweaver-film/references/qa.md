@@ -11,7 +11,7 @@
 | Q5 | 若写了任一 `role`：problem+contrast 或全 still=contrast | D11 | warning |
 | Q6 | 点名语言对等 | `film.langs` 里每种语言的旁白针对同一事实；点了英文才读 `idea.en.md` | 停，改稿。不进 weaver |
 | Q7 | 无种子 `hero`（first-party） | `project show` | `scene rm --id hero` |
-| Q8 | taxonomy 片：scene id 集合 = kinds 集合 | 与传入的 `--kinds` 对一下 | 补场，不合并 |
+| Q8 | 清单方法：scene id 集合 = `--items` 集合 | 与传入的清单对一下 | 补场，不合并 |
 | Q9 | `isRenderable === true` | `project show` 的 `renderable` | **禁止 `render --project`** |
 | Q10 | 成片文件名不是猜的 | 与 SOURCE.md 逐字相同 | 用手写 `--output` |
 | Q11 | 口播/卡片无实现词堆叠 | `validate` warning：`口播忌术语` / `卡片忌术语` | 改成动作和后果再 tts。忌语含叶子、提交模型、安全三角、走廊、sticky、观察器、悬停、宽度为零 |

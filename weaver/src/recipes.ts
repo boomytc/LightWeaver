@@ -11,8 +11,10 @@ import {
   type StudyRole,
   type TaskId,
 } from "./schema.ts";
+import { loadLibrary } from "./assets.ts";
 import { saveFilm } from "./project.ts";
 import { getTask, listTasks, tryGetTask } from "./tasks/registry.ts";
+import { methodExpandOf, type Asset } from "./schema.ts";
 
 export type RecipeLevel = "film" | "scene";
 
@@ -30,7 +32,7 @@ export type Recipe = {
   level: RecipeLevel;
   when: string;
   canon?: string[];
-  requires_kinds?: boolean;
+  requires_items?: boolean;
   default_scenes?: RecipeSceneStub[];
   path: string;
   body: string;
@@ -234,7 +236,7 @@ function recipeFromFile(file: string, expectedTask: string): Recipe | null {
   };
   const canon = asStringList(data.canon);
   if (canon) recipe.canon = canon;
-  if (typeof data.requires_kinds === "boolean") recipe.requires_kinds = data.requires_kinds;
+  if (data.requires_items === true || data.requires_kinds === true) recipe.requires_items = true;
   if (defaultScenes) recipe.default_scenes = defaultScenes;
   return recipe;
 }
@@ -302,7 +304,7 @@ export function summarizeRecipe(recipe: Recipe): RecipeSummary {
     level: recipe.level,
     when: recipe.when,
     canon: recipe.canon,
-    requires_kinds: recipe.requires_kinds,
+    requires_items: recipe.requires_items,
     default_scenes: recipe.default_scenes,
     path: recipe.path,
     title: recipeTitle(recipe.body, recipe.id),
@@ -311,7 +313,62 @@ export function summarizeRecipe(recipe: Recipe): RecipeSummary {
 
 export type ApplyRecipeOptions = {
   kinds?: string[];
+  items?: string[];
 };
+
+function applyItems(options: ApplyRecipeOptions): string[] {
+  const named = (options.items ?? []).map((item) => item.trim()).filter(Boolean);
+  const raw = named.length ? named : (options.kinds ?? []);
+  return [...new Set(raw.map((item) => item.trim()).filter(Boolean))];
+}
+
+function planListStills(items: string[], label: string) {
+  if (items.length === 0) throw new Error(`${label} 需要 --items（清单一项一场）`);
+  return items.map((id) => ({
+    id,
+    kind: "still",
+    still: `asset:still.${id}`,
+    fit: "contain" as const,
+    role: undefined as StudyRole | undefined,
+  }));
+}
+
+function planFixedStills(
+  scenes: Array<{ id: string; kind?: string; role?: string; fit?: "cover" | "contain" }>,
+  label: string,
+  allowRole: (role: string) => boolean,
+) {
+  if (scenes.length === 0) throw new Error(`${label} 固定场次至少写一场`);
+  return scenes.map((row) => {
+    let role: StudyRole | undefined;
+    if (row.role) {
+      if (!allowRole(row.role)) throw new Error(`未知 role：${row.role}`);
+      role = row.role as StudyRole;
+    }
+    return {
+      id: row.id,
+      kind: row.kind ?? "still",
+      still: `asset:still.${row.id}`,
+      fit: row.fit ?? ("contain" as const),
+      role,
+    };
+  });
+}
+
+function roleAllowed(task: ReturnType<typeof getTask>, role: string): boolean {
+  if (task.roles?.length) return task.roles.includes(role);
+  return isStudyRole(role);
+}
+
+function catalogFilmMethod(ref: string, root: string): Asset | undefined {
+  const wanted = recipeIdOf(ref);
+  if (!wanted) return undefined;
+  return loadLibrary(root).find((item) => item.kind === "method" && recipeIdOf(item.id) === wanted);
+}
+
+function methodName(method: Asset): string {
+  return (method.label ?? recipeIdOf(method.id)).trim();
+}
 
 /**
  * 只编排 addScene / removeScene。
@@ -323,23 +380,9 @@ export function applyRecipe(
   options: ApplyRecipeOptions = {},
   root = weaverRoot(),
 ): { project: ProjectRecord; skipped: string[] } {
-  let recipe: Recipe;
-  try {
-    recipe = loadRecipe(recipeId, root);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.startsWith("找不到 recipe")) throw new Error(`找不到配方：${recipeId}`);
-    throw error;
-  }
   const task = getTask(filmTask(project.film));
-  if (recipe.task !== task.id) {
-    throw new Error(`配方 ${recipe.id} 属于任务 ${recipe.task}，与片子任务 ${task.id} 不一致`);
-  }
-  if (recipe.level !== "film") {
-    throw new Error("scene 卡按 SKILL 手写一场，或并入 film 卡");
-  }
-
-  const kinds = [...new Set((options.kinds ?? []).map((item) => item.trim()).filter(Boolean))];
+  const items = applyItems(options);
+  const catalog = catalogFilmMethod(recipeId, root);
   let planned: Array<{
     id: string;
     kind: string;
@@ -347,30 +390,39 @@ export function applyRecipe(
     fit?: "cover" | "contain";
     role?: StudyRole;
   }>;
+  let appliedId = recipeIdOf(recipeId);
 
-  if (recipe.requires_kinds) {
-    if (kinds.length === 0) {
-      throw new Error(
-        `${recipe.id} 需要 --kinds（由人给或任务自带的清单读入，不要让 weaver 去解上游源码）`,
-      );
+  if (catalog) {
+    if (catalog.task && catalog.task !== task.id) {
+      throw new Error(`方法 ${methodName(catalog)} 属于任务 ${catalog.task}，与片子任务 ${task.id} 不一致`);
     }
-    planned = kinds.map((id) => ({
-      id,
-      kind: "still",
-      still: `asset:still.${id}`,
-      fit: "contain",
-      role: "contrast",
-    }));
-  } else if (recipe.default_scenes?.length) {
-    planned = recipe.default_scenes.map((row) => ({
-      id: row.id,
-      kind: row.kind ?? "still",
-      still: row.still ?? `asset:still.${row.id}`,
-      fit: row.fit,
-      role: row.role,
-    }));
+    planned =
+      methodExpandOf(catalog) === "list"
+        ? planListStills(items, methodName(catalog))
+        : planFixedStills(catalog.scenes ?? [], methodName(catalog), (role) => roleAllowed(task, role));
   } else {
-    throw new Error(`film 卡 ${recipe.id} 缺少 default_scenes 或 requires_kinds，无法 apply`);
+    let recipe: Recipe;
+    try {
+      recipe = loadRecipe(recipeId, root);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.startsWith("找不到 recipe")) throw new Error(`找不到配方：${recipeId}`);
+      throw error;
+    }
+    if (recipe.task !== task.id) {
+      throw new Error(`配方 ${recipe.id} 属于任务 ${recipe.task}，与片子任务 ${task.id} 不一致`);
+    }
+    if (recipe.level !== "film") {
+      throw new Error("scene 卡按 SKILL 手写一场，或并入 film 卡");
+    }
+    appliedId = recipe.id;
+    if (recipe.requires_items) {
+      planned = planListStills(items, recipe.id);
+    } else if (recipe.default_scenes?.length) {
+      planned = planFixedStills(recipe.default_scenes, recipe.id, (role) => roleAllowed(task, role));
+    } else {
+      throw new Error(`film 卡 ${recipe.id} 缺少 default_scenes 或清单展开，无法 apply`);
+    }
   }
 
   for (const item of planned) {
@@ -403,16 +455,21 @@ export function applyRecipe(
     if (stillCount > 1) removeScene(project, "hero");
   }
 
-  setFilmRecipe(project, recipe.id, root);
+  setFilmRecipe(project, appliedId, root);
   return { project, skipped };
+}
+
+export function assertFilmMethod(ref: string, root = weaverRoot()): void {
+  const id = recipeIdOf(ref);
+  if (!id) throw new Error("缺少方法");
+  if (catalogFilmMethod(id, root)) return;
+  const recipe = loadRecipe(id, root);
+  if (recipe.level !== "film") throw new Error(`只能点名成片方法卡，${id} 是 ${recipe.level} 卡`);
 }
 
 export function setFilmRecipe(project: ProjectRecord, recipeId: string, root = weaverRoot()): ProjectRecord {
   const id = recipeIdOf(recipeId);
-  if (id) {
-    const recipe = loadRecipe(id, root);
-    if (recipe.level !== "film") throw new Error(`只能点名成片方法卡，${id} 是 ${recipe.level} 卡`);
-  }
+  if (id) assertFilmMethod(id, root);
   saveFilm(project, { ...project.film, recipe: id || undefined });
   return project;
 }

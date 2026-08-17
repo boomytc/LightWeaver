@@ -1,17 +1,31 @@
 import type { Asset } from "../types";
 
-export type MethodShape = "kinds" | "problem-then-rule";
+export type MethodExpand = "fixed" | "list";
 
 export function recipeIdOfMethod(asset: { id: string }): string {
   return asset.id.replace(/^method\./, "");
 }
 
-export function methodShapeOf(asset?: Pick<Asset, "shape">): MethodShape {
-  return asset?.shape === "kinds" ? "kinds" : "problem-then-rule";
+export function methodExpandOf(asset?: Pick<Asset, "expand">): MethodExpand {
+  return asset?.expand === "list" ? "list" : "fixed";
 }
 
-export function methodShapeName(shape: MethodShape): string {
-  return shape === "kinds" ? "一种模型一场" : "问题 → 规则 → 对照";
+export function methodExpandName(expand: MethodExpand): string {
+  return expand === "list" ? "清单一项一场" : "固定场次";
+}
+
+export function roleLabel(role?: string): string {
+  if (role === "problem") return "问题";
+  if (role === "rule") return "规则";
+  if (role === "contrast") return "对照";
+  return role ?? "";
+}
+
+export function methodPlanLine(asset: Pick<Asset, "expand" | "scenes">): string {
+  if (methodExpandOf(asset) === "list") return methodExpandName("list");
+  const scenes = asset.scenes ?? [];
+  const bits = scenes.map((scene) => roleLabel(scene.role) || scene.id).filter(Boolean);
+  return bits.join(" → ") || methodExpandName("fixed");
 }
 
 /** 人看的名称。片子上存的是 apply id。 */

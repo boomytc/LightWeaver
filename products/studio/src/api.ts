@@ -37,7 +37,10 @@ export const api = {
     fetch("/api/settings/modelbest/probe", { method: "POST" }).then((res) =>
       parse<{ ok: boolean; message: string }>(res),
     ),
-  tasks: () => fetch("/api/tasks").then((res) => parse<{ id: string; label: { zh: string; en: string } }[]>(res)),
+  tasks: () =>
+    fetch("/api/tasks").then((res) =>
+      parse<{ id: string; label: { zh: string; en: string }; roles: string[] }[]>(res),
+    ),
   projects: () => fetch("/api/projects").then((res) => parse<ProjectSummary[]>(res)),
   project: (id: string) => fetch(`/api/projects/${encodeURIComponent(id)}`).then((res) => parse<ProjectDetail>(res)),
   createProject: (id: string, title: string) =>
@@ -98,7 +101,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ recipe }),
     }).then((res) => parse<ProjectDetail>(res)),
-  createMethod: (body: { label: string; text: string; shape: "kinds" | "problem-then-rule" }) =>
+  createMethod: (body: {
+    label: string;
+    text: string;
+    expand: "fixed" | "list";
+    scenes?: { id: string; role?: string }[];
+  }) =>
     fetch("/api/library/methods", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -113,7 +121,8 @@ export const api = {
       locale?: string;
       texts?: Record<string, string>;
       styles?: Record<string, string>;
-      shape?: "kinds" | "problem-then-rule";
+      expand?: "fixed" | "list";
+      scenes?: { id: string; role?: string }[];
     },
   ) =>
     fetch(`/api/library/assets/${encodeURIComponent(id)}`, {

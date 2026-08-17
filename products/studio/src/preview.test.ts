@@ -41,7 +41,7 @@ function detail(partial: Partial<ProjectDetail["paths"]> = {}): ProjectDetail {
       lineFiles: [],
       outputFiles: {},
       library: "/library",
-      recipes: "/recipes/lightui-study-explainer",
+      recipes: "/recipes/study-explainer",
       brief: { kind: "study", root: "/ui", files: {} },
       ...partial,
     },
@@ -214,9 +214,14 @@ describe("library catalog contract", () => {
 describe("methods catalog contract", () => {
   it("lets the catalog add, edit, delete, then send a card to the workbench", () => {
     const page = fs.readFileSync(path.join(here, "pages/Methods.tsx"), "utf8");
-    assert.match(page, /methodShapeName/);
-    assert.match(page, /methodShapeOf/);
+    assert.match(page, /methodExpandName/);
+    assert.match(page, /methodPlanLine/);
+    assert.match(page, /ExpandPick/);
+    assert.match(page, /SceneEditor/);
+    assert.match(page, /加一场/);
     assert.doesNotMatch(page, /api\.recipes/);
+    assert.doesNotMatch(page, /一种模型一场/);
+    assert.doesNotMatch(page, /methodShape/);
     assert.match(page, /createMethod/);
     assert.match(page, /patchLibrary/);
     assert.match(page, /removeLibrary/);
@@ -225,7 +230,7 @@ describe("methods catalog contract", () => {
     assert.match(page, /kind === "method"/);
     assert.match(page, /保存方法/);
     assert.match(page, /删除/);
-    assert.match(page, /可选成片骨架/);
+    assert.match(page, /可选铺场方案/);
     assert.doesNotMatch(page, /不改不删/);
     assert.doesNotMatch(page, /buildMethodBrief/);
     assert.doesNotMatch(page, /methodApplyLine/);

@@ -1,15 +1,30 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { methodLabel, methodShapeName, methodShapeOf, recipeIdOfMethod } from "./method-brief.ts";
+import { methodExpandName, methodExpandOf, methodLabel, methodPlanLine, recipeIdOfMethod } from "./method-brief.ts";
 
 describe("method catalog helpers", () => {
-  it("reads shape and apply id from the catalog row", () => {
+  it("reads expand from the catalog row", () => {
     assert.equal(recipeIdOfMethod({ id: "method.taxonomy-parade" }), "taxonomy-parade");
-    assert.equal(methodShapeOf({ shape: "kinds" }), "kinds");
-    assert.equal(methodShapeOf({ shape: "problem-then-rule" }), "problem-then-rule");
-    assert.equal(methodShapeOf({}), "problem-then-rule");
-    assert.equal(methodShapeName("kinds"), "一种模型一场");
-    assert.equal(methodShapeName("problem-then-rule"), "问题 → 规则 → 对照");
+    assert.equal(methodExpandOf({ expand: "list" }), "list");
+    assert.equal(methodExpandOf({ expand: "fixed" }), "fixed");
+    assert.equal(methodExpandOf({}), "fixed");
+    assert.equal(methodExpandName("list"), "清单一项一场");
+    assert.equal(methodExpandName("fixed"), "固定场次");
+  });
+
+  it("describes a fixed plan from its scenes, not from a built-in type", () => {
+    assert.equal(
+      methodPlanLine({
+        expand: "fixed",
+        scenes: [
+          { id: "problem", role: "problem" },
+          { id: "rule", role: "rule" },
+          { id: "contrast", role: "contrast" },
+        ],
+      }),
+      "问题 → 规则 → 对照",
+    );
+    assert.equal(methodPlanLine({ expand: "list" }), "清单一项一场");
   });
 
   it("resolves a film recipe id to the catalog name", () => {

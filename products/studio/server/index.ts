@@ -37,7 +37,8 @@ import {
   weaverRoot,
   allocateNewVoice,
   createLibraryMethod,
-  parseMethodShape,
+  parseMethodExpand,
+  parseMethodScenes,
   updateLibraryMethod,
   asrRuntime,
   keepLibraryVoice,
@@ -109,7 +110,7 @@ app.post("/api/settings/modelbest/probe", async (_req, res) => {
 });
 
 app.get("/api/tasks", (_req, res) => {
-  res.json(listTasks().map((task) => ({ id: task.id, label: task.label })));
+  res.json(listTasks().map((task) => ({ id: task.id, label: task.label, roles: task.roles ?? [] })));
 });
 
 app.get("/api/projects", (_req, res) => {
@@ -460,7 +461,8 @@ app.patch("/api/library/assets/:id", (req, res) => {
           {
             label: typeof req.body?.label === "string" ? req.body.label : undefined,
             text: typeof req.body?.text === "string" ? req.body.text : undefined,
-            shape: req.body?.shape !== undefined ? parseMethodShape(req.body.shape) : undefined,
+            expand: req.body?.expand !== undefined ? parseMethodExpand(req.body.expand) : undefined,
+            scenes: req.body?.scenes !== undefined ? parseMethodScenes(req.body.scenes) : undefined,
           },
           root,
         ),
@@ -510,7 +512,8 @@ app.post("/api/library/methods", (req, res) => {
       {
         label: String(req.body?.label ?? ""),
         text: String(req.body?.text ?? ""),
-        shape: parseMethodShape(req.body?.shape),
+        expand: parseMethodExpand(req.body?.expand),
+        scenes: req.body?.scenes,
       },
       root,
     );

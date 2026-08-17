@@ -18,17 +18,24 @@
       "id": "method.problem-then-rule",
       "kind": "method",
       "label": "问题然后规则",
-      "file": "methods/lightui-study-explainer/problem-then-rule.md",
+      "file": "methods/study-explainer/problem-then-rule.md",
+      "task": "study-explainer",
       "text": "讲一条会坏的交互规则：先问题，再做法，再对照。",
-      "shape": "problem-then-rule"
+      "expand": "fixed",
+      "scenes": [
+        { "id": "problem", "role": "problem", "fit": "contain" },
+        { "id": "rule", "role": "rule", "fit": "contain" },
+        { "id": "contrast", "role": "contrast", "fit": "contain" }
+      ]
     },
     {
       "id": "method.taxonomy-parade",
       "kind": "method",
       "label": "对照表阅兵",
-      "file": "methods/lightui-study-explainer/taxonomy-parade.md",
-      "text": "有一份互斥模型清单，一种模型一场，收束点破最容易混的一对。",
-      "shape": "kinds"
+      "file": "methods/study-explainer/taxonomy-parade.md",
+      "task": "study-explainer",
+      "text": "有一份互斥模型清单，一项一场，收束点破最容易混的一对。",
+      "expand": "list"
     }
   ]
 }

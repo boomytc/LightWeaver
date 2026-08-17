@@ -10,7 +10,7 @@ describe("buildAgentBrief", () => {
       task: "study-explainer",
       recipeId: "taxonomy-parade",
       recipeTitle: "对照表阅兵",
-      requiresKinds: true,
+      requiresList: true,
       voices: {
         zh: "library:voice.prompt",
         en: "library:voice.prompt",

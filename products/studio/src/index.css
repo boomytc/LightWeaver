@@ -380,7 +380,7 @@ button:disabled {
   align-items: center;
 }
 .modal {
-  width: min(440px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   margin: auto;
   padding: 0;
   border: 0;

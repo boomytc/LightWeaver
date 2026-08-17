@@ -45,7 +45,7 @@ description: >
 
 1. 按图存放。理念跟任务走；资产用 `library:` / `asset:`；产物进该片子在 `data/` 下的 `assets/lines` 与 `assets/outputs`。不发明顶层目录，不把产物写进理念目录或 `products/study-films/`，不把上游 idea 拷进片子。工作台没点产物位置就先问。
 2. 脚本即片子。`film.json` 是编排合同。不手写 Remotion TSX。
-3. 方法卡若按模型分场，一种模型一场。禁止合并。
+3. 方法若是清单一项一场，一项一场。禁止合并。
 4. 真静帧。不要手绘假 UI。
 5. 只写 `film.langs` 点名的语言再 TTS。没点英文就不要硬写英文。
 6. 先形状后媒体；能复用就不重生。`validate`  error 未清不得交付；`!isRenderable` 不得 `render`。人在 Studio `/methods` `/voices` `/library` 监管库，在工作台复制说明，在 `/f/<id>` 复盘。`film.kit` 只是参考权能。`tts` 走 Hi-Fi clone，不用 `--seed` 改库。
@@ -74,7 +74,7 @@ npx weaver project show <id> --json
 npx weaver method list
 npx weaver recipe list [--task study-explainer]
 npx weaver recipe show <id>
-npx weaver recipe apply --project <id> --recipe taxonomy-parade --kinds a,b,c --json
+npx weaver recipe apply --project <id> --recipe taxonomy-parade --items a,b,c --json
 npx weaver recipe apply --project <id> --recipe problem-then-rule --json
 npx weaver recipe use --project <id> --recipe taxonomy-parade
 npx weaver project create <id> --task study-explainer [--title] [--source first-party] [--output] [--output-en]

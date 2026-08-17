@@ -6,7 +6,7 @@ import { BriefPanel } from "../components/BriefPanel";
 import { Link } from "../components/Link";
 import type { OutputHome } from "../lib/brief";
 import { langLabel } from "../lib/langs";
-import { methodShapeOf, recipeIdOfMethod } from "../lib/method-brief";
+import { methodExpandOf, recipeIdOfMethod } from "../lib/method-brief";
 import { listVoicePacks } from "../lib/voices";
 import type { Asset } from "../types";
 
@@ -196,7 +196,7 @@ export function Home() {
           task: "study-explainer",
           recipeId: recipeId || undefined,
           recipeTitle: selectedMethod?.label,
-          requiresKinds: selectedMethod ? methodShapeOf(selectedMethod) === "kinds" : undefined,
+          requiresList: selectedMethod ? methodExpandOf(selectedMethod) === "list" : undefined,
           voices: Object.fromEntries(langs.map((locale) => [locale, voiceRef])),
           voiceLabels,
           voiceSet: selectedVoice ? { ref: voiceRef, label: selectedVoice.label ?? selectedVoice.id } : undefined,

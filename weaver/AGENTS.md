@@ -42,7 +42,8 @@ src/cli.ts             JSON/human CLI
   and `data/projects/`. Voices, elements, and methods live in `library/`.
   Film-level methods are catalogued as `kind: method`.
   `createLibraryMethod` / `updateLibraryMethod` write the catalog
-  (name / when / shape) and a projection file under
+  (name / when / expand / scenes) and a projection file under
   `library/methods/<recipePack>/`. Studio reads the catalog only.
-  Apply still reads the projection file. Scene cards stay as apply
-  internals and are not catalog plugins.
+  Apply prefers the catalog: `fixed` uses `scenes`, `list` uses
+  `--items`. `--kinds` is a leftover alias for `--items`. Scene cards
+  stay as apply internals and are not catalog plugins.

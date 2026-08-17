@@ -18,7 +18,7 @@ function write(file: string, text: string): void {
 
 function fixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "recipes-"));
-  const dir = path.join(root, "lightui-study-explainer");
+  const dir = path.join(root, "study-explainer");
   write(
     path.join(dir, "index.md"),
     `---
@@ -39,7 +39,7 @@ level: film
 when: parade
 canon:
   - dropdown-taxonomy
-requires_kinds: true
+requires_items: true
 ---
 # 对照表阅兵
 `,
@@ -147,9 +147,9 @@ describe("listRecipes / loadRecipe", () => {
     assert.equal(shown.id, loaded.id);
     assert.equal(shown.task, "study-explainer");
     assert.equal(shown.level, "film");
-    assert.equal(shown.requires_kinds, true);
+    assert.equal(shown.requires_items, true);
     assert.equal(shown.canon, undefined);
-    assert.ok(shown.path.endsWith(path.join("library", "methods", "lightui-study-explainer", "taxonomy-parade.md")));
+    assert.ok(shown.path.endsWith(path.join("library", "methods", "study-explainer", "taxonomy-parade.md")));
     assert.match(shown.body, /# 对照表阅兵/);
   });
 
@@ -182,9 +182,9 @@ describe("listRecipes / loadRecipe", () => {
     const root = tempWorkspace();
     const project = seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
     const paths = projectPaths(project, root);
-    assert.equal(paths.recipes, path.join(recipeRoot(root), "lightui-study-explainer"));
+    assert.equal(paths.recipes, path.join(recipeRoot(root), "study-explainer"));
     assert.equal(filmTask(project.film), "study-explainer");
-    assert.ok(paths.recipes.endsWith(path.join("library", "methods", "lightui-study-explainer")));
+    assert.ok(paths.recipes.endsWith(path.join("library", "methods", "study-explainer")));
     assert.notEqual(paths.recipes, recipeRoot(root));
   });
 });
@@ -209,7 +209,7 @@ describe("applyRecipe", () => {
     assert.equal(alpha?.kind, "still");
     assert.equal(alpha?.still, "asset:still.alpha");
     assert.equal(alpha?.fit, "contain");
-    assert.equal(alpha?.role, "contrast");
+    assert.equal(alpha?.role, undefined);
     assert.equal(alpha?.lines.zh, "alpha");
     assert.equal(alpha?.lines.en, "alpha");
     assert.ok(project.assets.some((asset) => asset.id === "still.alpha"));
@@ -244,7 +244,7 @@ describe("applyRecipe", () => {
   it("rejects unknown scene kinds before writing", () => {
     const root = tempProjectRoot();
     write(
-      path.join(root, "library/methods/lightui-study-explainer/bad-beat.md"),
+      path.join(root, "library/methods/study-explainer/bad-beat.md"),
       `---
 id: bad-beat
 task: study-explainer
@@ -273,8 +273,8 @@ default_scenes:
   it("requires --kinds for taxonomy-parade", () => {
     const root = tempProjectRoot();
     const project = createProject("demo-film", { title: "演示" }, root);
-    assert.throws(() => applyRecipe(project, "taxonomy-parade", {}, weaverRoot()), /需要 --kinds/);
-    assert.throws(() => applyRecipe(project, "taxonomy-parade", { kinds: [] }, weaverRoot()), /需要 --kinds/);
+    assert.throws(() => applyRecipe(project, "taxonomy-parade", {}, weaverRoot()), /需要 --items/);
+    assert.throws(() => applyRecipe(project, "taxonomy-parade", { kinds: [] }, weaverRoot()), /需要 --items/);
   });
 
   it("uses default_scenes for problem-then-rule and ignores kinds", () => {

@@ -23,9 +23,10 @@ export const LIGHTUI_LAB_ADAPTERS = [
 
 export const studyExplainer: TaskModule = {
   id: "study-explainer",
-  recipePack: "lightui-study-explainer",
-  label: { zh: "Study 讲解片", en: "Study explainer" },
+  recipePack: "study-explainer",
+  label: { zh: "讲解片", en: "Study explainer" },
   sceneKinds: ["title", "still", "close"],
+  roles: ["problem", "rule", "contrast"],
   createFilm,
   validate: validateStudyExplainer,
 };

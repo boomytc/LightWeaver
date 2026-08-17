@@ -1,12 +1,18 @@
 export const ASSET_KINDS = ["element", "voice", "still", "reference", "line", "output", "method"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
-export const METHOD_SHAPES = ["kinds", "problem-then-rule"] as const;
-export type MethodShape = (typeof METHOD_SHAPES)[number];
+export const METHOD_EXPANDS = ["fixed", "list"] as const;
+export type MethodExpand = (typeof METHOD_EXPANDS)[number];
 
-export function isMethodShape(value: unknown): value is MethodShape {
-  return value === "kinds" || value === "problem-then-rule";
+export function isMethodExpand(value: unknown): value is MethodExpand {
+  return value === "fixed" || value === "list";
 }
+
+export type MethodScene = {
+  id: string;
+  role?: string;
+  fit?: "cover" | "contain";
+};
 
 export const TASK_IDS = ["study-explainer"] as const;
 export type TaskId = (typeof TASK_IDS)[number];
@@ -39,13 +45,19 @@ export type Asset = {
   styles?: Record<Locale, string>;
   scene?: string;
   label?: string;
-  /** 方法插件的成片骨架。其它 kind 不用。 */
-  shape?: MethodShape;
+  /** 方法：固定场次或清单一项一场。其它 kind 不用。 */
+  expand?: MethodExpand;
+  scenes?: MethodScene[];
+  task?: TaskId;
 };
 
 export type AssetDoc = {
   assets: Asset[];
 };
+
+export function methodExpandOf(asset: Pick<Asset, "expand">): MethodExpand {
+  return asset.expand === "list" ? "list" : "fixed";
+}
 
 export type CardCopy = {
   kicker?: string;
