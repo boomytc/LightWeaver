@@ -46,7 +46,7 @@ export function Library() {
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">素材</h1>
       <p className="lede">
-        只收会进片子的元素和参考图，不是通用文件库。片子页勾选之后，agent 按这份清单用，不自己加。
+        收可供参考的元素和参考图。agent 可以按这些做，有自己想法也可以不用或另找。
       </p>
       <Toast flash={flash} />
 

@@ -61,7 +61,7 @@ describe("projectPaths", () => {
     assert.equal(paths.assetsDoc, assetsPath(project.root));
   });
 
-  it("keeps official LightUI still names from the catalog", () => {
+  it("keeps official still names from the catalog", () => {
     const root = tempWorkspace();
     const project = seedLabFilm(root, "dropdown-taxonomy", [
       { id: "select", file: "select-open.png", role: "contrast" },

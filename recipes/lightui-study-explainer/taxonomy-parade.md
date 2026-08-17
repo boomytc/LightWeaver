@@ -24,7 +24,7 @@ requires_kinds: true
 2. 每个 kind 一场 still — recipe `kind-still`（`role: contrast`）
 3. `close` — recipe `say-it-this-way`，易混对来自 idea.md
 
-一种 LightUI kind 一场 still。禁止把 7/9/5 个模型压进一场。scene id = kind id，来自 LightUI `kinds.ts` 的 `KindId`；weaver 不 parse TS。
+一种模型一场 still。禁止把多份模型压进一场。scene id = 模型 id，来自人给或任务自带的清单；weaver 不解析上游源码。
 
 ## 旁白义务
 
@@ -36,7 +36,7 @@ requires_kinds: true
 - nav：`floating` `sidebar` `breadcrumb` `dropdown` `mega` `drawer` `overlay` `scrollspy` `shrink`
 - sidebar：`floating` `wheel` `multilevel` `collapsible` `offcanvas`
 
-静帧文件名与 LightUI `references/SOURCE.md` 一致（dropdown 用 `<kind>-open.png`；nav 的打开态用 `dropdown-open.png` 等）。
+静帧文件名跟该片 `assets.json`（dropdown 常用 `<kind>-open.png`；nav 的打开态用 `dropdown-open.png` 等）。
 
 ## 展开
 

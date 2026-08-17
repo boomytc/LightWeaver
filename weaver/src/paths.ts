@@ -52,7 +52,7 @@ export function labUrl(): string {
 export function requireLightuiRoot(root = weaverRoot()): string {
   const dest = lightuiRoot(root);
   if (!fs.existsSync(dest)) {
-    throw new Error(`LightUI 不在 ${dest}。设置 LIGHTUI_ROOT 指向 LightUI 仓库根。`);
+    throw new Error(`发布目标不在 ${dest}。设置 LIGHTUI_ROOT 指向拷贝根目录。`);
   }
   return dest;
 }

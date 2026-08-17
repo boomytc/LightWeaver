@@ -1,6 +1,6 @@
 # How to add a film
 
-一部片子是一个 **任务实例**。当前只实现 `study-explainer`（LightUI study 教学讲解片）。
+一部片子是一个 **任务实例**。当前只实现 `study-explainer`。LightWeaver 做后处理出片：编排、配音、渲染。上游文案和静帧由任务自带，不在本仓描述别的仓库。
 
 ## Project layout
 
@@ -12,7 +12,7 @@ assets/lines/<locale>/    旁白 wav
 assets/outputs/           渲染 mp4（不提交）
 ```
 
-任务实例都在 `data/`（整树 gitignore），**不提交**。LightUI 顾客片：`data/first-party/<slug>/`，且 `film.id === study.slug === 目录名`。用户片：`data/projects/<id>/`。
+任务实例都在 `data/`（整树 gitignore），**不提交**。两棵树：`data/projects/<id>/`，以及现网已有的 `data/first-party/<id>/`。`film.id` 等于目录名。
 
 仓库只留可复用物：`weaver/`、`recipes/`、`library/`、`products/study-films/`（渲染器，不含片子、不含成片）、`products/studio/`、`skills/`。
 
@@ -22,18 +22,15 @@ assets/outputs/           渲染 mp4（不提交）
 
 | 层 | 住哪 | 不往哪写 |
 | --- | --- | --- |
-| **理念** | first-party：`$LIGHTUI_ROOT/studies/<slug>/`（`idea.md`、`idea.en.md`、`study.json`；taxonomy 另有 `src/lib/kinds.ts`；成片文件名看 `references/SOURCE.md`）。用户片：`data/projects/<id>/brief.md`（可选 `brief.en.md`） | 不把 `idea.md` / `kinds.ts` 拷进片子目录。不把 wav/mp4 写进理念目录 |
-| **资产** | `library/`（`library:` 音色 / 元素）+ 项目 `assets.json` + `assets/stills/<locale>/` | `library/` 不是 DAM。不把 stills 写进 LightUI `references/`。不发明第三套 ref |
-| **产物** | 旁白 `assets/lines/<locale>/<scene>.wav`；成片 `assets/outputs/<output>`。整份任务实例在 `data/`（用户片 `data/projects/<id>/`，顾客片 `data/first-party/<slug>/`）。有 `publish.dir` 才拷 **mp4** 到 LightUI `references/` | 不把 `data/` 提交进 LightWeaver。不把 wav/mp4 写进 study 源码树。不把成片写进 `products/study-films/out` 或 `products/study-films/projects` |
+| **理念** | 任务自带：用户片 `data/projects/<id>/brief.md`（可选 `brief.en.md`）。若片子写了 `study.slug`，只当指针，不要把上游文案拷进片子目录 | 不把上游 idea 拷进片子。不把 wav/mp4 写进理念目录 |
+| **资产** | `library/`（`library:` 音色 / 元素 / 参考）+ 项目 `assets.json` + `assets/stills/<locale>/`。元素是参考权能，不强制 | `library/` 不是文件柜。不发明第三套 ref |
+| **产物** | 旁白 `assets/lines/<locale>/<scene>.wav`；成片 `assets/outputs/<output>`。整份任务实例在 `data/` | 不把 `data/` 提交进本仓。不把成片写进 `products/study-films/`。人没另给拷贝位置，就不要拷到仓库外 |
 
-**用户片 brief：** 没有 LightUI study 时，理念写在 `data/projects/<id>/brief.md`。Agent 写正文；`createProject` **不**代写。weaver **不**解析 brief。没有 brief 就先写 brief，再写 `lines`。用户片若同时带了 `study.slug`，主理念仍读 LightUI idea（文件在的话），否则用 brief；**不要**把 idea 拷进项目。
+**用户片 brief：** 理念写在 `data/projects/<id>/brief.md`。Agent 写正文；`createProject` **不**代写。weaver **不**解析 brief。没有 brief 就先写 brief，再写 `lines`。
 
-**静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。
+**静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。必须先写进 `assets.json` 再落盘。
 
-- 文件名与 LightUI `studies/<slug>/references/SOURCE.md` 一致：intent `status.png`；dropdown `select-open.png`；nav `drawer-open.png`；sidebar `offcanvas-open.png`。
-- 必须先写进 `assets.json` 再落盘。不要再发明 `comp-01.png`、`desktop-full.png`。
-
-**方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。卡是可复用骨架，片子是实例。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>` / `recipe apply`。Studio `/methods` 只展示何时用、怎么 apply，不把某一张片子的场次当卡。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
+**方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。卡是可复用骨架，片子是实例。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>` / `recipe apply`。Studio `/methods` 只展示何时用、怎么 apply。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
 
 发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 
@@ -42,37 +39,32 @@ assets/outputs/           渲染 mp4（不提交）
 - `task: "study-explainer"`
 - 场景形状：title 在首、close 在末、至少一场 still
 - 旁白写在 `scenes[].lines`
-- **口播通俗：** `idea.md` 可以写实现词；片子 `lines` 与 title/close 卡片必须改成听者的话。一场只留一个要记住的名字，解释用动作和后果，不要堆「安全三角 / 走廊 / sticky / 观察器 / 上一帧」。`validate` 对忌语出 warning（Q11）。「路径」可以留（面包屑、省市区一串都是日常说法）
-- **点名资产：** `film.voices` 各语言同一套音色；`film.langs` 是要出的语言（可只出中文或只出英文）；`film.kit` 是人勾选的 `library:element|reference`。agent 先读这三项再写片子。Studio `/voices` `/library` 监管库，`/f/<id>` 点名。
-- **要点板：** title / close 的正文是 `points`（2–4 条），按旁白进度出现。lede 只留一句。对照条写成 `左 || 右`。不要一段 lede 铺满，不要另写 mermaid 渲染器
+- **口播通俗：** 上游文案可以写实现词；片子 `lines` 与 title/close 卡片必须改成听者的话。一场只留一个要记住的名字。`validate` 对忌语出 warning。「路径」可以留
+- **点名：** `film.voices` 各语言同一套音色；`film.langs` 是要出的语言；`film.kit` 是可选的参考权能。agent 先读这三项。Studio 工作台复制说明；`/f/<id>` 只复盘
+- **要点板：** title / close 的正文是 `points`（2–4 条）。lede 只留一句。对照条写成 `左 || 右`
 - 静帧：`scenes[].still = "asset:still.<id>"`
-- 音色套：一套引用 `library:voice.prompt`。克隆源二选一：上传录音，或写设计指令铸完再收。上传后自动转写「文本」（Qwen3-ASR，人可改再收）。铸出的 wav 就是克隆源。出片固定 Hi-Fi clone（`ref_audio` + 文本）。人在 Studio `/voices` 铸、听、留；详情可改名称和文本，可删。`tts` 不改库，不加 `--seed`。缺文本：`weaver voice asr --id` 或 `--label`。要出的语言用 `weaver langs set --project <id> --langs zh`。VoxCPM2 控制台：https://platform.modelbest.cn/console/login?ref=B08B4DDF
-- 有 `publish.dir` 才发布到 LightUI `studies/<slug>/references/`
-- 工作台说明必须写产物位置。没点名就让 agent 开始前先问：用户片还是顾客片，要不要再拷到 LightUI。不要默认写进渲染器目录。
+- 音色套：克隆源二选一。上传后自动转写「文本」。出片固定 Hi-Fi clone。人在 `/voices` 铸、听、留。`tts` 不改库，不加 `--seed`
+- 工作台必须写产物位置。没点名就让 agent 开始前先问写到 `data/projects` 还是 `data/first-party`。人没另给拷贝位置，不要拷到仓库外
+- `film.publish.dir` 若已有值，`render` 才拷一份出去。工作台不点名仓库外路径
 
 ```bash
 npx weaver project create my-film --title "演示"
 npx weaver recipe apply --project my-film --recipe taxonomy-parade --kinds shot
-# 或 scene add --project my-film --id shot --kind still --still asset:still.shot
-# 按 assets.json 的 files.<locale> 写入（新片约定 shot.png；不要从 id 猜）
 npx weaver langs set --project my-film --langs zh
 npx weaver validate my-film
 npx weaver tts --project my-film
 npx weaver render --project my-film
 ```
 
-`make films` / `weaver tts|render` 无 `--project` 时跳过 **不可渲** 片子（形状绿但缺 png）。指定 `--project` 渲染缺 png 会报错。
+`make films` / `weaver tts|render` 无 `--project` 时跳过 **不可渲** 片子。指定 `--project` 渲染缺 png 会报错。
 
-## 手截配方（nav / sidebar 等 manual 片）
+## 手截
 
-1. lab：`http://127.0.0.1:5173/s/<slug>`，light 主题。
-2. 视口 1440×1100，设备像素比 2。中英各一遍。
-3. 点 `[data-kind=<kind>]`，等 `[data-film=fixture]`。
-4. shrink：在 fixture **内部**滚过约 40px。
-5. 写入该项目 `assets.json` 已登记的 `files.<locale>`。文件名跟 LightUI SOURCE.md（`status.png`、`select-open.png`、`drawer-open.png`）。
-6. LightUI `references/` **只收 mp4**，不收这些 png。静帧/wav 留在 `data/first-party/<id>/assets/`。
+1. 用任务自己的预览面取静帧（视口 1440×1100，设备像素比 2）。要出的语言各一遍。
+2. 写入该项目 `assets.json` 已登记的 `files.<locale>`。
+3. 静帧/wav 留在该片子 `data/.../assets/`。
 
-`weaver capture` 从 `/s/<slug>/stage` 截到 `data/first-party/<id>/assets/stills/`。
+`weaver capture` 仅当片子配了适配器时，才把截图写进该片子的 `assets/stills/`。
 
 ## After changing scenes
 

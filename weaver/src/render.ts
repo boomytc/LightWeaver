@@ -32,7 +32,7 @@ export function runPublish(options: { projectId: string; locale?: Locale; root?:
   }
   const uiRoot = process.env.LIGHTUI_ROOT ? path.resolve(process.env.LIGHTUI_ROOT) : lightuiRoot(root);
   if (!fs.existsSync(uiRoot)) {
-    throw new Error(`LightUI 不在 ${uiRoot}。设置 LIGHTUI_ROOT 后再发布。`);
+    throw new Error(`发布目标不在 ${uiRoot}。人另给了拷贝位置时，再设置 LIGHTUI_ROOT。`);
   }
   const destDir = safeJoin(uiRoot, dir);
   const locales = options.locale ? [options.locale] : filmLangs(project.film);

@@ -664,6 +664,15 @@ html[data-theme="light"] .modal::backdrop {
 }
 .kit-item.is-on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .kit-item .item-title, .kit-item .item-meta { display: block; }
+button.kit-item {
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
 
 .btn {
   display: inline-flex;

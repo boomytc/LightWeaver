@@ -8,18 +8,18 @@ description: >
 
 # LightWeaver workspace router
 
-Read `AGENTS.md` and `docs/conventions.md` first. `docs/design-*.md` is historical.
+Read `AGENTS.md` and `docs/conventions.md` first.
 
 | Ask | Go to |
 | --- | --- |
 | Schema, CLI, validate, tts/render jobs | `weaver/` |
 | Shared voice / element / reference | `library/` |
-| LightUI / 顾客片实例 | `data/first-party/<id>/`（gitignore） |
-| Remotion cards, LightUI capture | `products/study-films/` |
-| Control site（人管音色/素材，复核片子） | `products/studio/` `http://127.0.0.1:5175/` |
+| Task instance | `data/first-party/<id>/` or `data/projects/<id>/`（gitignore） |
+| Remotion cards, optional capture | `products/study-films/` |
+| Control site（工作台复制说明，片子页复盘） | `products/studio/` `http://127.0.0.1:5175/` |
 | How to author a film | **lightweaver-film** |
-| 制作一部讲解片 / 选配方 / 从 study 出片 | **lightweaver-film** |
-| Task type / 第三部片子 / study-explainer | **lightweaver-film** |
+| 制作一部讲解片 / 选配方 / 出片 | **lightweaver-film** |
+| Task type / study-explainer | **lightweaver-film** |
 | How to ingest assets | **lightweaver-assets** |
 
 ```bash
@@ -29,5 +29,5 @@ make test
 make studio
 ```
 
-Do not put this work back in LightUI `tools/study-films`.
 Do not copy schema into a product — import `@lightweaver/weaver`.
+Do not describe other repositories as part of this product.

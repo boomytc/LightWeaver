@@ -12,7 +12,7 @@
 | `capture.kind=manual` 且 png 不在 | 手截；**不要** `weaver capture` |
 | `hasErrors(validate)` | 先修形状。停全部生成 |
 | 将要 render 且 `!isRenderable` | 列出缺的 png；禁止 render。仅缺 png 仍可 tts |
-| first-party 且 SOURCE.md 点名的 output 与 `locales.*.output` 不一致 | 用手写 `--output` 修正；禁止按 slug 猜 `nav-taxonomy.mp4` |
+| 任务自带输出名清单且与 `locales.*.output` 不一致 | 用手写 `--output` 修正；禁止按 id 猜文件名 |
 | 用户要把 kind 合并成一场 | 拒绝 |
 
 ## 直接跑
@@ -22,6 +22,6 @@
 - `scene set` / `card set`（模式允许时）
 - `validate`
 - `tts`（仅 `!hasErrors`）
-- `capture`（仅 lab+adapter）
+- `capture`（仅片子配了适配器）
 - `render`（当且仅当 `isRenderable`）
 - `publish`（当且仅当 `publish.dir` 且 `outputFiles[locale].exists`）

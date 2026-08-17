@@ -22,10 +22,9 @@ describe("buildAgentBrief", () => {
       kit: ["library:element.mark"],
       kitLabels: { "library:element.mark": "Light mark" },
       outputHome: "first-party",
-      publishDir: "studies/dropdown-taxonomy/references",
       outputs: { zh: "source-tutorial.mp4" },
     });
-    assert.match(text, /请用 LightWeaver/);
+    assert.match(text, /后处理出片/);
     assert.match(text, /片子：dropdown-taxonomy（给下拉起对名字）/);
     assert.match(text, /方法卡：taxonomy-parade（对照表阅兵）/);
     assert.match(text, /recipe apply --project dropdown-taxonomy --recipe taxonomy-parade/);
@@ -34,14 +33,16 @@ describe("buildAgentBrief", () => {
     assert.match(text, /音色套：讲解女声/);
     assert.match(text, /voice set --project dropdown-taxonomy --ref library:voice\.prompt/);
     assert.doesNotMatch(text, /音色套：library:voice\.prompt/);
-    assert.doesNotMatch(text, /中英成对，不要拆开换/);
+    assert.match(text, /参考权能/);
     assert.match(text, /library:element\.mark（Light mark）/);
+    assert.match(text, /有自己想法可以不用或另找/);
     assert.match(text, /kit set --project dropdown-taxonomy --refs library:element\.mark/);
     assert.match(text, /data\/first-party\/dropdown-taxonomy\/assets\/outputs/);
     assert.match(text, /source-tutorial\.mp4（zh）/);
-    assert.match(text, /studies\/dropdown-taxonomy\/references/);
     assert.match(text, /不要写到 products\/study-films/);
-    assert.doesNotMatch(text, /未点名/);
+    assert.doesNotMatch(text, /只准用这些/);
+    assert.doesNotMatch(text, /LightUI/);
+    assert.doesNotMatch(text, /studies\//);
     assert.doesNotMatch(text, /开始前先问人/);
   });
 
@@ -63,23 +64,25 @@ describe("buildAgentBrief", () => {
     assert.match(text, /方法卡：未点名/);
     assert.match(text, /产物位置：未指定/);
     assert.match(text, /开始前先问人/);
+    assert.match(text, /参考权能：未点名/);
     assert.match(text, /产物位置问清后再 weaver project create/);
-    assert.doesNotMatch(text, /先 weaver project create，再 langs set/);
+    assert.doesNotMatch(text, /不要自己加 library 外/);
   });
 
-  it("names a user-film output dir and forbids publish", () => {
+  it("names a user-film output dir and does not invent an outside copy", () => {
     const text = buildAgentBrief({
       voices: {},
       kit: [],
       outputHome: "user",
     });
     assert.match(text, /data\/projects\/<id>\/assets\/outputs/);
-    assert.match(text, /不要 publish/);
+    assert.match(text, /不要拷到仓库外/);
     assert.match(text, /project create <id> --source user/);
     assert.doesNotMatch(text, /开始前先问人/);
+    assert.doesNotMatch(text, /publish/);
   });
 
-  it("maps first-party home to data/first-party and a LightUI copy", () => {
+  it("maps first-party home to data/first-party without an outside project", () => {
     assert.equal(instanceDir("first-party", "nav-taxonomy"), "data/first-party/nav-taxonomy");
     assert.equal(instanceDir("user", "demo"), "data/projects/demo");
     const text = buildAgentBrief({
@@ -87,8 +90,10 @@ describe("buildAgentBrief", () => {
       kit: [],
       outputHome: "first-party",
     });
-    assert.match(text, /data\/first-party\/<slug>\/assets\/outputs/);
-    assert.match(text, /studies\/<slug>\/references/);
-    assert.match(text, /--source first-party --study-slug <slug>/);
+    assert.match(text, /data\/first-party\/<id>\/assets\/outputs/);
+    assert.match(text, /--source first-party/);
+    assert.doesNotMatch(text, /study-slug/);
+    assert.doesNotMatch(text, /LightUI/);
+    assert.doesNotMatch(text, /studies\//);
   });
 });

@@ -31,4 +31,4 @@ npx weaver asset add --project <id> --id still.hero --kind still --file assets/s
 Then set `scenes[].still` to `asset:still.hero`. Locale variants use
 `files: { "zh": "...", "en": "..." }` in `assets.json`.
 
-人在 Studio `/voices` 管音色（wav 是身份）、`/library` 管元素和参考图。不要把通用 DAM 做进这里。片子静帧仍是任务实例，不是共享库。制作循环中的 still 入库由 film skill 在阶段 4 调用本 skill，不要在这里教叙事。铸声平台：https://platform.modelbest.cn/console/login?ref=B08B4DDF
+人在 Studio `/voices` 管音色（wav 是身份）、`/library` 管可供参考的元素和参考图。元素不强制进片。不要把通用文件柜做进这里。片子静帧仍是任务实例，不是共享库。制作循环中的 still 入库由 film skill 在阶段 4 调用本 skill，不要在这里教叙事。铸声平台：https://platform.modelbest.cn/console/login?ref=B08B4DDF

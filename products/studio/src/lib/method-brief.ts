@@ -15,7 +15,7 @@ export function methodShape(recipe: RecipeCard): string {
 
 export function methodApplyLine(recipe: RecipeCard): string {
   if (recipe.requires_kinds) {
-    return `weaver recipe apply --project <id> --recipe ${recipe.id} --kinds <从 kinds.ts 读，逗号分隔>`;
+    return `weaver recipe apply --project <id> --recipe ${recipe.id} --kinds <人给或任务自带的清单，逗号分隔>`;
   }
   return `weaver recipe apply --project <id> --recipe ${recipe.id}`;
 }
@@ -29,7 +29,7 @@ export function buildMethodBrief(recipe: RecipeCard): string {
   const shape = methodShape(recipe);
   if (shape) lines.push(`骨架：${shape}`);
   if (recipe.requires_kinds) {
-    lines.push("用法：从该 study 的 kinds.ts 读 KindId，一种 kind 一场，不要合并。");
+    lines.push("用法：从人给或任务自带的模型清单读 id，一种模型一场，不要合并。");
   } else {
     lines.push("用法：按骨架铺场。还要加场就 scene add，不要改这张卡。");
   }

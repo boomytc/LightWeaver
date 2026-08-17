@@ -335,7 +335,7 @@ export function applyRecipe(
   if (recipe.requires_kinds) {
     if (kinds.length === 0) {
       throw new Error(
-        `${recipe.id} 需要 --kinds（由 agent 从 kinds.ts 读入，不要让 weaver 解析 LightUI）`,
+        `${recipe.id} 需要 --kinds（由人给或任务自带的清单读入，不要让 weaver 去解上游源码）`,
       );
     }
     planned = kinds.map((id) => ({

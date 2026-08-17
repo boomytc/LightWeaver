@@ -1,6 +1,6 @@
 # Studio
 
-本机控制站：人管音色和可复用素材，并在片子上点名用哪支声、哪些元素。编排和出片走 agent + weaver。
+本机控制站：工作台复制给 agent 的说明；片子页复盘轨迹。编排和出片走 agent + weaver。
 
 ```bash
 # 仓库根
@@ -12,13 +12,13 @@ make studio
 
 | 路径 | 做什么 |
 | --- | --- |
-| `/` | 这张图 |
-| `/films` `/f/<id>` | 点名音色 / `kit`，看场次和成片 |
+| `/` | 点名组合，复制说明 |
+| `/films` `/f/<id>` | 复盘场次和成片 |
 | `/voices` | 听、铸、收下 wav |
-| `/library` | 收元素和参考图 |
+| `/library` | 收可供参考的元素和参考图 |
+| `/methods` | 方法卡 |
 
 - 片子主路径是 agent + `weaver`
-- LightUI 顾客片来自 `data/first-party/`（不提交）
-- 空壳可建到 `data/projects/`（不提交）
-- 共享音色 / 元素 / 参考在 `library/`，不是通用 DAM
+- 任务实例在 `data/`（不提交）
+- 共享音色 / 元素 / 参考在 `library/`；元素不强制
 - `<video src>` 只用 `projectMedia(id, rel)`，不用磁盘绝对路径

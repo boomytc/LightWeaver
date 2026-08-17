@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Link } from "../components/Link";
-import { BriefPanel } from "../components/BriefPanel";
-import { assetLabel, kindLabel, sourceLabel } from "../lib/labels";
+import { assetLabel, sourceLabel } from "../lib/labels";
 import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { filmLangs, langLabel } from "../lib/langs";
-import { filmVoiceRef, listVoicePacks } from "../lib/voices";
+import { filmVoiceRef } from "../lib/voices";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
 import type { Asset, ProjectDetail, RecipeCard } from "../types";
 
@@ -15,7 +14,7 @@ export function Film({ id }: { id: string }) {
   const [library, setLibrary] = useState<Asset[]>([]);
   const [recipes, setRecipes] = useState<RecipeCard[]>([]);
   const [locale, setLocale] = useState("zh");
-  const { flash, ok, error } = useFlash();
+  const { flash, error } = useFlash();
   const [loadFailed, setLoadFailed] = useState(false);
   const [sceneId, setSceneId] = useState<string>();
 
@@ -43,40 +42,6 @@ export function Film({ id }: { id: string }) {
   const output = useMemo(() => (detail ? outputPreview(detail, locale) : undefined), [detail, locale]);
   const preview = useMemo(() => (detail ? stillPreviewSrc(detail, scene, locale) : undefined), [detail, scene, locale]);
   const missingStills = useMemo(() => (detail ? missingStillSceneIds(detail, locale) : []), [detail, locale]);
-  const voicePacks = listVoicePacks(library);
-  const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
-
-  async function assignLangs(next: string[]) {
-    if (!detail || !next.length) return;
-    try {
-      setDetail(await api.setLangs(detail.id, next));
-      ok(`要出：${next.map(langLabel).join("、")}`);
-    } catch (err) {
-      error(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function assignVoicePack(ref: string) {
-    if (!detail) return;
-    try {
-      setDetail(await api.setVoicePack(detail.id, ref));
-      ok(`音色套已点名 ${assetLabel(library, ref)}`);
-    } catch (err) {
-      error(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function toggleKit(ref: string) {
-    if (!detail) return;
-    const current = detail.film.kit ?? [];
-    const next = current.includes(ref) ? current.filter((item) => item !== ref) : [...current, ref];
-    try {
-      setDetail(await api.setKit(detail.id, next));
-      ok(next.length ? `素材：${next.map((item) => assetLabel(library, item)).join("、")}` : "已清空素材点名");
-    } catch (err) {
-      error(err instanceof Error ? err.message : String(err));
-    }
-  }
 
   if (!detail) {
     return (
@@ -89,6 +54,9 @@ export function Film({ id }: { id: string }) {
 
   const copy = detail.film.locales[locale];
   const packRef = filmVoiceRef(detail.film.voices);
+  const recipeTitle = recipes.find((item) => item.id === detail.film.recipe)?.title ?? detail.film.recipe;
+  const langs = filmLangs(detail.film);
+  const kit = detail.film.kit ?? [];
 
   return (
     <div className="film-page">
@@ -105,141 +73,53 @@ export function Film({ id }: { id: string }) {
         </div>
         <p className="item-meta">
           {sourceLabel(detail.source)} · {detail.task ?? "study-explainer"} · {detail.film.scenes.length} 场
-          {detail.studySlug ? ` · lab 文本 http://127.0.0.1:5173/s/${detail.studySlug}` : ""}
         </p>
-        <p className="lede">人在这里点名音色、素材和方法卡，复制说明给 agent。这个站不排、不渲。</p>
+        <p className="lede">复盘这场出片：看场次、旁白和成片。不在这里改组合。给 agent 的说明只在工作台复制。</p>
         <Toast flash={flash} />
       </div>
 
       <div className="page-width film-board">
         <section className="surface">
-          <h2 className="h">点名给 agent</h2>
-          <label className="field">
-            <span>方法卡</span>
-            <select
-              aria-label="方法卡"
-              value={detail.film.recipe ?? ""}
-              onChange={(event) =>
-                void api.setRecipe(detail.id, event.target.value).then(setDetail).catch((err: Error) => error(err.message))
-              }
-            >
-              <option value="">未点名</option>
-              {recipes.map((recipe) => (
-                <option key={recipe.id} value={recipe.id}>
-                  {recipe.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>音色套</span>
-            <select
-              aria-label="音色套"
-              value={packRef}
-              onChange={(event) => void assignVoicePack(event.target.value)}
-            >
-              <option value="">未点名</option>
-              {voicePacks.map((asset) => (
-                <option key={asset.id} value={`library:${asset.id}`}>
-                  {asset.label ?? asset.id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="item-meta">
-            当前：{assetLabel(library, packRef)}
-            {" · "}
-            <Link href="/voices" className="text-link">
-              音色
-            </Link>
-            {new Set(filmLangs(detail.film).map((item) => detail.film.voices[item]).filter(Boolean)).size > 1
-              ? " · 要出的几种语言还没绑成一套，重选一次就会对齐"
-              : ""}
+          <h2 className="h">当时用了什么</h2>
+          <div className="film-assign" style={{ justifyContent: "flex-start" }}>
+            <span className="chip">
+              <em>方法</em>
+              {recipeTitle ?? "未点名"}
+            </span>
+            <span className="chip">
+              <em>语言</em>
+              {langs.map(langLabel).join("、") || "未点名"}
+            </span>
+            <span className="chip">
+              <em>音色</em>
+              {packRef ? assetLabel(library, packRef) : "未点名"}
+            </span>
+            <span className="chip">
+              <em>参考</em>
+              {kit.length ? kit.map((ref) => assetLabel(library, ref)).join("、") : "未点名"}
+            </span>
+          </div>
+          <p className="item-meta" style={{ marginTop: 12 }}>
+            点语言只换这边在看的成片和旁白。
           </p>
-
-          <h2 className="h" style={{ marginTop: 20 }}>
-            要出的语言
-          </h2>
-          <p className="item-meta">勾选要出的；点名称看这一边的成片和旁白。</p>
           <ul className="kit-list lang-picks">
             {Object.keys(detail.film.locales).map((item) => {
-              const selected = filmLangs(detail.film);
-              const on = selected.includes(item);
+              const on = item === locale;
               return (
                 <li key={item}>
-                  <label className={on ? "kit-item is-on" : "kit-item"}>
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={() => {
-                        const next = on ? selected.filter((entry) => entry !== item) : [...selected, item];
-                        if (next.length) {
-                          if (!next.includes(locale)) setLocale(next[0] ?? item);
-                          void assignLangs(next);
-                        }
-                      }}
-                    />
+                  <button type="button" className={on ? "kit-item is-on" : "kit-item"} onClick={() => setLocale(item)}>
                     <span>
-                      <button
-                        type="button"
-                        className="text-link"
-                        style={{ border: 0, background: "none", padding: 0 }}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setLocale(item);
-                        }}
-                      >
-                        {langLabel(item)}
-                      </button>
+                      <span className="item-title">{langLabel(item)}</span>
                       <span className="item-meta">
                         {item}
-                        {item === locale ? " · 正在看" : ""}
+                        {on ? " · 正在看" : langs.includes(item) ? "" : " · 这次没出"}
                       </span>
                     </span>
-                  </label>
+                  </button>
                 </li>
               );
             })}
           </ul>
-
-          <h2 className="h" style={{ marginTop: 20 }}>
-            用哪些素材
-          </h2>
-          {materials.length === 0 ? (
-            <p className="item-meta">
-              库里还没有元素。先去{" "}
-              <Link href="/library" className="text-link">
-                素材
-              </Link>{" "}
-              收入。
-            </p>
-          ) : (
-            <ul className="kit-list">
-              {materials.map((asset) => {
-                const ref = `library:${asset.id}`;
-                const on = (detail.film.kit ?? []).includes(ref);
-                return (
-                  <li key={asset.id}>
-                    <label className={on ? "kit-item is-on" : "kit-item"}>
-                      <input type="checkbox" checked={on} onChange={() => void toggleKit(ref)} />
-                      <span>
-                        <span className="item-title">{asset.label ?? asset.id}</span>
-                        <span className="item-meta">
-                          {kindLabel(asset.kind)} · {asset.id}
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <p className="item-meta" style={{ marginTop: 10 }}>
-            {(detail.film.kit ?? []).length
-              ? `已点名 ${(detail.film.kit ?? []).map((ref) => assetLabel(library, ref)).join("、")}`
-              : "还没点名素材，agent 不要自己加库外元素"}
-          </p>
         </section>
 
         <aside className="surface">
@@ -262,77 +142,44 @@ export function Film({ id }: { id: string }) {
         </aside>
       </div>
 
-      <div className="page-width" style={{ marginBottom: 16 }}>
-        <BriefPanel
-          input={{
-            projectId: detail.id,
-            title: copy?.title,
-            task: detail.task,
-            recipeId: detail.film.recipe,
-            recipeTitle: recipes.find((item) => item.id === detail.film.recipe)?.title,
-            requiresKinds: recipes.find((item) => item.id === detail.film.recipe)?.requires_kinds,
-            voices: detail.film.voices,
-            voiceSet: packRef ? { ref: packRef, label: assetLabel(library, packRef) } : undefined,
-            langs: filmLangs(detail.film),
-            langLabels: Object.fromEntries(Object.keys(detail.film.locales).map((item) => [item, langLabel(item)])),
-            voiceLabels: Object.fromEntries(
-              listVoicePacks(library).map((asset) => [`library:${asset.id}`, asset.label ?? asset.id]),
-            ),
-            kit: detail.film.kit ?? [],
-            kitLabels: Object.fromEntries(
-              library
-                .filter((asset) => asset.kind === "element" || asset.kind === "reference")
-                .map((asset) => [`library:${asset.id}`, asset.label ?? asset.id]),
-            ),
-            outputHome: detail.source,
-            publish: Boolean(detail.film.publish?.dir),
-            publishDir: detail.film.publish?.dir,
-            outputs: Object.fromEntries(
-              filmLangs(detail.film).flatMap((locale) => {
-                const name = detail.film.locales[locale]?.output;
-                return name ? [[locale, name]] : [];
-              }),
-            ),
-          }}
-        />
-      </div>
-
       <section className="page-width surface film-scenes">
-          <h2 className="h">场次一览</h2>
-          <p className="item-meta">只看 agent 写好的场。缺静帧可以在本片补绑，不加场。</p>
-          {missingStills.length ? <p className="issue issue-warning">缺 png：{missingStills.join(", ")}</p> : null}
-          <div className="list">
-            {detail.film.scenes.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={item.id === sceneId ? "item is-active" : "item"}
-                onClick={() => setSceneId(item.id)}
-              >
-                <span className="kind">{item.kind}</span>
-                <span>
-                  <span className="item-title">{item.id}</span>
-                  <span className="item-meta"> {(item.lines[locale] ?? "").slice(0, 72)}</span>
-                </span>
-              </button>
-            ))}
+        <h2 className="h">场次一览</h2>
+        <p className="item-meta">只看已经写下的场和旁白。</p>
+        {missingStills.length ? <p className="issue issue-warning">缺 png：{missingStills.join(", ")}</p> : null}
+        <div className="list">
+          {detail.film.scenes.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={item.id === sceneId ? "item is-active" : "item"}
+              onClick={() => setSceneId(item.id)}
+            >
+              <span className="kind">{item.kind}</span>
+              <span>
+                <span className="item-title">{item.id}</span>
+                <span className="item-meta"> {(item.lines[locale] ?? "").slice(0, 72)}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        {scene ? (
+          <div className="field" style={{ marginTop: 16 }}>
+            <label htmlFor="line-view">
+              旁白 · {scene.id} · {locale}
+            </label>
+            <textarea id="line-view" readOnly value={scene.lines[locale] ?? ""} />
           </div>
-          {scene ? (
-            <div className="field" style={{ marginTop: 16 }}>
-              <label htmlFor="line-view">旁白 · {scene.id} · {locale}</label>
-              <textarea id="line-view" readOnly value={scene.lines[locale] ?? ""} />
-            </div>
-          ) : null}
-          {detail.issues.length ? (
-            <section>
-              <h2 className="h">校验</h2>
-              {detail.issues.map((issue) => (
-                <p key={`${issue.level}:${issue.path}`} className={`issue issue-${issue.level}`}>
-                  {issue.level === "error" ? "错误" : "提示"} · {issue.path} · {issue.message}
-                </p>
-              ))}
-            </section>
-          ) : null}
+        ) : null}
+        {detail.issues.length ? (
+          <section>
+            <h2 className="h">校验</h2>
+            {detail.issues.map((issue) => (
+              <p key={`${issue.level}:${issue.path}`} className={`issue issue-${issue.level}`}>
+                {issue.level === "error" ? "错误" : "提示"} · {issue.path} · {issue.message}
+              </p>
+            ))}
+          </section>
+        ) : null}
       </section>
     </div>
   );

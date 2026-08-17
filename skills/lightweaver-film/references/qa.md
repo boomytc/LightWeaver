@@ -7,11 +7,11 @@
 | Q1 | `validate` 无 error | `weaver validate <id> --json` | 停。修形状 / 旁白空 / 缺 still 引用 |
 | Q2 | title 在 `[0]`、close 在末、恰好各一 | study-explainer validate | 已是 error |
 | Q3 | 每 locale 每场 `lines` 非空 | `scenes.*.lines.<locale>` trim 后为空 → error。`addScene` 的 id 占位也算非空，阶段 3 仍须替换 | error |
-| Q4 | first-party：`SOURCE.md` 点名 `copy.output` | 若 SOURCE.md 存在且正文不含该 locale 的 `copy.output` → warning | warning；对齐后再 publish |
+| Q4 | 任务若自带输出名清单 | 清单在且正文不含该 locale 的 `copy.output` → warning | warning；对齐后再考虑拷贝 |
 | Q5 | 若写了任一 `role`：problem+contrast 或全 still=contrast | D11 | warning |
 | Q6 | 点名语言对等 | `film.langs` 里每种语言的旁白针对同一事实；点了英文才读 `idea.en.md` | 停，改稿。不进 weaver |
 | Q7 | 无种子 `hero`（first-party） | `project show` | `scene rm --id hero` |
-| Q8 | taxonomy 片：scene id 集合 = kinds 集合 | 与 kinds.ts 对一下 | 补场，不合并 |
+| Q8 | taxonomy 片：scene id 集合 = kinds 集合 | 与传入的 `--kinds` 对一下 | 补场，不合并 |
 | Q9 | `isRenderable === true` | `project show` 的 `renderable` | **禁止 `render --project`** |
 | Q10 | 成片文件名不是猜的 | 与 SOURCE.md 逐字相同 | 用手写 `--output` |
 | Q11 | 口播/卡片无实现词堆叠 | `validate` warning：`口播忌术语` / `卡片忌术语` | 改成动作和后果再 tts。忌语含叶子、提交模型、安全三角、走廊、sticky、观察器、悬停、宽度为零 |

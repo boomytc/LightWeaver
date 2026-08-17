@@ -12,7 +12,7 @@
 
 | 阶段 | 名称 | 谁做 | weaver 动词 | 产出 |
 | --- | --- | --- | --- | --- |
-| 0 | Brief | Agent 只读理念 | `project show` → `paths.brief` | 读 idea/study/kinds/SOURCE；用户片读或先写 `brief.md`。输出名来自 SOURCE.md，不猜 |
+| 0 | Brief | Agent 只读理念 | `project show` → `paths.brief` | 读任务自带的 brief / 指针。输出名以片子登记为准，不猜。不要去翻别的仓库 |
 | 1 | Recipe | Agent 抽卡 | `weaver recipe list [--task study-explainer]`；读 `recipes/lightui-study-explainer/index.md`；`weaver recipe show <id>` | 选定问题-规则或对照表阅兵 |
 | 2 | Structure | Agent 调 CLI | `project create` + `weaver recipe apply --project <id> --recipe <id> [--kinds a,b,c]`。必要时再 `scene add` / `rm`。apply / addScene 把每场 `lines[locale]` 写成 scene id 占位；阶段 3 必须 `scene set` 换成真旁白。 | 无 `hero` 的场景列表 + still stub + 占位旁白 |
 | 3 | Script | Agent 写文案 | `scene set` / `card set` | 只写 `film.langs` 点名的语言。必须替换 `addScene` 的 id 占位。idea.md 的实现词译成动作和后果；一场只留一个名字；lede 不要整段复述旁白 |

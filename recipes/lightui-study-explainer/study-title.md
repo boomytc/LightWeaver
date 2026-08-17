@@ -10,7 +10,7 @@ when: |
 
 一场 `kind=title`，种子已有，**禁止** `scene add --kind title`。
 
-`titleCard.kicker` = `LightUI  ·  Study`（first-party）或 `LightWeaver  ·  Film`（user）。tags 默认 `名称, 场景, 规则` / `Name, Scene, Rules`。headline 来自 `study.json` 的 `title`。
+`titleCard.kicker` 跟任务 `brand` 走，默认 `LightWeaver  ·  Film`。tags 默认 `名称, 场景, 规则` / `Name, Scene, Rules`。headline 来自任务自带标题。
 
 lede 只留一句画面提示。正文写 `points`（2–4 条），按旁白进度逐条出现。不要把 summary 整段塞进 lede，不要让画面只剩大标题。
 

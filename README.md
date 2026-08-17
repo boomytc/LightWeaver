@@ -1,17 +1,6 @@
 # LightWeaver
 
-演示场景编排与讲解片合成工作区。一部片子是一个项目：场景脚本、资产、旁白、成片。
-
-## 和相邻工作区怎么分
-
-| 工作区 | 负责 |
-| --- | --- |
-| **LightWeaver** | 项目、资产配料、场景编排、讲解片渲染 |
-| CineWeaver | 成片 / 短剧自动剪 |
-| LightTTS | TTS 模型探索 |
-| LightCanvas | 素材关系画布 |
-| LightAsset | 通用文件资产库 |
-| LightUI | UI lab；讲解片发布回 `studies/*/references/` |
+后处理视频生成工作区。一部片子是一个任务实例：场景脚本、资产、旁白、成片。上游文案和静帧由任务自带；本仓编排、配音、渲染。
 
 ## 怎么用
 
@@ -22,7 +11,7 @@ npx weaver project list --json
 npx weaver project show <id> --json   # paths + renderable
 ```
 
-Studio 工作台只点名组合并复制给 agent；片子页看实例。出片仍走 agent：
+Studio 工作台点名组合并复制给 agent；片子页只复盘。出片仍走 agent：
 
 ```bash
 make install
@@ -38,11 +27,11 @@ npx weaver task list
 npx weaver validate
 npx weaver scene add --project <id> --id shot --kind still --still asset:still.shot
 npx weaver voice asr --label 讲解女声
-npx weaver tts --project intent-cascade --locale zh
-npx weaver render --project intent-cascade --locale zh
+npx weaver tts --project <id> --locale zh
+npx weaver render --project <id> --locale zh
 ```
 
-LightUI lab 在跑时：`make films`（截图 + 旁白 + 渲染并发布）。
+已有可渲片子：`make films`（截图若片子配了适配器 + 旁白 + 渲染）。
 
 ## 目录
 
@@ -50,10 +39,10 @@ LightUI lab 在跑时：`make films`（截图 + 旁白 + 渲染并发布）。
 weaver/                         稳定核与 CLI
 library/                        共享音色 / 元素 / 参考
 recipes/                        方法卡（怎么结合，不是媒体）
-data/                           任务实例（gitignore；first-party + 用户片）
-products/study-films/           Remotion + LightUI 截图
-products/studio/                复核面
-docs/                           任务核 + 存放契约
+data/                           任务实例（gitignore）
+products/study-films/           Remotion + 可选截图
+products/studio/                工作台 + 复盘
+docs/                           现网约定
 ```
 
 Agent 入口：`/lightweaver`、`/lightweaver-film`、`/lightweaver-assets`。

@@ -30,7 +30,7 @@ describe("buildMethodBrief", () => {
     const text = buildMethodBrief(parade);
     assert.match(text, /下一张同类片子复用这张卡/);
     assert.match(text, /taxonomy-parade/);
-    assert.match(text, /kinds\.ts/);
+    assert.match(text, /任务自带的模型清单/);
     assert.match(text, /recipe apply --project <id> --recipe taxonomy-parade --kinds/);
     assert.match(text, /成片写到该片子在 data\/ 下的 assets\/outputs/);
     assert.doesNotMatch(text, /dropdown-taxonomy/);

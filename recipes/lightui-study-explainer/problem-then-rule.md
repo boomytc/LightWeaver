@@ -45,7 +45,7 @@ problem 说会坏什么；rule 说正确做法；contrast 说旁边那条为什�
 
 ## 实证
 
-intent-cascade 是实例，不是卡本身。它用了 `status` / `diagonal` / `project` / `third`，静帧名跟 LightUI `SOURCE.md`。新片子用上面的通用 id。
+intent-cascade 是实例，不是卡本身。它用了 `status` / `diagonal` / `project` / `third`。新片子用上面的通用 id，静帧名跟该片 `assets.json`。
 
 ## 展开
 

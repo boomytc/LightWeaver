@@ -33,13 +33,13 @@ export const studyExplainer: TaskModule = {
 function createFilm(input: CreateFilmInput, root: string): FilmDoc {
   const title = input.title ?? input.id;
   const source = input.source ?? "user";
-  const brand = input.brand ?? (source === "first-party" ? "LightUI" : "LightWeaver");
+  const brand = input.brand ?? "LightWeaver";
   const studySlug = input.studySlug;
   if (source === "first-party" && studySlug && studySlug !== input.id) {
     throw new Error("first-party 的 film.id 必须等于 study.slug");
   }
   const cards = readStudyCards(studySlug, title, root);
-  const kicker = source === "first-party" ? "LightUI  ·  Study" : `${brand}  ·  Film`;
+  const kicker = `${brand}  ·  Film`;
   const zhOutput = input.output ?? `${input.id}.mp4`;
   const enOutput = input.outputEn ?? `${input.id}.en.mp4`;
 

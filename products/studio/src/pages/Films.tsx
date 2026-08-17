@@ -3,7 +3,6 @@ import { api } from "../api";
 import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { Link } from "../components/Link";
-import { navigate } from "../lib/nav";
 import { assetLabel, sourceLabel } from "../lib/labels";
 import { langLabel } from "../lib/langs";
 import type { Asset, ProjectSummary } from "../types";
@@ -12,8 +11,6 @@ export function Films() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [library, setLibrary] = useState<Asset[]>([]);
   const { flash, error } = useFlash();
-  const [newId, setNewId] = useState("");
-  const [newTitle, setNewTitle] = useState("");
 
   useEffect(() => {
     Promise.all([api.projects(), api.library()])
@@ -24,20 +21,11 @@ export function Films() {
       .catch((err: Error) => error(err.message));
   }, []);
 
-  async function create() {
-    try {
-      const created = await api.createProject(newId.trim(), newTitle.trim() || newId.trim());
-      navigate(`/f/${encodeURIComponent(created.id)}`);
-    } catch (err) {
-      error(err instanceof Error ? err.message : String(err));
-    }
-  }
-
   return (
     <div className="page-width page">
-      <p className="eyebrow">复核</p>
+      <p className="eyebrow">复盘</p>
       <h1 className="page-title">片子</h1>
-      <p className="lede">看每部片子点名了哪支声、哪些素材。编排和出片走 agent，不要在这里加场或生成。</p>
+      <p className="lede">看 agent 出过的任务：用了什么、渲到哪、齐不齐。给 agent 的说明只在工作台复制。</p>
       <Toast flash={flash} />
 
       <div className="card-grid">
@@ -64,25 +52,13 @@ export function Films() {
                 {formatVoices(project, library)}
               </span>
               <span className="chip">
-                <em>素材</em>
+                <em>参考</em>
                 {formatKit(project, library)}
               </span>
             </div>
           </Link>
         ))}
       </div>
-
-      <section className="section">
-        <h2 className="h">给 agent 留一个空壳</h2>
-        <p className="item-meta">只建目录，不在这里写旁白。agent 随后用 weaver 填场。</p>
-        <div className="create-row">
-          <input aria-label="项目 id" placeholder="kebab-id" value={newId} onChange={(event) => setNewId(event.target.value)} />
-          <input aria-label="标题" placeholder="标题（可选）" value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
-          <button type="button" className="btn" onClick={() => void create()} disabled={!newId.trim()}>
-            建到 data/projects
-          </button>
-        </div>
-      </section>
     </div>
   );
 }
