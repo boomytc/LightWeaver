@@ -26,7 +26,7 @@ export type AsrOptions = {
 
 export type TranscribeFn = (options: AsrOptions) => Pick<AsrResult, "text">;
 
-const DEFAULT_MODEL = "/Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-1.7b/Qwen3-ASR-1.7B-Q8_0.gguf";
+const DEFAULT_MODEL = "/Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-0.6b/qwen3-asr-0.6b-Q8_0.gguf";
 
 export function parseAsrResult(output: string): AsrResult {
   const lines = output.split(/\r?\n/).map((row) => row.trim());
@@ -89,7 +89,7 @@ export function asrRuntime(
     model,
     library,
     bindings,
-    hint: `转写未就绪：缺 ${missing.join("、")}。权重默认 /Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-1.7b/，引擎默认 ${asrHome}`,
+    hint: `转写未就绪：缺 ${missing.join("、")}。权重默认 /Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-0.6b/，引擎默认 ${asrHome}`,
   };
 }
 

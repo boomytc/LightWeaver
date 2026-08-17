@@ -12,5 +12,5 @@ product. `public/projects/<id>` is a Remotion symlink into `data/`.
 - Render writes mp4 only to that film's `assets/outputs/`. Do not keep
   copies in this package's `out/` or `projects/`.
 - Brand and copy come from `film.json`.
-- `scripts/tts.py` is VoxCPM2. `scripts/asr.py` is Qwen3-ASR GGUF for clone-source text. Do not import other-repo explore trees.
+- `scripts/tts.py` is VoxCPM2. `scripts/asr.py` is Qwen3-ASR-0.6B GGUF for clone-source text (override with `asr_model` for 1.7B). Do not import other-repo explore trees.
 - Comments and operator logs: Chinese. Identifiers: English.

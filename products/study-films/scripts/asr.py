@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Transcribe a clone-source wav via Qwen3-ASR-1.7B GGUF.
+"""Transcribe a clone-source wav via Qwen3-ASR-0.6B GGUF.
 
 Job (weaver --job JSON):
   kind        transcribe
@@ -30,7 +30,7 @@ import tempfile
 import wave
 from pathlib import Path
 
-DEFAULT_MODEL = Path("/Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-1.7b/Qwen3-ASR-1.7B-Q8_0.gguf")
+DEFAULT_MODEL = Path("/Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-0.6b/qwen3-asr-0.6b-Q8_0.gguf")
 DEFAULT_MODEL_DIR = DEFAULT_MODEL.parent
 LIB_NAMES = ("libtranscribe.dylib", "libtranscribe.so", "transcribe.dll")
 

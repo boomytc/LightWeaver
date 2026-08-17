@@ -1,3 +1,5 @@
-# Copy to config.local.yaml (gitignored). Do not commit real keys.
+# Optional product-local overlay (gitignored). Prefer the workspace-root
+# config.local.yaml — asr.py / tts.py already read that file.
+# Copy shape from ../../config.local.yaml.example.
 modelbest_base_url: 'https://api.modelbest.cn/v1'
 modelbest_api_key: ''

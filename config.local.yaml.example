@@ -1,7 +1,9 @@
-# Copy to config.local.yaml (gitignored). Do not commit real keys.
+# Copy to config.local.yaml (gitignored). Do not commit real keys or machine paths.
 modelbest_base_url: 'https://api.modelbest.cn/v1'
 modelbest_api_key: ''
-# Optional ASR (Qwen3-ASR-1.7B GGUF). Defaults: /Users/boom/Model/ASR/... and ../LightASR
-# asr_model: '/Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-1.7b/Qwen3-ASR-1.7B-Q8_0.gguf'
-# asr_library: '/Users/boom/workspace/LightASR/explore/light_transcribe_cpp/build-shared/src/libtranscribe.dylib'
-# asr_bindings: '/Users/boom/workspace/LightASR/explore/light_transcribe_cpp/third_party/transcribe.cpp/bindings/python/src'
+
+# Optional ASR. Default is Qwen3-ASR-0.6B GGUF + sibling ../LightASR.
+# Point these at this machine. 1.7B: change asr_model to Qwen3-ASR-1.7B-Q8_0.gguf.
+# asr_model: '/absolute/path/to/qwen3-asr-0.6b-Q8_0.gguf'
+# asr_library: '/absolute/path/to/libtranscribe.dylib'
+# asr_bindings: '/absolute/path/to/transcribe.cpp/bindings/python/src'
