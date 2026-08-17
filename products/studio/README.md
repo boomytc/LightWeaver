@@ -16,7 +16,7 @@ make studio
 | `/films` `/f/<id>` | 复盘场次和成片 |
 | `/voices` | 听、铸、收下 wav |
 | `/library` | 收可供参考的元素和参考图 |
-| `/methods` | 看骨架，点去组合 |
+| `/methods` | 看人写进仓库的骨架，点去组合；不改不删 |
 
 - 片子主路径是 agent + `weaver`
 - 任务实例在 `data/`（不提交）

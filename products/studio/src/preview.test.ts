@@ -222,6 +222,10 @@ describe("methods catalog contract", () => {
     assert.doesNotMatch(page, /recipe\.body/);
     assert.doesNotMatch(page, /card-id/);
     assert.doesNotMatch(page, /kinds\.ts/);
+    assert.match(page, /人写进仓库/);
+    assert.match(page, /不在这里改/);
+    assert.doesNotMatch(page, /删除/);
+    assert.doesNotMatch(page, /onChange/);
   });
 });
 

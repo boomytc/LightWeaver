@@ -41,5 +41,6 @@ src/cli.ts             JSON/human CLI
   import is a cycle). Put `projectPaths` only in `project-paths.ts`.
 - Task instances live under `data/` (gitignored): `data/first-party/`
   and `data/projects/`. Shared voices live in `library/`. Method cards
-  live in `recipes/lightui-study-explainer/` (`TaskModule.recipePack`;
-  task id remains `study-explainer`).
+  are human-authored markdown in `recipes/lightui-study-explainer/`
+  (`TaskModule.recipePack`; task id remains `study-explainer`). This
+  package lists / shows / applies them. It does not write recipe files.

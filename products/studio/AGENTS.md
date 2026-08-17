@@ -14,7 +14,7 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
 | `/films` `/f/<id>` | human reviews | read-only trajectory: what was used, scenes, mp4 |
 | `/voices` | human | one create flow; upload plays then keep; empty 文本 is ASR-filled; library can rename/fix text/delete; film uses Hi-Fi clone |
 | `/library` | human | reference elements and images; not a required kit |
-| `/methods` | human | film skeletons only: when + shape; go to `/` with that card. No copy, no film list |
+| `/methods` | human | read-only film skeletons (human-authored in `recipes/`); when + shape; go to `/`. No copy, no edit, no delete, no film list |
 
 ## Rules
 
@@ -28,6 +28,7 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
   Remotion Player. Do not add scene-authoring as the primary path.
 - `film.kit` is optional `library:element|reference` (reference only).
 - Agent brief lives only on `/`. Film pages do not copy a brief.
+- Method cards are written in `recipes/` by a human and committed. Agents apply them. Studio `/methods` does not create, edit, or delete cards.
 - Chinese UI labels. Identifiers English.
 - Site density, not a marketing page. Token-first CSS in `src/index.css`.
 - Theme is `data-theme` on `<html>`, persisted as `lightweaver-theme`. GitHub is this repo. ModelBest console: `MODELBEST_URL`.

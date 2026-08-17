@@ -22,7 +22,9 @@ export function Methods() {
     <div className="page-width page">
       <p className="eyebrow">工作台</p>
       <h1 className="page-title">方法</h1>
-      <p className="lede">看有哪几张可复用成片骨架、何时用。点去组合，说明只在那边复制。场级步骤随卡带上，不单独点。</p>
+      <p className="lede">
+        这些卡是人写进仓库的可复用骨架，不是 agent 出片时攒出来的。这里只看何时用、骨架长什么样，点去组合。不在这里改、不在这里删。说明只在组合页复制。
+      </p>
       <Toast flash={flash} />
 
       {recipes.length === 0 ? (

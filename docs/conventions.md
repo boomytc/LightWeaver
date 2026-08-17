@@ -30,7 +30,7 @@ assets/outputs/           渲染 mp4（不提交）
 
 **静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。必须先写进 `assets.json` 再落盘。
 
-**方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。卡是可复用骨架，片子是实例。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>` / `recipe apply`。Studio `/methods` 只给人看何时用、骨架长什么样，点去工作台带上这张卡。不复制说明，不列片子。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
+**方法资产：** `recipes/lightui-study-explainer/`（与 `library/` 平级；task 仍是 `study-explainer`）。卡是人写进仓库的可复用骨架，片子是实例。agent 只 `list` / `show` / `apply`，不在出片时新建或改卡。新卡写 `recipes/<pack>/*.md` 再提交，不进 `data/`，不在 Studio 里改删。选卡：`npx weaver recipe list --task study-explainer`，再 `recipe show <id>` / `recipe apply`。Studio `/methods` 只给人看何时用、骨架长什么样，点去工作台带上这张卡。不复制说明，不列片子，不提供编辑/删除。禁止 `library/recipes/`，禁止 `skills/**/recipes/`。
 
 发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 
