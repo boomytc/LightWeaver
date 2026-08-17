@@ -4,6 +4,7 @@ import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { Link } from "../components/Link";
 import { assetLabel, sourceLabel } from "../lib/labels";
+import { methodLabel } from "../lib/method-brief";
 import { langLabel } from "../lib/langs";
 import type { Asset, ProjectSummary } from "../types";
 
@@ -41,7 +42,7 @@ export function Films() {
             <div className="film-assign" style={{ justifyContent: "flex-start", marginTop: 12 }}>
               <span className="chip">
                 <em>方法</em>
-                {project.recipe ?? "未点名"}
+                {methodLabel(library, project.recipe) || project.recipe || "未点名"}
               </span>
               <span className="chip">
                 <em>语言</em>

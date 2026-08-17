@@ -1,5 +1,5 @@
 import { roleLabel } from "./labels";
-import type { RecipeCard } from "../types";
+import type { Asset, RecipeCard } from "../types";
 
 export type MethodShape = "kinds" | "problem-then-rule";
 
@@ -12,7 +12,18 @@ export function methodShapeKind(recipe?: Pick<RecipeCard, "requires_kinds">): Me
 }
 
 export function methodShapeName(shape: MethodShape): string {
-  return shape === "kinds" ? "一种模型一场" : "问题然后规则";
+  return shape === "kinds" ? "一种模型一场" : "问题 → 规则 → 对照";
+}
+
+/** 人看的名称。片子上存的是 apply id。 */
+export function methodLabel(
+  library: Array<Pick<Asset, "id" | "kind" | "label">>,
+  recipeId?: string,
+): string {
+  if (!recipeId) return "";
+  const wanted = recipeIdOfMethod({ id: recipeId });
+  const asset = library.find((item) => item.kind === "method" && recipeIdOfMethod(item) === wanted);
+  return (asset?.label ?? "").trim();
 }
 
 /** 给人看的骨架。不写 scene id、不写 apply。 */

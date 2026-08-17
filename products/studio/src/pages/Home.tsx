@@ -7,6 +7,7 @@ import { Link } from "../components/Link";
 import { recipeHint } from "../lib/labels";
 import type { OutputHome } from "../lib/brief";
 import { langLabel } from "../lib/langs";
+import { recipeIdOfMethod } from "../lib/method-brief";
 import { listVoicePacks } from "../lib/voices";
 import type { Asset, RecipeCard } from "../types";
 
@@ -34,6 +35,7 @@ export function Home() {
   const voicePacks = listVoicePacks(library);
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
   const methods = library.filter((asset) => asset.kind === "method");
+  const selectedMethod = methods.find((asset) => recipeIdOfMethod(asset) === recipeId);
   const selectedRecipe = recipes.find((item) => item.id === recipeId);
   const selectedVoice = voicePacks.find((asset) => `library:${asset.id}` === voiceRef);
 
@@ -129,7 +131,7 @@ export function Home() {
           ) : null}
           <div className="pick-grid">
             {methods.map((asset) => {
-              const id = asset.id.replace(/^method\./, "");
+              const id = recipeIdOfMethod(asset);
               const recipe = recipes.find((item) => item.id === id);
               return (
                 <button
@@ -197,7 +199,7 @@ export function Home() {
         input={{
           task: "study-explainer",
           recipeId: recipeId || undefined,
-          recipeTitle: selectedRecipe?.title,
+          recipeTitle: selectedMethod?.label ?? selectedRecipe?.title,
           requiresKinds: selectedRecipe?.requires_kinds,
           voices: Object.fromEntries(langs.map((locale) => [locale, voiceRef])),
           voiceLabels,

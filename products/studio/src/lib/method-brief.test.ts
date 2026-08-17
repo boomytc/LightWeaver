@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { methodShape, methodShapeKind, recipeIdOfMethod } from "./method-brief.ts";
+import { methodLabel, methodShape, methodShapeKind, methodShapeName, recipeIdOfMethod } from "./method-brief.ts";
 import type { RecipeCard } from "../types";
 
 const parade: RecipeCard = {
@@ -38,5 +38,14 @@ describe("methodShape", () => {
     assert.equal(recipeIdOfMethod({ id: "method.taxonomy-parade" }), "taxonomy-parade");
     assert.equal(methodShapeKind(parade), "kinds");
     assert.equal(methodShapeKind(rule), "problem-then-rule");
+    assert.equal(methodShapeName("problem-then-rule"), "问题 → 规则 → 对照");
+    assert.notEqual(methodShapeName("problem-then-rule"), "问题然后规则");
+  });
+
+  it("resolves a film recipe id to the catalog name", () => {
+    const library = [{ id: "method.taxonomy-parade", kind: "method", label: "对照表阅兵" }];
+    assert.equal(methodLabel(library, "taxonomy-parade"), "对照表阅兵");
+    assert.equal(methodLabel(library, "method.taxonomy-parade"), "对照表阅兵");
+    assert.equal(methodLabel(library, "missing"), "");
   });
 });

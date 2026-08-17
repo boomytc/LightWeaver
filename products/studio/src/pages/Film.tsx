@@ -5,6 +5,7 @@ import { assetLabel, sourceLabel } from "../lib/labels";
 import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { filmLangs, langLabel } from "../lib/langs";
+import { methodLabel } from "../lib/method-brief";
 import { filmVoiceRef } from "../lib/voices";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
 import type { Asset, ProjectDetail, RecipeCard } from "../types";
@@ -54,7 +55,10 @@ export function Film({ id }: { id: string }) {
 
   const copy = detail.film.locales[locale];
   const packRef = filmVoiceRef(detail.film.voices);
-  const recipeTitle = recipes.find((item) => item.id === detail.film.recipe)?.title ?? detail.film.recipe;
+  const recipeTitle =
+    methodLabel(library, detail.film.recipe) ||
+    recipes.find((item) => item.id === detail.film.recipe)?.title ||
+    detail.film.recipe;
   const langs = filmLangs(detail.film);
   const kit = detail.film.kit ?? [];
 

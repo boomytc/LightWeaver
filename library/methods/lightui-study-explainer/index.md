@@ -1,7 +1,4 @@
-成片方法（`library:method.*`，Studio `/methods` 可增删改）：
-
-问题然后规则 — 讲一条会坏的交互规则：先问题，再做法，再对照。
-对照表阅兵 — 有一份互斥模型清单，一种模型一场，收束点破最容易混的一对。
+成片方法以 `library/assets.json` 里 `kind: method` 为准。Studio `/methods` 或 `weaver method list` 看现网。不要把本文件当目录。
 
 场次卡（apply 内部用，不进方法库）：
 

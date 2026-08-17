@@ -3,7 +3,7 @@ import { api } from "../api";
 import { Toast } from "../components/Toast";
 import { useFlash } from "../lib/flash";
 import { Link } from "../components/Link";
-import { compactWhen, recipeHint, roleLabel } from "../lib/labels";
+import { compactWhen, recipeHint } from "../lib/labels";
 import { methodShape, methodShapeKind, methodShapeName, recipeIdOfMethod, type MethodShape } from "../lib/method-brief";
 import type { Asset, RecipeCard } from "../types";
 
@@ -172,7 +172,6 @@ function MethodLibraryCard({
   const title = asset.label ?? recipe?.title ?? recipeIdOfMethod(asset);
   const when = asset.text?.trim() || (recipe ? recipeHint(recipe) : "") || compactWhen(recipe?.when);
   const shape = recipe ? methodShape(recipe) : "";
-  const roles = (recipe?.default_scenes ?? []).map((scene) => roleLabel(scene.role)).filter(Boolean);
 
   async function remove() {
     if (!window.confirm(`删除后，点过这个方法的片子会缺骨架。确定删除「${title}」？`)) return;
@@ -211,7 +210,6 @@ function MethodLibraryCard({
         <MethodDetail
           asset={asset}
           recipe={recipe}
-          roles={roles}
           taken={taken}
           onClose={() => setOpen(false)}
           onChanged={onChanged}
@@ -227,7 +225,6 @@ function MethodLibraryCard({
 function MethodDetail({
   asset,
   recipe,
-  roles,
   taken,
   onClose,
   onChanged,
@@ -237,7 +234,6 @@ function MethodDetail({
 }: {
   asset: Asset;
   recipe?: RecipeCard;
-  roles: string[];
   taken: (name: string) => boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
@@ -320,17 +316,7 @@ function MethodDetail({
           <textarea value={when} onChange={(event) => setWhen(event.target.value)} />
         </label>
         <ShapePick name={`method-shape-${asset.id}`} value={shape} onChange={setShape} />
-        {roles.length ? (
-          <div className="film-assign" style={{ justifyContent: "flex-start" }}>
-            {roles.map((role) => (
-              <span key={role} className="chip">
-                {role}
-              </span>
-            ))}
-          </div>
-        ) : shape === "kinds" ? (
-          <p className="item-meta">一种模型一场，不要合并。</p>
-        ) : null}
+        <p className="item-meta">{shape === "kinds" ? "一种模型一场，不要合并。" : "先问题，再做法，再对照。"}</p>
         <div className="modal-actions">
           <button type="button" className="btn btn-danger" onClick={onRemove}>
             删除

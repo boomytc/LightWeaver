@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { createLibraryMethod, methodIdFromName, updateLibraryMethod } from "./library-method.ts";
+import { createLibraryMethod, listLibraryMethods, methodIdFromName, updateLibraryMethod } from "./library-method.ts";
 import { loadLibrary, removeLibraryAsset } from "./assets.ts";
 import { loadRecipe } from "./recipes.ts";
 import { tempWorkspace } from "./test-workspace.ts";
@@ -68,5 +68,16 @@ describe("createLibraryMethod", () => {
       ["problem", "rule", "contrast"],
     );
     removeLibraryAsset(created.id, root);
+  });
+
+  it("lists catalog methods with the apply id and shape", () => {
+    const root = tempWorkspace();
+    createLibraryMethod({ label: "对照练习", text: "有清单", shape: "kinds" }, root);
+    const listed = listLibraryMethods(root);
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0]?.label, "对照练习");
+    assert.equal(listed[0]?.recipe, "pack");
+    assert.equal(listed[0]?.shape, "kinds");
+    removeLibraryAsset(listed[0]!.id, root);
   });
 });

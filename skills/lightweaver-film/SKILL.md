@@ -59,7 +59,7 @@ description: >
 | 时机 | 读 |
 | --- | --- |
 | 找齐三层 | 先按存放图；再 `weaver project show --json` |
-| 选卡 | `npx weaver recipe list --task study-explainer`；一眼看 `library/methods/lightui-study-explainer/index.md`。对上后再 `npx weaver recipe show <id>` |
+| 选卡 | `npx weaver method list`（只看成片方法）。`recipe list` 会混进场次卡。对上后再 `recipe apply` |
 | 展开骨架 | `recipe apply`；补场才 `scene add`。`lines[locale] === <sceneId>` 是占位，阶段 3 必须 `scene set` |
 | 手截 | `docs/conventions.md` |
 | QA | `references/qa.md` |
@@ -71,6 +71,7 @@ description: >
 ```bash
 npx weaver project list --json
 npx weaver project show <id> --json
+npx weaver method list
 npx weaver recipe list [--task study-explainer]
 npx weaver recipe show <id>
 npx weaver recipe apply --project <id> --recipe taxonomy-parade --kinds a,b,c --json

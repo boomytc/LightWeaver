@@ -2,7 +2,13 @@ import fs from "node:fs";
 import { parseArgs } from "node:util";
 import { addAsset, loadLibrary, patchLibraryAsset, removeLibraryAsset, resolveVoicePrompt } from "./assets.ts";
 import { runAsr } from "./asr.ts";
-import { createLibraryMethod, methodNameOf, parseMethodShape, updateLibraryMethod } from "./library-method.ts";
+import {
+  createLibraryMethod,
+  listLibraryMethods,
+  methodNameOf,
+  parseMethodShape,
+  updateLibraryMethod,
+} from "./library-method.ts";
 import { updateLibraryVoice, voiceNameOf } from "./voice-mint.ts";
 import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
@@ -429,6 +435,10 @@ function main(): void {
 
   if (command === "method") {
     const sub = rest[0];
+    if (sub === "list" || !sub) {
+      print({ ok: true, methods: listLibraryMethods(root) });
+      return;
+    }
     if (sub === "add") {
       try {
         print(
@@ -473,7 +483,7 @@ function main(): void {
       print({ ok: true, id: removed.id, label: removed.label ?? removed.id });
       return;
     }
-    fail("用法: weaver method add|set|rm");
+    fail("用法: weaver method list|add|set|rm");
   }
 
   if (command === "recipe") {
