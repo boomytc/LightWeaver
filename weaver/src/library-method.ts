@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { libraryRoot, weaverRoot } from "./paths.ts";
 import { loadLibrary, upsertLibraryAsset } from "./assets.ts";
-import { recipeIdOf } from "./recipes.ts";
-import { getTask } from "./tasks/registry.ts";
+import { methodNameOf, recipeIdOf } from "./method.ts";
+import { resolveTask } from "./tasks/registry.ts";
 import {
   isMethodExpand,
   methodExpandOf,
@@ -49,14 +49,13 @@ export function normalizeMethodScenes(value: unknown[]): MethodScene[] {
     if (!ID_RE.test(id)) throw new Error(`场次 id 必须是 dotted/kebab 小写：${id}`);
     const role = typeof row.role === "string" && row.role.trim() ? row.role.trim() : undefined;
     const fit = row.fit === "cover" || row.fit === "contain" ? row.fit : "contain";
-    scenes.push({ id, role, fit });
+    const kind = typeof row.kind === "string" && row.kind.trim() ? row.kind.trim() : undefined;
+    scenes.push({ id, role, fit, kind });
   }
   return scenes;
 }
 
-export function methodNameOf(asset: Pick<Asset, "id" | "label">): string {
-  return (asset.label ?? recipeIdOf(asset.id)).trim();
-}
+export { methodNameOf };
 
 export function methodIdFromName(name: string, taken: string[] = []): string {
   const ascii = name
@@ -78,44 +77,26 @@ function methodsIn(root: string): Asset[] {
   return loadLibrary(root).filter((item) => item.kind === "method");
 }
 
-function methodRel(recipeId: string): string {
-  const pack = getTask().recipePack;
+function methodRel(recipeId: string, taskId?: string): string {
+  const pack = resolveTask(taskId).recipePack;
   return path.posix.join("methods", pack, `${recipeId}.md`);
 }
 
 function serializeMethodFile(input: {
-  recipeId: string;
   title: string;
   when: string;
   expand: MethodExpand;
   scenes: MethodScene[];
 }): string {
   const when = input.when.trim();
-  const whenBlock = when.includes("\n")
-    ? `when: |\n${when.split("\n").map((line) => `  ${line}`).join("\n")}`
-    : `when: ${JSON.stringify(when)}`;
   const plan =
     input.expand === "list"
-      ? "requires_items: true"
+      ? "铺场：清单一项一场"
       : [
-          "default_scenes:",
-          ...input.scenes.flatMap((scene) => [
-            `  - id: ${scene.id}`,
-            `    kind: still`,
-            ...(scene.role ? [`    role: ${scene.role}`] : []),
-            `    fit: ${scene.fit ?? "contain"}`,
-          ]),
+          "铺场：固定场次",
+          ...input.scenes.map((scene) => (scene.role ? `- ${scene.id}（${scene.role}）` : `- ${scene.id}`)),
         ].join("\n");
-  return `---
-id: ${input.recipeId}
-task: ${getTask().id}
-level: film
-${whenBlock}
-${plan}
----
-
-# ${input.title}
-`;
+  return `# ${input.title}\n\n${when}\n\n${plan}\n`;
 }
 
 function writeMethodFile(rel: string, input: Parameters<typeof serializeMethodFile>[0], root: string): void {
@@ -125,13 +106,14 @@ function writeMethodFile(rel: string, input: Parameters<typeof serializeMethodFi
 }
 
 export function createLibraryMethod(
-  input: { label: string; text: string; expand: MethodExpand; scenes?: unknown },
+  input: { label: string; text: string; expand: MethodExpand; scenes?: unknown; task?: string },
   root = weaverRoot(),
 ): Asset {
   const label = input.label.trim();
   const text = input.text.trim();
   if (!label) throw new Error("先写名称");
   if (!text) throw new Error("先写何时用");
+  const task = resolveTask(input.task);
   const expand = parseMethodExpand(input.expand);
   const scenes = expand === "list" ? [] : parseMethodScenes(input.scenes);
   if (expand === "fixed" && scenes.length === 0) throw new Error("固定场次至少写一场");
@@ -139,8 +121,8 @@ export function createLibraryMethod(
   if (existing.some((item) => methodNameOf(item) === label)) throw new Error(`${label} 已在方法库里`);
   const id = methodIdFromName(label, existing.map((item) => item.id));
   const recipeId = recipeIdOf(id);
-  const rel = methodRel(recipeId);
-  writeMethodFile(rel, { recipeId, title: label, when: text, expand, scenes }, root);
+  const rel = methodRel(recipeId, task.id);
+  writeMethodFile(rel, { title: label, when: text, expand, scenes }, root);
   return upsertLibraryAsset(
     {
       id,
@@ -148,7 +130,7 @@ export function createLibraryMethod(
       label,
       text,
       file: rel,
-      task: getTask().id,
+      task: task.id,
       expand,
       scenes: expand === "fixed" ? scenes : undefined,
     },
@@ -179,14 +161,15 @@ export function updateLibraryMethod(
         : (current.scenes ?? []);
   if (expand === "fixed" && scenes.length === 0) throw new Error("固定场次至少写一场");
   const recipeId = recipeIdOf(id);
-  const rel = current.file || methodRel(recipeId);
-  writeMethodFile(rel, { recipeId, title: label, when: text, expand, scenes }, root);
+  const task = resolveTask(current.task);
+  const rel = current.file || methodRel(recipeId, task.id);
+  writeMethodFile(rel, { title: label, when: text, expand, scenes }, root);
   return upsertLibraryAsset({
     ...current,
     label,
     text,
     file: rel,
-    task: current.task ?? getTask().id,
+    task: task.id,
     expand,
     scenes: expand === "fixed" ? scenes : undefined,
   }, root);

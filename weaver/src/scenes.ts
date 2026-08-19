@@ -1,18 +1,31 @@
-import { upsertAsset } from "./assets.ts";
+import { ensureStillStub } from "./assets.ts";
 import { saveFilm } from "./project.ts";
-import { parseAssetRef, type FilmDoc, type Locale, type ProjectRecord, type SceneDef, type StudyRole } from "./schema.ts";
+import {
+  parseAssetRef,
+  type CardCopy,
+  type FilmDoc,
+  type Locale,
+  type LocaleCopy,
+  type ProjectRecord,
+  type SceneDef,
+} from "./schema.ts";
 import { getTask } from "./tasks/registry.ts";
 import { filmTask } from "./schema.ts";
+import type { TaskModule } from "./tasks/types.ts";
 
 export type ScenePatch = {
   lines?: Record<string, string>;
   still?: string;
   fit?: "cover" | "contain";
-  role?: StudyRole;
+  role?: string;
 };
 
 function filmOf(project: ProjectRecord): FilmDoc {
   return project.film;
+}
+
+function requireTask(project: ProjectRecord): TaskModule {
+  return getTask(filmTask(project.film));
 }
 
 function requireScene(project: ProjectRecord, sceneId: string): { scene: SceneDef; index: number } {
@@ -21,28 +34,17 @@ function requireScene(project: ProjectRecord, sceneId: string): { scene: SceneDe
   return { scene: project.film.scenes[index]!, index };
 }
 
-function ensureStillStub(project: ProjectRecord, stillRef: string): void {
-  const parsed = parseAssetRef(stillRef);
-  if (!parsed || parsed.scope !== "asset") return;
-  if (project.assets.some((asset) => asset.id === parsed.id)) return;
-  const fileId = parsed.id.replace(/^still\./, "");
-  upsertAsset(project, {
-    id: parsed.id,
-    kind: "still",
-    files: {
-      zh: `assets/stills/zh/${fileId}.png`,
-      en: `assets/stills/en/${fileId}.png`,
-    },
-    label: fileId,
-  });
-}
-
 export function addScene(
   project: ProjectRecord,
-  input: { id: string; kind: string; still?: string; fit?: "cover" | "contain"; role?: StudyRole; after?: string },
+  input: { id: string; kind: string; still?: string; fit?: "cover" | "contain"; role?: string; after?: string },
 ): ProjectRecord {
-  const task = getTask(filmTask(project.film));
-  if (input.kind !== "still") throw new Error("只能追加 still 场（title/close 由种子创建）");
+  const task = requireTask(project);
+  const { frame } = task;
+  if (!frame.expandableKinds.includes(input.kind)) {
+    throw new Error(
+      `只能追加 ${frame.expandableKinds.join(" / ")} 场（${frame.pinnedKinds.join(" / ")} 由种子创建）`,
+    );
+  }
   if (!task.sceneKinds.includes(input.kind)) throw new Error(`任务不允许 kind：${input.kind}`);
   if (project.film.scenes.some((scene) => scene.id === input.id)) {
     throw new Error(`场景已存在：${input.id}`);
@@ -56,8 +58,8 @@ export function addScene(
     lines: Object.fromEntries(Object.keys(project.film.locales).map((locale) => [locale, input.id])),
   };
   const next = [...project.film.scenes];
-  const closeIndex = next.findIndex((item) => item.kind === "close");
-  let at = closeIndex >= 0 ? closeIndex : next.length;
+  const insertAt = frame.insertBeforeKind ? next.findIndex((item) => item.kind === frame.insertBeforeKind) : -1;
+  let at = insertAt >= 0 ? insertAt : next.length;
   if (input.after) {
     const after = next.findIndex((item) => item.id === input.after);
     if (after < 0) throw new Error(`找不到 --after ${input.after}`);
@@ -70,13 +72,15 @@ export function addScene(
 }
 
 export function removeScene(project: ProjectRecord, sceneId: string): ProjectRecord {
+  const task = requireTask(project);
   const { scene } = requireScene(project, sceneId);
-  if (scene.kind === "title" || scene.kind === "close") {
-    throw new Error("不能删除 title / close");
+  if (task.frame.pinnedKinds.includes(scene.kind)) {
+    throw new Error(`不能删除 ${scene.kind}`);
   }
-  const stillCount = project.film.scenes.filter((item) => item.kind === "still").length;
-  if (scene.kind === "still" && stillCount <= 1) {
-    throw new Error("不能删光最后一场 still");
+  const expandableCount = project.film.scenes.filter((item) => task.frame.expandableKinds.includes(item.kind)).length;
+  const min = task.frame.minExpandable ?? 0;
+  if (task.frame.expandableKinds.includes(scene.kind) && expandableCount <= min) {
+    throw new Error(`不能删光最后一场 ${scene.kind}`);
   }
   saveFilm(project, {
     ...filmOf(project),
@@ -90,9 +94,10 @@ export function moveScene(
   sceneId: string,
   where: { after?: string; before?: string; index?: number },
 ): ProjectRecord {
+  const task = requireTask(project);
   const { scene, index } = requireScene(project, sceneId);
-  if (scene.kind === "title" || scene.kind === "close") {
-    throw new Error("title / close 位置钉住，不能移动");
+  if (task.frame.pinnedKinds.includes(scene.kind)) {
+    throw new Error(`${scene.kind} 位置钉住，不能移动`);
   }
   const next = [...project.film.scenes];
   next.splice(index, 1);
@@ -109,8 +114,11 @@ export function moveScene(
     at = where.index;
   }
   next.splice(at, 0, scene);
-  if (next[0]?.kind !== "title" || next.at(-1)?.kind !== "close") {
-    throw new Error("调序后 title 必须在首、close 必须在末");
+  const { firstKind, lastKind } = task.frame;
+  if ((firstKind && next[0]?.kind !== firstKind) || (lastKind && next.at(-1)?.kind !== lastKind)) {
+    const head = firstKind ? `${firstKind} 必须在首` : "";
+    const tail = lastKind ? `${lastKind} 必须在末` : "";
+    throw new Error(`调序后 ${[head, tail].filter(Boolean).join("、")}`);
   }
   saveFilm(project, { ...filmOf(project), scenes: next });
   return project;
@@ -138,36 +146,37 @@ export function patchScene(project: ProjectRecord, sceneId: string, patch: Scene
 export function setCard(
   project: ProjectRecord,
   locale: string,
-  which: "title" | "close",
+  which: string,
   patch: { headline?: string; lede?: string; kicker?: string; tags?: string[]; points?: string[] },
 ): ProjectRecord {
+  const task = requireTask(project);
+  const slot = task.cards?.find((item) => item.which === which);
+  if (!slot) {
+    const allowed = task.cards?.map((item) => item.which).join(" / ");
+    throw new Error(allowed ? `卡片槽只能是 ${allowed}` : "该任务没有卡片");
+  }
   const copy = project.film.locales[locale];
   if (!copy) throw new Error(`没有 locale ${locale}`);
-  if (which === "close" && (patch.kicker !== undefined || patch.tags !== undefined)) {
-    throw new Error("close 卡不能设 kicker / tags");
+  for (const field of slot.forbid ?? []) {
+    if (patch[field as keyof typeof patch] !== undefined) {
+      throw new Error(`${which} 卡不能设 ${slot.forbid?.join(" / ")}`);
+    }
   }
-  const points = patch.points?.map((item) => item.trim()).filter(Boolean);
-  const locales = { ...project.film.locales };
-  if (which === "title") {
-    const titleCard = { ...copy.titleCard, ...patch };
-    if (points) titleCard.points = points;
-    locales[locale] = {
-      ...copy,
-      title: patch.headline ?? copy.title,
-      titleCard,
-    };
-  } else {
-    locales[locale] = {
-      ...copy,
-      closeCard: {
-        ...copy.closeCard,
-        headline: patch.headline ?? copy.closeCard.headline,
-        lede: patch.lede ?? copy.closeCard.lede,
-        ...(points ? { points } : {}),
-      },
-    };
+  const current = (copy[slot.localeKey] ?? {}) as CardCopy;
+  const nextCard: CardCopy = { ...current };
+  if (patch.headline !== undefined) nextCard.headline = patch.headline;
+  if (patch.lede !== undefined) nextCard.lede = patch.lede;
+  if (patch.kicker !== undefined) nextCard.kicker = patch.kicker;
+  if (patch.tags !== undefined) nextCard.tags = patch.tags;
+  if (patch.points !== undefined) {
+    nextCard.points = patch.points.map((item) => item.trim()).filter(Boolean);
   }
-  saveFilm(project, { ...filmOf(project), locales });
+  const nextCopy: LocaleCopy = {
+    ...copy,
+    [slot.localeKey]: nextCard,
+    ...(slot.syncTitle && patch.headline !== undefined ? { title: patch.headline } : {}),
+  };
+  saveFilm(project, { ...filmOf(project), locales: { ...project.film.locales, [locale]: nextCopy } });
   return project;
 }
 

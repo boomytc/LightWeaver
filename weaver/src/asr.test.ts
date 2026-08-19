@@ -34,11 +34,13 @@ describe("ensureVoiceSaid", () => {
 });
 
 describe("asrRuntime", () => {
-  it("is not ready in an empty workspace", () => {
+  it("is not ready without env or config and does not touch /Users/boom/Model", () => {
     const root = tempWorkspace();
     const runtime = asrRuntime(root, {});
     assert.equal(runtime.ready, false);
+    assert.equal(runtime.model, undefined);
     assert.match(runtime.hint ?? "", /转写未就绪/);
+    assert.doesNotMatch(runtime.hint ?? "", /\/Users\/boom\/Model/);
   });
 
   it("is ready when model, library and bindings exist", () => {

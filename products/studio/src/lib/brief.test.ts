@@ -61,7 +61,9 @@ describe("buildAgentBrief", () => {
       kit: [],
     });
     assert.match(text, /片子：未指定/);
+    assert.match(text, /任务：未点/);
     assert.match(text, /方法：未点/);
+    assert.doesNotMatch(text, /study-explainer/);
     assert.match(text, /产物位置：未指定/);
     assert.match(text, /开始前先问人/);
     assert.match(text, /素材：未点/);

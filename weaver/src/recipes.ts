@@ -1,282 +1,39 @@
 import fs from "node:fs";
 import path from "node:path";
-import { recipeRoot, weaverRoot } from "./paths.ts";
-import { addScene, removeScene } from "./scenes.ts";
+import { ensureStillStub, loadLibrary } from "./assets.ts";
+import { libraryRoot, weaverRoot } from "./paths.ts";
+import { saveFilm } from "./project.ts";
 import {
   filmTask,
-  isImplementedTask,
-  isStudyRole,
-  parseAssetRef,
+  methodExpandOf,
+  type Asset,
+  type MethodExpand,
+  type MethodScene,
   type ProjectRecord,
-  type StudyRole,
-  type TaskId,
+  type SceneDef,
 } from "./schema.ts";
-import { loadLibrary } from "./assets.ts";
-import { saveFilm } from "./project.ts";
-import { getTask, listTasks, tryGetTask } from "./tasks/registry.ts";
-import { methodExpandOf, type Asset } from "./schema.ts";
+import { getTask, tryGetTask } from "./tasks/registry.ts";
+import { methodNameOf, recipeIdOf } from "./method.ts";
 
-export type RecipeLevel = "film" | "scene";
-
-export type RecipeSceneStub = {
-  id: string;
-  kind: string;
-  role?: StudyRole;
-  still?: string;
-  fit?: "cover" | "contain";
-};
-
-export type Recipe = {
-  id: string;
-  task: TaskId;
-  level: RecipeLevel;
-  when: string;
-  canon?: string[];
-  requires_items?: boolean;
-  default_scenes?: RecipeSceneStub[];
-  path: string;
-  body: string;
-};
-
-export type RecipeSummary = Omit<Recipe, "body"> & { title: string };
-
-export function recipeTitle(body: string, id: string): string {
-  const match = /^#\s+(.+)$/m.exec(body);
-  return match?.[1]?.trim() || id;
-}
+export { recipeIdOf };
 
 const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-function splitFrontmatter(text: string): { raw: string; body: string } | null {
-  if (!text.startsWith("---")) return null;
-  const lines = text.split(/\r?\n/);
-  if (lines[0]?.trim() !== "---") return null;
-  const end = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
-  if (end < 0) return null;
-  return {
-    raw: lines.slice(1, end).join("\n"),
-    body: lines.slice(end + 1).join("\n").replace(/^\n+/, ""),
-  };
-}
+export type Recipe = {
+  id: string;
+  task: string;
+  title: string;
+  when: string;
+  expand: MethodExpand;
+  scenes?: MethodScene[];
+  path?: string;
+  body?: string;
+};
 
-function unquote(value: string): string {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
-
-function parseScalar(raw: string): string | boolean {
-  const value = unquote(raw.trim());
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return value;
-}
-
-function parseInlineObject(raw: string): Record<string, string> | null {
-  const trimmed = raw.trim();
-  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
-  const inner = trimmed.slice(1, -1).trim();
-  if (!inner) return {};
-  const out: Record<string, string> = {};
-  for (const part of inner.split(",")) {
-    const colon = part.indexOf(":");
-    if (colon < 0) return null;
-    const key = part.slice(0, colon).trim();
-    const value = unquote(part.slice(colon + 1).trim());
-    if (!key) return null;
-    out[key] = value;
-  }
-  return out;
-}
-
-function parseYaml(raw: string): Record<string, unknown> | null {
-  const data: Record<string, unknown> = {};
-  const lines = raw.split(/\r?\n/);
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i] ?? "";
-    if (!line.trim() || line.trim().startsWith("#")) {
-      i += 1;
-      continue;
-    }
-    if (/^\s/.test(line)) return null;
-    const match = /^([A-Za-z0-9_]+):\s*(.*)$/.exec(line);
-    if (!match) return null;
-    const key = match[1]!;
-    const rest = match[2] ?? "";
-    if (rest === "|") {
-      const block: string[] = [];
-      i += 1;
-      while (i < lines.length && (/^\s+/.test(lines[i] ?? "") || (lines[i] ?? "").trim() === "")) {
-        const current = lines[i] ?? "";
-        block.push(current.replace(/^\s{2}/, ""));
-        i += 1;
-      }
-      data[key] = block.join("\n").replace(/^\n+|\n+$/g, "");
-      continue;
-    }
-    if (rest === "") {
-      const items: unknown[] = [];
-      i += 1;
-      while (i < lines.length) {
-        const item = lines[i] ?? "";
-        if (!item.trim()) {
-          i += 1;
-          continue;
-        }
-        const list = /^\s+-\s+(.*)$/.exec(item);
-        if (!list) break;
-        const payload = list[1] ?? "";
-        const inline = parseInlineObject(payload);
-        if (inline) {
-          items.push(inline);
-          i += 1;
-          continue;
-        }
-        if (payload.includes(":")) {
-          const obj: Record<string, string> = {};
-          const first = /^([A-Za-z0-9_]+):\s*(.*)$/.exec(payload);
-          if (!first) return null;
-          obj[first[1]!] = String(parseScalar(first[2] ?? ""));
-          i += 1;
-          while (i < lines.length) {
-            const cont = /^\s{4,}([A-Za-z0-9_]+):\s*(.*)$/.exec(lines[i] ?? "");
-            if (!cont) break;
-            obj[cont[1]!] = String(parseScalar(cont[2] ?? ""));
-            i += 1;
-          }
-          items.push(obj);
-          continue;
-        }
-        items.push(parseScalar(payload));
-        i += 1;
-      }
-      data[key] = items;
-      continue;
-    }
-    data[key] = parseScalar(rest);
-    i += 1;
-  }
-  return data;
-}
-
-function asStringList(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const items = value.filter((item): item is string => typeof item === "string");
-  return items.length === value.length ? items : undefined;
-}
-
-function asSceneStub(value: unknown, task: string): RecipeSceneStub | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as Record<string, unknown>;
-  if (typeof row.id !== "string" || !row.id) return null;
-  if (typeof row.kind !== "string" || !row.kind) return null;
-  let role: StudyRole | undefined;
-  if (row.role !== undefined) {
-    if (typeof row.role !== "string" || !isStudyRole(row.role)) return null;
-    role = row.role;
-  }
-  let fit: "cover" | "contain" | undefined;
-  if (row.fit !== undefined) {
-    if (row.fit !== "cover" && row.fit !== "contain") return null;
-    fit = row.fit;
-  }
-  return {
-    id: row.id,
-    kind: row.kind,
-    still: typeof row.still === "string" ? row.still : undefined,
-    role,
-    fit,
-  };
-}
-
-function recipeFromFile(file: string, expectedTask: string): Recipe | null {
-  const name = path.basename(file);
-  if (name === "index.md" || !name.endsWith(".md")) return null;
-  let text: string;
-  try {
-    text = fs.readFileSync(file, "utf8");
-  } catch {
-    return null;
-  }
-  const split = splitFrontmatter(text);
-  if (!split) return null;
-  const data = parseYaml(split.raw);
-  if (!data) return null;
-  const id = data.id;
-  const task = data.task;
-  const level = data.level;
-  const when = data.when;
-  if (typeof id !== "string" || !ID_RE.test(id)) return null;
-  if (id !== name.slice(0, -3)) return null;
-  if (typeof task !== "string" || !isImplementedTask(task) || task !== expectedTask) return null;
-  if (level !== "film" && level !== "scene") return null;
-  if (typeof when !== "string" || !when.trim()) return null;
-  let defaultScenes: RecipeSceneStub[] | undefined;
-  if (data.default_scenes !== undefined) {
-    if (!Array.isArray(data.default_scenes)) return null;
-    defaultScenes = [];
-    for (const item of data.default_scenes) {
-      const stub = asSceneStub(item, task);
-      if (!stub) return null;
-      defaultScenes.push(stub);
-    }
-  }
-  const recipe: Recipe = {
-    id,
-    task,
-    level,
-    when: when.trim(),
-    path: file,
-    body: split.body,
-  };
-  const canon = asStringList(data.canon);
-  if (canon) recipe.canon = canon;
-  if (data.requires_items === true || data.requires_kinds === true) recipe.requires_items = true;
-  if (defaultScenes) recipe.default_scenes = defaultScenes;
-  return recipe;
-}
-
-function tasksToList(task?: string): string[] {
-  if (task !== undefined) {
-    return isImplementedTask(task) ? [task] : [];
-  }
-  return listTasks().map((item) => item.id);
-}
+export type RecipeSummary = Omit<Recipe, "body">;
 
 export function recipePackName(task: string): string | undefined {
   return tryGetTask(task)?.recipePack;
-}
-
-export function listRecipes(root = weaverRoot(), task?: string): Recipe[] {
-  const base = recipeRoot(root);
-  const found: Recipe[] = [];
-  for (const id of tasksToList(task)) {
-    const pack = recipePackName(id);
-    if (!pack) continue;
-    const dir = path.join(base, pack);
-    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
-    for (const name of fs.readdirSync(dir)) {
-      if (!name.endsWith(".md")) continue;
-      const recipe = recipeFromFile(path.join(dir, name), id);
-      if (recipe) found.push(recipe);
-    }
-  }
-  found.sort((a, b) => a.task.localeCompare(b.task) || a.id.localeCompare(b.id));
-  return found;
-}
-
-/** 片子上的 recipe、library:method.*、method.* 都收成 apply 用的 id。 */
-export function recipeIdOf(ref: string): string {
-  const trimmed = ref.trim();
-  if (!trimmed) return "";
-  const parsed = parseAssetRef(trimmed);
-  const raw = parsed?.id ?? trimmed;
-  return raw.replace(/^method\./, "");
 }
 
 export function methodAssetId(recipeId: string): string {
@@ -284,13 +41,55 @@ export function methodAssetId(recipeId: string): string {
   return id ? `method.${id}` : "";
 }
 
+function catalogFilmMethod(ref: string, root: string): Asset | undefined {
+  const wanted = recipeIdOf(ref);
+  if (!wanted) return undefined;
+  return loadLibrary(root).find((item) => item.kind === "method" && recipeIdOf(item.id) === wanted);
+}
+
+function recipeFromAsset(asset: Asset, root: string): Recipe {
+  const id = recipeIdOf(asset.id);
+  const rel = asset.file;
+  const abs = rel ? path.join(libraryRoot(root), rel) : undefined;
+  const hasFile = Boolean(abs && fs.existsSync(abs));
+  return {
+    id,
+    task: asset.task ?? "",
+    title: methodNameOf(asset),
+    when: (asset.text ?? "").trim(),
+    expand: methodExpandOf(asset),
+    ...(asset.scenes ? { scenes: asset.scenes } : {}),
+    ...(hasFile ? { path: abs, body: fs.readFileSync(abs!, "utf8") } : {}),
+  };
+}
+
+/** list / show / apply 都只认 catalog。投影只是短文，不是规格。 */
+export function formatRecipe(recipe: Recipe): string {
+  const expand = recipe.expand === "list" ? "清单一项一场" : "固定场次";
+  const scenes = (recipe.scenes ?? []).map((scene) =>
+    scene.role ? `- ${scene.id}（${scene.role}）` : `- ${scene.id}`,
+  );
+  const lines = [recipe.title, recipe.when, `铺场：${expand}`, ...scenes];
+  if (recipe.path) lines.push(`投影：${recipe.path}`);
+  return lines.filter(Boolean).join("\n");
+}
+
+export function listRecipes(root = weaverRoot(), task?: string): Recipe[] {
+  const wanted = task?.trim();
+  const found = loadLibrary(root)
+    .filter((item) => item.kind === "method")
+    .filter((item) => (wanted ? item.task === wanted : true))
+    .map((item) => recipeFromAsset(item, root));
+  found.sort((a, b) => a.task.localeCompare(b.task) || a.id.localeCompare(b.id));
+  return found;
+}
+
 export function loadRecipe(id: string, root = weaverRoot()): Recipe {
   const wanted = recipeIdOf(id);
   if (!ID_RE.test(wanted)) throw new Error(`非法 recipe id：${id}`);
-  for (const recipe of listRecipes(root)) {
-    if (recipe.id === wanted) return recipe;
-  }
-  throw new Error(`找不到 recipe：${wanted}`);
+  const catalog = catalogFilmMethod(wanted, root);
+  if (!catalog) throw new Error(`找不到方法：${wanted}`);
+  return recipeFromAsset(catalog, root);
 }
 
 export function showRecipe(id: string, root = weaverRoot()): Recipe {
@@ -298,17 +97,8 @@ export function showRecipe(id: string, root = weaverRoot()): Recipe {
 }
 
 export function summarizeRecipe(recipe: Recipe): RecipeSummary {
-  return {
-    id: recipe.id,
-    task: recipe.task,
-    level: recipe.level,
-    when: recipe.when,
-    canon: recipe.canon,
-    requires_items: recipe.requires_items,
-    default_scenes: recipe.default_scenes,
-    path: recipe.path,
-    title: recipeTitle(recipe.body, recipe.id),
-  };
+  const { body: _body, ...rest } = recipe;
+  return rest;
 }
 
 export type ApplyRecipeOptions = {
@@ -322,34 +112,42 @@ function applyItems(options: ApplyRecipeOptions): string[] {
   return [...new Set(raw.map((item) => item.trim()).filter(Boolean))];
 }
 
-function planListStills(items: string[], label: string) {
+type PlannedScene = {
+  id: string;
+  kind: string;
+  still?: string;
+  fit?: "cover" | "contain";
+  role?: string;
+};
+
+function planListStills(items: string[], label: string, kind: string): PlannedScene[] {
   if (items.length === 0) throw new Error(`${label} 需要 --items（清单一项一场）`);
   return items.map((id) => ({
     id,
-    kind: "still",
+    kind,
     still: `asset:still.${id}`,
-    fit: "contain" as const,
-    role: undefined as StudyRole | undefined,
+    fit: "contain",
   }));
 }
 
 function planFixedStills(
-  scenes: Array<{ id: string; kind?: string; role?: string; fit?: "cover" | "contain" }>,
+  scenes: MethodScene[],
   label: string,
+  expandKind: string,
   allowRole: (role: string) => boolean,
-) {
+): PlannedScene[] {
   if (scenes.length === 0) throw new Error(`${label} 固定场次至少写一场`);
   return scenes.map((row) => {
-    let role: StudyRole | undefined;
+    let role: string | undefined;
     if (row.role) {
       if (!allowRole(row.role)) throw new Error(`未知 role：${row.role}`);
-      role = row.role as StudyRole;
+      role = row.role;
     }
     return {
       id: row.id,
-      kind: row.kind ?? "still",
+      kind: row.kind ?? expandKind,
       still: `asset:still.${row.id}`,
-      fit: row.fit ?? ("contain" as const),
+      fit: row.fit ?? "contain",
       role,
     };
   });
@@ -357,23 +155,20 @@ function planFixedStills(
 
 function roleAllowed(task: ReturnType<typeof getTask>, role: string): boolean {
   if (task.roles?.length) return task.roles.includes(role);
-  return isStudyRole(role);
+  return true;
 }
 
-function catalogFilmMethod(ref: string, root: string): Asset | undefined {
-  const wanted = recipeIdOf(ref);
-  if (!wanted) return undefined;
-  return loadLibrary(root).find((item) => item.kind === "method" && recipeIdOf(item.id) === wanted);
+function sceneFromPlan(item: PlannedScene, locales: string[]): SceneDef {
+  return {
+    id: item.id,
+    kind: item.kind,
+    still: item.still,
+    fit: item.fit,
+    role: item.role,
+    lines: Object.fromEntries(locales.map((locale) => [locale, item.id])),
+  };
 }
 
-function methodName(method: Asset): string {
-  return (method.label ?? recipeIdOf(method.id)).trim();
-}
-
-/**
- * 只编排 addScene / removeScene。
- * 种子 hero 可能是唯一 still；必须先加新 still，再 removeScene("hero")。
- */
 export function applyRecipe(
   project: ProjectRecord,
   recipeId: string,
@@ -381,90 +176,69 @@ export function applyRecipe(
   root = weaverRoot(),
 ): { project: ProjectRecord; skipped: string[] } {
   const task = getTask(filmTask(project.film));
+  const expandKind = task.frame.expandableKinds[0] ?? "";
   const items = applyItems(options);
   const catalog = catalogFilmMethod(recipeId, root);
-  let planned: Array<{
-    id: string;
-    kind: string;
-    still?: string;
-    fit?: "cover" | "contain";
-    role?: StudyRole;
-  }>;
-  let appliedId = recipeIdOf(recipeId);
-
-  if (catalog) {
-    if (catalog.task && catalog.task !== task.id) {
-      throw new Error(`方法 ${methodName(catalog)} 属于任务 ${catalog.task}，与片子任务 ${task.id} 不一致`);
-    }
-    planned =
-      methodExpandOf(catalog) === "list"
-        ? planListStills(items, methodName(catalog))
-        : planFixedStills(catalog.scenes ?? [], methodName(catalog), (role) => roleAllowed(task, role));
-  } else {
-    let recipe: Recipe;
-    try {
-      recipe = loadRecipe(recipeId, root);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.startsWith("找不到 recipe")) throw new Error(`找不到配方：${recipeId}`);
-      throw error;
-    }
-    if (recipe.task !== task.id) {
-      throw new Error(`配方 ${recipe.id} 属于任务 ${recipe.task}，与片子任务 ${task.id} 不一致`);
-    }
-    if (recipe.level !== "film") {
-      throw new Error("scene 卡按 SKILL 手写一场，或并入 film 卡");
-    }
-    appliedId = recipe.id;
-    if (recipe.requires_items) {
-      planned = planListStills(items, recipe.id);
-    } else if (recipe.default_scenes?.length) {
-      planned = planFixedStills(recipe.default_scenes, recipe.id, (role) => roleAllowed(task, role));
-    } else {
-      throw new Error(`film 卡 ${recipe.id} 缺少 default_scenes 或清单展开，无法 apply`);
-    }
+  if (!catalog) throw new Error(`找不到方法：${recipeIdOf(recipeId) || recipeId}`);
+  if (catalog.task && catalog.task !== task.id) {
+    throw new Error(`方法 ${methodNameOf(catalog)} 属于任务 ${catalog.task}，与片子任务 ${task.id} 不一致`);
   }
+  const appliedId = recipeIdOf(recipeId);
+  const planned =
+    methodExpandOf(catalog) === "list"
+      ? planListStills(items, methodNameOf(catalog), expandKind)
+      : planFixedStills(catalog.scenes ?? [], methodNameOf(catalog), expandKind, (role) => roleAllowed(task, role));
 
   for (const item of planned) {
     if (!task.sceneKinds.includes(item.kind)) {
       throw new Error(`未知场景 kind：${item.kind}（只允许 ${task.sceneKinds.join(" / ")}）`);
     }
-    if (item.kind !== "still") {
-      throw new Error("recipe apply 只展开 still 场（title/close 由种子创建）");
+    if (!task.frame.expandableKinds.includes(item.kind)) {
+      throw new Error(
+        `recipe apply 只展开 ${task.frame.expandableKinds.join(" / ")} 场（${task.frame.pinnedKinds.join(" / ")} 由种子创建）`,
+      );
     }
   }
 
+  const { frame } = task;
+  const locales = Object.keys(project.film.locales);
+  const current = project.film.scenes;
+  const expandable = current.filter((scene) => frame.expandableKinds.includes(scene.kind));
   const skipped: string[] = [];
+  const nextExpandable: SceneDef[] = [...expandable];
   for (const item of planned) {
-    if (project.film.scenes.some((scene) => scene.id === item.id)) {
+    if (nextExpandable.some((scene) => scene.id === item.id)) {
       skipped.push(item.id);
       continue;
     }
-    addScene(project, {
-      id: item.id,
-      kind: "still",
-      still: item.still,
-      fit: item.fit,
-      role: item.role,
-    });
+    nextExpandable.push(sceneFromPlan(item, locales));
   }
+  const placeholderId = frame.seedPlaceholderId;
+  const min = frame.minExpandable ?? 1;
+  const withoutPlaceholder =
+    placeholderId && nextExpandable.some((scene) => scene.id === placeholderId) && nextExpandable.length > min
+      ? nextExpandable.filter((scene) => scene.id !== placeholderId)
+      : nextExpandable;
 
-  const hero = project.film.scenes.find((scene) => scene.id === "hero" && scene.kind === "still");
-  if (hero) {
-    const stillCount = project.film.scenes.filter((scene) => scene.kind === "still").length;
-    if (stillCount > 1) removeScene(project, "hero");
+  const first = frame.firstKind ? current.filter((scene) => scene.kind === frame.firstKind) : [];
+  const last = frame.lastKind ? current.filter((scene) => scene.kind === frame.lastKind) : [];
+  const otherPinned = current.filter(
+    (scene) =>
+      frame.pinnedKinds.includes(scene.kind) && scene.kind !== frame.firstKind && scene.kind !== frame.lastKind,
+  );
+  const scenes = [...first, ...otherPinned, ...withoutPlaceholder, ...last];
+
+  saveFilm(project, { ...project.film, scenes, recipe: appliedId });
+  for (const scene of scenes) {
+    if (scene.still) ensureStillStub(project, scene.still);
   }
-
-  setFilmRecipe(project, appliedId, root);
   return { project, skipped };
 }
 
 export function assertFilmMethod(ref: string, root = weaverRoot()): void {
   const id = recipeIdOf(ref);
   if (!id) throw new Error("缺少方法");
-  if (catalogFilmMethod(id, root)) return;
-  const recipe = loadRecipe(id, root);
-  if (recipe.level !== "film") throw new Error(`只能点名成片方法卡，${id} 是 ${recipe.level} 卡`);
+  if (!catalogFilmMethod(id, root)) throw new Error(`找不到方法：${id}`);
 }
 
 export function setFilmRecipe(project: ProjectRecord, recipeId: string, root = weaverRoot()): ProjectRecord {

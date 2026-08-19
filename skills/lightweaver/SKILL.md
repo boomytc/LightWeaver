@@ -15,7 +15,8 @@ Read `AGENTS.md` and `docs/conventions.md` first.
 | Schema, CLI, validate, tts/render jobs | `weaver/` |
 | Shared voice / element / method | `library/`（方法在 `library/methods/`） |
 | Task instance | `data/first-party/<id>/` or `data/projects/<id>/`（gitignore） |
-| Remotion cards, optional capture | `products/study-films/` |
+| Remotion cards | `products/study-films/` |
+| TTS / ASR / capture jobs | `weaver/scripts/` |
 | Control site（工作台复制说明，片子页复盘） | `products/studio/` `http://127.0.0.1:5175/` |
 | How to author a film | **lightweaver-film** |
 | 制作一部讲解片 / 选配方 / 出片 | **lightweaver-film** |

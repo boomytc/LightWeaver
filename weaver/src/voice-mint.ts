@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { filmsProductRoot, firstPartyRoot, libraryRoot, userRoot, voiceCandidateRoot, weaverRoot } from "./paths.ts";
+import { firstPartyRoot, libraryRoot, userRoot, voiceCandidateRoot, weaverRoot, weaverScriptsRoot } from "./paths.ts";
 import { loadLibrary, patchLibraryAsset, upsertLibraryAsset, voiceCloneSource, type VoiceOrigin } from "./assets.ts";
 import { loadProject } from "./project.ts";
 import { parseTtsResult } from "./tts.ts";
@@ -97,7 +97,7 @@ export function runVoiceMint(options: VoiceMintOptions): VoiceMintResult {
   const root = options.root ?? weaverRoot();
   const text = options.text.trim();
   if (!text) throw new Error("铸试听需要一句稿");
-  const python = path.join(filmsProductRoot(root), "scripts/tts.py");
+  const python = path.join(weaverScriptsRoot(), "tts.py");
   if (!fs.existsSync(python)) throw new Error(`找不到 ${python}`);
   const folder = voiceCandidateRoot(root);
   fs.mkdirSync(folder, { recursive: true });
@@ -118,7 +118,7 @@ export function runVoiceMint(options: VoiceMintOptions): VoiceMintResult {
         denoise: options.denoise,
         do_normalize: options.doNormalize ?? true,
         cfg_value: options.cfgValue,
-        configDirs: [root, filmsProductRoot(root)],
+        configDirs: [root],
       },
       null,
       2,

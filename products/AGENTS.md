@@ -10,5 +10,5 @@ Each `products/<name>/` is a standalone product root.
 
 | Product | Role |
 | --- | --- |
-| `study-films` | Remotion renderer + optional capture |
+| `study-films` | Remotion renderer |
 | `studio` | Local control site: workbench brief, film review |

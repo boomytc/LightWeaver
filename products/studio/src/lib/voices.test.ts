@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filmVoiceRef, listVoicePacks, voiceCloneSource, voiceFile, voicePackId } from "./voices.ts";
+import { filmVoiceRef, listVoicePacks, voiceCloneSource, voiceFile, voiceSetId } from "./voices.ts";
 import type { Asset } from "../types.ts";
 
 describe("listVoicePacks", () => {
@@ -24,7 +24,7 @@ describe("listVoicePacks", () => {
       { id: "voice.prompt-en", kind: "voice", locale: "en", file: "voices/prompt-en.wav" },
     ]);
     assert.equal(listed.length, 1);
-    assert.equal(voicePackId(listed[0]!), "voice.prompt");
+    assert.equal(voiceSetId(listed[0]!), "voice.prompt");
   });
 
   it("treats instruct-designed wav as the clone source", () => {

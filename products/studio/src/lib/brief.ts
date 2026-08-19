@@ -71,7 +71,6 @@ function createLine(input: BriefInput): string {
 }
 
 export function buildAgentBrief(input: BriefInput): string {
-  const task = input.task || "study-explainer";
   const lines: string[] = [
     "请用 LightWeaver 做后处理出片。方法、音色、素材都是可选增强：点名的按点名用，没点的自己定，不要改已点名的项。",
     "",
@@ -83,7 +82,8 @@ export function buildAgentBrief(input: BriefInput): string {
     lines.push("片子：未指定。按任务新建，或先问人用哪一部已有片子。");
   }
 
-  lines.push(`任务：${task}`);
+  if (input.task) lines.push(`任务：${input.task}`);
+  else lines.push("任务：未点。按工作台当前任务或唯一已实现任务新建。");
 
   if (input.recipeId) {
     lines.push(`方法：${input.recipeTitle || input.recipeId}`);

@@ -2,8 +2,7 @@
 
 Remotion renderer for LightWeaver. Task instances (film.json, stills, wav,
 mp4) live in `data/first-party/` and `data/projects/` — not in this
-package, not in git. `weaver capture` writes stills into the film's
-`assets/stills/` when the film has an adapter.
+package, not in git. Capture / TTS live in `weaver/scripts`.
 
 ```bash
 npm run sync       # link public/projects + catalog

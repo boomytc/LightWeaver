@@ -5,6 +5,16 @@ import { isAssetKind, parseAssetRef } from "./schema.ts";
 import { libraryRoot, weaverRoot } from "./paths.ts";
 import { atomicWriteJson, readJson } from "./io.ts";
 import { saveAssets } from "./project.ts";
+import { voiceHifiRef, voiceSetId } from "./voices.ts";
+
+export {
+  voiceCloneSource,
+  voiceHifiRef,
+  voiceSetId,
+  type VoiceClip,
+  type VoiceClone,
+  type VoiceOrigin,
+} from "./voices.ts";
 
 export function loadLibrary(root = weaverRoot()): Asset[] {
   const file = path.join(libraryRoot(root), "assets.json");
@@ -40,39 +50,6 @@ export function resolveAssetFile(
   const relPath = (locale && asset.files?.[locale]) || asset.file;
   if (!relPath) return null;
   return { asset, relPath, scopeRoot, absPath: path.join(scopeRoot, relPath) };
-}
-
-export type VoiceOrigin = "upload" | "instruct";
-
-export type VoiceClip = { file: string; said: string };
-
-export type VoiceClone = {
-  file?: string;
-  said: string;
-  instruct: string;
-  origin: VoiceOrigin;
-};
-
-/** 一套声只有一支克隆源。有 instruct 就是铸出来的；没有就是上传的。 */
-export function voiceCloneSource(asset?: Asset): VoiceClone {
-  if (!asset) return { said: "", instruct: "", origin: "instruct" };
-  const instruct = (asset.style || asset.styles?.zh || asset.styles?.en || "").trim();
-  let file = asset.file;
-  let said = (asset.text ?? "").trim();
-  if (!file) {
-    const entry = Object.entries(asset.files ?? {}).find(([, item]) => item);
-    if (entry) {
-      file = entry[1];
-      said = (asset.texts?.[entry[0]] ?? said).trim();
-    }
-  }
-  return { file, said, instruct, origin: instruct ? "instruct" : "upload" };
-}
-
-/** 出片 Hi-Fi 用的那支克隆源。 */
-export function voiceHifiRef(asset?: Asset): VoiceClip | undefined {
-  const source = voiceCloneSource(asset);
-  return source.file ? { file: source.file, said: source.said } : undefined;
 }
 
 /** 出片用的那支 wav。VoxCPM2 不按语言标签分流。 */
@@ -182,11 +159,6 @@ export function voiceCloneText(asset: Asset, locale?: string): string {
   return asset.text ?? "";
 }
 
-export function voiceSetId(asset: Asset): string {
-  if (asset.files && (asset.files.zh || asset.files.en) && !asset.locale) return asset.id;
-  return asset.id.replace(/[.-](zh|en)$/i, "") || asset.id;
-}
-
 export type VoiceSet = {
   id: string;
   label: string;
@@ -259,6 +231,22 @@ export function upsertAsset(project: ProjectRecord, asset: Asset): void {
   next.push(asset);
   atomicWriteJson(path.join(project.root, "assets.json"), { assets: next });
   project.assets = next;
+}
+
+export function ensureStillStub(project: ProjectRecord, stillRef: string): void {
+  const parsed = parseAssetRef(stillRef);
+  if (!parsed || parsed.scope !== "asset") return;
+  if (project.assets.some((asset) => asset.id === parsed.id)) return;
+  const fileId = parsed.id.replace(/^still\./, "");
+  upsertAsset(project, {
+    id: parsed.id,
+    kind: "still",
+    files: {
+      zh: `assets/stills/zh/${fileId}.png`,
+      en: `assets/stills/en/${fileId}.png`,
+    },
+    label: fileId,
+  });
 }
 
 export function lineAssetId(sceneId: string, locale: Locale): string {

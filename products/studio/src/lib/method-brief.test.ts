@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { methodExpandName, methodExpandOf, methodLabel, methodPlanLine, recipeIdOfMethod } from "./method-brief.ts";
+import { methodExpandName, methodExpandOf, methodLabel, methodPlanLine, recipeIdOf } from "./method-brief.ts";
 
 describe("method catalog helpers", () => {
   it("reads expand from the catalog row", () => {
-    assert.equal(recipeIdOfMethod({ id: "method.taxonomy-parade" }), "taxonomy-parade");
+    assert.equal(recipeIdOf("method.taxonomy-parade"), "taxonomy-parade");
     assert.equal(methodExpandOf({ expand: "list" }), "list");
     assert.equal(methodExpandOf({ expand: "fixed" }), "fixed");
     assert.equal(methodExpandOf({}), "fixed");
@@ -28,7 +28,7 @@ describe("method catalog helpers", () => {
   });
 
   it("resolves a film recipe id to the catalog name", () => {
-    const library = [{ id: "method.taxonomy-parade", kind: "method", label: "对照表阅兵" }];
+    const library = [{ id: "method.taxonomy-parade", kind: "method" as const, label: "对照表阅兵" }];
     assert.equal(methodLabel(library, "taxonomy-parade"), "对照表阅兵");
     assert.equal(methodLabel(library, "method.taxonomy-parade"), "对照表阅兵");
     assert.equal(methodLabel(library, "missing"), "");

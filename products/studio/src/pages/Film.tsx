@@ -71,7 +71,7 @@ export function Film({ id }: { id: string }) {
           <span className={detail.renderable ? "pill pill-ok" : "pill"}>{detail.renderable ? "可渲" : "未齐"}</span>
         </div>
         <p className="item-meta">
-          {sourceLabel(detail.source)} · {detail.task ?? "study-explainer"} · {detail.film.scenes.length} 场
+          {sourceLabel(detail.source)} · {detail.task || "未点"} · {detail.film.scenes.length} 场
         </p>
         <p className="lede">复盘这场出片：看场次、旁白和成片。不在这里改组合。给 agent 的说明只在工作台复制。</p>
         <Toast flash={flash} />

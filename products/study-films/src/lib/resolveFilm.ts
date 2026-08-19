@@ -1,37 +1,11 @@
 import { staticFile } from "remotion";
-import type { CardCopy, SceneKind } from "./types";
+import type { Asset, FilmDoc as SchemaFilm } from "@lightweaver/weaver/schema";
 
 export type AssetDoc = {
-  assets: {
-    id: string;
-    kind: string;
-    locale?: string;
-    file?: string;
-    files?: Record<string, string>;
-    scene?: string;
-  }[];
+  assets: Pick<Asset, "id" | "kind" | "locale" | "file" | "files" | "scene">[];
 };
 
-export type FilmDoc = {
-  id: string;
-  brand: string;
-  locales: Record<
-    string,
-    {
-      title: string;
-      output: string;
-      titleCard: CardCopy;
-      closeCard: Pick<CardCopy, "headline" | "lede" | "points">;
-    }
-  >;
-  scenes: {
-    id: string;
-    kind: SceneKind;
-    still?: string;
-    fit?: "cover" | "contain";
-    lines: Record<string, string>;
-  }[];
-};
+export type FilmDoc = Pick<SchemaFilm, "id" | "brand" | "locales" | "scenes">;
 
 export async function fetchJson<T>(publicPath: string): Promise<T> {
   const response = await fetch(staticFile(publicPath));

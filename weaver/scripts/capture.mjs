@@ -1,44 +1,11 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { firstPartyRoot, labUrl } from "./paths.mjs";
 
-/** 与 LightUI `scripts/capture-stage.py` / 各 study SOURCE.md 同名同态。只写 LightWeaver。 */
-const SHOTS = {
-  "intent-cascade": [
-    ["status", "open", "status.png"],
-    ["diagonal", "open", "diagonal.png"],
-    ["project", "open", "project.png"],
-    ["third", "open", "third.png"],
-  ],
-  "dropdown-taxonomy": [
-    ["select", "open", "select-open.png"],
-    ["multi", "open", "multi-open.png"],
-    ["grouped", "open", "grouped-open.png"],
-    ["cascader", "open", "cascader-open.png"],
-    ["split", "open", "split-open.png"],
-    ["mega", "open", "mega-open.png"],
-    ["date", "open", "date-open.png"],
-  ],
-  "nav-taxonomy": [
-    ["floating", "closed", "floating.png"],
-    ["sidebar", "closed", "sidebar.png"],
-    ["breadcrumb", "closed", "breadcrumb.png"],
-    ["dropdown", "open", "dropdown-open.png"],
-    ["mega", "open", "mega-open.png"],
-    ["drawer", "open", "drawer-open.png"],
-    ["overlay", "open", "overlay-open.png"],
-    ["scrollspy", "closed", "scrollspy.png"],
-    ["shrink", "closed", "shrink.png"],
-  ],
-  "sidebar-taxonomy": [
-    ["floating", "closed", "floating.png"],
-    ["wheel", "closed", "wheel.png"],
-    ["multilevel", "closed", "multilevel.png"],
-    ["collapsible", "closed", "collapsible.png"],
-    ["offcanvas", "open", "offcanvas-open.png"],
-  ],
-};
+const here = path.dirname(fileURLToPath(import.meta.url));
+const SHOTS = JSON.parse(fs.readFileSync(path.join(here, "lightui-lab-adapters.json"), "utf8"));
 
 const LAB = labUrl();
 

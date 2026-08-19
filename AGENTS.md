@@ -15,7 +15,7 @@ Shared objects live in `weaver/`. Products consume that package.
 weaver/                         schema, projects, assets, CLI, jobs
 library/                        可选增强：voices / elements / methods
 data/                           任务实例（gitignore）：data/first-party + data/projects
-products/study-films/           Remotion 渲染器 + 可选截图脚本
+products/study-films/           Remotion 渲染器
 products/studio/                local WebUI
 skills/                         agent skills
 ```
@@ -29,7 +29,8 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | Film / asset / job model, CLI | `weaver/` |
 | Shared voice / element / method | `library/`（方法在 `library/methods/`） |
 | Task instance | `data/projects/<id>/` or `data/first-party/<id>/`（不提交） |
-| Remotion cards / capture adapter | `products/study-films/` |
+| Remotion cards | `products/study-films/` |
+| TTS / ASR / capture scripts | `weaver/scripts/` |
 | Control site | `products/studio/`（`/` `/methods` `/voices` `/library` `/films`） |
 | Agent procedure | `skills/lightweaver*` |
 | 现网存放图 | `docs/conventions.md` |

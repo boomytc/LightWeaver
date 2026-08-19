@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { filmsProductRoot, weaverRoot } from "./paths.ts";
+import { weaverRoot, weaverScriptsRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
 import { findAsset, lineAssetId, lineRelPath, resolveVoicePrompt, upsertAsset, voiceHifiRef } from "./assets.ts";
 import { filmLangs, type Locale } from "./schema.ts";
@@ -48,7 +48,7 @@ export function runTts(options: TtsOptions): TtsResult {
   if (!locales.length) throw new Error(`项目 ${project.id} 没有要出的语言`);
 
   const wrote: TtsResult["wrote"] = [];
-  const python = path.join(filmsProductRoot(root), "scripts/tts.py");
+  const python = path.join(weaverScriptsRoot(), "tts.py");
   if (!fs.existsSync(python)) throw new Error(`找不到 ${python}`);
 
   for (const locale of locales) {
@@ -78,7 +78,7 @@ export function runTts(options: TtsOptions): TtsResult {
       locale,
       refAudio: voice.absPath,
       refText: hifi.said,
-      configDirs: [root, filmsProductRoot(root)],
+      configDirs: [root],
       items,
     };
     const jobFile = path.join(os.tmpdir(), `weaver-tts-${project.id}-${locale}-${process.pid}.json`);

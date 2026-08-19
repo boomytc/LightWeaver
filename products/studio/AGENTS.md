@@ -18,8 +18,9 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
 
 ## Rules
 
-- Talk to `@lightweaver/weaver` and `/api/*` only. Do not import the
-  renderer or other repositories.
+- Server talks to `@lightweaver/weaver`. App `src/` only imports
+  `/schema` `/voices` `/method` — never the Node barrel. Do not import
+  the renderer or other repositories.
 - `/api/media` may only serve `library/`, project roots (including
   gitignored `assets/outputs/`), and `data/voice-candidates/` (mint previews).
 - `<video src>` must use `projectMedia(id, rel)` → `/api/media/project/…`.

@@ -8,6 +8,7 @@ export * from "./recipes.ts";
 export * from "./library-method.ts";
 export * from "./library-material.ts";
 export * from "./assets.ts";
+export * from "./ingest.ts";
 export * from "./validate.ts";
 export * from "./sync.ts";
 export * from "./tts.ts";
@@ -20,7 +21,9 @@ export {
   getTask,
   tryGetTask,
   listTasks,
+  resolveTask,
+  resolveTaskId,
   taskAllowsKind,
   LIGHTUI_LAB_ADAPTERS,
 } from "./tasks/registry.ts";
-export type { TaskModule } from "./tasks/types.ts";
+export type { TaskCardSlot, TaskFrame, TaskModule } from "./tasks/types.ts";

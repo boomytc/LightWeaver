@@ -59,7 +59,8 @@ description: >
 | 时机 | 读 |
 | --- | --- |
 | 找齐三层 | 先按存放图；再 `weaver project show --json` |
-| 选卡 | `npx weaver method list`（只看成片方法）。`recipe list` 会混进场次卡。对上后再 `recipe apply` |
+| 选卡 | `method list` / `recipe list` / `recipe show` 都看 catalog。要改场次用 `/methods` 或 `method set`，再 `recipe apply` |
+| 场次写法 | `references/scenes.md`（加 still、易混对、片头/片尾）。不是方法，不能 apply |
 | 展开骨架 | `recipe apply`；补场才 `scene add`。`lines[locale] === <sceneId>` 是占位，阶段 3 必须 `scene set` |
 | 手截 | `docs/conventions.md` |
 | QA | `references/qa.md` |

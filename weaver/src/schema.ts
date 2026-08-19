@@ -10,18 +10,13 @@ export function isMethodExpand(value: unknown): value is MethodExpand {
 
 export type MethodScene = {
   id: string;
+  kind?: string;
   role?: string;
   fit?: "cover" | "contain";
 };
 
 export const TASK_IDS = ["study-explainer"] as const;
 export type TaskId = (typeof TASK_IDS)[number];
-
-export const STUDY_SCENE_KINDS = ["title", "still", "close"] as const;
-export type StudySceneKind = (typeof STUDY_SCENE_KINDS)[number];
-
-export const STUDY_ROLES = ["problem", "rule", "contrast"] as const;
-export type StudyRole = (typeof STUDY_ROLES)[number];
 
 export const CAPTURE_KINDS = ["lightui-lab", "manual"] as const;
 export type CaptureKind = (typeof CAPTURE_KINDS)[number];
@@ -48,7 +43,7 @@ export type Asset = {
   /** 方法：固定场次或清单一项一场。其它 kind 不用。 */
   expand?: MethodExpand;
   scenes?: MethodScene[];
-  task?: TaskId;
+  task?: string;
 };
 
 export type AssetDoc = {
@@ -71,8 +66,8 @@ export type CardCopy = {
 export type LocaleCopy = {
   title: string;
   output: string;
-  titleCard: CardCopy;
-  closeCard: Pick<CardCopy, "headline" | "lede" | "points">;
+  titleCard?: CardCopy;
+  closeCard?: Pick<CardCopy, "headline" | "lede" | "points">;
 };
 
 export type SceneDef = {
@@ -81,7 +76,7 @@ export type SceneDef = {
   still?: AssetRef;
   voice?: AssetRef;
   fit?: "cover" | "contain";
-  role?: StudyRole;
+  role?: string;
   kicker?: string;
   headline?: string;
   lede?: string;
@@ -125,10 +120,6 @@ export function isAssetKind(value: string): value is AssetKind {
   return (ASSET_KINDS as readonly string[]).includes(value);
 }
 
-export function isStudyRole(value: string): value is StudyRole {
-  return (STUDY_ROLES as readonly string[]).includes(value);
-}
-
 export function isImplementedTask(id: string): id is TaskId {
   return (TASK_IDS as readonly string[]).includes(id);
 }
@@ -152,14 +143,14 @@ export function warn(path: string, message: string): Issue {
 }
 
 export function filmTask(film: FilmDoc): string {
-  return film.task ?? "study-explainer";
+  return film.task ?? "";
 }
 
 export function filmStudySlug(film: FilmDoc): string | undefined {
   return film.study?.slug ?? film.capture?.slug;
 }
 
-export function filmLangs(film: Pick<FilmDoc, "locales" | "langs">): Locale[] {
+export function filmLangs(film: { locales: Record<string, unknown>; langs?: readonly string[] }): Locale[] {
   const all = Object.keys(film.locales);
   const picked = [...new Set((film.langs ?? []).map((item) => item.trim()).filter(Boolean))];
   if (!picked.length) return all;
@@ -167,11 +158,10 @@ export function filmLangs(film: Pick<FilmDoc, "locales" | "langs">): Locale[] {
 }
 
 export function normalizeFilm(film: FilmDoc): FilmDoc {
-  const task = filmTask(film);
   const slug = filmStudySlug(film);
   return {
     ...film,
-    task,
+    ...(film.task ? { task: film.task } : {}),
     study: slug ? { slug } : film.study,
   };
 }

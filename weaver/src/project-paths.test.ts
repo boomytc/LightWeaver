@@ -8,12 +8,18 @@ import { fileURLToPath } from "node:url";
 import { createProject } from "./project.ts";
 import { assetsPath, filmPath } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
-import { firstPartyRoot, labUrl, recipeRoot, weaverRoot } from "./paths.ts";
+import { firstPartyRoot, labUrl, lightasrRoot, lightuiRoot, recipeRoot, weaverRoot } from "./paths.ts";
 import { isRenderable } from "./validate.ts";
 import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 
 const weaverSrc = path.dirname(fileURLToPath(import.meta.url));
 const weaverPkg = path.resolve(weaverSrc, "..");
+
+function withLightui(root: string): { env: NodeJS.ProcessEnv; uiRoot: string } {
+  const uiRoot = path.join(root, "LightUI");
+  fs.mkdirSync(uiRoot, { recursive: true });
+  return { env: { ...process.env, LIGHTUI_ROOT: uiRoot }, uiRoot };
+}
 
 function showJson(root: string, id: string) {
   const result = spawnSync(
@@ -44,7 +50,8 @@ describe("projectPaths", () => {
       [{ id: "status", file: "status.png", role: "problem" }],
       { writePng: true },
     );
-    const paths = projectPaths(project, root);
+    const { env } = withLightui(root);
+    const paths = projectPaths(project, root, env);
     assert.equal(paths.brief.kind, "study");
     assert.equal(paths.brief.files.kinds.exists, false);
     const statusZh = paths.stillFiles.find((file) => file.sceneId === "status" && file.locale === "zh");
@@ -55,7 +62,7 @@ describe("projectPaths", () => {
     assert.ok(project.root.startsWith(firstPartyRoot(root)));
     assert.equal(paths.outputFiles.zh.rel, "assets/outputs/intent-cascade.mp4");
     assert.equal(paths.recipes, path.join(recipeRoot(root), "study-explainer"));
-    assert.equal(paths.labUrl, `${labUrl()}/s/intent-cascade`);
+    assert.equal(paths.labUrl, `${labUrl(env)}/s/intent-cascade`);
     assert.equal(paths.publishDir, "studies/intent-cascade/references");
     assert.equal(paths.film, filmPath(project.root));
     assert.equal(paths.assetsDoc, assetsPath(project.root));
@@ -82,7 +89,8 @@ describe("projectPaths", () => {
     const project = seedLabFilm(root, "nav-taxonomy", [
       { id: "floating", file: "floating.png", role: "contrast" },
     ]);
-    const paths = projectPaths(project, root);
+    const { env } = withLightui(root);
+    const paths = projectPaths(project, root, env);
     assert.equal(paths.brief.kind, "study");
     const floating = paths.stillFiles.find((file) => file.sceneId === "floating" && file.locale === "zh");
     assert.equal(floating?.rel, "assets/stills/zh/floating.png");
@@ -91,10 +99,26 @@ describe("projectPaths", () => {
     assert.equal(paths.outputFiles.zh.rel, "assets/outputs/nav-taxonomy.mp4");
   });
 
+  it("does not invent a LightUI study path without LIGHTUI_ROOT", () => {
+    const root = tempWorkspace();
+    const project = seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
+    const emptyEnv = { ...process.env };
+    delete emptyEnv.LIGHTUI_ROOT;
+    const paths = projectPaths(project, root, emptyEnv);
+    assert.equal(paths.brief.kind, "project-brief");
+    assert.equal(paths.labUrl, undefined);
+    assert.equal(lightuiRoot(root, emptyEnv), undefined);
+  });
+
   it("treats a user film without slug as project-brief", () => {
     const root = tempWorkspace();
     const project = createProject("demo-film", { title: "演示" }, root);
-    const paths = projectPaths(project, root);
+    const emptyEnv = { ...process.env };
+    delete emptyEnv.LIGHTUI_ROOT;
+    delete emptyEnv.LIGHTASR_ROOT;
+    assert.equal(lightuiRoot(root, emptyEnv), undefined);
+    assert.equal(lightasrRoot(root, emptyEnv), undefined);
+    const paths = projectPaths(project, root, emptyEnv);
     assert.equal(paths.brief.kind, "project-brief");
     assert.equal(paths.brief.files.brief.exists, false);
     assert.equal(paths.brief.files.briefEn.exists, false);
@@ -115,7 +139,8 @@ describe("projectPaths", () => {
       { source: "user", studySlug: "intent-cascade" },
       root,
     );
-    const paths = projectPaths(project, root);
+    const { env } = withLightui(root);
+    const paths = projectPaths(project, root, env);
     assert.equal(project.source, "user");
     assert.equal(project.film.study?.slug, "intent-cascade");
     assert.equal(paths.brief.kind, "hybrid");

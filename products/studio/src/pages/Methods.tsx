@@ -7,7 +7,7 @@ import {
   methodExpandName,
   methodExpandOf,
   methodPlanLine,
-  recipeIdOfMethod,
+  recipeIdOf,
   type MethodExpand,
 } from "../lib/method-brief";
 import type { Asset } from "../types";
@@ -18,6 +18,7 @@ const emptyScene = (): SceneDraft => ({ id: "", role: "" });
 
 export function Methods() {
   const [methods, setMethods] = useState<Asset[]>([]);
+  const [taskId, setTaskId] = useState("");
   const [roles, setRoles] = useState<string[]>([]);
   const { flash, ok, error } = useFlash();
   const [label, setLabel] = useState("");
@@ -29,7 +30,8 @@ export function Methods() {
   async function reload() {
     const [library, tasks] = await Promise.all([api.library(), api.tasks()]);
     setMethods(library.filter((item) => item.kind === "method"));
-    const task = tasks.find((item) => item.id === "study-explainer") ?? tasks[0];
+    const task = tasks[0];
+    setTaskId(task?.id ?? "");
     setRoles(task?.roles ?? []);
   }
 
@@ -38,7 +40,7 @@ export function Methods() {
   }, []);
 
   function taken(name: string, except?: string): boolean {
-    return methods.some((item) => item.id !== except && (item.label ?? recipeIdOfMethod(item)).trim() === name);
+    return methods.some((item) => item.id !== except && (item.label ?? recipeIdOf(item.id)).trim() === name);
   }
 
   async function create() {
@@ -63,7 +65,13 @@ export function Methods() {
     }
     setBusy(true);
     try {
-      await api.createMethod({ label: name, text, expand, scenes: expand === "fixed" ? nextScenes : undefined });
+      await api.createMethod({
+        label: name,
+        text,
+        expand,
+        scenes: expand === "fixed" ? nextScenes : undefined,
+        task: taskId || undefined,
+      });
       ok(`已保存 ${name}`);
       setLabel("");
       setWhen("");
@@ -231,7 +239,7 @@ function MethodLibraryCard({
   onMessage: (message?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const title = asset.label ?? recipeIdOfMethod(asset);
+  const title = asset.label ?? recipeIdOf(asset.id);
   const when = asset.text?.trim() ?? "";
 
   async function remove() {
@@ -256,7 +264,7 @@ function MethodLibraryCard({
           <div className="item-meta">铺场 · {methodPlanLine(asset)}</div>
         </div>
         <div className="voice-row-actions">
-          <Link href={`/?recipe=${encodeURIComponent(recipeIdOfMethod(asset))}`} className="btn btn-primary">
+          <Link href={`/?recipe=${encodeURIComponent(recipeIdOf(asset.id))}`} className="btn btn-primary">
             去组合
           </Link>
           <button type="button" className="btn" onClick={() => setOpen(true)}>
@@ -304,7 +312,7 @@ function MethodDetail({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = `method-detail-${asset.id}`;
-  const [name, setName] = useState(asset.label ?? recipeIdOfMethod(asset));
+  const [name, setName] = useState(asset.label ?? recipeIdOf(asset.id));
   const [when, setWhen] = useState(asset.text?.trim() ?? "");
   const [expand, setExpand] = useState<MethodExpand>(methodExpandOf(asset));
   const [scenes, setScenes] = useState<SceneDraft[]>(
@@ -378,7 +386,7 @@ function MethodDetail({
       <div className="modal-card">
         <div className="voice-card-top">
           <h3 className="item-title" id={titleId}>
-            {asset.label ?? recipeIdOfMethod(asset)}
+            {asset.label ?? recipeIdOf(asset.id)}
           </h3>
         </div>
         <label className="field">

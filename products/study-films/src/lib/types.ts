@@ -1,16 +1,6 @@
-export type SceneKind = "title" | "still" | "close";
-
-export type CardCopy = {
-  kicker?: string;
-  headline?: string;
-  lede?: string;
-  tags?: string[];
-  points?: string[];
-};
-
 export type TimedScene = {
   id: string;
-  kind: SceneKind;
+  kind: string;
   from: number;
   durationInFrames: number;
   line: string;

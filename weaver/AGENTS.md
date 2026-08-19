@@ -6,7 +6,10 @@ path rules, or job runners.
 ## Layout
 
 ```
-src/schema.ts          Film / Asset / Scene / task types
+src/schema.ts          Film / Asset / Scene / task types（`@lightweaver/weaver/schema`）
+src/voices.ts          无 Node 的克隆源 / Hi-Fi / voiceSetId（`/voices`）
+src/method.ts          无 Node 的 recipeIdOf（`/method`）
+src/ingest.ts          上传进库（buffer，不吃 Express）
 src/tasks/             TaskModule（只实现 study-explainer）
 src/scenes.ts          add/rm/move/patch/card/voice
 src/paths.ts           workspace roots（libraryRoot 与 recipeRoot 并列）
@@ -23,6 +26,8 @@ src/asr.ts             Qwen3-ASR-0.6B GGUF 转写 job（上传克隆源填文本
 src/voice-mint.ts      设计指令铸试听 / 收下为克隆源
 src/render.ts          Remotion + publish
 src/cli.ts             JSON/human CLI
+src/capture.ts         截图作业入口
+scripts/               tts.py / asr.py / capture.mjs（不跟 LIGHTWEAVER_ROOT）
 ```
 
 ## Rules
@@ -45,6 +50,7 @@ src/cli.ts             JSON/human CLI
   `createLibraryMethod` / `updateLibraryMethod` write the catalog
   (name / when / expand / scenes) and a projection file under
   `library/methods/<recipePack>/`. Studio reads the catalog only.
-  Apply prefers the catalog: `fixed` uses `scenes`, `list` uses
-  `--items`. `--kinds` is a leftover alias for `--items`. Scene cards
-  stay as apply internals and are not catalog plugins.
+  Apply / assert / `method list` / `recipe list` / `recipe show` 都只读 catalog：
+  `fixed` 用 `scenes`，`list` 用 `--items`。`--kinds` 是 `--items` 的遗留别名。
+  `library/methods/<recipePack>/` 只放 catalog 投影短文。要改场次用 Studio
+  `/methods` 或 `weaver method set`，再 apply。

@@ -5,10 +5,10 @@
   "scripts": {
     "sync": "npm run weaver -w @lightweaver/weaver -- sync",
     "studio": "npm run sync && remotion studio src/index.ts",
-    "capture": "node scripts/capture.mjs",
+    "capture": "npm run weaver -w @lightweaver/weaver -- capture",
     "tts": "npm run weaver -w @lightweaver/weaver -- tts",
     "render": "npm run weaver -w @lightweaver/weaver -- render",
-    "films": "node scripts/capture.mjs && npm run weaver -w @lightweaver/weaver -- tts && npm run weaver -w @lightweaver/weaver -- render",
+    "films": "npm run weaver -w @lightweaver/weaver -- capture && npm run weaver -w @lightweaver/weaver -- tts && npm run weaver -w @lightweaver/weaver -- render",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/lib/*.test.ts"
   },
@@ -24,7 +24,6 @@
   "devDependencies": {
     "@types/node": "^24.13.3",
     "@types/react": "^19.1.12",
-    "playwright": "^1.55.0",
     "tsx": "^4.23.1",
     "typescript": "^5.9.2"
   }

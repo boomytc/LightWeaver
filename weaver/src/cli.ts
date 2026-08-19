@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import { parseArgs } from "node:util";
 import { addAsset, loadLibrary, patchLibraryAsset, removeLibraryAsset, resolveVoicePrompt } from "./assets.ts";
 import { runAsr } from "./asr.ts";
@@ -16,14 +15,14 @@ import { runCapture } from "./capture.ts";
 import { createProject, listProjects, loadProject, projectSummary } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { projectPaths } from "./project-paths.ts";
-import { applyRecipe, listRecipes, loadRecipe, setFilmRecipe, summarizeRecipe } from "./recipes.ts";
+import { applyRecipe, formatRecipe, listRecipes, loadRecipe, setFilmRecipe, summarizeRecipe } from "./recipes.ts";
 import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./validate.ts";
 import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
 import { runPublish, runRender } from "./render.ts";
-import { ASSET_KINDS, isStudyRole } from "./schema.ts";
+import { ASSET_KINDS, filmTask } from "./schema.ts";
 import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setLangs, setVoicePack } from "./scenes.ts";
-import { listTasks } from "./tasks/registry.ts";
+import { getTask, listTasks } from "./tasks/registry.ts";
 import type { ProjectRecord } from "./schema.ts";
 
 type Flags = Record<string, string | boolean | undefined>;
@@ -193,14 +192,15 @@ function main(): void {
     if (sub === "add") {
       const id = str(values, "id");
       if (!id) fail("用法: weaver scene add --project <id> --id <scene> --kind still");
+      const task = getTask(filmTask(project.film));
       const roleRaw = str(values, "role");
-      if (roleRaw && !isStudyRole(roleRaw)) fail(`未知 role：${roleRaw}`);
+      if (roleRaw && task.roles?.length && !task.roles.includes(roleRaw)) fail(`未知 role：${roleRaw}`);
       addScene(project, {
         id,
-        kind: str(values, "kind") ?? "still",
+        kind: str(values, "kind") ?? task.frame.expandableKinds[0],
         still: str(values, "still"),
         fit: str(values, "fit") as "cover" | "contain" | undefined,
-        role: roleRaw && isStudyRole(roleRaw) ? roleRaw : undefined,
+        role: roleRaw,
         after: str(values, "after"),
       });
       print(envelope(project, root));
@@ -228,14 +228,15 @@ function main(): void {
     if (sub === "set") {
       const id = str(values, "id");
       if (!id) fail("用法: weaver scene set --project <id> --id <scene>");
+      const task = getTask(filmTask(project.film));
       const roleRaw = str(values, "role");
-      if (roleRaw && !isStudyRole(roleRaw)) fail(`未知 role：${roleRaw}`);
+      if (roleRaw && task.roles?.length && !task.roles.includes(roleRaw)) fail(`未知 role：${roleRaw}`);
       const locale = str(values, "locale");
       const text = str(values, "text");
       patchScene(project, id, {
         still: str(values, "still"),
         fit: str(values, "fit") as "cover" | "contain" | undefined,
-        role: roleRaw && isStudyRole(roleRaw) ? roleRaw : undefined,
+        role: roleRaw,
         lines: locale && text !== undefined ? { [locale]: text } : undefined,
       });
       print(envelope(project, root));
@@ -249,18 +250,29 @@ function main(): void {
     const project = requireProject(str(values, "project") ?? "");
     const locale = str(values, "locale");
     const which = str(values, "which");
-    if (!locale || (which !== "title" && which !== "close")) {
-      fail("需要 --locale 与 --which title|close");
+    const task = getTask(filmTask(project.film));
+    const slots = task.cards?.map((item) => item.which) ?? [];
+    if (!locale || !which || !slots.includes(which)) {
+      fail(`需要 --locale 与 --which ${slots.join("|") || "（该任务没有卡片）"}`);
     }
     const tags = str(values, "tags");
     const points = str(values, "points");
-    setCard(project, locale, which, {
-      headline: str(values, "headline"),
-      lede: str(values, "lede"),
-      kicker: str(values, "kicker"),
-      tags: tags ? tags.split(",").map((item) => item.trim()).filter(Boolean) : undefined,
-      points: points ? points.split(";").map((item) => item.trim()).filter(Boolean) : undefined,
-    });
+    const headline = str(values, "headline");
+    const lede = str(values, "lede");
+    const kicker = str(values, "kicker");
+    const patch: {
+      headline?: string;
+      lede?: string;
+      kicker?: string;
+      tags?: string[];
+      points?: string[];
+    } = {};
+    if (headline !== undefined) patch.headline = headline;
+    if (lede !== undefined) patch.lede = lede;
+    if (kicker !== undefined) patch.kicker = kicker;
+    if (tags !== undefined) patch.tags = tags.split(",").map((item) => item.trim()).filter(Boolean);
+    if (points !== undefined) patch.points = points.split(";").map((item) => item.trim()).filter(Boolean);
+    setCard(project, locale, which, patch);
     print(envelope(project, root));
     return;
   }
@@ -513,20 +525,10 @@ function main(): void {
       try {
         const recipe = loadRecipe(id, root);
         if (wantJson) {
-          print({
-            ok: true,
-            id: recipe.id,
-            task: recipe.task,
-            level: recipe.level,
-            when: recipe.when,
-            canon: recipe.canon,
-            requires_items: recipe.requires_items,
-            default_scenes: recipe.default_scenes,
-            path: recipe.path,
-            body: recipe.body,
-          });
+          const { body: _body, ...catalog } = recipe;
+          print({ ok: true, ...catalog });
         } else {
-          print(fs.readFileSync(recipe.path, "utf8"));
+          print(formatRecipe(recipe));
         }
       } catch (error) {
         fail(error instanceof Error ? error.message : String(error));
@@ -648,7 +650,8 @@ function main(): void {
 命令:
   weaver task list
   weaver project list|show|validate|create
-  weaver recipe list|show|apply
+  weaver method list|add|set|rm
+  weaver recipe list|show|use|apply
   weaver scene list|add|rm|move|set
   weaver card set
   weaver voice set|asr

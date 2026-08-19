@@ -70,15 +70,21 @@ function stillFileId(ref: string | undefined, sceneId: string): string {
   return ref.match(/^asset:still\.(.+)$/)?.[1] ?? sceneId;
 }
 
-export function projectPaths(project: ProjectRecord, root = weaverRoot()): ProjectPaths {
+export function projectPaths(
+  project: ProjectRecord,
+  root = weaverRoot(),
+  env: NodeJS.ProcessEnv = process.env,
+): ProjectPaths {
   const { film } = project;
   const slug = filmStudySlug(film);
   const task = filmTask(film);
   const locales = Object.keys(film.locales);
+  const uiRoot = lightuiRoot(root, env);
 
   const stillFiles: MediaFile[] = [];
+  const expandableKinds = tryGetTask(task)?.frame.expandableKinds ?? [];
   for (const scene of film.scenes) {
-    if (scene.kind !== "still") continue;
+    if (!expandableKinds.includes(scene.kind)) continue;
     for (const locale of locales) {
       const ref = scene.still;
       const resolved = ref ? resolveAssetFile(project, ref, locale, root) : null;
@@ -128,11 +134,13 @@ export function projectPaths(project: ProjectRecord, root = weaverRoot()): Proje
   }
 
   let brief: ProjectPaths["brief"];
-  if (project.source === "first-party") {
-    const studyRoot = path.join(lightuiRoot(root), "studies", slug ?? film.id);
+  if (!uiRoot) {
+    brief = { kind: "project-brief", files: projectBriefFiles(project.root) };
+  } else if (project.source === "first-party") {
+    const studyRoot = path.join(uiRoot, "studies", slug ?? film.id);
     brief = { kind: "study", root: studyRoot, files: studyFiles(studyRoot) };
   } else if (slug) {
-    const studyRoot = path.join(lightuiRoot(root), "studies", slug);
+    const studyRoot = path.join(uiRoot, "studies", slug);
     brief = {
       kind: "hybrid",
       root: studyRoot,
@@ -151,7 +159,7 @@ export function projectPaths(project: ProjectRecord, root = weaverRoot()): Proje
     outputFiles,
     library: libraryRoot(root),
     recipes: path.join(recipeRoot(root), tryGetTask(task)?.recipePack ?? task),
-    labUrl: slug ? `${labUrl()}/s/${slug}` : undefined,
+    labUrl: uiRoot && slug ? `${labUrl(env)}/s/${slug}` : undefined,
     publishDir: film.publish?.dir,
     brief,
   };

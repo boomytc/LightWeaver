@@ -14,8 +14,8 @@ Job (weaver --job JSON):
 Logs go to stderr. The last stdout line is the result JSON:
   {"text":"…","language":"zh","seconds":3.2}
 
-Does not import LightASR product/explore Python. Discovers the GGUF,
-libtranscribe, and the thin transcribe_cpp bindings on disk.
+Does not import LightASR product/explore Python. Model, library, and
+bindings come from the job, env, or config — never a machine default.
 """
 
 from __future__ import annotations
@@ -30,8 +30,6 @@ import tempfile
 import wave
 from pathlib import Path
 
-DEFAULT_MODEL = Path("/Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-0.6b/qwen3-asr-0.6b-Q8_0.gguf")
-DEFAULT_MODEL_DIR = DEFAULT_MODEL.parent
 LIB_NAMES = ("libtranscribe.dylib", "libtranscribe.so", "transcribe.dll")
 
 
@@ -75,26 +73,14 @@ def load_cfg(config_dirs: list[str]) -> dict:
     return cfg
 
 
-def find_lightasr(config_dirs: list[str]) -> Path | None:
-    env = (os.environ.get("LIGHTASR_ROOT") or "").strip()
-    if env:
-        path = Path(env).expanduser()
+def find_lightasr(job: dict) -> Path | None:
+    for raw in (os.environ.get("LIGHTASR_ROOT"), job.get("lightasr"), job.get("lightasrRoot")):
+        value = str(raw or "").strip()
+        if not value:
+            continue
+        path = Path(value).expanduser()
         if path.is_dir():
             return path
-    seen: list[Path] = []
-    for folder in [*config_dirs, os.getcwd()]:
-        start = Path(folder).resolve()
-        for parent in (start, *start.parents):
-            if parent in seen:
-                continue
-            seen.append(parent)
-            if parent.name == "LightASR" and (parent / "explore").is_dir():
-                return parent
-            sibling = parent / "LightASR"
-            if sibling.is_dir() and (sibling / "explore").is_dir():
-                return sibling
-            if parent.name == "LightWeaver" and (parent.parent / "LightASR" / "explore").is_dir():
-                return parent.parent / "LightASR"
     return None
 
 
@@ -132,8 +118,6 @@ def resolve_model(job: dict, cfg: dict) -> Path:
             job.get("model"),
             os.environ.get("LIGHTWEAVER_ASR_MODEL"),
             cfg.get("asr_model"),
-            DEFAULT_MODEL,
-            DEFAULT_MODEL_DIR,
         ]
     )
     if not found:
@@ -258,7 +242,7 @@ def main() -> None:
         raise SystemExit("转写需要 audio 文件")
     config_dirs = [str(item) for item in (job.get("configDirs") or [])]
     cfg = load_cfg(config_dirs)
-    lightasr = find_lightasr(config_dirs)
+    lightasr = find_lightasr(job)
     model = resolve_model(job, cfg)
     library = resolve_library(job, cfg, lightasr)
     bindings = resolve_bindings(job, cfg, lightasr)

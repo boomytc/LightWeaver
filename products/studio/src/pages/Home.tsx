@@ -7,12 +7,13 @@ import { Link } from "../components/Link";
 import type { OutputHome } from "../lib/brief";
 import { kindLabel } from "../lib/labels";
 import { langLabel } from "../lib/langs";
-import { methodExpandOf, recipeIdOfMethod } from "../lib/method-brief";
+import { methodExpandOf, recipeIdOf } from "../lib/method-brief";
 import { listVoicePacks } from "../lib/voices";
 import type { Asset } from "../types";
 
 export function Home() {
   const [library, setLibrary] = useState<Asset[]>([]);
+  const [taskId, setTaskId] = useState("");
   const { flash, error } = useFlash();
   const [recipeId, setRecipeId] = useState("");
   const [voiceRef, setVoiceRef] = useState("");
@@ -21,10 +22,10 @@ export function Home() {
   const [outputHome, setOutputHome] = useState<OutputHome | "">("");
 
   useEffect(() => {
-    api
-      .library()
-      .then((nextLibrary) => {
+    Promise.all([api.library(), api.tasks()])
+      .then(([nextLibrary, tasks]) => {
         setLibrary(nextLibrary);
+        setTaskId(tasks[0]?.id ?? "");
         const wanted = new URLSearchParams(window.location.search).get("recipe") ?? "";
         if (wanted) setRecipeId(wanted);
       })
@@ -34,7 +35,7 @@ export function Home() {
   const voicePacks = listVoicePacks(library);
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
   const methods = library.filter((asset) => asset.kind === "method");
-  const selectedMethod = methods.find((asset) => recipeIdOfMethod(asset) === recipeId);
+  const selectedMethod = methods.find((asset) => recipeIdOf(asset.id) === recipeId);
   const selectedVoice = voicePacks.find((asset) => `library:${asset.id}` === voiceRef);
 
   const voiceLabels = useMemo(() => {
@@ -127,7 +128,7 @@ export function Home() {
           >
             <option value="">{methods.length ? "不指定" : "库里还没有方法"}</option>
             {methods.map((asset) => {
-              const id = recipeIdOfMethod(asset);
+              const id = recipeIdOf(asset.id);
               return (
                 <option key={asset.id} value={id}>
                   {asset.label ?? id}
@@ -206,7 +207,7 @@ export function Home() {
 
       <BriefPanel
         input={{
-          task: "study-explainer",
+          task: taskId || undefined,
           recipeId: recipeId || undefined,
           recipeTitle: selectedMethod?.label,
           requiresList: selectedMethod ? methodExpandOf(selectedMethod) === "list" : undefined,

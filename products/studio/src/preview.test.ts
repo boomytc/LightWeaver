@@ -179,6 +179,10 @@ describe("workbench contract", () => {
     assert.match(brief, /可选增强/);
     assert.doesNotMatch(brief, /只准用这些/);
     assert.doesNotMatch(brief, /LightUI/);
+    assert.doesNotMatch(page, /study-explainer/);
+    assert.doesNotMatch(brief, /study-explainer/);
+    assert.doesNotMatch(page, /createProject/);
+    assert.doesNotMatch(page, /\/api\/jobs/);
   });
 });
 
@@ -199,6 +203,10 @@ describe("films review contract", () => {
     assert.doesNotMatch(film, /setKit/);
     assert.doesNotMatch(film, /127\.0\.0\.1:5173/);
     assert.doesNotMatch(film, /LightUI/);
+    assert.doesNotMatch(films, /study-explainer/);
+    assert.match(film, /from "\.\.\/tasks\/study-explainer"/);
+    assert.doesNotMatch(film, /createProject/);
+    assert.doesNotMatch(film, /setRecipe/);
   });
 });
 
@@ -245,6 +253,28 @@ describe("methods catalog contract", () => {
     assert.doesNotMatch(page, /api\.projects/);
     assert.doesNotMatch(page, /recipe\.body/);
     assert.doesNotMatch(page, /kinds\.ts/);
+    assert.doesNotMatch(page, /study-explainer/);
+  });
+});
+
+describe("browser-safe weaver imports", () => {
+  it("does not import the weaver barrel from src/", () => {
+    const files = [
+      "types.ts",
+      "api.ts",
+      "lib/voices.ts",
+      "lib/langs.ts",
+      "lib/method-brief.ts",
+      "lib/brief.ts",
+      "pages/Home.tsx",
+      "pages/Film.tsx",
+      "pages/Films.tsx",
+      "pages/Methods.tsx",
+    ];
+    for (const file of files) {
+      const text = fs.readFileSync(path.join(here, file), "utf8");
+      assert.doesNotMatch(text, /from ["']@lightweaver\/weaver["']/);
+    }
   });
 });
 

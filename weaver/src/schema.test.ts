@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filmLangs, parseAssetRef } from "./schema.ts";
-import { jargonIn } from "./plain-talk.ts";
+import { filmLangs, filmTask, normalizeFilm, parseAssetRef, type FilmDoc } from "./schema.ts";
+import { jargonIn } from "./tasks/study-jargon.ts";
+import { getTask, resolveTask, tryGetTask } from "./tasks/registry.ts";
+import { createProject } from "./project.ts";
+import { validateProject } from "./validate.ts";
+import { tempWorkspace } from "./test-workspace.ts";
 
 describe("parseAssetRef", () => {
   it("accepts asset and library refs", () => {
@@ -22,6 +26,47 @@ describe("filmLangs", () => {
 
   it("keeps only picked locales that exist on the film", () => {
     assert.deepEqual(filmLangs({ locales: { zh: {} as never, en: {} as never }, langs: ["zh", "ja"] }), ["zh"]);
+  });
+});
+
+describe("filmTask", () => {
+  it("does not invent study-explainer when task is missing", () => {
+    assert.equal(filmTask({ id: "x" } as FilmDoc), "");
+    const film = normalizeFilm({
+      id: "bare",
+      brand: "LightWeaver",
+      voices: {},
+      locales: {},
+      scenes: [],
+    });
+    assert.equal(film.task, undefined);
+    assert.equal(filmTask(film), "");
+  });
+});
+
+describe("task registry", () => {
+  it("does not default getTask / tryGetTask to study-explainer", () => {
+    assert.equal(tryGetTask(), undefined);
+    assert.equal(tryGetTask(""), undefined);
+    assert.throws(() => getTask(), /未知任务类型/);
+    assert.throws(() => getTask(""), /未知任务类型/);
+    assert.equal(resolveTask().id, "study-explainer");
+  });
+
+  it("createProject without task uses the sole implemented task", () => {
+    const root = tempWorkspace();
+    const project = createProject("solo-task", { title: "演示" }, root);
+    assert.equal(project.film.task, "study-explainer");
+  });
+
+  it("does not treat a film without task as study-explainer", () => {
+    const root = tempWorkspace();
+    const project = createProject("no-task-film", { title: "演示" }, root);
+    const bare = { ...project, film: { ...project.film, task: undefined } };
+    assert.equal(filmTask(bare.film), "");
+    const issues = validateProject(bare, root);
+    assert.ok(issues.some((issue) => issue.path === "task" && issue.level === "error"));
+    assert.ok(!issues.some((issue) => issue.message.includes("恰好一个 title")));
   });
 });
 

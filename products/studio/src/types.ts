@@ -1,4 +1,6 @@
-export type Issue = { level: "error" | "warning"; path: string; message: string };
+import type { Asset, CardCopy, FilmDoc, Issue, SceneDef } from "@lightweaver/weaver/schema";
+
+export type { Asset, CardCopy, FilmDoc, Issue, SceneDef };
 
 export type ProjectSummary = {
   id: string;
@@ -16,58 +18,6 @@ export type ProjectSummary = {
   kit: string[];
   recipe?: string;
   renderable?: boolean;
-};
-
-export type CardCopy = {
-  kicker?: string;
-  headline?: string;
-  lede?: string;
-  tags?: string[];
-  points?: string[];
-};
-
-export type SceneDef = {
-  id: string;
-  kind: string;
-  still?: string;
-  fit?: "cover" | "contain";
-  role?: "problem" | "rule" | "contrast";
-  lines: Record<string, string>;
-};
-
-export type FilmDoc = {
-  id: string;
-  task?: string;
-  brand: string;
-  study?: { slug: string };
-  publish?: { dir: string };
-  capture?: { kind: string; slug?: string };
-  voices: Record<string, string>;
-  kit?: string[];
-  recipe?: string;
-  langs?: string[];
-  locales: Record<
-    string,
-    { title: string; output: string; titleCard: CardCopy; closeCard: Pick<CardCopy, "headline" | "lede" | "points"> }
-  >;
-  scenes: SceneDef[];
-};
-
-export type Asset = {
-  id: string;
-  kind: string;
-  locale?: string;
-  file?: string;
-  files?: Record<string, string>;
-  text?: string;
-  texts?: Record<string, string>;
-  style?: string;
-  styles?: Record<string, string>;
-  scene?: string;
-  label?: string;
-  expand?: "fixed" | "list";
-  scenes?: { id: string; role?: string; fit?: "cover" | "contain" }[];
-  task?: string;
 };
 
 /** 项目外路径（brief.files）。不要依赖 rel。 */
@@ -107,14 +57,4 @@ export type ProjectDetail = ProjectSummary & {
   issues: Issue[];
   renderable: boolean;
   paths: ProjectPaths;
-};
-
-export type Job = {
-  id: string;
-  type: "tts" | "render";
-  projectId: string;
-  locale?: string;
-  status: "running" | "ok" | "error";
-  log: string;
-  error?: string;
 };

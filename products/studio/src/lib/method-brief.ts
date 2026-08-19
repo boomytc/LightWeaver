@@ -1,14 +1,9 @@
-import type { Asset } from "../types";
+import { methodExpandOf, type Asset, type MethodExpand } from "@lightweaver/weaver/schema";
+import { recipeIdOf } from "@lightweaver/weaver/method";
 
-export type MethodExpand = "fixed" | "list";
-
-export function recipeIdOfMethod(asset: { id: string }): string {
-  return asset.id.replace(/^method\./, "");
-}
-
-export function methodExpandOf(asset?: Pick<Asset, "expand">): MethodExpand {
-  return asset?.expand === "list" ? "list" : "fixed";
-}
+export type { MethodExpand };
+export { methodExpandOf };
+export { recipeIdOf };
 
 export function methodExpandName(expand: MethodExpand): string {
   return expand === "list" ? "清单一项一场" : "固定场次";
@@ -34,7 +29,7 @@ export function methodLabel(
   recipeId?: string,
 ): string {
   if (!recipeId) return "";
-  const wanted = recipeIdOfMethod({ id: recipeId });
-  const asset = library.find((item) => item.kind === "method" && recipeIdOfMethod(item) === wanted);
+  const wanted = recipeIdOf(recipeId);
+  const asset = library.find((item) => item.kind === "method" && recipeIdOf(item.id) === wanted);
   return (asset?.label ?? "").trim();
 }

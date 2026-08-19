@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { filmsProductRoot, lightuiRoot, weaverRoot } from "./paths.ts";
+import { filmsProductRoot, requireLightuiRoot, weaverRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
 import { outputRelPath, upsertAsset } from "./assets.ts";
 import { syncRemotion } from "./sync.ts";
@@ -30,10 +30,7 @@ export function runPublish(options: { projectId: string; locale?: Locale; root?:
   if (!dir) {
     throw new Error("未配置 publish.dir；user 片只渲染到 assets/outputs");
   }
-  const uiRoot = process.env.LIGHTUI_ROOT ? path.resolve(process.env.LIGHTUI_ROOT) : lightuiRoot(root);
-  if (!fs.existsSync(uiRoot)) {
-    throw new Error(`发布目标不在 ${uiRoot}。人另给了拷贝位置时，再设置 LIGHTUI_ROOT。`);
-  }
+  const uiRoot = requireLightuiRoot(root);
   const destDir = safeJoin(uiRoot, dir);
   const locales = options.locale ? [options.locale] : filmLangs(project.film);
   const files: { locale: string; dest: string }[] = [];

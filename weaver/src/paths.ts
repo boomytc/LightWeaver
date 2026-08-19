@@ -34,23 +34,32 @@ export function filmsProductRoot(root = weaverRoot()): string {
   return path.join(root, "products/study-films");
 }
 
-export function lightuiRoot(root = weaverRoot()): string {
-  if (process.env.LIGHTUI_ROOT) return path.resolve(process.env.LIGHTUI_ROOT);
-  return path.resolve(root, "../LightUI");
+/** 作业脚本在 weaver 包内，不跟 LIGHTWEAVER_ROOT。 */
+export function weaverScriptsRoot(): string {
+  return path.resolve(here, "../scripts");
 }
 
-export function lightasrRoot(root = weaverRoot(), env: NodeJS.ProcessEnv = process.env): string {
+export function lightuiRoot(_root = weaverRoot(), env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const override = (env.LIGHTUI_ROOT ?? "").trim();
+  if (!override) return undefined;
+  return path.resolve(override);
+}
+
+export function lightasrRoot(_root = weaverRoot(), env: NodeJS.ProcessEnv = process.env): string | undefined {
   const override = (env.LIGHTASR_ROOT ?? "").trim();
-  if (override) return path.resolve(override);
-  return path.resolve(root, "../LightASR");
+  if (!override) return undefined;
+  return path.resolve(override);
 }
 
-export function labUrl(): string {
-  return process.env.LAB_URL ?? "http://127.0.0.1:5173";
+export function labUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return env.LAB_URL ?? "http://127.0.0.1:5173";
 }
 
-export function requireLightuiRoot(root = weaverRoot()): string {
-  const dest = lightuiRoot(root);
+export function requireLightuiRoot(root = weaverRoot(), env: NodeJS.ProcessEnv = process.env): string {
+  const dest = lightuiRoot(root, env);
+  if (!dest) {
+    throw new Error("未设置 LIGHTUI_ROOT。发布或读取 LightUI 研究时请指向拷贝根目录。");
+  }
   if (!fs.existsSync(dest)) {
     throw new Error(`发布目标不在 ${dest}。设置 LIGHTUI_ROOT 指向拷贝根目录。`);
   }

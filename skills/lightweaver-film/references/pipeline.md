@@ -6,7 +6,7 @@
 
 | | 阶段 1 抽卡 | 阶段 2 展开骨架 |
 | --- | --- | --- |
-| **当前** | `weaver method list`（成片方法）。不要靠 `index.md` | `project create` + `weaver recipe apply --project <id> --recipe <id> [--items a,b,c]`。必要时再 `scene add` / `rm`。apply 留下的 `lines[locale]` 是 scene id 占位，阶段 3 必须 `scene set` 换成真旁白。 |
+| **当前** | `weaver method list`（成片方法）。看 catalog，不要扫 `library/methods/` 当目录 | `project create` + `weaver recipe apply --project <id> --recipe <id> [--items a,b,c]`。必要时再 `scene add` / `rm`。apply 留下的 `lines[locale]` 是 scene id 占位，阶段 3 必须 `scene set` 换成真旁白。 |
 
 ## 阶段
 

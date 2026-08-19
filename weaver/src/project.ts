@@ -4,7 +4,7 @@ import type { Asset, AssetDoc, FilmDoc, ProjectRecord, ProjectSource } from "./s
 import { filmLangs, filmStudySlug, filmTask, normalizeFilm } from "./schema.ts";
 import { firstPartyRoot, projectRoots, userRoot, weaverRoot } from "./paths.ts";
 import { atomicWriteJson, readJson } from "./io.ts";
-import { getTask } from "./tasks/registry.ts";
+import { resolveTask } from "./tasks/registry.ts";
 
 export function filmPath(root: string): string {
   return path.join(root, "film.json");
@@ -77,7 +77,7 @@ export function createProject(
   const source = options.source ?? "user";
   const parent = source === "first-party" ? firstPartyRoot(root) : userRoot(root);
   const dir = path.join(parent, id);
-  const film = getTask(options.task).createFilm(
+  const film = resolveTask(options.task).createFilm(
     {
       id,
       title: options.title,

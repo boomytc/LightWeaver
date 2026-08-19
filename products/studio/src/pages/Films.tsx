@@ -36,7 +36,7 @@ export function Films() {
               <span className={project.renderable ? "pill pill-ok" : "pill"}>{project.renderable ? "可渲" : "未齐"}</span>
             </div>
             <p className="item-meta">
-              {sourceLabel(project.source)} · {project.task ?? "study-explainer"} · {project.scenes} 场
+              {sourceLabel(project.source)} · {project.task || "未点"} · {project.scenes} 场
             </p>
             <div className="film-assign" style={{ justifyContent: "flex-start", marginTop: 12 }}>
               <span className="chip">

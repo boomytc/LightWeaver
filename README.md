@@ -39,7 +39,7 @@ npx weaver render --project <id> --locale zh
 weaver/                         稳定核与 CLI
 library/                        可选增强：音色 / 素材 / 方法
 data/                           任务实例（gitignore）
-products/study-films/           Remotion + 可选截图
+products/study-films/           Remotion 渲染器
 products/studio/                工作台 + 复盘
 docs/                           现网约定
 ```

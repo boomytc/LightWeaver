@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { safeJoin } from "./safePath.ts";
+import { safeJoin } from "@lightweaver/weaver";
 
 describe("safeJoin", () => {
   it("allows nested files", () => {

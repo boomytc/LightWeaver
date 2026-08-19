@@ -1,34 +1,47 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { resolveAssetFile } from "../assets.ts";
 import { lightuiRoot } from "../paths.ts";
-import {
-  err,
-  filmLangs,
-  filmStudySlug,
-  isStudyRole,
-  type FilmDoc,
-  type Issue,
-  type ProjectRecord,
-  warn,
-} from "../schema.ts";
+import { err, filmLangs, filmStudySlug, type FilmDoc, type Issue, type ProjectRecord, warn } from "../schema.ts";
 import type { CreateFilmInput, TaskModule } from "./types.ts";
-import { jargonIn } from "../plain-talk.ts";
+import { jargonIn } from "./study-jargon.ts";
 
-export const LIGHTUI_LAB_ADAPTERS = [
-  "intent-cascade",
-  "dropdown-taxonomy",
-  "nav-taxonomy",
-  "sidebar-taxonomy",
-] as const;
+export const STUDY_ROLES = ["problem", "rule", "contrast"] as const;
+export type StudyRole = (typeof STUDY_ROLES)[number];
+
+export function isStudyRole(value: string): value is StudyRole {
+  return (STUDY_ROLES as readonly string[]).includes(value);
+}
+
+const adaptersFile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../scripts/lightui-lab-adapters.json");
+export const LIGHTUI_LAB_ADAPTERS = Object.keys(
+  JSON.parse(fs.readFileSync(adaptersFile, "utf8")) as Record<string, unknown>,
+) as readonly string[];
 
 export const studyExplainer: TaskModule = {
   id: "study-explainer",
   recipePack: "study-explainer",
   label: { zh: "讲解片", en: "Study explainer" },
   sceneKinds: ["title", "still", "close"],
-  roles: ["problem", "rule", "contrast"],
+  roles: STUDY_ROLES,
+  frame: {
+    pinnedKinds: ["title", "close"],
+    expandableKinds: ["still"],
+    insertBeforeKind: "close",
+    firstKind: "title",
+    lastKind: "close",
+    minExpandable: 1,
+    seedPlaceholderId: "hero",
+  },
+  cards: [
+    { which: "title", localeKey: "titleCard", syncTitle: true },
+    { which: "close", localeKey: "closeCard", forbid: ["kicker", "tags"] },
+  ],
   createFilm,
   validate: validateStudyExplainer,
+  isReadyToRender: everyStillPngExists,
+  isComplete: (project, root) => project.film.capture?.kind === "lightui-lab" && everyStillPngExists(project, root),
 };
 
 function createFilm(input: CreateFilmInput, root: string): FilmDoc {
@@ -107,8 +120,9 @@ function readStudyCards(slug: string | undefined, fallback: string, root: string
     zhClose: "",
     enClose: "",
   };
-  if (!slug) return empty;
-  const studyFile = path.join(lightuiRoot(root), "studies", slug, "study.json");
+  const uiRoot = lightuiRoot(root);
+  if (!slug || !uiRoot) return empty;
+  const studyFile = path.join(uiRoot, "studies", slug, "study.json");
   if (!fs.existsSync(studyFile)) return empty;
   try {
     const study = JSON.parse(fs.readFileSync(studyFile, "utf8")) as {
@@ -147,6 +161,10 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
   if (stills.length < 1) {
     issues.push(err("scenes", "至少一场 still"));
   }
+  const firstLocale = filmLangs(film)[0] ?? "";
+  if (!film.locales[firstLocale]?.titleCard?.headline) {
+    issues.push(warn("scenes.title", "片头缺少 headline"));
+  }
 
   const roles = scenes.map((scene) => scene.role).filter((role): role is NonNullable<typeof role> => Boolean(role));
   if (roles.length) {
@@ -170,8 +188,9 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
     if (film.publish?.dir && slug && film.publish.dir !== `studies/${slug}/references`) {
       issues.push(warn("publish.dir", `建议 studies/${slug}/references`));
     }
-    if (slug) {
-      const sourceMd = path.join(lightuiRoot(root), "studies", slug, "references", "SOURCE.md");
+    const uiRoot = lightuiRoot(root);
+    if (slug && uiRoot) {
+      const sourceMd = path.join(uiRoot, "studies", slug, "references", "SOURCE.md");
       if (fs.existsSync(sourceMd)) {
         const body = fs.readFileSync(sourceMd, "utf8");
         for (const locale of filmLangs(film)) {
@@ -194,7 +213,7 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
     }
   }
   for (const [locale, copy] of Object.entries(film.locales)) {
-    const pointLists = [copy.titleCard.points, copy.closeCard.points];
+    const pointLists = [copy.titleCard?.points, copy.closeCard?.points];
     for (const [index, list] of pointLists.entries()) {
       const which = index === 0 ? "titleCard" : "closeCard";
       if (!list?.length) {
@@ -202,12 +221,12 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
       }
     }
     const texts = [
-      copy.titleCard.lede,
-      copy.titleCard.headline,
-      copy.closeCard.lede,
-      copy.closeCard.headline,
-      ...(copy.titleCard.points ?? []),
-      ...(copy.closeCard.points ?? []),
+      copy.titleCard?.lede,
+      copy.titleCard?.headline,
+      copy.closeCard?.lede,
+      copy.closeCard?.headline,
+      ...(copy.titleCard?.points ?? []),
+      ...(copy.closeCard?.points ?? []),
     ];
     for (const text of texts) {
       if (!text) continue;
@@ -218,4 +237,17 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
   }
 
   return issues;
+}
+
+function everyStillPngExists(project: ProjectRecord, root: string): boolean {
+  const locales = filmLangs(project.film);
+  for (const scene of project.film.scenes) {
+    if (!studyExplainer.frame.expandableKinds.includes(scene.kind)) continue;
+    if (!scene.still) return false;
+    for (const locale of locales) {
+      const resolved = resolveAssetFile(project, scene.still, locale, root);
+      if (!resolved || !fs.existsSync(resolved.absPath)) return false;
+    }
+  }
+  return project.film.scenes.some((scene) => studyExplainer.frame.expandableKinds.includes(scene.kind));
 }

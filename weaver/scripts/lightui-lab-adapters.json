@@ -1,0 +1,35 @@
+{
+  "intent-cascade": [
+    ["status", "open", "status.png"],
+    ["diagonal", "open", "diagonal.png"],
+    ["project", "open", "project.png"],
+    ["third", "open", "third.png"]
+  ],
+  "dropdown-taxonomy": [
+    ["select", "open", "select-open.png"],
+    ["multi", "open", "multi-open.png"],
+    ["grouped", "open", "grouped-open.png"],
+    ["cascader", "open", "cascader-open.png"],
+    ["split", "open", "split-open.png"],
+    ["mega", "open", "mega-open.png"],
+    ["date", "open", "date-open.png"]
+  ],
+  "nav-taxonomy": [
+    ["floating", "closed", "floating.png"],
+    ["sidebar", "closed", "sidebar.png"],
+    ["breadcrumb", "closed", "breadcrumb.png"],
+    ["dropdown", "open", "dropdown-open.png"],
+    ["mega", "open", "mega-open.png"],
+    ["drawer", "open", "drawer-open.png"],
+    ["overlay", "open", "overlay-open.png"],
+    ["scrollspy", "closed", "scrollspy.png"],
+    ["shrink", "closed", "shrink.png"]
+  ],
+  "sidebar-taxonomy": [
+    ["floating", "closed", "floating.png"],
+    ["wheel", "closed", "wheel.png"],
+    ["multilevel", "closed", "multilevel.png"],
+    ["collapsible", "closed", "collapsible.png"],
+    ["offcanvas", "open", "offcanvas-open.png"]
+  ]
+}

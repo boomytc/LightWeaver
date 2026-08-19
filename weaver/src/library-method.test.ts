@@ -11,7 +11,7 @@ describe("createLibraryMethod", () => {
   it("writes a library method and a film recipe file", () => {
     const root = tempWorkspace();
     const asset = createLibraryMethod(
-      { label: "对照练习", text: "有一份互斥模型清单", expand: "list" },
+      { label: "对照练习", text: "有一份互斥模型清单", expand: "list", task: "study-explainer" },
       root,
     );
     assert.equal(asset.kind, "method");
@@ -21,10 +21,14 @@ describe("createLibraryMethod", () => {
     assert.equal(asset.id, "method.pack");
     assert.ok(asset.file?.endsWith("methods/study-explainer/pack.md"));
     const recipe = loadRecipe("pack", root);
-    assert.equal(recipe.level, "film");
-    assert.equal(recipe.requires_items, true);
+    assert.equal(recipe.expand, "list");
     assert.equal(recipe.when, "有一份互斥模型清单");
-    assert.match(fs.readFileSync(path.join(root, "library", asset.file!), "utf8"), /# 对照练习/);
+    assert.equal(recipe.title, "对照练习");
+    const projection = fs.readFileSync(path.join(root, "library", asset.file!), "utf8");
+    assert.match(projection, /# 对照练习/);
+    assert.match(projection, /有一份互斥模型清单/);
+    assert.match(projection, /铺场：清单一项一场/);
+    assert.doesNotMatch(projection, /level:|requires_items|default_scenes/);
   });
 
   it("refuses a duplicate name", () => {
@@ -71,9 +75,9 @@ describe("createLibraryMethod", () => {
     const recipe = loadRecipe(created.id, root);
     assert.equal(updated.expand, "fixed");
     assert.equal(updated.id, created.id);
-    assert.equal(recipe.requires_items, undefined);
+    assert.equal(recipe.expand, "fixed");
     assert.deepEqual(
-      recipe.default_scenes?.map((scene) => scene.id),
+      recipe.scenes?.map((scene) => scene.id),
       ["problem", "rule", "contrast"],
     );
     removeLibraryAsset(created.id, root);

@@ -12,14 +12,35 @@ export type CreateFilmInput = {
   outputEn?: string;
 };
 
+export type TaskFrame = {
+  pinnedKinds: readonly string[];
+  expandableKinds: readonly string[];
+  insertBeforeKind?: string;
+  firstKind?: string;
+  lastKind?: string;
+  minExpandable?: number;
+  seedPlaceholderId?: string;
+};
+
+export type TaskCardSlot = {
+  which: string;
+  localeKey: "titleCard" | "closeCard";
+  syncTitle?: boolean;
+  forbid?: readonly string[];
+};
+
 export type TaskModule = {
-  id: TaskId;
+  id: string;
   /** `library/methods/<recipePack>/`，可以和 task id 不同。 */
   recipePack: string;
   label: { zh: string; en: string };
   sceneKinds: readonly string[];
   /** 该任务 still 可用的 role。方法固定场次从这里选。 */
   roles?: readonly string[];
+  frame: TaskFrame;
+  cards?: readonly TaskCardSlot[];
   createFilm: (input: CreateFilmInput, root: string) => FilmDoc;
   validate: (project: ProjectRecord, root: string) => Issue[];
+  isReadyToRender?: (project: ProjectRecord, root: string) => boolean;
+  isComplete?: (project: ProjectRecord, root: string) => boolean;
 };

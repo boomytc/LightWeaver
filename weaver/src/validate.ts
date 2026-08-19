@@ -86,9 +86,10 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
       const line = scene.lines?.[locale]?.trim() ?? "";
       if (!line) issues.push(err(`${base}.lines.${locale}`, "缺旁白"));
     }
-    if (scene.kind === "still") {
+    const taskForScene = tryGetTask(taskId);
+    if (taskForScene?.frame.expandableKinds.includes(scene.kind)) {
       if (!scene.still) {
-        issues.push(err(`${base}.still`, "静帧场景需要 still 资产引用"));
+        issues.push(err(`${base}.still`, "可展开场需要 still 资产引用"));
       } else if (!findAsset(project, scene.still, root)) {
         issues.push(err(`${base}.still`, `找不到静帧 ${scene.still}`));
       } else {
@@ -99,9 +100,6 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
           }
         }
       }
-    }
-    if (scene.kind === "title" && !film.locales[locales[0] ?? ""]?.titleCard?.headline) {
-      issues.push(warn(`${base}`, "片头缺少 headline"));
     }
     for (const locale of locales) {
       const lineRef = `asset:line.${scene.id}.${locale}`;
@@ -122,26 +120,14 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
   return issues;
 }
 
-export function everyStillPngExists(project: ProjectRecord, root = weaverRoot()): boolean {
-  const locales = filmLangs(project.film);
-  for (const scene of project.film.scenes) {
-    if (scene.kind !== "still") continue;
-    if (!scene.still) return false;
-    for (const locale of locales) {
-      const resolved = resolveAssetFile(project, scene.still, locale, root);
-      if (!resolved || !fs.existsSync(resolved.absPath)) return false;
-    }
-  }
-  return project.film.scenes.some((scene) => scene.kind === "still");
-}
-
 export function isRenderable(project: ProjectRecord, root = weaverRoot()): boolean {
   if (hasErrors(validateProject(project, root))) return false;
-  return everyStillPngExists(project, root);
+  const task = tryGetTask(filmTask(project.film));
+  return task?.isReadyToRender?.(project, root) ?? true;
 }
 
 export function isCompletedFilm(project: ProjectRecord, root = weaverRoot()): boolean {
-  return project.film.capture?.kind === "lightui-lab" && everyStillPngExists(project, root);
+  return tryGetTask(filmTask(project.film))?.isComplete?.(project, root) ?? false;
 }
 
 export function validateWorkspace(root = weaverRoot(), id?: string): { project: string; issues: Issue[] }[] {

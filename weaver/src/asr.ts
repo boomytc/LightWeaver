@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { localConfigValue } from "./config.ts";
-import { filmsProductRoot, lightasrRoot, voiceCandidateRoot, weaverRoot } from "./paths.ts";
+import { voiceCandidateRoot, weaverRoot, weaverScriptsRoot } from "./paths.ts";
 
 export type AsrResult = {
   text: string;
@@ -25,8 +25,6 @@ export type AsrOptions = {
 };
 
 export type TranscribeFn = (options: AsrOptions) => Pick<AsrResult, "text">;
-
-const DEFAULT_MODEL = "/Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-0.6b/qwen3-asr-0.6b-Q8_0.gguf";
 
 export function parseAsrResult(output: string): AsrResult {
   const lines = output.split(/\r?\n/).map((row) => row.trim());
@@ -54,27 +52,17 @@ export function asrRuntime(
   root = weaverRoot(),
   env: NodeJS.ProcessEnv = process.env,
 ): AsrRuntime {
-  const asrHome = lightasrRoot(root, env);
   const model = firstFile([
     env.LIGHTWEAVER_ASR_MODEL,
     localConfigValue("asr_model", root),
-    DEFAULT_MODEL,
-    firstGguf(path.dirname(DEFAULT_MODEL)),
   ]);
   const library = firstFile([
     env.TRANSCRIBE_LIBRARY,
     localConfigValue("asr_library", root),
-    path.join(asrHome, "explore/light_transcribe_cpp/build-shared/src/libtranscribe.dylib"),
-    path.join(asrHome, "explore/light_transcribe_cpp/build-shared/src/libtranscribe.so"),
-    path.join(asrHome, "products/audio_studio/data/engine/libtranscribe.dylib"),
-    path.join(asrHome, "products/audio_studio/data/engine/libtranscribe.so"),
-    path.join(asrHome, "products/audio_studio/data/engine/transcribe.dll"),
   ]);
   const bindings = firstDir([
     env.LIGHTWEAVER_ASR_BINDINGS,
     localConfigValue("asr_bindings", root),
-    path.join(asrHome, "explore/light_transcribe_cpp/third_party/transcribe.cpp/bindings/python/src"),
-    path.join(asrHome, "products/audio_studio/third_party/transcribe.cpp/bindings/python/src"),
   ]);
   if (model && library && bindings) {
     return { ready: true, model, library, bindings };
@@ -89,7 +77,7 @@ export function asrRuntime(
     model,
     library,
     bindings,
-    hint: `转写未就绪：缺 ${missing.join("、")}。权重默认 /Users/boom/Model/ASR/asr_models/gguf/qwen3-asr-0.6b/，引擎默认 ${asrHome}`,
+    hint: `转写未就绪：缺 ${missing.join("、")}。在 config.local.yaml 或环境变量里显式给出 asr_model / asr_library / asr_bindings。`,
   };
 }
 
@@ -99,7 +87,7 @@ export function runAsr(options: AsrOptions): AsrResult {
   if (!fs.existsSync(audio) || !fs.statSync(audio).isFile()) {
     throw new Error(`找不到音频 ${options.audio}`);
   }
-  const python = path.join(filmsProductRoot(root), "scripts/asr.py");
+  const python = path.join(weaverScriptsRoot(), "asr.py");
   if (!fs.existsSync(python)) throw new Error(`找不到 ${python}`);
   const runtime = asrRuntime(root);
   if (!runtime.ready) throw new Error(runtime.hint ?? "转写未就绪");
@@ -117,7 +105,7 @@ export function runAsr(options: AsrOptions): AsrResult {
         library: runtime.library,
         bindings: runtime.bindings,
         backend: "auto",
-        configDirs: [root, filmsProductRoot(root)],
+        configDirs: [root],
       },
       null,
       2,
@@ -183,13 +171,4 @@ function firstDir(candidates: Array<string | undefined>): string | undefined {
     if (fs.existsSync(path.join(value, "transcribe_cpp"))) return value;
   }
   return undefined;
-}
-
-function firstGguf(dir: string): string | undefined {
-  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return undefined;
-  return fs
-    .readdirSync(dir)
-    .filter((name) => name.endsWith(".gguf"))
-    .sort()
-    .map((name) => path.join(dir, name))[0];
 }
