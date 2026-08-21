@@ -13,7 +13,7 @@ describe("createProject", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
     fs.mkdirSync(path.join(root, "library"), { recursive: true });
     fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     assert.equal(project.source, "user");
     assert.equal(project.film.locales.zh.title, "演示");
     assert.equal(project.film.task, "study-explainer");

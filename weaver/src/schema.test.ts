@@ -50,18 +50,17 @@ describe("task registry", () => {
     assert.equal(tryGetTask(""), undefined);
     assert.throws(() => getTask(), /未知任务类型/);
     assert.throws(() => getTask(""), /未知任务类型/);
-    assert.equal(resolveTask().id, "study-explainer");
+    assert.throws(() => resolveTask(), /缺少任务类型/);
   });
 
-  it("createProject without task uses the sole implemented task", () => {
+  it("createProject without task fails when more than one task exists", () => {
     const root = tempWorkspace();
-    const project = createProject("solo-task", { title: "演示" }, root);
-    assert.equal(project.film.task, "study-explainer");
+    assert.throws(() => createProject("solo-task", { title: "演示" }, root), /缺少任务类型/);
   });
 
   it("does not treat a film without task as study-explainer", () => {
     const root = tempWorkspace();
-    const project = createProject("no-task-film", { title: "演示" }, root);
+    const project = createProject("no-task-film", { title: "演示", task: "study-explainer" }, root);
     const bare = { ...project, film: { ...project.film, task: undefined } };
     assert.equal(filmTask(bare.film), "");
     const issues = validateProject(bare, root);

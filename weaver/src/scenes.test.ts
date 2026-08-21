@@ -17,7 +17,7 @@ function tempRoot(): string {
 
 describe("scenes", () => {
   it("adds a still before close and refuses to drop the last still", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     assert.deepEqual(project.film.scenes.map((scene) => scene.id), ["title", "hero", "close"]);
     addScene(project, { id: "shot", kind: "still", still: "asset:still.shot" });
     assert.deepEqual(project.film.scenes.map((scene) => scene.id), ["title", "hero", "shot", "close"]);
@@ -28,7 +28,7 @@ describe("scenes", () => {
   });
 
   it("patches zh without dropping en", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     patchScene(project, "hero", { lines: { zh: "中文" } });
     const hero = project.film.scenes.find((scene) => scene.id === "hero");
     assert.equal(hero?.lines.zh, "中文");
@@ -36,7 +36,7 @@ describe("scenes", () => {
   });
 
   it("refuses to move title off the front", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     addScene(project, { id: "shot", kind: "still", still: "asset:still.shot" });
     assert.throws(() => moveScene(project, "title", { after: "hero" }), /钉住/);
     moveScene(project, "shot", { after: "title" });
@@ -46,7 +46,7 @@ describe("scenes", () => {
   });
 
   it("keeps headline and kicker when the CLI patch includes undefined keys", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     const kicker = project.film.locales.zh.titleCard?.kicker;
     assert.ok(kicker);
     setCard(project, "zh", "close", {
@@ -69,7 +69,7 @@ describe("scenes", () => {
   });
 
   it("writes card points without dropping the lede", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     setCard(project, "zh", "close", {
       points: ["分组选择是分类 || 级联选择才是上下级", " 先说名称 "],
     });
@@ -81,26 +81,26 @@ describe("scenes", () => {
   });
 
   it("seed hero is not renderable until a still is bound", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     assert.ok(hasErrors(validateProject(project)));
   });
 
   it("records a library kit and rejects project-scoped refs", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     setKit(project, ["library:element.mark", "library:element.mark", " library:reference.board "]);
     assert.deepEqual(project.film.kit, ["library:element.mark", "library:reference.board"]);
     assert.throws(() => setKit(project, ["asset:still.hero"]), /library:/);
   });
 
   it("binds one voice pack to every locale", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     setVoicePack(project, "library:voice.prompt");
     assert.equal(project.film.voices.zh, "library:voice.prompt");
     assert.equal(project.film.voices.en, "library:voice.prompt");
   });
 
   it("records which languages to produce", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     setLangs(project, ["zh"]);
     assert.deepEqual(project.film.langs, ["zh"]);
     assert.throws(() => setLangs(project, []), /至少选一种/);
@@ -108,7 +108,7 @@ describe("scenes", () => {
   });
 
   it("refuses setCard when the task has no cards", () => {
-    const project = createProject("demo-film", { title: "演示" }, tempRoot());
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, tempRoot());
     const task = getTask("study-explainer");
     const saved = task.cards;
     task.cards = undefined;

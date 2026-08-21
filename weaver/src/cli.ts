@@ -20,7 +20,7 @@ import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./v
 import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
 import { runPublish, runRender } from "./render.ts";
-import { ASSET_KINDS, filmTask } from "./schema.ts";
+import { ASSET_KINDS, filmTask, isOstMode } from "./schema.ts";
 import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setLangs, setVoicePack } from "./scenes.ts";
 import { getTask, listTasks } from "./tasks/registry.ts";
 import type { ProjectRecord } from "./schema.ts";
@@ -96,6 +96,9 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       langs: { type: "string" },
       expand: { type: "string" },
       scenes: { type: "string" },
+      in: { type: "string" },
+      out: { type: "string" },
+      ost: { type: "string" },
     },
   });
   wantJson = Boolean(values.json);
@@ -105,6 +108,14 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
 function str(values: Flags, key: string): string | undefined {
   const value = values[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function num(values: Flags, key: string): number | undefined {
+  const raw = str(values, key);
+  if (raw === undefined || raw === "") return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) fail(`${key} 必须是数字`);
+  return value;
 }
 
 function projectIdOf(rest: string[], values: Flags, at = 0): string {
@@ -191,14 +202,20 @@ function main(): void {
     }
     if (sub === "add") {
       const id = str(values, "id");
-      if (!id) fail("用法: weaver scene add --project <id> --id <scene> --kind still");
+      if (!id) fail("用法: weaver scene add --project <id> --id <scene> --kind still|clip");
       const task = getTask(filmTask(project.film));
       const roleRaw = str(values, "role");
       if (roleRaw && task.roles?.length && !task.roles.includes(roleRaw)) fail(`未知 role：${roleRaw}`);
+      const ostRaw = str(values, "ost");
+      if (ostRaw && !isOstMode(ostRaw)) fail("ost 必须是 narration / original / mix");
       addScene(project, {
         id,
         kind: str(values, "kind") ?? task.frame.expandableKinds[0],
         still: str(values, "still"),
+        source: str(values, "source"),
+        in: num(values, "in"),
+        out: num(values, "out"),
+        ost: ostRaw && isOstMode(ostRaw) ? ostRaw : undefined,
         fit: str(values, "fit") as "cover" | "contain" | undefined,
         role: roleRaw,
         after: str(values, "after"),
@@ -233,8 +250,14 @@ function main(): void {
       if (roleRaw && task.roles?.length && !task.roles.includes(roleRaw)) fail(`未知 role：${roleRaw}`);
       const locale = str(values, "locale");
       const text = str(values, "text");
+      const ostRaw = str(values, "ost");
+      if (ostRaw && !isOstMode(ostRaw)) fail("ost 必须是 narration / original / mix");
       patchScene(project, id, {
         still: str(values, "still"),
+        source: str(values, "source"),
+        in: num(values, "in"),
+        out: num(values, "out"),
+        ost: ostRaw && isOstMode(ostRaw) ? ostRaw : undefined,
         fit: str(values, "fit") as "cover" | "contain" | undefined,
         role: roleRaw,
         lines: locale && text !== undefined ? { [locale]: text } : undefined,

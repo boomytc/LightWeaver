@@ -257,6 +257,23 @@ export function lineRelPath(sceneId: string, locale: Locale): string {
   return path.posix.join("assets/lines", locale, `${sceneId}.wav`);
 }
 
+export function videoRelPath(file = "origin.mp4"): string {
+  return path.posix.join("assets/source", file);
+}
+
+export function ensureVideoStub(project: ProjectRecord, sourceRef: string): void {
+  const parsed = parseAssetRef(sourceRef);
+  if (!parsed || parsed.scope !== "asset") return;
+  if (project.assets.some((asset) => asset.id === parsed.id)) return;
+  const fileId = parsed.id.replace(/^video\./, "") || "origin";
+  upsertAsset(project, {
+    id: parsed.id,
+    kind: "video",
+    file: videoRelPath(`${fileId}.mp4`),
+    label: fileId,
+  });
+}
+
 export function stillRelPath(name: string, locale: Locale): string {
   return path.posix.join("assets/stills", locale, name);
 }

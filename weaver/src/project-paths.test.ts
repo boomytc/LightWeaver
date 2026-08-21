@@ -112,7 +112,7 @@ describe("projectPaths", () => {
 
   it("treats a user film without slug as project-brief", () => {
     const root = tempWorkspace();
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     const emptyEnv = { ...process.env };
     delete emptyEnv.LIGHTUI_ROOT;
     delete emptyEnv.LIGHTASR_ROOT;
@@ -136,7 +136,7 @@ describe("projectPaths", () => {
     const root = tempWorkspace();
     const project = createProject(
       "user-intent",
-      { source: "user", studySlug: "intent-cascade" },
+      { source: "user", task: "study-explainer", studySlug: "intent-cascade" },
       root,
     );
     const { env } = withLightui(root);

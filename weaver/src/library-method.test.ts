@@ -34,11 +34,11 @@ describe("createLibraryMethod", () => {
   it("refuses a duplicate name", () => {
     const root = tempWorkspace();
     createLibraryMethod(
-      { label: "规则卡", text: "先问题", expand: "fixed", scenes: [{ id: "problem" }] },
+      { label: "规则卡", text: "先问题", expand: "fixed", scenes: [{ id: "problem" }], task: "study-explainer" },
       root,
     );
     assert.throws(
-      () => createLibraryMethod({ label: "规则卡", text: "另一段", expand: "list" }, root),
+      () => createLibraryMethod({ label: "规则卡", text: "另一段", expand: "list", task: "study-explainer" }, root),
       /已在方法库里/,
     );
   });
@@ -46,7 +46,7 @@ describe("createLibraryMethod", () => {
   it("renames without changing the id and can be removed", () => {
     const root = tempWorkspace();
     const created = createLibraryMethod(
-      { label: "旧名", text: "何时", expand: "fixed", scenes: [{ id: "problem" }] },
+      { label: "旧名", text: "何时", expand: "fixed", scenes: [{ id: "problem" }], task: "study-explainer" },
       root,
     );
     const updated = updateLibraryMethod(created.id, { label: "新名", text: "新的何时" }, root);
@@ -65,7 +65,7 @@ describe("createLibraryMethod", () => {
   it("rewrites the skeleton when the shape changes", () => {
     const root = tempWorkspace();
     const created = createLibraryMethod(
-      { label: "先对照", text: "有清单", expand: "list" },
+      { label: "先对照", text: "有清单", expand: "list", task: "study-explainer" },
       root,
     );
     const updated = updateLibraryMethod(created.id, {
@@ -85,7 +85,7 @@ describe("createLibraryMethod", () => {
 
   it("lists catalog methods with the apply id and shape", () => {
     const root = tempWorkspace();
-    createLibraryMethod({ label: "对照练习", text: "有清单", expand: "list" }, root);
+    createLibraryMethod({ label: "对照练习", text: "有清单", expand: "list", task: "study-explainer" }, root);
     const listed = listLibraryMethods(root);
     assert.equal(listed.length, 1);
     assert.equal(listed[0]?.label, "对照练习");

@@ -1,4 +1,4 @@
-export const ASSET_KINDS = ["element", "voice", "still", "reference", "line", "output", "method"] as const;
+export const ASSET_KINDS = ["element", "voice", "still", "reference", "line", "output", "method", "video"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
 export const METHOD_EXPANDS = ["fixed", "list"] as const;
@@ -15,8 +15,20 @@ export type MethodScene = {
   fit?: "cover" | "contain";
 };
 
-export const TASK_IDS = ["study-explainer"] as const;
+export const TASK_IDS = ["study-explainer", "footage-narration"] as const;
 export type TaskId = (typeof TASK_IDS)[number];
+
+export const OST_MODES = ["narration", "original", "mix"] as const;
+export type OstMode = (typeof OST_MODES)[number];
+
+export function isOstMode(value: unknown): value is OstMode {
+  return (OST_MODES as readonly string[]).includes(String(value));
+}
+
+/** 原声场不配解说。缺 ost 时按需要旁白处理。 */
+export function sceneNeedsLine(scene: { ost?: OstMode }): boolean {
+  return scene.ost !== "original";
+}
 
 export const CAPTURE_KINDS = ["lightui-lab", "manual"] as const;
 export type CaptureKind = (typeof CAPTURE_KINDS)[number];
@@ -74,6 +86,10 @@ export type SceneDef = {
   id: string;
   kind: string;
   still?: AssetRef;
+  source?: AssetRef;
+  in?: number;
+  out?: number;
+  ost?: OstMode;
   voice?: AssetRef;
   fit?: "cover" | "contain";
   role?: string;

@@ -96,7 +96,7 @@ when: fixture
 `,
     );
     assert.equal(listRecipes(root).some((recipe) => recipe.id === "md-only"), false);
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     assert.throws(() => applyRecipe(project, "md-only", {}, root), /找不到方法/);
   });
 
@@ -119,7 +119,7 @@ when: fixture
 describe("applyRecipe", () => {
   it("expands taxonomy-parade stills then drops hero", () => {
     const root = tempProjectRoot();
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     const { skipped } = applyRecipe(project, "taxonomy-parade", { kinds: ["alpha", "bravo"] }, weaverRoot());
     assert.deepEqual(
       project.film.scenes.map((scene) => scene.id),
@@ -142,7 +142,7 @@ describe("applyRecipe", () => {
 
   it("skips existing ids and does not clobber lines", () => {
     const root = tempProjectRoot();
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     applyRecipe(project, "taxonomy-parade", { kinds: ["alpha"] }, weaverRoot());
     patchScene(project, "alpha", { lines: { zh: "真旁白", en: "real" } });
     const { skipped } = applyRecipe(project, "taxonomy-parade", { kinds: ["alpha", "bravo"] }, weaverRoot());
@@ -166,7 +166,7 @@ default_scenes:
 # md only
 `,
     );
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     assert.throws(() => applyRecipe(project, "md-only", {}, root), /找不到方法/);
     assert.deepEqual(
       project.film.scenes.map((scene) => scene.id),
@@ -196,7 +196,7 @@ default_scenes:
     const shown = showRecipe("catalog-only", root);
     assert.equal(shown.path, undefined);
     assert.equal(shown.body, undefined);
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     applyRecipe(project, "catalog-only", { items: ["alpha"] }, root);
     assert.deepEqual(
       project.film.scenes.map((scene) => scene.id),
@@ -222,14 +222,14 @@ default_scenes:
         ],
       })}\n`,
     );
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     assert.throws(() => applyRecipe(project, "bad-beat", {}, root), /未知场景 kind/);
     assert.ok(project.film.scenes.some((scene) => scene.id === "hero"));
   });
 
   it("adds stills before removing the seed hero", () => {
     const root = tempProjectRoot();
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     assert.throws(() => removeScene(project, "hero"), /最后一场 still/);
     applyRecipe(project, "taxonomy-parade", { kinds: ["alpha"] }, weaverRoot());
     assert.equal(project.film.scenes.some((scene) => scene.id === "hero"), false);
@@ -237,14 +237,14 @@ default_scenes:
 
   it("requires --kinds for taxonomy-parade", () => {
     const root = tempProjectRoot();
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     assert.throws(() => applyRecipe(project, "taxonomy-parade", {}, weaverRoot()), /需要 --items/);
     assert.throws(() => applyRecipe(project, "taxonomy-parade", { kinds: [] }, weaverRoot()), /需要 --items/);
   });
 
   it("uses catalog scenes for problem-then-rule and ignores kinds", () => {
     const root = tempProjectRoot();
-    const project = createProject("demo-film", { title: "演示" }, root);
+    const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     applyRecipe(project, "problem-then-rule", { kinds: ["nope"] }, weaverRoot());
     assert.deepEqual(
       project.film.scenes.map((scene) => scene.id),

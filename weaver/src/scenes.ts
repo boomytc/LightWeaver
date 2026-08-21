@@ -1,11 +1,13 @@
-import { ensureStillStub } from "./assets.ts";
+import { ensureStillStub, ensureVideoStub } from "./assets.ts";
 import { saveFilm } from "./project.ts";
 import {
+  isOstMode,
   parseAssetRef,
   type CardCopy,
   type FilmDoc,
   type Locale,
   type LocaleCopy,
+  type OstMode,
   type ProjectRecord,
   type SceneDef,
 } from "./schema.ts";
@@ -16,6 +18,10 @@ import type { TaskModule } from "./tasks/types.ts";
 export type ScenePatch = {
   lines?: Record<string, string>;
   still?: string;
+  source?: string;
+  in?: number;
+  out?: number;
+  ost?: OstMode;
   fit?: "cover" | "contain";
   role?: string;
 };
@@ -36,7 +42,18 @@ function requireScene(project: ProjectRecord, sceneId: string): { scene: SceneDe
 
 export function addScene(
   project: ProjectRecord,
-  input: { id: string; kind: string; still?: string; fit?: "cover" | "contain"; role?: string; after?: string },
+  input: {
+    id: string;
+    kind: string;
+    still?: string;
+    source?: string;
+    in?: number;
+    out?: number;
+    ost?: OstMode;
+    fit?: "cover" | "contain";
+    role?: string;
+    after?: string;
+  },
 ): ProjectRecord {
   const task = requireTask(project);
   const { frame } = task;
@@ -49,10 +66,15 @@ export function addScene(
   if (project.film.scenes.some((scene) => scene.id === input.id)) {
     throw new Error(`场景已存在：${input.id}`);
   }
+  if (input.ost !== undefined && !isOstMode(input.ost)) throw new Error("ost 必须是 narration / original / mix");
   const scene: SceneDef = {
     id: input.id,
     kind: input.kind,
     still: input.still,
+    source: input.source,
+    in: input.in,
+    out: input.out,
+    ost: input.ost ?? (input.kind === "clip" ? "narration" : undefined),
     fit: input.fit,
     role: input.role,
     lines: Object.fromEntries(Object.keys(project.film.locales).map((locale) => [locale, input.id])),
@@ -67,6 +89,7 @@ export function addScene(
   }
   next.splice(at, 0, scene);
   if (input.still) ensureStillStub(project, input.still);
+  if (input.source) ensureVideoStub(project, input.source);
   saveFilm(project, { ...filmOf(project), scenes: next });
   return project;
 }
@@ -129,14 +152,20 @@ export function patchScene(project: ProjectRecord, sceneId: string, patch: Scene
   if (patch.lines && (typeof patch.lines !== "object" || Array.isArray(patch.lines))) {
     throw new Error("lines 必须是对象");
   }
+  if (patch.ost !== undefined && !isOstMode(patch.ost)) throw new Error("ost 必须是 narration / original / mix");
   const next: SceneDef = {
     ...scene,
     still: patch.still === undefined ? scene.still : patch.still,
+    source: patch.source === undefined ? scene.source : patch.source,
+    in: patch.in === undefined ? scene.in : patch.in,
+    out: patch.out === undefined ? scene.out : patch.out,
+    ost: patch.ost === undefined ? scene.ost : patch.ost,
     fit: patch.fit === undefined ? scene.fit : patch.fit,
     role: patch.role === undefined ? scene.role : patch.role,
     lines: patch.lines ? { ...scene.lines, ...patch.lines } : scene.lines,
   };
   if (patch.still) ensureStillStub(project, patch.still);
+  if (patch.source) ensureVideoStub(project, patch.source);
   const scenes = [...project.film.scenes];
   scenes[index] = next;
   saveFilm(project, { ...filmOf(project), scenes });

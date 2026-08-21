@@ -1,9 +1,11 @@
 import { isImplementedTask, type TaskId } from "../schema.ts";
+import { footageNarration } from "./footage-narration.ts";
 import { studyExplainer } from "./study-explainer.ts";
 import type { TaskModule } from "./types.ts";
 
 const TASKS: Record<TaskId, TaskModule> = {
   "study-explainer": studyExplainer,
+  "footage-narration": footageNarration,
 };
 
 export function listTasks(): TaskModule[] {

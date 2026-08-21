@@ -116,21 +116,24 @@ type PlannedScene = {
   id: string;
   kind: string;
   still?: string;
+  source?: string;
+  ost?: SceneDef["ost"];
   fit?: "cover" | "contain";
   role?: string;
 };
 
-function planListStills(items: string[], label: string, kind: string): PlannedScene[] {
-  if (items.length === 0) throw new Error(`${label} 需要 --items（清单一项一场）`);
-  return items.map((id) => ({
-    id,
-    kind,
-    still: `asset:still.${id}`,
-    fit: "contain",
-  }));
+function mediaForKind(id: string, kind: string): Pick<PlannedScene, "still" | "source" | "ost" | "fit"> {
+  if (kind === "still") return { still: `asset:still.${id}`, fit: "contain" };
+  if (kind === "clip") return { ost: "narration" };
+  return {};
 }
 
-function planFixedStills(
+function planListScenes(items: string[], label: string, kind: string): PlannedScene[] {
+  if (items.length === 0) throw new Error(`${label} 需要 --items（清单一项一场）`);
+  return items.map((id) => ({ id, kind, ...mediaForKind(id, kind) }));
+}
+
+function planFixedScenes(
   scenes: MethodScene[],
   label: string,
   expandKind: string,
@@ -143,12 +146,13 @@ function planFixedStills(
       if (!allowRole(row.role)) throw new Error(`未知 role：${row.role}`);
       role = row.role;
     }
+    const kind = row.kind ?? expandKind;
     return {
       id: row.id,
-      kind: row.kind ?? expandKind,
-      still: `asset:still.${row.id}`,
-      fit: row.fit ?? "contain",
+      kind,
       role,
+      ...mediaForKind(row.id, kind),
+      ...(row.fit ? { fit: row.fit } : {}),
     };
   });
 }
@@ -163,6 +167,8 @@ function sceneFromPlan(item: PlannedScene, locales: string[]): SceneDef {
     id: item.id,
     kind: item.kind,
     still: item.still,
+    source: item.source,
+    ost: item.ost,
     fit: item.fit,
     role: item.role,
     lines: Object.fromEntries(locales.map((locale) => [locale, item.id])),
@@ -186,8 +192,8 @@ export function applyRecipe(
   const appliedId = recipeIdOf(recipeId);
   const planned =
     methodExpandOf(catalog) === "list"
-      ? planListStills(items, methodNameOf(catalog), expandKind)
-      : planFixedStills(catalog.scenes ?? [], methodNameOf(catalog), expandKind, (role) => roleAllowed(task, role));
+      ? planListScenes(items, methodNameOf(catalog), expandKind)
+      : planFixedScenes(catalog.scenes ?? [], methodNameOf(catalog), expandKind, (role) => roleAllowed(task, role));
 
   for (const item of planned) {
     if (!task.sceneKinds.includes(item.kind)) {
