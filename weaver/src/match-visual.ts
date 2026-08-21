@@ -257,7 +257,6 @@ export function fillSilentGaps(
   editedDuration: number,
   editedHashes: FrameHash[],
   sourceHashes: Map<string, FrameHash[]>,
-  _sourceScenes: Map<string, SceneIndex>,
 ): VisualCut[] {
   const extras: VisualCut[] = [];
   for (const [editedStart, editedEnd] of silentRanges(cuts, editedDuration)) {

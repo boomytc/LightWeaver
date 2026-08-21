@@ -405,7 +405,7 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
   }
   if (hashes && cuts.length) {
     const duration = editedScene.duration || durationOf(editedVideo.resolved.absPath);
-    cuts = fillSilentGaps(cuts, duration, hashes.edited, hashes.sources, sourceScenes);
+    cuts = fillSilentGaps(cuts, duration, hashes.edited, hashes.sources);
   }
   cuts = finalizeCuts(cuts, editedScene, sourceScenes, sourceDurations);
   if (!cuts.length) throw new Error("未能生成任何剪辑点，检查转写或匹配阈值");
