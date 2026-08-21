@@ -38,6 +38,7 @@ function detail(partial: Partial<ProjectDetail["paths"]> = {}): ProjectDetail {
       film: "/proj/film.json",
       assetsDoc: "/proj/assets.json",
       stillFiles: [],
+      sourceFiles: [],
       lineFiles: [],
       outputFiles: {},
       library: "/library",

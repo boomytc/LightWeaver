@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { ProjectRecord } from "./schema.ts";
-import { filmStudySlug, filmTask } from "./schema.ts";
+import { filmStudySlug, filmTask, sceneNeedsLine } from "./schema.ts";
 import { labUrl, libraryRoot, lightuiRoot, recipeRoot, weaverRoot } from "./paths.ts";
 import { tryGetTask } from "./tasks/registry.ts";
 import { assetsPath, filmPath } from "./project.ts";
@@ -19,11 +19,14 @@ export type MediaFile = MediaPath & {
   ref?: string;
 };
 
+export type SourceFile = MediaPath & { sceneId: string; ref: string };
+
 export type ProjectPaths = {
   projectRoot: string;
   film: string;
   assetsDoc: string;
   stillFiles: MediaFile[];
+  sourceFiles: SourceFile[];
   lineFiles: MediaFile[];
   outputFiles: Record<string, MediaPath>;
   library: string;
@@ -82,9 +85,8 @@ export function projectPaths(
   const uiRoot = lightuiRoot(root, env);
 
   const stillFiles: MediaFile[] = [];
-  const expandableKinds = tryGetTask(task)?.frame.expandableKinds ?? [];
   for (const scene of film.scenes) {
-    if (!expandableKinds.includes(scene.kind)) continue;
+    if (scene.kind !== "still" && !scene.still) continue;
     for (const locale of locales) {
       const ref = scene.still;
       const resolved = ref ? resolveAssetFile(project, ref, locale, root) : null;
@@ -111,8 +113,26 @@ export function projectPaths(
     }
   }
 
+  const sourceFiles: SourceFile[] = [];
+  const seenSource = new Set<string>();
+  for (const scene of film.scenes) {
+    if (!scene.source) continue;
+    if (seenSource.has(scene.source)) continue;
+    seenSource.add(scene.source);
+    const resolved = resolveAssetFile(project, scene.source, locales[0], root);
+    if (!resolved) continue;
+    sourceFiles.push({
+      sceneId: scene.id,
+      ref: scene.source,
+      rel: posixRel(resolved.relPath),
+      path: resolved.absPath,
+      exists: fs.existsSync(resolved.absPath),
+    });
+  }
+
   const lineFiles: MediaFile[] = [];
   for (const scene of film.scenes) {
+    if (!sceneNeedsLine(scene)) continue;
     for (const locale of locales) {
       const rel = lineRelPath(scene.id, locale);
       lineFiles.push({
@@ -155,6 +175,7 @@ export function projectPaths(
     film: filmPath(project.root),
     assetsDoc: assetsPath(project.root),
     stillFiles,
+    sourceFiles,
     lineFiles,
     outputFiles,
     library: libraryRoot(root),

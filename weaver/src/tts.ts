@@ -5,7 +5,7 @@ import path from "node:path";
 import { weaverRoot, weaverScriptsRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
 import { findAsset, lineAssetId, lineRelPath, resolveVoicePrompt, upsertAsset, voiceHifiRef } from "./assets.ts";
-import { filmLangs, type Locale } from "./schema.ts";
+import { filmLangs, sceneNeedsLine, type Locale, type SceneDef } from "./schema.ts";
 
 export type TtsOptions = {
   projectId: string;
@@ -52,6 +52,13 @@ export function runTts(options: TtsOptions): TtsResult {
   if (!fs.existsSync(python)) throw new Error(`找不到 ${python}`);
 
   for (const locale of locales) {
+    const items = ttsItems(scenes, locale);
+    if (!items.length) {
+      if (scenes.some((scene) => sceneNeedsLine(scene))) {
+        throw new Error(`项目 ${project.id} 没有 ${locale} 旁白`);
+      }
+      continue;
+    }
     const voiceRef = project.film.voices[locale] ?? project.film.voices[Object.keys(project.film.voices)[0] ?? ""];
     if (!voiceRef) throw new Error(`项目 ${project.id} 未指定音色`);
     const voice = resolveVoicePrompt(project, voiceRef, locale, root);
@@ -63,14 +70,6 @@ export function runTts(options: TtsOptions): TtsResult {
     if (!hifi.said) {
       throw new Error(`音色 ${voiceRef} 缺文本，Hi-Fi 无法保证一致。`);
     }
-    const items = scenes
-      .map((scene) => ({
-        id: scene.id,
-        text: scene.lines[locale] ?? "",
-        dest: lineRelPath(scene.id, locale),
-      }))
-      .filter((item) => item.text.trim());
-    if (!items.length) throw new Error(`项目 ${project.id} 没有 ${locale} 旁白`);
     const job = {
       kind: "lines",
       mode: "hifi",
@@ -109,6 +108,17 @@ export function runTts(options: TtsOptions): TtsResult {
     }
   }
   return { projectId: project.id, wrote };
+}
+
+export function ttsItems(scenes: SceneDef[], locale: Locale): { id: string; text: string; dest: string }[] {
+  return scenes
+    .filter((scene) => sceneNeedsLine(scene))
+    .map((scene) => ({
+      id: scene.id,
+      text: scene.lines[locale] ?? "",
+      dest: lineRelPath(scene.id, locale),
+    }))
+    .filter((item) => item.text.trim());
 }
 
 

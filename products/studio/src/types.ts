@@ -37,11 +37,14 @@ export type BriefPaths =
   | { kind: "project-brief"; files: { brief: PathEntry; briefEn: PathEntry } }
   | { kind: "hybrid"; root?: string; files: Record<string, PathEntry> };
 
+export type SourceFile = MediaPath & { sceneId: string; ref: string };
+
 export type ProjectPaths = {
   projectRoot: string;
   film: string;
   assetsDoc: string;
   stillFiles: MediaFile[];
+  sourceFiles: SourceFile[];
   lineFiles: MediaFile[];
   outputFiles: Record<string, MediaPath>;
   library: string;

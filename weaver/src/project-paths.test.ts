@@ -10,7 +10,7 @@ import { assetsPath, filmPath } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
 import { firstPartyRoot, labUrl, lightasrRoot, lightuiRoot, recipeRoot, weaverRoot } from "./paths.ts";
 import { isRenderable } from "./validate.ts";
-import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
+import { seedFootageFilm, seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 
 const weaverSrc = path.dirname(fileURLToPath(import.meta.url));
 const weaverPkg = path.resolve(weaverSrc, "..");
@@ -167,6 +167,27 @@ describe("projectPaths", () => {
       if (prev === undefined) delete process.env.LIGHTWEAVER_RECIPES;
       else process.env.LIGHTWEAVER_RECIPES = prev;
     }
+  });
+
+  it("lists origin video on footage films and skips still guesses", () => {
+    const root = tempWorkspace();
+    const project = seedFootageFilm(
+      root,
+      "site-rescue",
+      [
+        { id: "say", in: 1, out: 2, ost: "narration" },
+        { id: "keep", in: 3, out: 4, ost: "original", zh: "", en: "" },
+      ],
+      { writeVideo: true },
+    );
+    const paths = projectPaths(project, root);
+    assert.equal(paths.stillFiles.length, 0);
+    assert.equal(paths.sourceFiles.length, 1);
+    assert.equal(paths.sourceFiles[0]?.ref, "asset:video.origin");
+    assert.equal(paths.sourceFiles[0]?.rel, "assets/source/origin.mp4");
+    assert.equal(paths.sourceFiles[0]?.exists, true);
+    assert.ok(paths.lineFiles.every((file) => file.sceneId !== "keep"));
+    assert.ok(paths.lineFiles.some((file) => file.sceneId === "say"));
   });
 
   it("keeps project.ts a leaf and project-paths off validate", () => {
