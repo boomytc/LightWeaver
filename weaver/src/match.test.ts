@@ -55,7 +55,14 @@ describe("runMatch", () => {
     seedCloneProject(root);
     const result = runMatch(
       { projectId: "site-clone", edited: "asset:video.edited", root, visual: false },
-      { hasAudio: () => true, transcribe: () => { throw new Error("should use cached transcript"); } },
+      {
+        hasAudio: () => true,
+        transcribe: () => {
+          throw new Error("should use cached transcript");
+        },
+        scenes: () => ({ duration: 20, boundaries: [] }),
+        duration: () => 20,
+      },
     );
     assert.ok(result.cuts.length >= 1);
     const project = loadProject("site-clone", root);
@@ -72,14 +79,16 @@ describe("runMatch", () => {
   it("replaces clip scenes on a second run and keeps recipe", () => {
     const root = tempWorkspace();
     seedCloneProject(root);
-    runMatch(
-      { projectId: "site-clone", edited: "asset:video.edited", root },
-      { hasAudio: () => true, transcribe: () => { throw new Error("cached"); } },
-    );
-    const again = runMatch(
-      { projectId: "site-clone", edited: "asset:video.edited", root },
-      { hasAudio: () => true, transcribe: () => { throw new Error("cached"); } },
-    );
+    const deps = {
+      hasAudio: () => true,
+      transcribe: () => {
+        throw new Error("cached");
+      },
+      scenes: () => ({ duration: 20, boundaries: [] }),
+      duration: () => 20,
+    };
+    runMatch({ projectId: "site-clone", edited: "asset:video.edited", root }, deps);
+    const again = runMatch({ projectId: "site-clone", edited: "asset:video.edited", root }, deps);
     const project = loadProject("site-clone", root);
     assert.equal(project.film.recipe, "clone-from-edit");
     assert.equal(project.film.scenes[0]?.id, "cut-01");

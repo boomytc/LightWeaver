@@ -6,6 +6,15 @@ import { loadProject, saveFilm } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { filmLangs, filmTask, type ProjectRecord, type SceneDef } from "./schema.ts";
 import { alignEditedToSources, pickCandidate, type Candidate } from "./match-align.ts";
+import {
+  applyPadding,
+  detectScenes,
+  splitAndSnapCuts,
+  stabilizeCuts,
+  type SceneIndex,
+  type TimedCut,
+} from "./match-scene.ts";
+import { probeDuration } from "./probe.ts";
 import { runAsr, type AsrResult } from "./asr.ts";
 import { readTranscript, runTranscribe, transcriptRel, type TranscriptResult } from "./transcribe.ts";
 
@@ -22,6 +31,7 @@ export type MatchCut = {
   visualScore: number;
   matchMethod: "text" | "visual" | "visual_scene" | "silent_gap";
   sceneSnapped: boolean;
+  warnings: string[];
 };
 
 export type MatchItem = {
@@ -52,6 +62,8 @@ export type MatchOptions = {
 export type MatchDeps = {
   transcribe?: (opts: { audio: string; root?: string }) => AsrResult | Pick<AsrResult, "text">;
   hasAudio?: (file: string) => boolean;
+  scenes?: (file: string) => SceneIndex;
+  duration?: (file: string) => number;
 };
 
 export type MatchResult = {
@@ -153,9 +165,60 @@ export function cutsFromTextAlign(
       visualScore: 0,
       matchMethod: "text",
       sceneSnapped: false,
+      warnings: [],
     });
   }
   return { cuts, items, warnings };
+}
+
+function toTimed(cut: MatchCut): TimedCut {
+  return {
+    sourceRef: cut.sourceRef,
+    in: cut.in,
+    out: cut.out,
+    editedStart: cut.editedStart,
+    editedEnd: cut.editedEnd,
+    originalIn: cut.in,
+    originalOut: cut.out,
+    sceneSnapped: cut.sceneSnapped,
+    warnings: [...cut.warnings],
+    text: cut.text,
+    score: cut.score,
+    textScore: cut.textScore,
+    visualScore: cut.visualScore,
+    matchMethod: cut.matchMethod,
+  };
+}
+
+function fromTimed(cut: TimedCut, index: number): MatchCut {
+  return {
+    sceneId: sceneId(index),
+    sourceRef: cut.sourceRef,
+    in: round3(cut.in),
+    out: round3(cut.out),
+    editedStart: cut.editedStart,
+    editedEnd: cut.editedEnd,
+    text: cut.text,
+    score: cut.score,
+    textScore: cut.textScore,
+    visualScore: cut.visualScore,
+    matchMethod: cut.sceneSnapped && cut.matchMethod === "text" ? "text" : cut.matchMethod,
+    sceneSnapped: cut.sceneSnapped,
+    warnings: cut.warnings,
+  };
+}
+
+export function finalizeCuts(
+  cuts: MatchCut[],
+  editedScene: SceneIndex | undefined,
+  sourceScenes: Map<string, SceneIndex>,
+  sourceDurations: Map<string, number>,
+): MatchCut[] {
+  let timed = cuts.map(toTimed);
+  timed = splitAndSnapCuts(timed, editedScene, sourceScenes);
+  timed = applyPadding(timed, sourceDurations);
+  timed = stabilizeCuts(timed);
+  return timed.map((cut, index) => fromTimed(cut, index + 1));
 }
 
 function writeScenes(project: ProjectRecord, cuts: MatchCut[], locale: string): void {
@@ -204,7 +267,18 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
     ref,
     transcript: loadOrTranscribe(project, ref, root, deps.transcribe),
   }));
-  const { cuts, items, warnings } = cutsFromTextAlign(editedTranscript, sourceTranscripts);
+  let { cuts, items, warnings } = cutsFromTextAlign(editedTranscript, sourceTranscripts);
+  const sceneOf = deps.scenes ?? detectScenes;
+  const durationOf = deps.duration ?? probeDuration;
+  const editedScene = sceneOf(editedVideo.resolved.absPath);
+  const sourceScenes = new Map<string, SceneIndex>();
+  const sourceDurations = new Map<string, number>();
+  for (const ref of sourceRefs) {
+    const file = requireVideoRef(project, ref, root, "原片").resolved.absPath;
+    sourceScenes.set(ref, sceneOf(file));
+    sourceDurations.set(ref, durationOf(file));
+  }
+  cuts = finalizeCuts(cuts, editedScene, sourceScenes, sourceDurations);
   if (!cuts.length) throw new Error("未能生成任何剪辑点，检查转写或匹配阈值");
 
   const locale = matchLocale(project);
