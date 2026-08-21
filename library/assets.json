@@ -57,6 +57,15 @@
       "task": "footage-narration",
       "text": "已有原片，先弄清时间轴上发生了什么，再写解说并对齐 in/out。",
       "expand": "list"
+    },
+    {
+      "id": "method.clone-from-edit",
+      "kind": "method",
+      "label": "按已剪片复刻",
+      "file": "methods/footage-narration/clone-from-edit.md",
+      "task": "footage-narration",
+      "text": "有一条已剪参考片，要从多集或长原片里找回对应画面。不要 recipe apply 铺场；登记视频后跑 weaver match。",
+      "expand": "list"
     }
   ]
 }

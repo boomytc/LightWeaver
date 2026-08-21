@@ -20,6 +20,7 @@ import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./v
 import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
 import { runTranscribe } from "./transcribe.ts";
+import { runMatch } from "./match.ts";
 import { runPublish, runRender } from "./render.ts";
 import { ASSET_KINDS, filmTask, isOstMode } from "./schema.ts";
 import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setLangs, setVoicePack } from "./scenes.ts";
@@ -101,6 +102,9 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       out: { type: "string" },
       ost: { type: "string" },
       video: { type: "string" },
+      edited: { type: "string" },
+      sources: { type: "string" },
+      "no-visual": { type: "boolean", default: false },
     },
   });
   wantJson = Boolean(values.json);
@@ -637,6 +641,26 @@ function main(): void {
     return;
   }
 
+  if (command === "match") {
+    const project = requireProject(projectIdOf(rest, values));
+    const edited = str(values, "edited");
+    if (!edited) fail("用法: weaver match --project <id> --edited asset:video.* [--sources asset:video.a,asset:video.b] [--no-visual]");
+    try {
+      const result = runMatch({
+        projectId: project.id,
+        edited,
+        sources: str(values, "sources"),
+        visual: values["no-visual"] ? false : undefined,
+        root,
+      });
+      const next = loadProject(project.id, root);
+      print({ ...envelope(next, root), match: result });
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
   if (command === "tts") {
     if (values.seed) fail("铸库请在 Studio /voices 听完再收。出片 tts 不改参考声，不要加 --seed");
     const projectId = rest[0] ?? str(values, "project") ?? "";
@@ -710,6 +734,7 @@ function main(): void {
   weaver validate [id]
   weaver capture [--project]
   weaver transcribe --project [--ref asset:video.*]
+  weaver match --project --edited asset:video.* [--sources asset:video.a,asset:video.b] [--no-visual]
   weaver publish --project
   weaver sync
   weaver tts [--project]
