@@ -67,7 +67,8 @@ function createLine(input: BriefInput): string {
     return "产物位置问清后再 weaver project create。data/projects 用 --source user；data/first-party 用 --source first-party。方法、音色、素材没点就不要代点。";
   }
   const source = input.outputHome === "first-party" ? "first-party" : "user";
-  return `先 weaver project create <id> --source ${source}。方法、音色、素材没点就不要代点。`;
+  const task = input.task ? ` --task ${input.task}` : " --task <task>";
+  return `先 weaver project create <id> --source ${source}${task}。方法、音色、素材没点就不要代点。`;
 }
 
 export function buildAgentBrief(input: BriefInput): string {
@@ -83,7 +84,7 @@ export function buildAgentBrief(input: BriefInput): string {
   }
 
   if (input.task) lines.push(`任务：${input.task}`);
-  else lines.push("任务：未点。按工作台当前任务或唯一已实现任务新建。");
+  else lines.push("任务：未点。工作台点任务后再复制；create 必须带 --task。");
 
   if (input.recipeId) {
     lines.push(`方法：${input.recipeTitle || input.recipeId}`);
@@ -137,7 +138,12 @@ export function buildAgentBrief(input: BriefInput): string {
 
   lines.push("");
   lines.push(createLine(input));
-  lines.push("然后按 skill lightweaver-film：校验 → 缺静帧再补 → 写旁白 → tts → render。");
+  if (input.task === "footage-narration") {
+    lines.push("然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → 写 clip 的 in/out/ost 与旁白 → tts（跳过 original）→ render。");
+    lines.push("render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+  } else {
+    lines.push("然后按 skill lightweaver-film：校验 → 缺静帧再补 → 写旁白 → tts → render。");
+  }
   lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
   lines.push("不要在 Studio 片子页改组合或出片。说明只在工作台复制。");
 

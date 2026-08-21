@@ -12,6 +12,8 @@ export function kindLabel(kind: string): string {
   if (kind === "element") return "元素";
   if (kind === "reference") return "参考图";
   if (kind === "still") return "静帧";
+  if (kind === "video") return "源视频";
+  if (kind === "clip") return "片段";
   if (kind === "method") return "方法";
   return kind;
 }

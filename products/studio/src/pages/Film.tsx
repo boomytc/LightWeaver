@@ -7,6 +7,7 @@ import { useFlash } from "../lib/flash";
 import { filmLangs, langLabel } from "../lib/langs";
 import { methodLabel } from "../lib/method-brief";
 import { filmVoiceRef } from "../lib/voices";
+import { clipTime, missingSourceRefs, ostLabel, sceneLinePreview, sourcePreviewSrc } from "../tasks/footage-narration";
 import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
 import type { Asset, ProjectDetail } from "../types";
 
@@ -39,8 +40,14 @@ export function Film({ id }: { id: string }) {
 
   const scene = detail?.film.scenes.find((item) => item.id === sceneId);
   const output = useMemo(() => (detail ? outputPreview(detail, locale) : undefined), [detail, locale]);
-  const preview = useMemo(() => (detail ? stillPreviewSrc(detail, scene, locale) : undefined), [detail, scene, locale]);
-  const missingStills = useMemo(() => (detail ? missingStillSceneIds(detail, locale) : []), [detail, locale]);
+  const isFootage = detail?.task === "footage-narration";
+  const preview = useMemo(() => {
+    if (!detail) return undefined;
+    if (detail.task === "footage-narration") return sourcePreviewSrc(detail);
+    return stillPreviewSrc(detail, scene, locale);
+  }, [detail, scene, locale]);
+  const missingStills = useMemo(() => (detail && !isFootage ? missingStillSceneIds(detail, locale) : []), [detail, locale, isFootage]);
+  const missingSources = useMemo(() => (detail && isFootage ? missingSourceRefs(detail) : []), [detail, isFootage]);
 
   if (!detail) {
     return (
@@ -119,10 +126,12 @@ export function Film({ id }: { id: string }) {
         </section>
 
         <aside className="surface">
-          <h2 className="h">成片 / 静帧</h2>
+          <h2 className="h">{isFootage ? "成片 / 源片" : "成片 / 静帧"}</h2>
           <div className="preview-frame">
             {output ? (
               <video controls playsInline preload="metadata" src={output.src} />
+            ) : isFootage && preview ? (
+              <video controls playsInline preload="metadata" src={preview} />
             ) : preview ? (
               <img src={preview} alt={scene?.id ?? "静帧"} />
             ) : (
@@ -142,6 +151,7 @@ export function Film({ id }: { id: string }) {
         <h2 className="h">场次一览</h2>
         <p className="item-meta">只看已经写下的场和旁白。</p>
         {missingStills.length ? <p className="issue issue-warning">缺 png：{missingStills.join(", ")}</p> : null}
+        {missingSources.length ? <p className="issue issue-warning">缺源视频：{missingSources.join(", ")}</p> : null}
         <div className="list">
           {detail.film.scenes.map((item) => (
             <button
@@ -150,10 +160,10 @@ export function Film({ id }: { id: string }) {
               className={item.id === sceneId ? "item is-active" : "item"}
               onClick={() => setSceneId(item.id)}
             >
-              <span className="kind">{item.kind}</span>
+              <span className="kind">{item.kind}{item.ost ? ` · ${ostLabel(item.ost)}` : ""}</span>
               <span>
-                <span className="item-title">{item.id}</span>
-                <span className="item-meta"> {(item.lines[locale] ?? "").slice(0, 72)}</span>
+                <span className="item-title">{item.id}{clipTime(item) ? ` · ${clipTime(item)}` : ""}</span>
+                <span className="item-meta"> {sceneLinePreview(item, locale)}</span>
               </span>
             </button>
           ))}

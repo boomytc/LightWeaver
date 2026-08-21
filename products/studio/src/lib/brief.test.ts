@@ -62,6 +62,7 @@ describe("buildAgentBrief", () => {
     });
     assert.match(text, /片子：未指定/);
     assert.match(text, /任务：未点/);
+    assert.match(text, /create 必须带 --task/);
     assert.match(text, /方法：未点/);
     assert.doesNotMatch(text, /study-explainer/);
     assert.match(text, /产物位置：未指定/);
@@ -80,7 +81,7 @@ describe("buildAgentBrief", () => {
     });
     assert.match(text, /data\/projects\/<id>\/assets\/outputs/);
     assert.match(text, /不要拷到仓库外/);
-    assert.match(text, /project create <id> --source user/);
+    assert.match(text, /project create <id> --source user --task <task>/);
     assert.doesNotMatch(text, /开始前先问人/);
     assert.doesNotMatch(text, /publish/);
   });
@@ -94,9 +95,26 @@ describe("buildAgentBrief", () => {
       outputHome: "first-party",
     });
     assert.match(text, /data\/first-party\/<id>\/assets\/outputs/);
-    assert.match(text, /--source first-party/);
+    assert.match(text, /--source first-party --task <task>/);
     assert.doesNotMatch(text, /study-slug/);
     assert.doesNotMatch(text, /LightUI/);
     assert.doesNotMatch(text, /studies\//);
+  });
+
+  it("tells footage-narration to register source video and skip Remotion", () => {
+    const text = buildAgentBrief({
+      task: "footage-narration",
+      voices: {},
+      kit: [],
+      langs: ["zh"],
+      outputHome: "user",
+    });
+    assert.match(text, /任务：footage-narration/);
+    assert.match(text, /--task footage-narration/);
+    assert.match(text, /登记源视频/);
+    assert.match(text, /跳过 original/);
+    assert.match(text, /ffmpeg/);
+    assert.doesNotMatch(text, /缺静帧再补/);
+    assert.doesNotMatch(text, /LightUI/);
   });
 });

@@ -18,6 +18,7 @@ const emptyScene = (): SceneDraft => ({ id: "", role: "" });
 
 export function Methods() {
   const [methods, setMethods] = useState<Asset[]>([]);
+  const [tasks, setTasks] = useState<{ id: string; label: { zh: string; en: string }; roles: string[] }[]>([]);
   const [taskId, setTaskId] = useState("");
   const [roles, setRoles] = useState<string[]>([]);
   const { flash, ok, error } = useFlash();
@@ -28,9 +29,10 @@ export function Methods() {
   const [busy, setBusy] = useState(false);
 
   async function reload() {
-    const [library, tasks] = await Promise.all([api.library(), api.tasks()]);
+    const [library, nextTasks] = await Promise.all([api.library(), api.tasks()]);
     setMethods(library.filter((item) => item.kind === "method"));
-    const task = tasks[0];
+    setTasks(nextTasks);
+    const task = nextTasks.find((item) => item.id === taskId) ?? nextTasks[0];
     setTaskId(task?.id ?? "");
     setRoles(task?.roles ?? []);
   }
@@ -96,6 +98,23 @@ export function Methods() {
       <div className="voice-board">
         <section className="surface create-panel">
           <h2 className="sr">新建</h2>
+          <label className="field">
+            <span>任务</span>
+            <select
+              value={taskId}
+              onChange={(event) => {
+                const id = event.target.value;
+                setTaskId(id);
+                setRoles(tasks.find((item) => item.id === id)?.roles ?? []);
+              }}
+            >
+              {tasks.map((task) => (
+                <option key={task.id} value={task.id}>
+                  {task.label.zh}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="field">
             <span>名称</span>
             <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如 问题然后规则" />

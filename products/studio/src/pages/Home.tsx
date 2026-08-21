@@ -13,6 +13,7 @@ import type { Asset } from "../types";
 
 export function Home() {
   const [library, setLibrary] = useState<Asset[]>([]);
+  const [tasks, setTasks] = useState<{ id: string; label: { zh: string; en: string } }[]>([]);
   const [taskId, setTaskId] = useState("");
   const { flash, error } = useFlash();
   const [recipeId, setRecipeId] = useState("");
@@ -23,10 +24,15 @@ export function Home() {
 
   useEffect(() => {
     Promise.all([api.library(), api.tasks()])
-      .then(([nextLibrary, tasks]) => {
+      .then(([nextLibrary, nextTasks]) => {
         setLibrary(nextLibrary);
-        setTaskId(tasks[0]?.id ?? "");
+        setTasks(nextTasks);
         const wanted = new URLSearchParams(window.location.search).get("recipe") ?? "";
+        const wantedMethod = nextLibrary.find((asset) => asset.kind === "method" && recipeIdOf(asset.id) === wanted);
+        const nextTask = wantedMethod?.task && nextTasks.some((task) => task.id === wantedMethod.task)
+          ? wantedMethod.task
+          : (nextTasks[0]?.id ?? "");
+        setTaskId(nextTask);
         if (wanted) setRecipeId(wanted);
       })
       .catch((err: Error) => error(err.message));
@@ -34,7 +40,7 @@ export function Home() {
 
   const voicePacks = listVoicePacks(library);
   const materials = library.filter((asset) => asset.kind === "element" || asset.kind === "reference");
-  const methods = library.filter((asset) => asset.kind === "method");
+  const methods = library.filter((asset) => asset.kind === "method" && (!taskId || asset.task === taskId));
   const selectedMethod = methods.find((asset) => recipeIdOf(asset.id) === recipeId);
   const selectedVoice = voicePacks.find((asset) => `library:${asset.id}` === voiceRef);
 
@@ -70,6 +76,29 @@ export function Home() {
         方法、音色、素材都是可选增强，点上的才约束 agent。再点要出的语言，和成片写到哪。说明只在这里复制。
       </p>
       <Toast flash={flash} />
+
+      <section>
+        <h2 className="h">任务</h2>
+        <ul className="kit-list lang-picks">
+          {tasks.map((task) => {
+            const on = taskId === task.id;
+            return (
+              <li key={task.id}>
+                <button
+                  type="button"
+                  className={on ? "kit-item is-on" : "kit-item"}
+                  onClick={() => {
+                    setTaskId(task.id);
+                    setRecipeId("");
+                  }}
+                >
+                  <span className="item-title">{task.label.zh}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
       <section>
         <h2 className="h">要出的语言</h2>
