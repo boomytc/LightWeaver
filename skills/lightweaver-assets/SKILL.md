@@ -8,7 +8,7 @@ description: >
 
 # Ingest assets
 
-Kinds: `voice` | `still` | `element` | `reference` | `method` | `line` | `output`.
+Kinds: `voice` | `still` | `element` | `reference` | `method` | `line` | `output` | `video` | `transcript`.
 `line` and `output` are produced by `weaver tts` / `weaver render`。
 方法卡登记为 `library:method.*`，文件在 `library/methods/`。人只填名称 / 何时用 / 骨架，不要当图片上传。
 
@@ -29,11 +29,15 @@ npx weaver asset add --library --id voice.prompt --kind voice --file voices/prom
 #       npx weaver method rm --label 对照练习
 ```
 
-Project stills:
+Project stills and source video:
 
 ```bash
 npx weaver asset add --project <id> --id still.hero --kind still --file assets/stills/zh/hero.png
+npx weaver asset add --project <id> --kind video --id video.edited --file /abs/edited.mp4
+npx weaver asset add --project <id> --kind video --id video.ep01 --file /abs/ep01.mp4
 ```
+
+项目外 video 会拷进 `assets/source/`。已在项目内的相对路径只登记。
 
 Then set `scenes[].still` to `asset:still.hero`. Locale variants use
 `files: { "zh": "...", "en": "..." }` in `assets.json`.

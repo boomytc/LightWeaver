@@ -29,6 +29,7 @@ npx weaver validate
 npx weaver scene add --project <id> --id shot --kind still --still asset:still.shot
 npx weaver voice asr --label 讲解女声
 npx weaver tts --project <id> --locale zh
+npx weaver match --project <id> --edited asset:video.edited
 npx weaver render --project <id> --locale zh
 ```
 

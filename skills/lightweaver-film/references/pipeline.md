@@ -2,6 +2,8 @@
 
 讲解片画面语言是 title 卡 + still + close 卡。原片解说是 clip 时间轴。阶段 5 是 TTS，不是写 Remotion TSX。
 
+原片有两条路：`plot-then-match` 手写解说；`clone-from-edit` 用 `weaver match` 铺 `ost: original` 场，跳过阶段 3 和 5。
+
 ## 结构怎么选
 
 | | 阶段 1 抽卡 | 阶段 2 展开骨架 |
@@ -20,3 +22,5 @@
 | 5 | Voice | Job | `tts --project`（只出 `film.langs`；允许缺 png） | `assets/lines/<lang>/*.wav` |
 | 6 | QA | Agent 必跑 | `validate --json`；读 `renderable` | error 或 `!isRenderable` → 不得进 7 的 render |
 | 7 | Deliver | Job | `render --project`；有 `publish.dir` 才 `publish` | 只写该片子在 `data/` 下的 `assets/outputs/<output>`。不要写 `products/study-films/` |
+
+`clone-from-edit`：阶段 2 是 `asset add --kind video`（已剪片 `video.edited` + 原片）然后 `weaver match --edited asset:video.edited`。不要 `recipe apply`。match 之后直接阶段 6–7。

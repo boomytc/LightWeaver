@@ -23,7 +23,10 @@ src/validate.ts        catalog + isRenderable
 src/sync.ts            Remotion public links + catalog
 src/tts.ts             VoxCPM2 line job（Hi-Fi：唯一克隆源）
 src/asr.ts             Qwen3-ASR-0.6B GGUF 转写 job（上传克隆源填文本；1.7B 用 asr_model 覆盖）
-src/transcribe.ts      源视频转写 → assets/transcripts（TranscriptResult；不自动切场）
+src/transcribe.ts      源视频转写 → assets/transcripts（TranscriptResult；句/字时间）
+src/probe.ts           ffprobe 时长 / 音轨 / 静音岛
+src/sentences.ts       标点切句并铺到语音岛
+src/match.ts           已剪片对齐原片，写出 clip 场（不自动 render）
 src/voice-mint.ts      设计指令铸试听 / 收下为克隆源
 src/compose.ts         footage-narration：ffmpeg 按 OST 裁段合成
 src/render.ts          按 task 分流 Remotion 或 compose；publish
@@ -39,7 +42,7 @@ scripts/               tts.py / asr.py / capture.mjs（不跟 LIGHTWEAVER_ROOT�
 - Do not import `products/*`.
 - No LLM in weaver. No model client, no `produce` / `plan`, no narration
   generator inside this package. Agent drafts `lines` in its own process;
-  weaver only writes files and runs jobs (`tts.py`, `asr.py`, Remotion, ffmpeg compose, `capture.mjs`).
+  weaver only writes files and runs jobs (`tts.py`, `asr.py`, Remotion, ffmpeg compose / match, `capture.mjs`).
 - `recipeRoot` is `library/methods` (method plugins live in the library).
   `LIGHTWEAVER_RECIPES` is test-fixture only. Never `skills/**/recipes/`.
 - `project.ts` must not import `project-paths.ts`, `assets.ts`, or

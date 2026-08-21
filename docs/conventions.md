@@ -71,6 +71,9 @@ npx weaver render --project my-film
 - `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`
 - `render` 走 ffmpeg 合成，不走 Remotion
 - 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。weaver 不跑 LLM
+- 方法卡 `clone-from-edit`：有已剪参考片和原片。不要 `recipe apply` 铺场。`asset add --kind video` 把项目外文件拷进 `assets/source/`，再 `weaver match --edited asset:video.edited`。match 写出 `ost: original` 的 clip，不自动 render
+- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）
+- `project show` 的 `paths.matchReport` / `paths.subtitleFiles` / `paths.sourceFiles`（含未上场的 video 资产）
 
 ```bash
 npx weaver project create my-cut --title "工地" --task footage-narration --source user
@@ -78,6 +81,17 @@ npx weaver scene add --project my-cut --id beat --kind clip --video asset:video.
 npx weaver scene set --project my-cut --id beat --locale zh --text "这一下她没再退。"
 npx weaver tts --project my-cut
 npx weaver render --project my-cut
+```
+
+按已剪片复刻：
+
+```bash
+npx weaver project create site-clone --task footage-narration --source user
+npx weaver asset add --project site-clone --kind video --id video.edited --file /abs/edited.mp4
+npx weaver asset add --project site-clone --kind video --id video.ep01 --file /abs/ep01.mp4
+npx weaver match --project site-clone --edited asset:video.edited
+npx weaver validate site-clone
+npx weaver render --project site-clone
 ```
 
 ## 手截
