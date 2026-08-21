@@ -64,7 +64,8 @@ function createLine(input: BriefInput): string {
     return `先 weaver project show ${input.projectId} --json，核对已点名的增强和产物路径。`;
   }
   if (!input.outputHome) {
-    return "产物位置问清后再 weaver project create。data/projects 用 --source user；data/first-party 用 --source first-party。方法、音色、素材没点就不要代点。";
+    const task = input.task ? `--task ${input.task}` : "--task <task>";
+    return `产物位置问清后再 weaver project create。data/projects 用 --source user；data/first-party 用 --source first-party。create 带 ${task}。方法、音色、素材没点就不要代点。`;
   }
   const source = input.outputHome === "first-party" ? "first-party" : "user";
   const task = input.task ? ` --task ${input.task}` : " --task <task>";

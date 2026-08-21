@@ -69,6 +69,7 @@ describe("buildAgentBrief", () => {
     assert.match(text, /开始前先问人/);
     assert.match(text, /素材：未点/);
     assert.match(text, /产物位置问清后再 weaver project create/);
+    assert.match(text, /create 带 --task <task>/);
     assert.match(text, /可选增强/);
     assert.doesNotMatch(text, /不要自己加 library 外/);
   });
