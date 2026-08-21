@@ -4,10 +4,11 @@ import path from "node:path";
 import { filmsProductRoot, requireLightuiRoot, weaverRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
 import { outputRelPath, upsertAsset } from "./assets.ts";
+import { runCompose } from "./compose.ts";
 import { syncRemotion } from "./sync.ts";
 import { isRenderable } from "./validate.ts";
 import { safeJoin } from "./io.ts";
-import { filmLangs, type Locale } from "./schema.ts";
+import { filmLangs, filmTask, sceneNeedsLine, type Locale } from "./schema.ts";
 
 export type RenderOptions = {
   projectId: string;
@@ -55,9 +56,15 @@ export function runPublish(options: { projectId: string; locale?: Locale; root?:
 export function runRender(options: RenderOptions): RenderResult {
   const root = options.root ?? weaverRoot();
   const project = loadProject(options.projectId, root);
+  const taskId = filmTask(project.film);
   if (!isRenderable(project, root)) {
-    throw new Error(`静帧文件不存在：${project.id}；先按手截配方补 png`);
+    throw new Error(
+      taskId === "footage-narration"
+        ? `还不能合成：${project.id}。源视频或旁白 wav 未齐`
+        : `静帧文件不存在：${project.id}；先按手截配方补 png`,
+    );
   }
+  if (taskId === "footage-narration") return runCompose(options);
   syncRemotion(root);
 
   const filmsRoot = filmsProductRoot(root);
@@ -73,6 +80,7 @@ export function runRender(options: RenderOptions): RenderResult {
     const copy = project.film.locales[locale];
     if (!copy) throw new Error(`项目 ${project.id} 没有 locale ${locale}`);
     const missingLines = project.film.scenes.filter((scene) => {
+      if (!sceneNeedsLine(scene)) return false;
       const wav = path.join(project.root, "assets/lines", locale, `${scene.id}.wav`);
       return !fs.existsSync(wav);
     });
