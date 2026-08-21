@@ -91,6 +91,7 @@ npx weaver voice asr --label 讲解女声
 npx weaver langs set --project <id> --langs zh
 npx weaver kit set --project <id> --refs library:element.mark
 npx weaver validate <id>
+npx weaver transcribe --project <id> --ref asset:video.origin
 npx weaver tts --project <id>
 npx weaver render --project <id>
 npx weaver publish --project <id>

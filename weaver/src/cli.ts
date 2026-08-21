@@ -19,6 +19,7 @@ import { applyRecipe, formatRecipe, listRecipes, loadRecipe, setFilmRecipe, summ
 import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./validate.ts";
 import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
+import { runTranscribe } from "./transcribe.ts";
 import { runPublish, runRender } from "./render.ts";
 import { ASSET_KINDS, filmTask, isOstMode } from "./schema.ts";
 import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setLangs, setVoicePack } from "./scenes.ts";
@@ -608,6 +609,12 @@ function main(): void {
   if (command === "publish") {
     const project = requireProject(projectIdOf(rest, values));
     print(runPublish({ projectId: project.id, locale: str(values, "locale"), root }));
+    return;
+  }
+
+  if (command === "transcribe") {
+    const project = requireProject(projectIdOf(rest, values));
+    print(runTranscribe({ projectId: project.id, ref: str(values, "ref"), root }));
     return;
   }
 

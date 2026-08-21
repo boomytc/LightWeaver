@@ -23,6 +23,7 @@ src/validate.ts        catalog + isRenderable
 src/sync.ts            Remotion public links + catalog
 src/tts.ts             VoxCPM2 line job（Hi-Fi：唯一克隆源）
 src/asr.ts             Qwen3-ASR-0.6B GGUF 转写 job（上传克隆源填文本；1.7B 用 asr_model 覆盖）
+src/transcribe.ts      源视频转写 → assets/transcripts（TranscriptResult；不自动切场）
 src/voice-mint.ts      设计指令铸试听 / 收下为克隆源
 src/compose.ts         footage-narration：ffmpeg 按 OST 裁段合成
 src/render.ts          按 task 分流 Remotion 或 compose；publish

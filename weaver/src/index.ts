@@ -13,6 +13,7 @@ export * from "./validate.ts";
 export * from "./sync.ts";
 export * from "./tts.ts";
 export * from "./asr.ts";
+export * from "./transcribe.ts";
 export * from "./voice-mint.ts";
 export * from "./compose.ts";
 export * from "./render.ts";
