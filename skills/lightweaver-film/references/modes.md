@@ -11,7 +11,8 @@
 | `recipe list` 没有 `when` 能对上的 **film** 卡 | 没点方法就自己铺场；要复用就先在 `/methods` 或 `weaver method add` 收下，再 apply |
 | `capture.kind=manual` 且 png 不在 | 手截；**不要** `weaver capture` |
 | `hasErrors(validate)` | 先修形状。停全部生成 |
-| 将要 render 且 `!isRenderable` | 列出缺的 png；禁止 render。仅缺 png 仍可 tts |
+| 将要 render 且 `!isRenderable` | 列出缺的 png 或源视频/旁白；禁止 render。校验无 error 仍可 tts |
+| `task=footage-narration` | 不走 from-study / `capture`。缺源视频停。`render` 是 ffmpeg compose |
 | 任务自带输出名清单且与 `locales.*.output` 不一致 | 用手写 `--output` 修正；禁止按 id 猜文件名 |
 | 用户要把 kind 合并成一场 | 拒绝 |
 

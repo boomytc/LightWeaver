@@ -39,10 +39,10 @@ test: ## 运行 weaver / studio / study-films 单测
 sync: ## 刷新 Remotion public/projects 与 catalog
 	npm run weaver -- sync
 
-films-capture: ## 从 LightUI lab 截取 stills（可选 PROJECT=slug）
+films-capture: ## 从 LightUI lab 截取 stills（只对讲解片适配器；可选 PROJECT=slug）
 	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- capture $(if $(PROJECT),--project $(PROJECT),)
 
-films-tts: ## 合成旁白（可选 PROJECT=；无参跳过不可渲片）
+films-tts: ## 合成旁白（可选 PROJECT=；无参跳过校验未过的片子，缺 png/wav 仍会 tts）
 	npm run weaver -- tts $(if $(PROJECT),--project $(PROJECT),)
 
 films-render: ## 渲染（可选 PROJECT=；无参跳过不可渲片）

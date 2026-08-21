@@ -92,6 +92,7 @@ function cutScene(
     if (typeof scene.out !== "number") throw new Error(`场景 ${scene.id} 缺 out`);
     duration = scene.out - scene.in;
   } else {
+    // 解说/混合：从 in 起切旁白时长（CineWeaver OST 0/2）。out 是画面窗，不决定成片时长。
     wav = path.join(project.root, "assets/lines", locale, `${scene.id}.wav`);
     if (!fs.existsSync(wav)) throw new Error(`缺少旁白 wav：${wav}`);
     duration = probeDuration(wav);

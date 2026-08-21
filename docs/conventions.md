@@ -65,14 +65,16 @@ npx weaver render --project my-film
 - `task: "footage-narration"`
 - 场景形状：一场或多场 `clip`。每场 `source`（`asset:video.*`）、`in` / `out`（秒）、`ost`（`narration` | `original` | `mix`）
 - 源视频登记在 `assets.json`，文件放 `assets/source/`。路径以 catalog 为准，不从 scene id 推导
-- `ost: original` 不配旁白、tts 跳过；`narration` / `mix` 需要 `lines` 和 wav
+- CLI：`project create --source user|first-party`；场次源视频用 `--video asset:video.*`，不要用 `--source`
+- `ost: original` 不配旁白、tts 跳过，成片时长 = `out - in`
+- `ost: narration|mix` 需要 `lines` 和 wav；合成从 `in` 起切 **旁白时长**（`out` 是画面窗，不决定成片秒数）
 - `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`
 - `render` 走 ffmpeg 合成，不走 Remotion
 - 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。weaver 不跑 LLM
 
 ```bash
 npx weaver project create my-cut --title "工地" --task footage-narration --source user
-npx weaver scene add --project my-cut --id beat --kind clip --source asset:video.origin --in 12.4 --out 18.1 --ost narration
+npx weaver scene add --project my-cut --id beat --kind clip --video asset:video.origin --in 12.4 --out 18.1 --ost narration
 npx weaver scene set --project my-cut --id beat --locale zh --text "这一下她没再退。"
 npx weaver tts --project my-cut
 npx weaver render --project my-cut

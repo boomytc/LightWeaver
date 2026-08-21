@@ -80,7 +80,7 @@ npx weaver recipe apply --project <id> --recipe plot-then-match --items a,b --js
 npx weaver recipe use --project <id> --recipe taxonomy-parade
 npx weaver project create <id> --task study-explainer|footage-narration [--title] [--source first-party] [--output] [--output-en]
 npx weaver scene add --project <id> --id <scene> --kind still [--still asset:still.x] [--role contrast]
-npx weaver scene add --project <id> --id beat --kind clip --source asset:video.origin --in 12.4 --out 18.1 --ost narration
+npx weaver scene add --project <id> --id beat --kind clip --video asset:video.origin --in 12.4 --out 18.1 --ost narration
 npx weaver scene rm --project <id> --id <scene>
 npx weaver scene move --project <id> --id <scene> --after <id>
 npx weaver scene set --project <id> --id <scene> --locale zh --text "..."

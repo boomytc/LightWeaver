@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import { missingStillSceneIds, outputPreview } from "./tasks/study-explainer.tsx";
+import { outputPreview } from "./lib/preview";
+import { missingStillSceneIds } from "./tasks/study-explainer.tsx";
 import type { ProjectDetail } from "./types.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -206,6 +207,8 @@ describe("films review contract", () => {
     assert.doesNotMatch(film, /LightUI/);
     assert.doesNotMatch(films, /study-explainer/);
     assert.match(film, /from "\.\.\/tasks\/study-explainer"/);
+    assert.match(film, /from "\.\.\/tasks\/footage-narration"/);
+    assert.match(film, /surface === "clips"/);
     assert.doesNotMatch(film, /createProject/);
     assert.doesNotMatch(film, /setRecipe/);
   });

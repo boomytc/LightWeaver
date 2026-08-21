@@ -100,6 +100,7 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       in: { type: "string" },
       out: { type: "string" },
       ost: { type: "string" },
+      video: { type: "string" },
     },
   });
   wantJson = Boolean(values.json);
@@ -117,6 +118,16 @@ function num(values: Flags, key: string): number | undefined {
   const value = Number(raw);
   if (!Number.isFinite(value)) fail(`${key} 必须是数字`);
   return value;
+}
+
+/** 场次源视频。--source 留给 project create 的 user|first-party。 */
+function clipVideoRef(values: Flags): string | undefined {
+  const video = str(values, "video");
+  const source = str(values, "source");
+  if (source) {
+    fail("场次源视频用 --video <asset:video.*>；--source 只用于 project create 的 user / first-party");
+  }
+  return video;
 }
 
 function projectIdOf(rest: string[], values: Flags, at = 0): string {
@@ -217,7 +228,7 @@ function main(): void {
         id,
         kind: str(values, "kind") ?? task.frame.expandableKinds[0],
         still: str(values, "still"),
-        source: str(values, "source"),
+        source: clipVideoRef(values),
         in: num(values, "in"),
         out: num(values, "out"),
         ost: ostRaw && isOstMode(ostRaw) ? ostRaw : undefined,
@@ -259,7 +270,7 @@ function main(): void {
       if (ostRaw && !isOstMode(ostRaw)) fail("ost 必须是 narration / original / mix");
       patchScene(project, id, {
         still: str(values, "still"),
-        source: str(values, "source"),
+        source: clipVideoRef(values),
         in: num(values, "in"),
         out: num(values, "out"),
         ost: ostRaw && isOstMode(ostRaw) ? ostRaw : undefined,
@@ -634,8 +645,8 @@ function main(): void {
     const results = [];
     let failed = false;
     for (const project of projects) {
-      if (!projectId && !isRenderable(project, root)) {
-        console.error(`skip tts ${project.id}（不可渲）`);
+      if (!projectId && hasErrors(validateProject(project, root))) {
+        console.error(`skip tts ${project.id}（校验未过）`);
         continue;
       }
       attempted.push(project);
@@ -698,6 +709,7 @@ function main(): void {
   weaver asset list|add|set|rm
   weaver validate [id]
   weaver capture [--project]
+  weaver transcribe --project [--ref asset:video.*]
   weaver publish --project
   weaver sync
   weaver tts [--project]

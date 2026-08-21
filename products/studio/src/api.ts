@@ -39,7 +39,7 @@ export const api = {
     ),
   tasks: () =>
     fetch("/api/tasks").then((res) =>
-      parse<{ id: string; label: { zh: string; en: string }; roles: string[] }[]>(res),
+      parse<{ id: string; label: { zh: string; en: string }; roles: string[]; renderer?: string; surface?: string }[]>(res),
     ),
   projects: () => fetch("/api/projects").then((res) => parse<ProjectSummary[]>(res)),
   project: (id: string) => fetch(`/api/projects/${encodeURIComponent(id)}`).then((res) => parse<ProjectDetail>(res)),

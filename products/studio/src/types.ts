@@ -18,6 +18,7 @@ export type ProjectSummary = {
   kit: string[];
   recipe?: string;
   renderable?: boolean;
+  surface?: "cards" | "clips";
 };
 
 /** 项目外路径（brief.files）。不要依赖 rel。 */

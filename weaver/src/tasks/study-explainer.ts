@@ -22,6 +22,8 @@ export const LIGHTUI_LAB_ADAPTERS = Object.keys(
 export const studyExplainer: TaskModule = {
   id: "study-explainer",
   recipePack: "study-explainer",
+  renderer: "remotion",
+  surface: "cards",
   label: { zh: "讲解片", en: "Study explainer" },
   sceneKinds: ["title", "still", "close"],
   roles: STUDY_ROLES,

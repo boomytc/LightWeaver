@@ -11,6 +11,7 @@ import {
   keepLibraryVoice,
   libraryRoot,
   listProjects,
+  filmTask,
   listTasks,
   loadLibrary,
   loadProject,
@@ -26,6 +27,7 @@ import {
   runAsr,
   runVoiceMint,
   safeJoin,
+  tryGetTask,
   setModelbestApiKey,
   updateLibraryMaterial,
   updateLibraryMethod,
@@ -90,7 +92,15 @@ app.post("/api/settings/modelbest/probe", async (_req, res) => {
 });
 
 app.get("/api/tasks", (_req, res) => {
-  res.json(listTasks().map((task) => ({ id: task.id, label: task.label, roles: task.roles ?? [] })));
+  res.json(
+    listTasks().map((task) => ({
+      id: task.id,
+      label: task.label,
+      roles: task.roles ?? [],
+      renderer: task.renderer,
+      surface: task.surface,
+    })),
+  );
 });
 
 app.get("/api/projects", (_req, res) => {
@@ -398,6 +408,7 @@ function detailOf(project: ReturnType<typeof loadProject>) {
     assets: project.assets,
     issues: validateProject(project, root),
     renderable: isRenderable(project, root),
+    surface: tryGetTask(filmTask(project.film))?.surface,
     paths: projectPaths(project, root),
   };
 }

@@ -25,8 +25,9 @@ export function syncRemotion(root = weaverRoot()): { compositions: CatalogEntry[
   const links: string[] = [];
 
   for (const project of listProjects(root)) {
-    if (!tryGetTask(filmTask(project.film))) {
-      console.warn(`sync 跳过未知任务：${project.id} (${filmTask(project.film)})`);
+    const task = tryGetTask(filmTask(project.film));
+    if (task?.renderer !== "remotion") {
+      if (!task) console.warn(`sync 跳过未知任务：${project.id} (${filmTask(project.film)})`);
       continue;
     }
     const link = path.join(publicDir, project.id);

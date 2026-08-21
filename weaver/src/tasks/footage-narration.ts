@@ -16,6 +16,8 @@ import type { CreateFilmInput, TaskModule } from "./types.ts";
 export const footageNarration: TaskModule = {
   id: "footage-narration",
   recipePack: "footage-narration",
+  renderer: "compose",
+  surface: "clips",
   label: { zh: "原片解说", en: "Footage narration" },
   sceneKinds: ["clip"],
   frame: {

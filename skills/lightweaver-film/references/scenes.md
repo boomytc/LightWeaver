@@ -6,10 +6,12 @@
 
 ```bash
 npx weaver scene add --project <id> --id beat --kind clip \
-  --source asset:video.origin --in 12.4 --out 18.1 --ost narration
+  --video asset:video.origin --in 12.4 --out 18.1 --ost narration
 ```
 
-`ost`：`narration` 铺旁白，`original` 留原声，`mix` 混音。源文件以 `assets.json` 为准。
+`ost`：`narration` 铺旁白，`original` 留原声，`mix` 混音。源文件以 `assets.json` 为准。场次不要写 `--source`（那是 `project create` 的 user / first-party）。
+
+解说/混合场：`out` 是画面窗；成片从 `in` 起切旁白 wav 的时长。原声场：成片时长就是 `out - in`。
 
 ## 加一场 still
 

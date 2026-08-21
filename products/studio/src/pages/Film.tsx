@@ -7,8 +7,9 @@ import { useFlash } from "../lib/flash";
 import { filmLangs, langLabel } from "../lib/langs";
 import { methodLabel } from "../lib/method-brief";
 import { filmVoiceRef } from "../lib/voices";
+import { outputPreview } from "../lib/preview";
 import { clipTime, missingSourceRefs, ostLabel, sceneLinePreview, sourcePreviewSrc } from "../tasks/footage-narration";
-import { missingStillSceneIds, outputPreview, stillPreviewSrc } from "../tasks/study-explainer";
+import { missingStillSceneIds, stillPreviewSrc } from "../tasks/study-explainer";
 import type { Asset, ProjectDetail } from "../types";
 
 export function Film({ id }: { id: string }) {
@@ -40,14 +41,14 @@ export function Film({ id }: { id: string }) {
 
   const scene = detail?.film.scenes.find((item) => item.id === sceneId);
   const output = useMemo(() => (detail ? outputPreview(detail, locale) : undefined), [detail, locale]);
-  const isFootage = detail?.task === "footage-narration";
+  const isClips = detail?.surface === "clips";
   const preview = useMemo(() => {
     if (!detail) return undefined;
-    if (detail.task === "footage-narration") return sourcePreviewSrc(detail);
+    if (detail.surface === "clips") return sourcePreviewSrc(detail);
     return stillPreviewSrc(detail, scene, locale);
   }, [detail, scene, locale]);
-  const missingStills = useMemo(() => (detail && !isFootage ? missingStillSceneIds(detail, locale) : []), [detail, locale, isFootage]);
-  const missingSources = useMemo(() => (detail && isFootage ? missingSourceRefs(detail) : []), [detail, isFootage]);
+  const missingStills = useMemo(() => (detail && !isClips ? missingStillSceneIds(detail, locale) : []), [detail, locale, isClips]);
+  const missingSources = useMemo(() => (detail && isClips ? missingSourceRefs(detail) : []), [detail, isClips]);
 
   if (!detail) {
     return (
@@ -126,11 +127,11 @@ export function Film({ id }: { id: string }) {
         </section>
 
         <aside className="surface">
-          <h2 className="h">{isFootage ? "成片 / 源片" : "成片 / 静帧"}</h2>
+          <h2 className="h">{isClips ? "成片 / 源片" : "成片 / 静帧"}</h2>
           <div className="preview-frame">
             {output ? (
               <video controls playsInline preload="metadata" src={output.src} />
-            ) : isFootage && preview ? (
+            ) : isClips && preview ? (
               <video controls playsInline preload="metadata" src={preview} />
             ) : preview ? (
               <img src={preview} alt={scene?.id ?? "静帧"} />

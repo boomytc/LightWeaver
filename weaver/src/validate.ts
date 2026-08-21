@@ -1,4 +1,4 @@
-import { err, filmLangs, filmTask, isImplementedTask, parseAssetRef, type Issue, type ProjectRecord, warn } from "./schema.ts";
+import { err, filmLangs, filmTask, isImplementedTask, parseAssetRef, sceneNeedsLine, type Issue, type ProjectRecord, warn } from "./schema.ts";
 import { findAsset, resolveVoicePrompt, voiceHifiRef } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
@@ -22,6 +22,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     issues.push(err("scenes", "场景 id 重复"));
   }
 
+  const needsVoice = film.scenes.some((scene) => sceneNeedsLine(scene));
   const outputs = new Set<string>();
   for (const locale of locales) {
     const copy = film.locales[locale];
@@ -31,6 +32,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
       if (outputs.has(copy.output)) issues.push(err(`locales.${locale}.output`, `成片文件名重复 ${copy.output}`));
       outputs.add(copy.output);
     }
+    if (!needsVoice) continue;
     const voiceRef = film.voices[locale] ?? film.voices[Object.keys(film.voices)[0] ?? ""];
     if (!voiceRef) {
       issues.push(warn(`voices.${locale}`, "未指定音色"));
@@ -46,9 +48,11 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
     }
   }
 
-  const voiceRefs = [...new Set(locales.map((locale) => film.voices[locale]).filter(Boolean))];
-  if (voiceRefs.length > 1) {
-    issues.push(warn("voices", "要出的几种语言必须用同一套音色，不要拆开点"));
+  if (needsVoice) {
+    const voiceRefs = [...new Set(locales.map((locale) => film.voices[locale]).filter(Boolean))];
+    if (voiceRefs.length > 1) {
+      issues.push(warn("voices", "要出的几种语言必须用同一套音色，不要拆开点"));
+    }
   }
 
   for (const [index, ref] of (film.kit ?? []).entries()) {
@@ -70,7 +74,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
 
   if (film.recipe) {
     try {
-      assertFilmMethod(film.recipe, root);
+      assertFilmMethod(film.recipe, root, taskId);
     } catch (error) {
       issues.push(err("recipe", error instanceof Error ? error.message : `找不到方法卡 ${film.recipe}`));
     }

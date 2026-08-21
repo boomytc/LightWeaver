@@ -1,18 +1,27 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { createProject } from "./project.ts";
-import { applyRecipe, listRecipes } from "./recipes.ts";
+import { applyRecipe, listRecipes, setFilmRecipe } from "./recipes.ts";
 import { addScene, patchScene } from "./scenes.ts";
 import { hasErrors, isRenderable, validateProject } from "./validate.ts";
 import { weaverRoot } from "./paths.ts";
-import { seedFootageFilm, tempWorkspace } from "./test-workspace.ts";
+import { seedFootageFilm, seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 import { listTasks } from "./tasks/registry.ts";
+import { syncRemotion } from "./sync.ts";
+import path from "node:path";
+
+const weaverPkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("footage-narration", () => {
   it("is registered next to study-explainer", () => {
     assert.deepEqual(
-      listTasks().map((task) => task.id),
-      ["study-explainer", "footage-narration"],
+      listTasks().map((task) => ({ id: task.id, renderer: task.renderer, surface: task.surface })),
+      [
+        { id: "study-explainer", renderer: "remotion", surface: "cards" },
+        { id: "footage-narration", renderer: "compose", surface: "clips" },
+      ],
     );
   });
 
@@ -104,6 +113,61 @@ describe("footage-narration", () => {
   it("lists the footage method only under that task", () => {
     const ids = listRecipes(weaverRoot(), "footage-narration").map((recipe) => recipe.id);
     assert.deepEqual(ids, ["plot-then-match"]);
+  });
+
+  it("does not put compose films into the Remotion catalog", () => {
+    const root = tempWorkspace();
+    seedFootageFilm(root, "site-rescue", [{ id: "say", in: 1, out: 2 }]);
+    seedLabFilm(root, "intent-cascade", [{ id: "status", file: "status.png", role: "problem" }]);
+    const synced = syncRemotion(root);
+    assert.deepEqual(
+      synced.compositions.map((item) => item.projectId).sort(),
+      ["intent-cascade", "intent-cascade"],
+    );
+    assert.ok(!synced.links.some((link) => link.endsWith("site-rescue")));
+  });
+
+  it("rejects a study-explainer method on a footage film", () => {
+    const root = tempWorkspace();
+    const project = createProject("site-rescue", { task: "footage-narration" }, root);
+    assert.throws(() => setFilmRecipe(project, "taxonomy-parade", weaverRoot()), /与片子任务 footage-narration 不一致/);
+  });
+
+  it("does not require a clone voice on an all-original film", () => {
+    const root = tempWorkspace();
+    const project = seedFootageFilm(root, "keep-cut", [
+      { id: "keep", in: 1, out: 2, ost: "original", zh: "", en: "" },
+    ]);
+    project.film.voices = {};
+    const issues = validateProject(project, root);
+    assert.ok(!issues.some((issue) => issue.path.startsWith("voices")));
+  });
+
+  it("refuses --source on scene add", () => {
+    const root = tempWorkspace();
+    createProject("site-rescue", { task: "footage-narration" }, root);
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        "src/cli.ts",
+        "scene",
+        "add",
+        "--project",
+        "site-rescue",
+        "--id",
+        "beat",
+        "--kind",
+        "clip",
+        "--source",
+        "asset:video.origin",
+        "--json",
+      ],
+      { cwd: weaverPkg, encoding: "utf8", env: { ...process.env, LIGHTWEAVER_ROOT: root } },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stdout + result.stderr, /--video/);
   });
 
   it("patches clip timing without dropping ost", () => {

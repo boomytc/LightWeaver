@@ -10,7 +10,7 @@ src/schema.ts          Film / Asset / Scene / task types（`@lightweaver/weaver/
 src/voices.ts          无 Node 的克隆源 / Hi-Fi / voiceSetId（`/voices`）
 src/method.ts          无 Node 的 recipeIdOf（`/method`）
 src/ingest.ts          上传进库（buffer，不吃 Express）
-src/tasks/             TaskModule（study-explainer / footage-narration）
+src/tasks/             TaskModule（renderer remotion|compose，surface cards|clips）
 src/scenes.ts          add/rm/move/patch/card/voice
 src/paths.ts           workspace roots（libraryRoot 与 recipeRoot 并列）
 src/project.ts         list / load / save / create

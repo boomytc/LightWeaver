@@ -28,4 +28,4 @@ export {
   taskAllowsKind,
   LIGHTUI_LAB_ADAPTERS,
 } from "./tasks/registry.ts";
-export type { TaskCardSlot, TaskFrame, TaskModule } from "./tasks/types.ts";
+export type { TaskCardSlot, TaskFrame, TaskModule, TaskRenderer, TaskSurface } from "./tasks/types.ts";

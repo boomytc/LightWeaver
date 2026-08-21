@@ -9,6 +9,7 @@ import { syncRemotion } from "./sync.ts";
 import { isRenderable } from "./validate.ts";
 import { safeJoin } from "./io.ts";
 import { filmLangs, filmTask, sceneNeedsLine, type Locale } from "./schema.ts";
+import { tryGetTask } from "./tasks/registry.ts";
 
 export type RenderOptions = {
   projectId: string;
@@ -57,14 +58,18 @@ export function runRender(options: RenderOptions): RenderResult {
   const root = options.root ?? weaverRoot();
   const project = loadProject(options.projectId, root);
   const taskId = filmTask(project.film);
+  const task = tryGetTask(taskId);
   if (!isRenderable(project, root)) {
     throw new Error(
-      taskId === "footage-narration"
+      task?.renderer === "compose"
         ? `还不能合成：${project.id}。源视频或旁白 wav 未齐`
         : `静帧文件不存在：${project.id}；先按手截配方补 png`,
     );
   }
-  if (taskId === "footage-narration") return runCompose(options);
+  if (task?.renderer === "compose") return runCompose(options);
+  if (task?.renderer !== "remotion") {
+    throw new Error(`任务 ${taskId || "（缺）"} 没有出片作业`);
+  }
   syncRemotion(root);
 
   const filmsRoot = filmsProductRoot(root);

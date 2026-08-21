@@ -241,15 +241,19 @@ export function applyRecipe(
   return { project, skipped };
 }
 
-export function assertFilmMethod(ref: string, root = weaverRoot()): void {
+export function assertFilmMethod(ref: string, root = weaverRoot(), task?: string): void {
   const id = recipeIdOf(ref);
   if (!id) throw new Error("缺少方法");
-  if (!catalogFilmMethod(id, root)) throw new Error(`找不到方法：${id}`);
+  const catalog = catalogFilmMethod(id, root);
+  if (!catalog) throw new Error(`找不到方法：${id}`);
+  if (task && catalog.task && catalog.task !== task) {
+    throw new Error(`方法 ${methodNameOf(catalog)} 属于任务 ${catalog.task}，与片子任务 ${task} 不一致`);
+  }
 }
 
 export function setFilmRecipe(project: ProjectRecord, recipeId: string, root = weaverRoot()): ProjectRecord {
   const id = recipeIdOf(recipeId);
-  if (id) assertFilmMethod(id, root);
+  if (id) assertFilmMethod(id, root, filmTask(project.film));
   saveFilm(project, { ...project.film, recipe: id || undefined });
   return project;
 }
