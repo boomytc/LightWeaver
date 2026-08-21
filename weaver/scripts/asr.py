@@ -265,13 +265,27 @@ def main() -> None:
             result = session.run(pcm, language=language, timestamps="none")
     text = str(getattr(result, "text", "") or "").strip()
     detected = str(getattr(result, "language", "") or language or "").strip()
+    payload = {"text": text, "language": detected, "seconds": round(seconds, 3)}
+    raw_sentences = getattr(result, "sentences", None)
+    if raw_sentences:
+        payload["sentences"] = [
+            {
+                "text": str(getattr(item, "text", "") or ""),
+                "start": float(getattr(item, "start", 0) or 0),
+                "end": float(getattr(item, "end", 0) or 0),
+                "words": [
+                    {
+                        "token": str(getattr(word, "token", "") or ""),
+                        "start": float(getattr(word, "start", 0) or 0),
+                        "end": float(getattr(word, "end", 0) or 0),
+                    }
+                    for word in (getattr(item, "words", None) or [])
+                ],
+            }
+            for item in raw_sentences
+        ]
     print(f"asr text={text[:80]}", file=sys.stderr)
-    print(
-        json.dumps(
-            {"text": text, "language": detected, "seconds": round(seconds, 3)},
-            ensure_ascii=False,
-        )
-    )
+    print(json.dumps(payload, ensure_ascii=False))
 
 
 if __name__ == "__main__":

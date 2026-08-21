@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { outputRelPath, resolveAssetFile, upsertAsset } from "./assets.ts";
 import { loadProject } from "./project.ts";
+import { hasAudioStream, probeDuration, requireBin } from "./probe.ts";
 import { filmLangs, type Locale, type OstMode, type ProjectRecord, type SceneDef } from "./schema.ts";
 import { isRenderable } from "./validate.ts";
 import { weaverRoot } from "./paths.ts";
@@ -28,8 +29,8 @@ export function runCompose(options: ComposeOptions): ComposeResult {
   if (!isRenderable(project, root)) {
     throw new Error(`还不能合成：${project.id}。源视频或旁白 wav 未齐`);
   }
-  requireBin("ffmpeg");
-  requireBin("ffprobe");
+  requireBin("ffmpeg", "合成原片需要本机安装 ffmpeg。");
+  requireBin("ffprobe", "合成原片需要本机安装 ffprobe。");
 
   const locales = options.locale ? [options.locale] : filmLangs(project.film);
   const files: ComposeResult["files"] = [];
@@ -92,7 +93,6 @@ function cutScene(
     if (typeof scene.out !== "number") throw new Error(`场景 ${scene.id} 缺 out`);
     duration = scene.out - scene.in;
   } else {
-    // 解说/混合：从 in 起切旁白时长（CineWeaver OST 0/2）。out 是画面窗，不决定成片时长。
     wav = path.join(project.root, "assets/lines", locale, `${scene.id}.wav`);
     if (!fs.existsSync(wav)) throw new Error(`缺少旁白 wav：${wav}`);
     duration = probeDuration(wav);
@@ -193,44 +193,12 @@ function concatSegments(segments: string[], dest: string, onLog?: (line: string)
   }
 }
 
-function probeDuration(file: string): number {
-  const out = execFileSync(
-    "ffprobe",
-    ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file],
-    { encoding: "utf8" },
-  );
-  const n = Number(out.trim());
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`读不到时长：${file}`);
-  return n;
-}
-
-function hasAudioStream(file: string): boolean {
-  try {
-    const out = execFileSync(
-      "ffprobe",
-      ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", file],
-      { encoding: "utf8" },
-    );
-    return out.trim().length > 0;
-  } catch {
-    return false;
-  }
-}
-
 function runFfmpeg(args: string[]): void {
   try {
     execFileSync("ffmpeg", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   } catch (error) {
     const err = error as { stderr?: string; stdout?: string; message: string };
     throw new Error(["ffmpeg 失败", err.stderr, err.stdout, err.message].filter(Boolean).join("\n"));
-  }
-}
-
-function requireBin(name: string): void {
-  try {
-    execFileSync(name, ["-version"], { stdio: "ignore" });
-  } catch {
-    throw new Error(`找不到 ${name}。合成原片需要本机安装 ${name}。`);
   }
 }
 

@@ -4,10 +4,14 @@ import path from "node:path";
 import { localConfigValue } from "./config.ts";
 import { voiceCandidateRoot, weaverRoot, weaverScriptsRoot } from "./paths.ts";
 
+export type AsrWord = { token: string; start: number; end: number };
+export type AsrSentence = { text: string; start: number; end: number; words?: AsrWord[] };
+
 export type AsrResult = {
   text: string;
   language: string;
   seconds: number;
+  sentences?: AsrSentence[];
 };
 
 export type AsrRuntime = {
@@ -37,11 +41,17 @@ export function parseAsrResult(output: string): AsrResult {
   }
   if (!line) throw new Error(`转写没有 JSON 输出：${output.slice(-400)}`);
   try {
-    const parsed = JSON.parse(line) as { text?: unknown; language?: unknown; seconds?: unknown };
+    const parsed = JSON.parse(line) as {
+      text?: unknown;
+      language?: unknown;
+      seconds?: unknown;
+      sentences?: unknown;
+    };
     return {
       text: String(parsed.text ?? "").trim(),
       language: String(parsed.language ?? "").trim(),
       seconds: Number(parsed.seconds) || 0,
+      sentences: parseAsrSentences(parsed.sentences),
     };
   } catch {
     throw new Error(`转写输出无法解析：${line.slice(0, 240)}`);
@@ -153,6 +163,36 @@ export function wavFileSeconds(file: string): number {
   } catch {
     return 0;
   }
+}
+
+function parseAsrSentences(raw: unknown): AsrSentence[] | undefined {
+  if (!Array.isArray(raw) || !raw.length) return undefined;
+  const sentences: AsrSentence[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const words = Array.isArray(row.words)
+      ? row.words.flatMap((word) => {
+          if (!word || typeof word !== "object") return [];
+          const token = String((word as { token?: unknown }).token ?? "");
+          if (!token) return [];
+          return [
+            {
+              token,
+              start: Number((word as { start?: unknown }).start) || 0,
+              end: Number((word as { end?: unknown }).end) || 0,
+            },
+          ];
+        })
+      : [];
+    sentences.push({
+      text: String(row.text ?? "").trim(),
+      start: Number(row.start) || 0,
+      end: Number(row.end) || 0,
+      words,
+    });
+  }
+  return sentences.length ? sentences : undefined;
 }
 
 function firstFile(candidates: Array<string | undefined>): string | undefined {

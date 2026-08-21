@@ -101,11 +101,15 @@ export function addAsset(
   if (!/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(input.id)) {
     throw new Error("资产 id 必须是 dotted/kebab 小写");
   }
+  const file =
+    target.kind === "project" && input.kind === "video" && input.file
+      ? placeVideoFile(target.project, input.id, input.file)
+      : input.file;
   const asset: Asset = {
     id: input.id,
     kind: input.kind as AssetKind,
     locale: input.locale,
-    file: input.file,
+    file,
     files: input.files,
     text: input.text,
     texts: input.texts,
@@ -259,6 +263,29 @@ export function lineRelPath(sceneId: string, locale: Locale): string {
 
 export function videoRelPath(file = "origin.mp4"): string {
   return path.posix.join("assets/source", file);
+}
+
+function resolveIncomingFile(projectRoot: string, file: string): string {
+  if (path.isAbsolute(file)) return file;
+  const inProject = path.resolve(projectRoot, file);
+  if (fs.existsSync(inProject)) return inProject;
+  return path.resolve(file);
+}
+
+/** 项目外视频拷进 assets/source/；已在项目内的只登记相对路径。 */
+export function placeVideoFile(project: ProjectRecord, id: string, incoming: string): string {
+  const abs = resolveIncomingFile(project.root, incoming);
+  const root = path.resolve(project.root);
+  const inside = abs === root || abs.startsWith(root + path.sep);
+  if (inside) return path.relative(root, abs).split(path.sep).join("/");
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) throw new Error(`找不到文件 ${incoming}`);
+  const ext = path.extname(abs) || ".mp4";
+  const fileId = id.replace(/^video\./, "") || "origin";
+  const rel = videoRelPath(`${fileId}${ext}`);
+  const dest = path.join(project.root, rel);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(abs, dest);
+  return rel;
 }
 
 export function ensureVideoStub(project: ProjectRecord, sourceRef: string): void {

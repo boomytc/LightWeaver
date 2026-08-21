@@ -1,22 +1,15 @@
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { findAsset, resolveAssetFile, upsertAsset } from "./assets.ts";
-import { runAsr, type AsrResult, type TranscribeFn } from "./asr.ts";
+import { runAsr, type AsrResult } from "./asr.ts";
 import { loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
+import { execFileSync } from "node:child_process";
+import { stampTranscript, transcriptIsStamped, type TranscriptDoc, type TranscriptSentence } from "./sentences.ts";
 import type { ProjectRecord } from "./schema.ts";
 
-export type TranscriptWord = { token: string; start: number; end: number };
-export type TranscriptSentence = { text: string; start: number; end: number; words: TranscriptWord[] };
-export type TranscriptResult = {
-  source_path: string;
-  duration: number;
-  full_text: string;
-  language: string;
-  sentences: TranscriptSentence[];
-};
+export type TranscriptResult = TranscriptDoc;
 
 export type TranscribeOptions = {
   projectId: string;
@@ -24,15 +17,45 @@ export type TranscribeOptions = {
   root?: string;
 };
 
+export function transcriptRel(videoId: string): string {
+  return path.posix.join("assets/transcripts", `${videoId}.json`);
+}
+
+export function readTranscript(abs: string): TranscriptResult | null {
+  if (!fs.existsSync(abs)) return null;
+  try {
+    const raw = JSON.parse(fs.readFileSync(abs, "utf8")) as TranscriptResult;
+    if (!raw || typeof raw.full_text !== "string" || !Array.isArray(raw.sentences)) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+export function asrSentences(asr: AsrResult): TranscriptSentence[] | undefined {
+  if (!asr.sentences?.length) return undefined;
+  return asr.sentences.map((item) => ({
+    text: String(item.text ?? "").trim(),
+    start: Number(item.start) || 0,
+    end: Number(item.end) || 0,
+    words: (item.words ?? []).map((word) => ({
+      token: String(word.token ?? ""),
+      start: Number(word.start) || 0,
+      end: Number(word.end) || 0,
+    })),
+  }));
+}
+
 export function transcriptFromAsr(sourcePath: string, asr: AsrResult): TranscriptResult {
   const duration = asr.seconds > 0 ? asr.seconds : 0;
   const text = asr.text.trim();
+  const sentences = asrSentences(asr);
   return {
     source_path: sourcePath,
     duration,
     full_text: text,
     language: asr.language,
-    sentences: text ? [{ text, start: 0, end: duration, words: [] }] : [],
+    sentences: sentences?.length ? sentences : text ? [{ text, start: 0, end: duration, words: [] }] : [],
   };
 }
 
@@ -47,6 +70,15 @@ export function runTranscribe(
   const resolved = resolveAssetFile(project, ref, undefined, root);
   if (!resolved || !fs.existsSync(resolved.absPath)) throw new Error(`找不到源视频 ${ref}`);
 
+  const videoId = findAsset(project, ref, root)?.id ?? "origin";
+  const rel = transcriptRel(videoId);
+  const abs = path.join(project.root, rel);
+  const cached = readTranscript(abs);
+  if (cached && transcriptIsStamped(cached)) {
+    upsertAsset(project, { id: `transcript.${videoId}`, kind: "transcript", file: rel, scene: videoId });
+    return { projectId: project.id, file: rel, transcript: cached };
+  }
+
   const audio = audioForAsr(resolved.absPath);
   try {
     const raw = transcribe({ audio, root });
@@ -54,15 +86,13 @@ export function runTranscribe(
       text: raw.text,
       language: "language" in raw ? String(raw.language ?? "") : "",
       seconds: "seconds" in raw ? Number(raw.seconds) || 0 : 0,
+      sentences: "sentences" in raw ? raw.sentences : undefined,
     };
-    const transcript = transcriptFromAsr(resolved.absPath, asr);
-    const videoId = findAsset(project, ref, root)?.id ?? "origin";
-    const rel = path.posix.join("assets/transcripts", `${videoId}.json`);
-    const abs = path.join(project.root, rel);
+    const stamped = stampTranscript(transcriptFromAsr(resolved.absPath, asr), { media: resolved.absPath });
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, `${JSON.stringify(transcript, null, 2)}\n`);
+    fs.writeFileSync(abs, `${JSON.stringify(stamped, null, 2)}\n`);
     upsertAsset(project, { id: `transcript.${videoId}`, kind: "transcript", file: rel, scene: videoId });
-    return { projectId: project.id, file: rel, transcript };
+    return { projectId: project.id, file: rel, transcript: stamped };
   } finally {
     if (audio !== resolved.absPath) fs.rmSync(audio, { force: true });
   }

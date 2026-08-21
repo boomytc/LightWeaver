@@ -37,12 +37,18 @@ export function folderFor(kind: string, locale?: string): string {
   if (kind === "element") return "elements";
   if (kind === "line") return locale ? `assets/lines/${locale}` : "assets/lines";
   if (kind === "output") return "assets/outputs";
+  if (kind === "video") return "assets/source";
+  if (kind === "transcript") return "assets/transcripts";
   return "assets/misc";
 }
 
 export function destRel(kind: string, id: string, locale: string | undefined, ext: string): string {
   const safe = id.replace(/[^a-z0-9.-]+/gi, "-");
   if (kind === "voice") return locale ? `voices/${safe}-${locale}${ext}` : `voices/${safe}${ext}`;
+  if (kind === "video") {
+    const leaf = safe.replace(/^video\./, "") || safe;
+    return path.posix.join("assets/source", `${leaf}${ext}`);
+  }
   const folder = folderFor(kind, locale);
   const leaf = isMaterialKind(kind) ? safe.replace(new RegExp(`^${kind}\\.`), "") || safe : safe;
   return path.posix.join(folder, `${leaf}${ext}`);
