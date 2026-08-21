@@ -401,6 +401,16 @@ function stringMap(value: unknown): Record<string, string> | undefined {
   return next;
 }
 
+function readMatchReport(project: ReturnType<typeof loadProject>) {
+  const file = path.join(project.root, "assets/match/report.json");
+  if (!fs.existsSync(file)) return undefined;
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 function detailOf(project: ReturnType<typeof loadProject>) {
   return {
     ...projectSummary(project),
@@ -410,6 +420,7 @@ function detailOf(project: ReturnType<typeof loadProject>) {
     renderable: isRenderable(project, root),
     surface: tryGetTask(filmTask(project.film))?.surface,
     paths: projectPaths(project, root),
+    match: readMatchReport(project),
   };
 }
 

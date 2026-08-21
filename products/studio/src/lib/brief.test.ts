@@ -118,4 +118,25 @@ describe("buildAgentBrief", () => {
     assert.doesNotMatch(text, /缺静帧再补/);
     assert.doesNotMatch(text, /LightUI/);
   });
+
+  it("tells clone-from-edit to match instead of writing in/out", () => {
+    const text = buildAgentBrief({
+      task: "footage-narration",
+      recipeId: "clone-from-edit",
+      recipeTitle: "按已剪片复刻",
+      requiresList: true,
+      voices: {},
+      kit: [],
+      langs: ["zh"],
+      outputHome: "user",
+    });
+    assert.match(text, /方法：按已剪片复刻/);
+    assert.match(text, /weaver match/);
+    assert.match(text, /--edited asset:video\.edited/);
+    assert.doesNotMatch(text, /weaver recipe apply/);
+    assert.match(text, /不要手填 clip 的 in\/out/);
+    assert.match(text, /不要 tts/);
+    assert.doesNotMatch(text, /跳过 original/);
+    assert.doesNotMatch(text, /VoxCPM2/);
+  });
 });

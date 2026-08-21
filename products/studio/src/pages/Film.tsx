@@ -8,7 +8,16 @@ import { filmLangs, langLabel } from "../lib/langs";
 import { methodLabel } from "../lib/method-brief";
 import { filmVoiceRef } from "../lib/voices";
 import { outputPreview } from "../lib/preview";
-import { clipTime, missingSourceRefs, ostLabel, sceneLinePreview, sourcePreviewSrc } from "../tasks/footage-narration";
+import {
+  clipTime,
+  cutForScene,
+  formatMatchScore,
+  matchMethodLabel,
+  missingSourceRefs,
+  ostLabel,
+  sceneLinePreview,
+  sourcePreviewSrc,
+} from "../tasks/footage-narration";
 import { missingStillSceneIds, stillPreviewSrc } from "../tasks/study-explainer";
 import type { Asset, ProjectDetail } from "../types";
 
@@ -154,20 +163,31 @@ export function Film({ id }: { id: string }) {
         {missingStills.length ? <p className="issue issue-warning">缺 png：{missingStills.join(", ")}</p> : null}
         {missingSources.length ? <p className="issue issue-warning">缺源视频：{missingSources.join(", ")}</p> : null}
         <div className="list">
-          {detail.film.scenes.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={item.id === sceneId ? "item is-active" : "item"}
-              onClick={() => setSceneId(item.id)}
-            >
-              <span className="kind">{item.kind}{item.ost ? ` · ${ostLabel(item.ost)}` : ""}</span>
-              <span>
-                <span className="item-title">{item.id}{clipTime(item) ? ` · ${clipTime(item)}` : ""}</span>
-                <span className="item-meta"> {sceneLinePreview(item, locale)}</span>
-              </span>
-            </button>
-          ))}
+          {detail.film.scenes.map((item) => {
+            const matched = cutForScene(detail.match, item.id);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={item.id === sceneId ? "item is-active" : "item"}
+                onClick={() => setSceneId(item.id)}
+              >
+                <span className="kind">
+                  {item.kind}
+                  {item.ost ? ` · ${ostLabel(item.ost)}` : ""}
+                  {matched ? ` · ${matchMethodLabel(matched.matchMethod)}` : ""}
+                </span>
+                <span>
+                  <span className="item-title">
+                    {item.id}
+                    {clipTime(item) ? ` · ${clipTime(item)}` : ""}
+                    {matched ? ` · ${formatMatchScore(matched.score)}` : ""}
+                  </span>
+                  <span className="item-meta"> {sceneLinePreview(item, locale)}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
         {scene ? (
           <div className="field" style={{ marginTop: 16 }}>
@@ -176,6 +196,16 @@ export function Film({ id }: { id: string }) {
             </label>
             <textarea id="line-view" readOnly value={scene.lines[locale] ?? ""} />
           </div>
+        ) : null}
+        {detail.match?.warnings?.length ? (
+          <section>
+            <h2 className="h">匹配报告</h2>
+            {detail.match.warnings.map((warning) => (
+              <p key={warning} className="issue issue-warning">
+                {warning}
+              </p>
+            ))}
+          </section>
         ) : null}
         {detail.issues.length ? (
           <section>

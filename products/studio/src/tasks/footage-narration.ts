@@ -26,3 +26,33 @@ export function clipTime(scene: SceneDef): string {
   if (typeof scene.in !== "number" || typeof scene.out !== "number") return "";
   return `${scene.in.toFixed(1)}s–${scene.out.toFixed(1)}s`;
 }
+
+export type MatchCutView = {
+  sceneId: string;
+  score: number;
+  matchMethod: string;
+  text?: string;
+};
+
+export type MatchReportView = {
+  warnings?: string[];
+  cuts?: MatchCutView[];
+  items?: { sentenceText: string; selected?: unknown }[];
+};
+
+export function matchMethodLabel(method: string): string {
+  if (method === "silent_gap") return "静音缝";
+  if (method === "visual") return "视觉";
+  if (method === "visual_scene") return "文本+视觉";
+  if (method === "text") return "文本";
+  return method;
+}
+
+export function cutForScene(report: MatchReportView | undefined, sceneId: string): MatchCutView | undefined {
+  return report?.cuts?.find((cut) => cut.sceneId === sceneId);
+}
+
+export function formatMatchScore(score: number | undefined): string {
+  if (typeof score !== "number" || !Number.isFinite(score)) return "";
+  return score.toFixed(2);
+}

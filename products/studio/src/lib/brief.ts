@@ -23,6 +23,11 @@ function named(ref: string, labels?: Record<string, string>): string {
   return label ? `${ref}（${label}）` : ref;
 }
 
+export function isCloneFromEdit(recipeId?: string): boolean {
+  const id = (recipeId ?? "").trim();
+  return id === "clone-from-edit" || id.endsWith(".clone-from-edit");
+}
+
 function uniqueVoiceRef(voices: Record<string, string>): string | undefined {
   const refs = [...new Set(Object.values(voices).filter(Boolean))];
   return refs.length === 1 ? refs[0] : undefined;
@@ -89,11 +94,13 @@ export function buildAgentBrief(input: BriefInput): string {
 
   if (input.recipeId) {
     lines.push(`方法：${input.recipeTitle || input.recipeId}`);
-    if (input.projectId) {
+    if (isCloneFromEdit(input.recipeId)) {
+      lines.push("  不要 recipe apply 铺场。登记视频后 weaver match。");
+    } else if (input.projectId) {
       const items = input.requiresList ? " --items <人给或任务自带的清单，逗号分隔>" : "";
       lines.push(`  weaver recipe apply --project ${input.projectId} --recipe ${input.recipeId}${items}`);
     }
-    if (input.requiresList) {
+    if (input.requiresList && !isCloneFromEdit(input.recipeId)) {
       lines.push("  清单一项一场，不要合并。清单从人给或任务自带读，不要去翻别的仓库。");
     }
   } else {
@@ -139,13 +146,20 @@ export function buildAgentBrief(input: BriefInput): string {
 
   lines.push("");
   lines.push(createLine(input));
-  if (input.task === "footage-narration") {
+  if (isCloneFromEdit(input.recipeId)) {
+    const project = input.projectId ? `--project ${input.projectId}` : "--project <id>";
+    lines.push(
+      `然后按 skill lightweaver-film：校验 → 把已剪片和原片拷进 assets/source/ → weaver asset add --kind video → weaver match ${project} --edited asset:video.edited → validate → render。`,
+    );
+    lines.push("不要手填 clip 的 in/out，不要 tts。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+  } else if (input.task === "footage-narration") {
     lines.push("然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → 写 clip 的 in/out/ost 与旁白 → tts（跳过 original）→ render。");
     lines.push("render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+    lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
   } else {
     lines.push("然后按 skill lightweaver-film：校验 → 缺静帧再补 → 写旁白 → tts → render。");
+    lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
   }
-  lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
   lines.push("不要在 Studio 片子页改组合或出片。说明只在工作台复制。");
 
   return `${lines.join("\n")}\n`;

@@ -57,10 +57,17 @@ export type ProjectPaths = {
   brief: BriefPaths;
 };
 
+export type MatchReport = {
+  warnings?: string[];
+  cuts?: { sceneId: string; score: number; matchMethod: string; text?: string }[];
+  items?: { sentenceText: string; selected?: unknown }[];
+};
+
 export type ProjectDetail = ProjectSummary & {
   film: FilmDoc;
   assets: Asset[];
   issues: Issue[];
   renderable: boolean;
   paths: ProjectPaths;
+  match?: MatchReport;
 };
