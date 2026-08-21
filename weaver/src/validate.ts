@@ -1,6 +1,5 @@
-import fs from "node:fs";
 import { err, filmLangs, filmTask, isImplementedTask, parseAssetRef, type Issue, type ProjectRecord, warn } from "./schema.ts";
-import { findAsset, resolveAssetFile, resolveVoicePrompt, voiceHifiRef } from "./assets.ts";
+import { findAsset, resolveVoicePrompt, voiceHifiRef } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { assertFilmMethod } from "./recipes.ts";
@@ -78,40 +77,8 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
   }
 
   for (const scene of film.scenes) {
-    const base = `scenes.${scene.id}`;
     if (!taskAllowsKind(taskId, scene.kind)) {
-      issues.push(err(base, `未知场景 kind：${scene.kind}`));
-    }
-    for (const locale of locales) {
-      const line = scene.lines?.[locale]?.trim() ?? "";
-      if (!line) issues.push(err(`${base}.lines.${locale}`, "缺旁白"));
-    }
-    const taskForScene = tryGetTask(taskId);
-    if (taskForScene?.frame.expandableKinds.includes(scene.kind)) {
-      if (!scene.still) {
-        issues.push(err(`${base}.still`, "可展开场需要 still 资产引用"));
-      } else if (!findAsset(project, scene.still, root)) {
-        issues.push(err(`${base}.still`, `找不到静帧 ${scene.still}`));
-      } else {
-        for (const locale of locales) {
-          const resolved = resolveAssetFile(project, scene.still, locale, root);
-          if (!resolved || !fs.existsSync(resolved.absPath)) {
-            issues.push(warn(`${base}.still.${locale}`, `静帧文件不存在：${scene.still}`));
-          }
-        }
-      }
-    }
-    for (const locale of locales) {
-      const lineRef = `asset:line.${scene.id}.${locale}`;
-      const lineAsset = findAsset(project, lineRef, root);
-      if (!lineAsset) {
-        issues.push(warn(`${base}.line.${locale}`, "尚未合成旁白 wav"));
-        continue;
-      }
-      const resolved = resolveAssetFile(project, lineRef, locale, root);
-      if (!resolved || !fs.existsSync(resolved.absPath)) {
-        issues.push(warn(`${base}.line.${locale}`, "旁白 wav 文件缺失"));
-      }
+      issues.push(err(`scenes.${scene.id}`, `未知场景 kind：${scene.kind}`));
     }
   }
 

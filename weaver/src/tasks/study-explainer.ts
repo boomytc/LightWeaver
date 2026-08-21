@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveAssetFile } from "../assets.ts";
+import { findAsset, resolveAssetFile } from "../assets.ts";
 import { lightuiRoot } from "../paths.ts";
 import { err, filmLangs, filmStudySlug, type FilmDoc, type Issue, type ProjectRecord, warn } from "../schema.ts";
 import type { CreateFilmInput, TaskModule } from "./types.ts";
@@ -148,9 +148,44 @@ function validateStudyExplainer(project: ProjectRecord, root: string): Issue[] {
   const issues: Issue[] = [];
   const { film } = project;
   const scenes = film.scenes;
+  const locales = filmLangs(film);
   const titles = scenes.filter((scene) => scene.kind === "title");
   const closes = scenes.filter((scene) => scene.kind === "close");
   const stills = scenes.filter((scene) => scene.kind === "still");
+
+  for (const scene of scenes) {
+    const base = `scenes.${scene.id}`;
+    for (const locale of locales) {
+      const line = scene.lines?.[locale]?.trim() ?? "";
+      if (!line) issues.push(err(`${base}.lines.${locale}`, "缺旁白"));
+    }
+    if (studyExplainer.frame.expandableKinds.includes(scene.kind)) {
+      if (!scene.still) {
+        issues.push(err(`${base}.still`, "可展开场需要 still 资产引用"));
+      } else if (!findAsset(project, scene.still, root)) {
+        issues.push(err(`${base}.still`, `找不到静帧 ${scene.still}`));
+      } else {
+        for (const locale of locales) {
+          const resolved = resolveAssetFile(project, scene.still, locale, root);
+          if (!resolved || !fs.existsSync(resolved.absPath)) {
+            issues.push(warn(`${base}.still.${locale}`, `静帧文件不存在：${scene.still}`));
+          }
+        }
+      }
+    }
+    for (const locale of locales) {
+      const lineRef = `asset:line.${scene.id}.${locale}`;
+      const lineAsset = findAsset(project, lineRef, root);
+      if (!lineAsset) {
+        issues.push(warn(`${base}.line.${locale}`, "尚未合成旁白 wav"));
+        continue;
+      }
+      const resolved = resolveAssetFile(project, lineRef, locale, root);
+      if (!resolved || !fs.existsSync(resolved.absPath)) {
+        issues.push(warn(`${base}.line.${locale}`, "旁白 wav 文件缺失"));
+      }
+    }
+  }
 
   if (titles.length !== 1 || scenes[0]?.kind !== "title") {
     issues.push(err("scenes", "恰好一个 title，且必须在第一场"));
