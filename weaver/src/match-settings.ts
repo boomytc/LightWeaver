@@ -22,6 +22,6 @@ export const MATCH_SETTINGS = {
   paddingAfter: 0.5,
   textWeight: 0.65,
   visualWeight: 0.35,
-} as const;
+};
 
 export type MatchSettings = typeof MATCH_SETTINGS;

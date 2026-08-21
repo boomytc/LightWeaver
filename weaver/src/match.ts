@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { findAsset, resolveAssetFile } from "./assets.ts";
-import { hasAudioStream } from "./probe.ts";
 import { loadProject, saveFilm } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { filmLangs, filmTask, type ProjectRecord, type SceneDef } from "./schema.ts";
@@ -14,7 +13,14 @@ import {
   type SceneIndex,
   type TimedCut,
 } from "./match-scene.ts";
-import { probeDuration } from "./probe.ts";
+import {
+  cutsFromVisualScenes,
+  extractFrameHashes,
+  fillSilentGaps,
+  rankCandidates,
+  type FrameHash,
+} from "./match-visual.ts";
+import { hasAudioStream, probeDuration } from "./probe.ts";
 import { runAsr, type AsrResult } from "./asr.ts";
 import { readTranscript, runTranscribe, transcriptRel, type TranscriptResult } from "./transcribe.ts";
 
@@ -64,6 +70,7 @@ export type MatchDeps = {
   hasAudio?: (file: string) => boolean;
   scenes?: (file: string) => SceneIndex;
   duration?: (file: string) => number;
+  hashes?: (file: string) => FrameHash[];
 };
 
 export type MatchResult = {
@@ -171,6 +178,53 @@ export function cutsFromTextAlign(
   return { cuts, items, warnings };
 }
 
+function loadHashes(
+  project: ProjectRecord,
+  editedId: string,
+  editedFile: string,
+  sourceFiles: Map<string, string>,
+  custom?: (file: string) => FrameHash[],
+): { edited: FrameHash[]; sources: Map<string, FrameHash[]> } {
+  const grab = (file: string, id: string) =>
+    custom?.(file) ?? extractFrameHashes(file, path.join(project.root, "assets/match/frames", id));
+  const sources = new Map<string, FrameHash[]>();
+  for (const [ref, file] of sourceFiles) {
+    sources.set(ref, grab(file, ref.replace(/^asset:/, "")));
+  }
+  return { edited: grab(editedFile, editedId), sources };
+}
+
+function rerankCuts(
+  items: MatchItem[],
+  edited: FrameHash[],
+  sources: Map<string, FrameHash[]>,
+): { items: MatchItem[]; cuts: MatchCut[] } {
+  const nextItems: MatchItem[] = [];
+  const cuts: MatchCut[] = [];
+  for (const item of items) {
+    const ranked = rankCandidates(item.candidates, edited, sources, item.editedStart, item.editedEnd);
+    const selected = ranked[0];
+    nextItems.push({ ...item, candidates: ranked, selected });
+    if (!selected || selected.tEnd <= selected.tStart) continue;
+    cuts.push({
+      sceneId: sceneId(cuts.length + 1),
+      sourceRef: selected.sourceRef,
+      in: round3(selected.tStart),
+      out: round3(selected.tEnd),
+      editedStart: item.editedStart,
+      editedEnd: item.editedEnd,
+      text: item.sentenceText,
+      score: selected.combinedScore,
+      textScore: selected.score,
+      visualScore: selected.visualScore,
+      matchMethod: selected.visualScore > 0 ? "visual_scene" : "text",
+      sceneSnapped: false,
+      warnings: [],
+    });
+  }
+  return { items: nextItems, cuts };
+}
+
 function toTimed(cut: MatchCut): TimedCut {
   return {
     sourceRef: cut.sourceRef,
@@ -255,28 +309,67 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
   const editedVideo = requireVideoRef(project, edited, root, "已剪片");
   for (const ref of sourceRefs) requireVideoRef(project, ref, root, "原片");
 
-  const visual = Boolean(options.visual);
+  const visual = options.visual !== false;
   const audioCheck = deps.hasAudio ?? hasAudioStream;
   const editedHasAudio = audioCheck(editedVideo.resolved.absPath);
-  if (!editedHasAudio) {
-    throw new Error("已剪片没有音轨，需要视觉对齐");
+  if (!editedHasAudio && !visual) {
+    throw new Error("已剪片没有音轨，需要视觉对齐（不要加 --no-visual）");
   }
 
-  const editedTranscript = loadOrTranscribe(project, edited, root, deps.transcribe);
-  const sourceTranscripts = sourceRefs.map((ref) => ({
-    ref,
-    transcript: loadOrTranscribe(project, ref, root, deps.transcribe),
-  }));
-  let { cuts, items, warnings } = cutsFromTextAlign(editedTranscript, sourceTranscripts);
   const sceneOf = deps.scenes ?? detectScenes;
   const durationOf = deps.duration ?? probeDuration;
   const editedScene = sceneOf(editedVideo.resolved.absPath);
   const sourceScenes = new Map<string, SceneIndex>();
   const sourceDurations = new Map<string, number>();
+  const sourceFiles = new Map<string, string>();
   for (const ref of sourceRefs) {
     const file = requireVideoRef(project, ref, root, "原片").resolved.absPath;
     sourceScenes.set(ref, sceneOf(file));
     sourceDurations.set(ref, durationOf(file));
+    sourceFiles.set(ref, file);
+  }
+
+  let hashes: { edited: FrameHash[]; sources: Map<string, FrameHash[]> } | undefined;
+  const warnings: string[] = [];
+  if (visual) {
+    try {
+      hashes = loadHashes(
+        project,
+        editedVideo.asset.id,
+        editedVideo.resolved.absPath,
+        sourceFiles,
+        deps.hashes,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!editedHasAudio) throw new Error(`视觉对齐失败：${message}`);
+      warnings.push(`视觉对齐失败，改走文本：${message}`);
+    }
+  }
+
+  let cuts: MatchCut[] = [];
+  let items: MatchItem[] = [];
+  if (editedHasAudio) {
+    const editedTranscript = loadOrTranscribe(project, edited, root, deps.transcribe);
+    const sourceTranscripts = sourceRefs.map((ref) => ({
+      ref,
+      transcript: loadOrTranscribe(project, ref, root, deps.transcribe),
+    }));
+    const aligned = cutsFromTextAlign(editedTranscript, sourceTranscripts);
+    items = aligned.items;
+    warnings.push(...aligned.warnings);
+    cuts = aligned.cuts;
+    if (hashes) {
+      const reranked = rerankCuts(items, hashes.edited, hashes.sources);
+      items = reranked.items;
+      cuts = reranked.cuts;
+    }
+  } else if (hashes) {
+    cuts = cutsFromVisualScenes(editedScene, hashes.edited, hashes.sources);
+  }
+  if (hashes && cuts.length) {
+    const duration = editedScene.duration || durationOf(editedVideo.resolved.absPath);
+    cuts = fillSilentGaps(cuts, duration, hashes.edited, hashes.sources, sourceScenes);
   }
   cuts = finalizeCuts(cuts, editedScene, sourceScenes, sourceDurations);
   if (!cuts.length) throw new Error("未能生成任何剪辑点，检查转写或匹配阈值");

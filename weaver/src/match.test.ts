@@ -87,8 +87,8 @@ describe("runMatch", () => {
       scenes: () => ({ duration: 20, boundaries: [] }),
       duration: () => 20,
     };
-    runMatch({ projectId: "site-clone", edited: "asset:video.edited", root }, deps);
-    const again = runMatch({ projectId: "site-clone", edited: "asset:video.edited", root }, deps);
+    runMatch({ projectId: "site-clone", edited: "asset:video.edited", root, visual: false }, deps);
+    const again = runMatch({ projectId: "site-clone", edited: "asset:video.edited", root, visual: false }, deps);
     const project = loadProject("site-clone", root);
     assert.equal(project.film.recipe, "clone-from-edit");
     assert.equal(project.film.scenes[0]?.id, "cut-01");

@@ -650,7 +650,7 @@ function main(): void {
         projectId: project.id,
         edited,
         sources: str(values, "sources"),
-        visual: values["no-visual"] ? false : undefined,
+        visual: !values["no-visual"],
         root,
       });
       const next = loadProject(project.id, root);
