@@ -289,6 +289,42 @@ function writeScenes(project: ProjectRecord, cuts: MatchCut[], locale: string): 
   saveFilm(project, { ...project.film, scenes });
 }
 
+export function formatSrtTime(seconds: number): string {
+  const ms = Math.max(0, Math.round(seconds * 1000));
+  const hours = Math.floor(ms / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  const secs = Math.floor((ms % 60_000) / 1000);
+  const milli = ms % 1000;
+  const pad = (value: number, size: number) => String(value).padStart(size, "0");
+  return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(secs, 2)},${pad(milli, 3)}`;
+}
+
+export function cutsToSrt(cuts: MatchCut[]): string {
+  let cursor = 0;
+  const cues: string[] = [];
+  let index = 1;
+  for (const cut of cuts) {
+    const start = cursor;
+    const end = cursor + Math.max(0, cut.out - cut.in);
+    cursor = end;
+    const text = cut.text.trim();
+    if (!text) continue;
+    cues.push(`${index}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${text}`);
+    index++;
+  }
+  return cues.length ? `${cues.join("\n\n")}\n` : "";
+}
+
+function writeSubtitle(project: ProjectRecord, cuts: MatchCut[], locale: string): string | undefined {
+  const body = cutsToSrt(cuts);
+  if (!body) return undefined;
+  const rel = path.posix.join("assets/subtitles", `${locale}.srt`);
+  const abs = path.join(project.root, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, body);
+  return rel;
+}
+
 function writeReport(project: ProjectRecord, report: MatchReport): string {
   const rel = reportRel();
   const abs = path.join(project.root, rel);
@@ -384,5 +420,6 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
     items,
     cuts,
   });
-  return { projectId: project.id, cuts, report, visual };
+  const subtitle = writeSubtitle(project, cuts, locale);
+  return { projectId: project.id, cuts, report, subtitle, visual };
 }

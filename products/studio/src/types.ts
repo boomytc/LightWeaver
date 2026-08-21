@@ -48,6 +48,8 @@ export type ProjectPaths = {
   sourceFiles: SourceFile[];
   lineFiles: MediaFile[];
   outputFiles: Record<string, MediaPath>;
+  matchReport?: MediaPath;
+  subtitleFiles: MediaPath[];
   library: string;
   recipes: string;
   labUrl?: string;

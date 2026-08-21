@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { addAsset } from "./assets.ts";
-import { runMatch } from "./match.ts";
+import { cutsToSrt, formatSrtTime, runMatch } from "./match.ts";
 import { createProject, loadProject, saveFilm } from "./project.ts";
 import { setLangs } from "./scenes.ts";
 import { transcriptRel } from "./transcribe.ts";
@@ -74,6 +74,49 @@ describe("runMatch", () => {
     assert.ok((first?.in ?? 99) < (first?.out ?? 0));
     assert.match(first?.lines.zh ?? "", /这一下她没再退/);
     assert.ok(fs.existsSync(path.join(project.root, result.report)));
+    assert.ok(result.subtitle);
+    assert.ok(fs.existsSync(path.join(project.root, result.subtitle!)));
+    assert.match(fs.readFileSync(path.join(project.root, result.subtitle!), "utf8"), /这一下她没再退/);
+  });
+
+  it("writes output-timeline srt cues", () => {
+    assert.equal(formatSrtTime(0), "00:00:00,000");
+    assert.equal(formatSrtTime(1.5), "00:00:01,500");
+    const srt = cutsToSrt([
+      {
+        sceneId: "cut-01",
+        sourceRef: "asset:video.ep01",
+        in: 1,
+        out: 3,
+        editedStart: 0,
+        editedEnd: 1,
+        text: "第一句。",
+        score: 1,
+        textScore: 1,
+        visualScore: 0,
+        matchMethod: "text",
+        sceneSnapped: false,
+        warnings: [],
+      },
+      {
+        sceneId: "cut-02",
+        sourceRef: "asset:video.ep01",
+        in: 4,
+        out: 5,
+        editedStart: 2,
+        editedEnd: 3,
+        text: "",
+        score: 1,
+        textScore: 0,
+        visualScore: 1,
+        matchMethod: "silent_gap",
+        sceneSnapped: false,
+        warnings: [],
+      },
+    ]);
+    assert.match(srt, /00:00:00,000 --> 00:00:02,000/);
+    assert.match(srt, /第一句。/);
+    assert.doesNotMatch(srt, /cut-02/);
   });
 
   it("replaces clip scenes on a second run and keeps recipe", () => {

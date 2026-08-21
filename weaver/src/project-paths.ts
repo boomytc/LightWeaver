@@ -29,6 +29,8 @@ export type ProjectPaths = {
   sourceFiles: SourceFile[];
   lineFiles: MediaFile[];
   outputFiles: Record<string, MediaPath>;
+  matchReport?: MediaPath;
+  subtitleFiles: MediaPath[];
   library: string;
   recipes: string;
   labUrl?: string;
@@ -129,6 +131,20 @@ export function projectPaths(
       exists: fs.existsSync(resolved.absPath),
     });
   }
+  for (const asset of project.assets.filter((item) => item.kind === "video")) {
+    const ref = `asset:${asset.id}`;
+    if (seenSource.has(ref)) continue;
+    seenSource.add(ref);
+    const resolved = resolveAssetFile(project, ref, locales[0], root);
+    if (!resolved) continue;
+    sourceFiles.push({
+      sceneId: "",
+      ref,
+      rel: posixRel(resolved.relPath),
+      path: resolved.absPath,
+      exists: fs.existsSync(resolved.absPath),
+    });
+  }
 
   const lineFiles: MediaFile[] = [];
   for (const scene of film.scenes) {
@@ -170,6 +186,16 @@ export function projectPaths(
     brief = { kind: "project-brief", files: projectBriefFiles(project.root) };
   }
 
+  const matchRel = "assets/match/report.json";
+  const matchAbs = path.join(project.root, matchRel);
+  const matchReport = fs.existsSync(matchAbs) ? media(matchAbs, matchRel) : undefined;
+  const subtitleFiles: MediaPath[] = [];
+  for (const locale of locales) {
+    const rel = path.posix.join("assets/subtitles", `${locale}.srt`);
+    const abs = path.join(project.root, rel);
+    if (fs.existsSync(abs)) subtitleFiles.push(media(abs, rel));
+  }
+
   return {
     projectRoot: project.root,
     film: filmPath(project.root),
@@ -178,6 +204,8 @@ export function projectPaths(
     sourceFiles,
     lineFiles,
     outputFiles,
+    ...(matchReport ? { matchReport } : {}),
+    subtitleFiles,
     library: libraryRoot(root),
     recipes: path.join(recipeRoot(root), tryGetTask(task)?.recipePack ?? task),
     labUrl: uiRoot && slug ? `${labUrl(env)}/s/${slug}` : undefined,
