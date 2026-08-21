@@ -1,6 +1,15 @@
 # 场次写法
 
-这些不是方法，不能 `recipe apply`。选整片骨架看 catalog。补场才 `scene add`。
+这些不是方法，不能 `recipe apply`。选整片骨架看 catalog。补场才 `scene add`。只用当前任务允许的 kind。
+
+## 加一场 clip（footage-narration）
+
+```bash
+npx weaver scene add --project <id> --id beat --kind clip \
+  --source asset:video.origin --in 12.4 --out 18.1 --ost narration
+```
+
+`ost`：`narration` 铺旁白，`original` 留原声，`mix` 混音。源文件以 `assets.json` 为准。
 
 ## 加一场 still
 

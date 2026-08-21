@@ -10,7 +10,7 @@ src/schema.ts          Film / Asset / Scene / task types（`@lightweaver/weaver/
 src/voices.ts          无 Node 的克隆源 / Hi-Fi / voiceSetId（`/voices`）
 src/method.ts          无 Node 的 recipeIdOf（`/method`）
 src/ingest.ts          上传进库（buffer，不吃 Express）
-src/tasks/             TaskModule（只实现 study-explainer）
+src/tasks/             TaskModule（study-explainer / footage-narration）
 src/scenes.ts          add/rm/move/patch/card/voice
 src/paths.ts           workspace roots（libraryRoot 与 recipeRoot 并列）
 src/project.ts         list / load / save / create
@@ -24,7 +24,8 @@ src/sync.ts            Remotion public links + catalog
 src/tts.ts             VoxCPM2 line job（Hi-Fi：唯一克隆源）
 src/asr.ts             Qwen3-ASR-0.6B GGUF 转写 job（上传克隆源填文本；1.7B 用 asr_model 覆盖）
 src/voice-mint.ts      设计指令铸试听 / 收下为克隆源
-src/render.ts          Remotion + publish
+src/compose.ts         footage-narration：ffmpeg 按 OST 裁段合成
+src/render.ts          按 task 分流 Remotion 或 compose；publish
 src/cli.ts             JSON/human CLI
 src/capture.ts         截图作业入口
 scripts/               tts.py / asr.py / capture.mjs（不跟 LIGHTWEAVER_ROOT）
@@ -37,7 +38,7 @@ scripts/               tts.py / asr.py / capture.mjs（不跟 LIGHTWEAVER_ROOT�
 - Do not import `products/*`.
 - No LLM in weaver. No model client, no `produce` / `plan`, no narration
   generator inside this package. Agent drafts `lines` in its own process;
-  weaver only writes files and runs jobs (`tts.py`, `asr.py`, Remotion, `capture.mjs`).
+  weaver only writes files and runs jobs (`tts.py`, `asr.py`, Remotion, ffmpeg compose, `capture.mjs`).
 - `recipeRoot` is `library/methods` (method plugins live in the library).
   `LIGHTWEAVER_RECIPES` is test-fixture only. Never `skills/**/recipes/`.
 - `project.ts` must not import `project-paths.ts`, `assets.ts`, or

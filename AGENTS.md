@@ -35,10 +35,11 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | Agent procedure | `skills/lightweaver*` |
 | 现网存放图 | `docs/conventions.md` |
 
-Do not fold auto-cutting of existing footage into this repo. Do not turn
+`study-explainer` is still-card films. `footage-narration` cuts source
+video along `film.json` time ranges (ffmpeg compose). Do not turn
 `library/` into a generic file cabinet. Method plugins live in
 `library/methods/`, not `skills/`. Do not describe other repositories as
-part of this product. Upstream copy and stills arrive with the task.
+part of this product. Stills or source video arrive with the task.
 
 ## Skills
 

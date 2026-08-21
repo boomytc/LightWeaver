@@ -10,5 +10,7 @@ Each `products/<name>/` is a standalone product root.
 
 | Product | Role |
 | --- | --- |
-| `study-films` | Remotion renderer |
+| `study-films` | Remotion renderer for `study-explainer` |
 | `studio` | Local control site: workbench brief, film review |
+
+`footage-narration` compose lives in `weaver/`, not a product root.

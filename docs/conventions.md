@@ -1,14 +1,16 @@
 # How to add a film
 
-一部片子是一个 **任务实例**。当前只实现 `study-explainer`。LightWeaver 做后处理出片：编排、配音、渲染。上游文案和静帧由任务自带，不在本仓描述别的仓库。
+一部片子是一个 **任务实例**。已实现 `study-explainer`（静帧讲解）和 `footage-narration`（原片时间轴解说）。LightWeaver 做后处理出片：编排、配音、渲染。上游文案和画面由任务自带，不在本仓描述别的仓库。
 
 ## Project layout
 
 ```
 film.json                 task、scenes、locale copy、voice、publish
 assets.json               项目资产登记
-assets/stills/<locale>/   静帧
+assets/stills/<locale>/   静帧（study-explainer）
+assets/source/            源视频（footage-narration）
 assets/lines/<locale>/    旁白 wav
+assets/clips/<locale>/    中间裁段（不提交）
 assets/outputs/           渲染 mp4（不提交）
 ```
 
@@ -32,7 +34,7 @@ assets/outputs/           渲染 mp4（不提交）
 
 **可选增强（方法 / 音色 / 素材）：** 三套都在 `library/`，同一套可增删改的插件。工作台点了才约束 agent，没点就让它自己定，不要代点。方法资产 `library:method.*`，人只填名称 / 何时用 / 铺场（`expand: fixed|list`，固定场次自带 `scenes`）。apply / list / show 都按 catalog。`library/methods/<pack>/` 只放 catalog 投影短文，不是第二套库。音色、素材同样登记在 `library/assets.json`。素材人只填名称，id 自动分配。出片时不要为这一部片子新建方法。库的增删改在 Studio `/methods` `/voices` `/library`，或 `weaver method` / `weaver asset`。禁止把方法写进 `skills/`。
 
-发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
+发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `sourceFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 
 ## study-explainer
 
@@ -48,7 +50,7 @@ assets/outputs/           渲染 mp4（不提交）
 - `film.publish.dir` 若已有值，`render` 才拷一份出去。工作台不点名仓库外路径
 
 ```bash
-npx weaver project create my-film --title "演示"
+npx weaver project create my-film --title "演示" --task study-explainer
 npx weaver recipe apply --project my-film --recipe taxonomy-parade --items shot
 npx weaver langs set --project my-film --langs zh
 npx weaver validate my-film
@@ -56,7 +58,25 @@ npx weaver tts --project my-film
 npx weaver render --project my-film
 ```
 
-`make films` / `weaver tts|render` 无 `--project` 时跳过 **不可渲** 片子。指定 `--project` 渲染缺 png 会报错。
+`make films` / `weaver tts|render` 无 `--project` 时跳过 **不可渲** 片子。指定 `--project` 渲染缺 png（讲解片）或缺源视频/旁白（原片解说）会报错。
+
+## footage-narration
+
+- `task: "footage-narration"`
+- 场景形状：一场或多场 `clip`。每场 `source`（`asset:video.*`）、`in` / `out`（秒）、`ost`（`narration` | `original` | `mix`）
+- 源视频登记在 `assets.json`，文件放 `assets/source/`。路径以 catalog 为准，不从 scene id 推导
+- `ost: original` 不配旁白、tts 跳过；`narration` / `mix` 需要 `lines` 和 wav
+- `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`
+- `render` 走 ffmpeg 合成，不走 Remotion
+- 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。weaver 不跑 LLM
+
+```bash
+npx weaver project create my-cut --title "工地" --task footage-narration --source user
+npx weaver scene add --project my-cut --id beat --kind clip --source asset:video.origin --in 12.4 --out 18.1 --ost narration
+npx weaver scene set --project my-cut --id beat --locale zh --text "这一下她没再退。"
+npx weaver tts --project my-cut
+npx weaver render --project my-cut
+```
 
 ## 手截
 

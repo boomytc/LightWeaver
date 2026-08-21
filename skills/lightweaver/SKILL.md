@@ -20,7 +20,7 @@ Read `AGENTS.md` and `docs/conventions.md` first.
 | Control site（工作台复制说明，片子页复盘） | `products/studio/` `http://127.0.0.1:5175/` |
 | How to author a film | **lightweaver-film** |
 | 制作一部讲解片 / 选配方 / 出片 | **lightweaver-film** |
-| Task type / study-explainer | **lightweaver-film** |
+| Task type / study-explainer / footage-narration | **lightweaver-film** |
 | How to ingest assets | **lightweaver-assets** |
 
 ```bash

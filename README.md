@@ -1,6 +1,6 @@
 # LightWeaver
 
-后处理视频生成工作区。一部片子是一个任务实例：场景脚本、资产、旁白、成片。上游文案和静帧由任务自带；本仓编排、配音、渲染。
+后处理视频生成工作区。一部片子是一个任务实例：场景脚本、资产、旁白、成片。上游文案和画面由任务自带；本仓编排、配音、渲染。
 
 ## 怎么用
 
@@ -24,6 +24,7 @@ make remotion        # Remotion 预览
 
 ```bash
 npx weaver task list
+npx weaver project create <id> --task study-explainer|footage-narration
 npx weaver validate
 npx weaver scene add --project <id> --id shot --kind still --still asset:still.shot
 npx weaver voice asr --label 讲解女声

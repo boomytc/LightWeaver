@@ -3,14 +3,14 @@
 Local control site for LightWeaver (`http://127.0.0.1:5175/`).
 
 Top nav is 工作台 / 片子. Under 工作台 a second nav: 组合 / 方法 / 音色 / 素材.
-组合 (`/`) only picks a combo and copies the brief. Catalogs do not
+组合 (`/`) picks task + optional plugins and copies the brief. Catalogs do not
 persist films. `/films` is trajectory review. Agents generate via weaver.
 
 ## Routes
 
 | Path | Who | What |
 | --- | --- | --- |
-| `/` 工作台 | human | optional plugins (method / voice / material) + langs + output home; copy brief |
+| `/` 工作台 | human | task + optional plugins (method / voice / material) + langs + output home; copy brief |
 | `/films` `/f/<id>` | human reviews | read-only trajectory: what was used, scenes, mp4 |
 | `/voices` | human | voice plugin payloads: upload or instruct, keep, rename/text/delete |
 | `/library` | human | material plugins: name + file; create / rename / replace / delete |
@@ -33,8 +33,9 @@ persist films. `/films` is trajectory review. Agents generate via weaver.
   `/` constrains the agent; leaving one empty does not. Methods are
   catalog rows (`kind: method`, name / when / expand / scenes).
   Studio reads `/api/library` only — do not join `/api/recipes`.
-  `fixed` is an authored still list; `list` expands one still per
-  apply-time item. Materials are name + file; id is allocated.
+  `fixed` is an authored expandable-scene list; `list` expands one
+  scene per apply-time item (still or clip, per task). Materials are
+  name + file; id is allocated.
   Humans do not type method or material ids.
 - Chinese UI labels. Identifiers English.
 - Site density, not a marketing page. Token-first CSS in `src/index.css`.

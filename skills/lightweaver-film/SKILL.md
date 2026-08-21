@@ -1,14 +1,13 @@
 ---
 name: lightweaver-film
 description: >
-  Produce a LightWeaver study-explainer film: pick a mode, write
-  narration, fill FilmDoc via weaver CLI. Use when the user wants a
-  讲解片 / 出片.
+  Produce a LightWeaver film: study-explainer (stills) or
+  footage-narration (source clips). Fill FilmDoc via weaver CLI.
 ---
 
-# 制作一部 study-explainer
+# 制作一部片子
 
-先读 `AGENTS.md` 与 `docs/conventions.md`（现网存放图）。方法论细节按需读 `references/`。本仓做后处理出片。上游文案和静帧由任务自带，不要去翻、也不要描述别的仓库。
+先读 `AGENTS.md` 与 `docs/conventions.md`（现网存放图）。方法论细节按需读 `references/`。本仓做后处理出片。上游文案和画面由任务自带，不要去翻、也不要描述别的仓库。`create` 必须带 `--task`。
 
 ## 存放图（约定路径）
 
@@ -18,14 +17,14 @@ description: >
 - 产物：只在任务实例里。`data/projects/<id>/assets/outputs/` 或 `data/first-party/<id>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/`
 - 工作台说明若写「产物位置：未指定」，**开始前先问人**写到哪棵 data 树。人没另给拷贝位置，不要拷到仓库外
 - 方法 / 音色 / 素材都在 `library/`，都是可选增强。方法是 `library:method.*`（文件在 `library/methods/`）。出片时只 `list` / `show` / `apply`，不要为这一部片子新建方法。库的增删改在 Studio `/methods` 或 `weaver method`
-- 发现：`weaver project show --json` → `paths.stillFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.langs`、`film.voices`、`film.kit`、`film.recipe`
+- 发现：`weaver project show --json` → `paths.stillFiles` / `sourceFiles` / `lineFiles` / `outputFiles` / `brief` 与同级 `renderable`。先读 `film.task`、`film.langs`、`film.voices`、`film.kit`、`film.recipe`
 
 ## 结合规则
 
 | 判据 | 动作 |
 | --- | --- |
 | `hasErrors(validate)` | **停全部生成**：不准 tts / render / capture。先修 FilmDoc |
-| `!hasErrors` 且 `!isRenderable`（引用在、png 缺） | 允许 `tts`。**禁止** `render --project` |
+| `!hasErrors` 且 `!isRenderable`（讲解片 png 缺，或原片源视频/旁白缺） | 允许 `tts`（原声场除外）。**禁止** `render --project` |
 | `capture.kind` 有适配器且某 `stillFiles` `exists === false` | `weaver capture --project` |
 | `capture.kind === "manual"` 且 png 缺 | **停**。手截到 `assets.json` 已登记路径。**禁止** `weaver capture` |
 | 某 `lineFiles` `exists === false` | `tts --project`（可 `--scene`） |
@@ -46,12 +45,12 @@ description: >
 1. 按图存放。理念跟任务走；资产用 `library:` / `asset:`；产物进该片子在 `data/` 下的 `assets/lines` 与 `assets/outputs`。不发明顶层目录，不把产物写进理念目录或 `products/study-films/`，不把上游 idea 拷进片子。工作台没点产物位置就先问。
 2. 脚本即片子。`film.json` 是编排合同。不手写 Remotion TSX。
 3. 方法若是清单一项一场，一项一场。禁止合并。
-4. 真静帧。不要手绘假 UI。
+4. 讲解片用真静帧，不要手绘假 UI。原片解说登记真实源视频。
 5. 只写 `film.langs` 点名的语言再 TTS。没点英文就不要硬写英文。
 6. 先形状后媒体；能复用就不重生。`validate`  error 未清不得交付；`!isRenderable` 不得 `render`。人在 Studio `/methods` `/voices` `/library` 监管库，在工作台复制说明，在 `/f/<id>` 复盘。`film.kit` 只是参考权能。`tts` 走 Hi-Fi clone，不用 `--seed` 改库。
 7. 先名称 / 场景 / 规则，再谈外观。口播用听者的话。`validate` 对忌语出 warning。title/close 用 `points`。
-8. 不发明 scene kind。只能 `title | still | close`。
-9. 模式未定就停。缺静帧且无适配器就停。不要空转 `capture`。
+8. 不发明 scene kind。只用该任务 `sceneKinds`（讲解片 `title | still | close`，原片解说 `clip`）。
+9. 模式未定就停。讲解片缺静帧且无适配器就停。原片解说缺源视频就停。不要空转 `capture`。
 10. 确定性 job。weaver 内无模型。
 
 ## 何时读哪个文件
@@ -73,13 +72,15 @@ description: >
 npx weaver project list --json
 npx weaver project show <id> --json
 npx weaver method list
-npx weaver recipe list [--task study-explainer]
+npx weaver recipe list [--task study-explainer|footage-narration]
 npx weaver recipe show <id>
 npx weaver recipe apply --project <id> --recipe taxonomy-parade --items a,b,c --json
 npx weaver recipe apply --project <id> --recipe problem-then-rule --json
+npx weaver recipe apply --project <id> --recipe plot-then-match --items a,b --json
 npx weaver recipe use --project <id> --recipe taxonomy-parade
-npx weaver project create <id> --task study-explainer [--title] [--source first-party] [--output] [--output-en]
+npx weaver project create <id> --task study-explainer|footage-narration [--title] [--source first-party] [--output] [--output-en]
 npx weaver scene add --project <id> --id <scene> --kind still [--still asset:still.x] [--role contrast]
+npx weaver scene add --project <id> --id beat --kind clip --source asset:video.origin --in 12.4 --out 18.1 --ost narration
 npx weaver scene rm --project <id> --id <scene>
 npx weaver scene move --project <id> --id <scene> --after <id>
 npx weaver scene set --project <id> --id <scene> --locale zh --text "..."

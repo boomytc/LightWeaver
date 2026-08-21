@@ -1,6 +1,6 @@
 # 制作阶段 0–7
 
-画面语言已冻结为 title 卡 + still + close 卡。阶段 5 是 TTS，不是写 Remotion TSX。
+讲解片画面语言是 title 卡 + still + close 卡。原片解说是 clip 时间轴。阶段 5 是 TTS，不是写 Remotion TSX。
 
 ## 结构怎么选
 
