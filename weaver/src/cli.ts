@@ -176,19 +176,23 @@ function main(): void {
       if (!id) fail("用法: weaver project create <id>");
       const sourceRaw = str(values, "source");
       if (sourceRaw && sourceRaw !== "user" && sourceRaw !== "first-party") fail("source 必须是 user 或 first-party");
-      const project = createProject(
-        id,
-        {
-          title: str(values, "title"),
-          task: str(values, "task"),
-          source: sourceRaw as "user" | "first-party" | undefined,
-          studySlug: str(values, "study-slug"),
-          output: str(values, "output"),
-          outputEn: str(values, "output-en"),
-        },
-        root,
-      );
-      print(wantJson ? envelope(project, root) : projectSummary(project));
+      try {
+        const project = createProject(
+          id,
+          {
+            title: str(values, "title"),
+            task: str(values, "task"),
+            source: sourceRaw as "user" | "first-party" | undefined,
+            studySlug: str(values, "study-slug"),
+            output: str(values, "output"),
+            outputEn: str(values, "output-en"),
+          },
+          root,
+        );
+        print(wantJson ? envelope(project, root) : projectSummary(project));
+      } catch (error) {
+        fail(error instanceof Error ? error.message : String(error));
+      }
       return;
     }
     fail("用法: weaver project list|show|validate|create");
@@ -614,7 +618,11 @@ function main(): void {
 
   if (command === "transcribe") {
     const project = requireProject(projectIdOf(rest, values));
-    print(runTranscribe({ projectId: project.id, ref: str(values, "ref"), root }));
+    try {
+      print(runTranscribe({ projectId: project.id, ref: str(values, "ref"), root }));
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
+    }
     return;
   }
 

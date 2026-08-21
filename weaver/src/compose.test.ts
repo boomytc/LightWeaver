@@ -56,6 +56,20 @@ describe("clipArgs", () => {
 });
 
 describe("runCompose", () => {
+  it("renders an all-original film without tts wavs", () => {
+    const root = tempWorkspace();
+    const project = seedFootageFilm(
+      root,
+      "keep-cut",
+      [{ id: "keep", in: 0.2, out: 1.4, ost: "original", zh: "", en: "" }],
+      { writeVideo: true },
+    );
+    setLangs(project, ["zh"]);
+    writeColorVideo(path.join(project.root, "assets/source/origin.mp4"), 2);
+    const result = runRender({ projectId: project.id, locale: "zh", root });
+    assert.ok(result.files[0]?.dest && fs.existsSync(result.files[0].dest));
+  });
+
   it("refuses to compose when the origin file is missing", () => {
     const root = tempWorkspace();
     const project = seedFootageFilm(root, "need-origin", [{ id: "say", in: 0, out: 1, ost: "narration" }]);
