@@ -65,7 +65,9 @@
       "file": "methods/footage-narration/clone-from-edited.md",
       "task": "footage-narration",
       "text": "有一条已剪参考片，要从多集或长原片里找回对应画面。不要 recipe apply 铺场；登记视频后跑 weaver match。",
-      "expand": "list"
+      "expand": "list",
+      "needs": ["match-report"],
+      "clipOst": "original"
     },
     {
       "id": "method.see-then-narrate",
@@ -74,7 +76,8 @@
       "file": "methods/footage-narration/see-then-narrate.md",
       "task": "footage-narration",
       "text": "无对白或对白很少。不要 recipe apply 铺时间轴；登记视频后跑 weaver describe，按描述树一场一 clip。观察只当素材，不当旁白原文。",
-      "expand": "list"
+      "expand": "list",
+      "needs": ["description"]
     },
     {
       "id": "method.copy-then-match",
@@ -92,7 +95,9 @@
       "file": "methods/footage-narration/highlight-mix.md",
       "task": "footage-narration",
       "text": "已有对白时间轴，从句子里抽情节点，几乎全原声。不要 recipe apply 铺场。不要 tts。",
-      "expand": "list"
+      "expand": "list",
+      "needs": ["transcript"],
+      "clipOst": "original"
     }
   ]
 }

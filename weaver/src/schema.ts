@@ -36,6 +36,13 @@ export function isOstMode(value: unknown): value is OstMode {
   return (OST_MODES as readonly string[]).includes(String(value));
 }
 
+export const METHOD_NEEDS = ["transcript", "description", "match-report"] as const;
+export type MethodNeed = (typeof METHOD_NEEDS)[number];
+
+export function isMethodNeed(value: unknown): value is MethodNeed {
+  return (METHOD_NEEDS as readonly string[]).includes(String(value));
+}
+
 /** 原声场不配解说。缺 ost 时按需要旁白处理。 */
 export function sceneNeedsLine(scene: { ost?: OstMode }): boolean {
   return scene.ost !== "original";
@@ -67,6 +74,10 @@ export type Asset = {
   expand?: MethodExpand;
   scenes?: MethodScene[];
   task?: string;
+  /** 方法：validate 要先有的作业产物。其它 kind 不用。 */
+  needs?: MethodNeed[];
+  /** 方法：每一场 clip 必须是这个 ost。其它 kind 不用。 */
+  clipOst?: OstMode;
 };
 
 export type AssetDoc = {
@@ -75,6 +86,10 @@ export type AssetDoc = {
 
 export function methodExpandOf(asset: Pick<Asset, "expand">): MethodExpand {
   return asset.expand === "list" ? "list" : "fixed";
+}
+
+export function methodNeedsOf(asset: Pick<Asset, "needs">): MethodNeed[] {
+  return (asset.needs ?? []).filter(isMethodNeed);
 }
 
 export type CardCopy = {

@@ -3,6 +3,7 @@ import { findAsset, resolveVoicePrompt, voiceHifiRef } from "./assets.ts";
 import { listProjects, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { assertFilmMethod } from "./recipes.ts";
+import { assertMethodGates } from "./method-assert.ts";
 import { taskAllowsKind, tryGetTask } from "./tasks/registry.ts";
 
 export function validateProject(project: ProjectRecord, root = weaverRoot()): Issue[] {
@@ -88,6 +89,7 @@ export function validateProject(project: ProjectRecord, root = weaverRoot()): Is
 
   const task = tryGetTask(taskId);
   if (task) issues.push(...task.validate(project, root));
+  issues.push(...assertMethodGates(project, root));
   return issues;
 }
 

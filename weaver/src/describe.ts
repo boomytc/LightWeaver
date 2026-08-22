@@ -11,7 +11,6 @@ import {
   sequenceNeedsVision,
   summaryFromSequences,
   type DescriptionDoc,
-  type SequenceObservation,
 } from "./describe-group.ts";
 import { extractJpeg, jpegRel } from "./describe-frames.ts";
 import { describePrompt, runVlm, type VlmResult } from "./vlm.ts";

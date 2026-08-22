@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filmLangs, filmTask, isAssetKind, normalizeFilm, parseAssetRef, type FilmDoc } from "./schema.ts";
+import { filmLangs, filmTask, isAssetKind, isMethodNeed, methodNeedsOf, normalizeFilm, parseAssetRef, type FilmDoc } from "./schema.ts";
 import { jargonIn } from "./tasks/study-jargon.ts";
 import { getTask, resolveTask, tryGetTask } from "./tasks/registry.ts";
 import { createProject } from "./project.ts";
@@ -12,6 +12,12 @@ describe("asset kinds", () => {
     assert.equal(isAssetKind("description"), true);
     assert.equal(isAssetKind("transcript"), true);
     assert.equal(isAssetKind("memory"), false);
+  });
+
+  it("reads method needs from the catalog shape", () => {
+    assert.equal(isMethodNeed("description"), true);
+    assert.equal(isMethodNeed("memory"), false);
+    assert.deepEqual(methodNeedsOf({ needs: ["description"] }), ["description"]);
   });
 });
 
