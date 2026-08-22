@@ -1,9 +1,17 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { localConfigValue } from "./config.ts";
 import { voiceCandidateRoot, weaverRoot, weaverScriptsRoot } from "./paths.ts";
+import { ASR_SETTINGS } from "./asr-settings.ts";
+import {
+  isTruncated,
+  stitchAsrResults,
+  windowsFor,
+  type AsrWindow,
+  type AsrWindowResult,
+} from "./asr-chunk.ts";
 
 export type AsrWord = { token: string; start: number; end: number };
 export type AsrSentence = { text: string; start: number; end: number; words?: AsrWord[] };
@@ -30,6 +38,16 @@ export type AsrOptions = {
 };
 
 export type TranscribeFn = (options: AsrOptions) => Pick<AsrResult, "text">;
+
+export type AsrEngineOutput = AsrResult & { truncated?: boolean; log?: string };
+
+export type AsrEngine = (audio: string) => AsrEngineOutput;
+
+export type AsrDeps = {
+  engine?: AsrEngine;
+  duration?: (file: string) => number;
+  slice?: (file: string, start: number, duration: number, dest: string) => void;
+};
 
 export function parseAsrResult(output: string): AsrResult {
   const lines = output.split(/\r?\n/).map((row) => row.trim());
@@ -108,9 +126,70 @@ export function asrAudio(media: string): { audio: string; tmp?: string } {
   return { audio: tmp, tmp };
 }
 
-export function runAsr(options: AsrOptions): AsrResult {
+export function runAsr(options: AsrOptions, deps: AsrDeps = {}): AsrResult {
   const root = options.root ?? weaverRoot();
   const prepared = asrAudio(options.audio);
+  try {
+    const duration = (deps.duration ?? wavFileSeconds)(prepared.audio);
+    const engine = deps.engine ?? ((audio: string) => invokeAsrJob(audio, options, root));
+    if (!(duration > ASR_SETTINGS.chunkSeconds)) {
+      const one = engine(prepared.audio);
+      if (!one.text.trim()) throw new Error("转写没有得到文本，请手写这句再说的话");
+      if (isTruncated(one, duration, false)) throw new Error("转写被截断");
+      return { text: one.text.trim(), language: one.language, seconds: duration || one.seconds, sentences: one.sentences };
+    }
+    const slice = deps.slice ?? sliceAudio;
+    const parts = windowsFor(duration).map((window) =>
+      transcribeWindow(prepared.audio, window, { engine, slice, language: options.language, root }, 0),
+    );
+    const stitched = stitchAsrResults(parts);
+    if (!stitched.text.trim()) throw new Error("转写没有得到文本，请手写这句再说的话");
+    return { ...stitched, seconds: duration };
+  } finally {
+    if (prepared.tmp) fs.rmSync(prepared.tmp, { force: true });
+  }
+}
+
+function transcribeWindow(
+  source: string,
+  window: AsrWindow,
+  ctx: { engine: AsrEngine; slice: NonNullable<AsrDeps["slice"]>; language?: string; root: string },
+  depth: number,
+): AsrWindowResult {
+  const dest = path.join(os.tmpdir(), `weaver-asr-w-${process.pid}-${Math.round(window.start * 1000)}-${Math.round(window.end * 1000)}.wav`);
+  try {
+    ctx.slice(source, window.start, window.end - window.start, dest);
+    const raw = ctx.engine(dest);
+    const span = window.end - window.start;
+    if (isTruncated(raw, span) && depth === 0) {
+      const mid = (window.start + window.end) / 2;
+      const left = transcribeWindow(source, { start: window.start, end: mid }, ctx, 1);
+      const right = transcribeWindow(source, { start: mid, end: window.end }, ctx, 1);
+      return { start: window.start, end: window.end, result: stitchAsrResults([left, right]) };
+    }
+    if (isTruncated(raw, span) || !raw.text.trim()) {
+      throw new Error(`转写被截断（${window.start.toFixed(1)}–${window.end.toFixed(1)}s）`);
+    }
+    return { start: window.start, end: window.end, result: raw };
+  } finally {
+    fs.rmSync(dest, { force: true });
+  }
+}
+
+function sliceAudio(file: string, start: number, duration: number, dest: string): void {
+  try {
+    execFileSync(
+      "ffmpeg",
+      ["-y", "-ss", String(start), "-t", String(duration), "-i", file, "-ac", "1", "-ar", "16000", dest],
+      { stdio: "ignore" },
+    );
+  } catch (error) {
+    const err = error as { stderr?: string; message: string };
+    throw new Error(`无法切开音频：${err.stderr || err.message}`);
+  }
+}
+
+function invokeAsrJob(audio: string, options: AsrOptions, root: string): AsrEngineOutput {
   const python = path.join(weaverScriptsRoot(), "asr.py");
   if (!fs.existsSync(python)) throw new Error(`找不到 ${python}`);
   const runtime = asrRuntime(root);
@@ -123,7 +202,7 @@ export function runAsr(options: AsrOptions): AsrResult {
     `${JSON.stringify(
       {
         kind: "transcribe",
-        audio: prepared.audio,
+        audio,
         language: options.language ?? "",
         model: runtime.model,
         library: runtime.library,
@@ -136,20 +215,24 @@ export function runAsr(options: AsrOptions): AsrResult {
     )}\n`,
   );
   try {
-    const output = execFileSync("python3", [python, "--job", jobFile], {
+    const spawned = spawnSync("python3", [python, "--job", jobFile], {
       encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 16 * 1024 * 1024,
     });
-    const parsed = parseAsrResult(output);
-    if (!parsed.text) throw new Error("转写没有得到文本，请手写这句再说的话");
-    return parsed;
-  } catch (error) {
-    const err = error as { stderr?: string; stdout?: string; message: string };
-    throw new Error([err.stderr, err.stdout, err.message].filter(Boolean).join("\n"));
+    const log = `${spawned.stderr ?? ""}\n${spawned.stdout ?? ""}`;
+    const truncated = /OutputTruncated/i.test(log);
+    if (spawned.status !== 0 && !truncated) {
+      throw new Error([spawned.stderr, spawned.stdout, spawned.error?.message].filter(Boolean).join("\n"));
+    }
+    try {
+      const parsed = parseAsrResult(spawned.stdout ?? "");
+      return { ...parsed, truncated, log };
+    } catch (error) {
+      if (truncated) return { text: "", language: "", seconds: 0, truncated: true, log };
+      throw error;
+    }
   } finally {
     fs.rmSync(jobFile, { force: true });
-    if (prepared.tmp) fs.rmSync(prepared.tmp, { force: true });
   }
 }
 
