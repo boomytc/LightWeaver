@@ -2,7 +2,8 @@
 name: lightweaver-film
 description: >
   Produce a LightWeaver film: study-explainer (stills) or
-  footage-narration (source clips). Fill FilmDoc via weaver CLI.
+  footage-narration (clips). Fill FilmDoc via weaver CLI. Standalone
+  STT/TTS without a film: weaver asr --file / tts --text.
 ---
 
 # 制作一部片子
@@ -34,7 +35,10 @@ description: >
 | `isRenderable` 且 output 缺，或本会话刚 tts / 换了 png | `render --project` |
 | `film.recipe` 是 `clone-from-edit` | 登记已剪片+原片后 `weaver match --edited`。**禁止**手写 in/out，**禁止** tts |
 | `film.recipe` 是 `see-then-narrate` | 登记源视频后 `weaver describe`。**禁止**空树写解说。按 sequences 一场一 clip，观察只当素材 |
+| `film.recipe` 是 `plot-then-match` | 转写后写解说并对 in/out。静音场先 `describe` |
+| `film.recipe` 是 `copy-then-match` | `recipe apply` 清单是文案场，再填 in/out。原片占比是铺场目标 |
 | `film.recipe` 是 `highlight-mix` | `transcribe` 后写 `ost: original` clip。**禁止** tts |
+| 只要转写/合成一句、没有片子 | `weaver asr --file` / `weaver tts --text --voice --dest`。**不要**为此 `project create` |
 | 无 `publish.dir` | 只写 `assets/outputs/`；不要 `publish` |
 | `brief.kind=project-brief` 且 `brief.files.brief.exists === false` | 先写 `brief.md`，再写 lines |
 | `data/` 里已有该 id 且本会话未改旁白 | **不要**重写 lines。只补缺的静帧 / wav / mp4 |
@@ -54,7 +58,7 @@ description: >
 7. 先名称 / 场景 / 规则，再谈外观。口播用听者的话。`validate` 对忌语出 warning。title/close 用 `points`。
 8. 不发明 scene kind。只用该任务 `sceneKinds`（讲解片 `title | still | close`，原片解说 `clip`）。复刻用 `weaver match` 铺场，不要手写 in/out。无对白先 `describe`。
 9. 模式未定就停。讲解片缺静帧且无适配器就停。原片解说缺源视频就停。不要空转 `capture`。
-10. 确定性 job。weaver 内无模型。
+10. 确定性 job。weaver 不跑规划 LLM；STT/TTS/VLM 只当 job。任意 agent 调 `asr` / `tts --text`，不要 import 脚本。
 
 ## 何时读哪个文件
 

@@ -28,3 +28,7 @@
 `see-then-narrate`：阶段 2 是 `asset add --kind video` 然后 `weaver describe --ref asset:video.origin`。不要 `recipe apply`。阶段 3 按 `sequences` 一场一 clip 写旁白（观察只当素材）。没有描述树禁止写解说。
 
 `highlight-mix`：阶段 2 转写后写 `ost: original` clip。不要 tts。阶段 6–7。
+
+`copy-then-match`：阶段 2 可以 `recipe apply --items` 铺文案场，阶段 3 先过解说，再填 in/out。原片占比是铺场目标（部分 `ost: original`），不是滤镜。
+
+阶段 5 出片用 `tts --project`。只要合成一句、没有片子，用 `tts --text --voice --dest`，不要为此新建项目。转写一句用 `asr --file`；源视频进片子资产用 `transcribe --project`。

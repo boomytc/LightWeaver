@@ -22,9 +22,10 @@
 - `recipe apply`（结构已定；占位旁白阶段 3 再写）。补场才 `scene add`
 - `scene set` / `card set`（模式允许时）
 - `validate`
-- `tts`（仅 `!hasErrors`）
+- `tts --project`（仅 `!hasErrors`）
 - `capture`（仅片子配了适配器）
 - `render`（当且仅当 `isRenderable`）
 - `publish`（当且仅当 `publish.dir` 且 `outputFiles[locale].exists`）
 - `describe`（footage-narration 无对白 / 静音场）
 - `transcribe` / `match`（按方法卡）
+- `asr --file` / `tts --text`（不需要片子；不要为此 create）
