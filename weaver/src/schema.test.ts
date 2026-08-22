@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filmLangs, filmTask, normalizeFilm, parseAssetRef, type FilmDoc } from "./schema.ts";
+import { filmLangs, filmTask, isAssetKind, normalizeFilm, parseAssetRef, type FilmDoc } from "./schema.ts";
 import { jargonIn } from "./tasks/study-jargon.ts";
 import { getTask, resolveTask, tryGetTask } from "./tasks/registry.ts";
 import { createProject } from "./project.ts";
 import { validateProject } from "./validate.ts";
 import { tempWorkspace } from "./test-workspace.ts";
+
+describe("asset kinds", () => {
+  it("accepts description next to transcript", () => {
+    assert.equal(isAssetKind("description"), true);
+    assert.equal(isAssetKind("transcript"), true);
+    assert.equal(isAssetKind("memory"), false);
+  });
+});
 
 describe("parseAssetRef", () => {
   it("accepts asset and library refs", () => {

@@ -39,6 +39,7 @@ export function folderFor(kind: string, locale?: string): string {
   if (kind === "output") return "assets/outputs";
   if (kind === "video") return "assets/source";
   if (kind === "transcript") return "assets/transcripts";
+  if (kind === "description") return "assets/descriptions";
   return "assets/misc";
 }
 

@@ -31,6 +31,7 @@ export type ProjectPaths = {
   outputFiles: Record<string, MediaPath>;
   matchReport?: MediaPath;
   subtitleFiles: MediaPath[];
+  descriptionFiles: MediaPath[];
   library: string;
   recipes: string;
   labUrl?: string;
@@ -196,6 +197,11 @@ export function projectPaths(
     if (fs.existsSync(abs)) subtitleFiles.push(media(abs, rel));
   }
 
+  const descriptionFiles: MediaPath[] = [];
+  for (const asset of project.assets.filter((item) => item.kind === "description" && item.file)) {
+    descriptionFiles.push(media(path.join(project.root, asset.file!), posixRel(asset.file!)));
+  }
+
   return {
     projectRoot: project.root,
     film: filmPath(project.root),
@@ -206,6 +212,7 @@ export function projectPaths(
     outputFiles,
     ...(matchReport ? { matchReport } : {}),
     subtitleFiles,
+    descriptionFiles,
     library: libraryRoot(root),
     recipes: path.join(recipeRoot(root), tryGetTask(task)?.recipePack ?? task),
     labUrl: uiRoot && slug ? `${labUrl(env)}/s/${slug}` : undefined,

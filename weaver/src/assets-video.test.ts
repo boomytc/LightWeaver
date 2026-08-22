@@ -10,6 +10,7 @@ import { tempWorkspace, touch } from "./test-workspace.ts";
 describe("video ingest", () => {
   it("maps video assets into assets/source", () => {
     assert.equal(folderFor("video"), "assets/source");
+    assert.equal(folderFor("description"), "assets/descriptions");
     assert.equal(destRel("video", "video.edited", undefined, ".mp4"), "assets/source/edited.mp4");
   });
 

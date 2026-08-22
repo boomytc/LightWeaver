@@ -1,4 +1,15 @@
-export const ASSET_KINDS = ["element", "voice", "still", "reference", "line", "output", "method", "video", "transcript"] as const;
+export const ASSET_KINDS = [
+  "element",
+  "voice",
+  "still",
+  "reference",
+  "line",
+  "output",
+  "method",
+  "video",
+  "transcript",
+  "description",
+] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
 export const METHOD_EXPANDS = ["fixed", "list"] as const;

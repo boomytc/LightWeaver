@@ -151,7 +151,7 @@ export function extractFrameHashes(
   return frames;
 }
 
-function nearestHash(frames: FrameHash[], time: number): FrameHash | undefined {
+export function nearestHash(frames: FrameHash[], time: number): FrameHash | undefined {
   if (!frames.length) return undefined;
   return frames.reduce((best, frame) => (Math.abs(frame.t - time) < Math.abs(best.t - time) ? frame : best));
 }

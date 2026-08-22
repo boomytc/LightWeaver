@@ -7,3 +7,6 @@ modelbest_api_key: ''
 # asr_model: '/absolute/path/to/qwen3-asr-0.6b-Q8_0.gguf'
 # asr_library: '/absolute/path/to/libtranscribe.dylib'
 # asr_bindings: '/absolute/path/to/transcribe.cpp/bindings/python/src'
+
+# Optional VLM for weaver describe. Default MiniCPM-V-4.6 on ModelBest (same key as TTS).
+# vlm_model: MiniCPM-V-4.6
