@@ -38,6 +38,22 @@ assets/outputs/           渲染 mp4（不提交）
 
 发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `sourceFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
 
+## 感知 / 合成原语（任意 agent）
+
+STT / TTS 是 weaver 可调用的基础模块，**不需要片子**。OpenClaw、QwenPaw、Codex、Claude Code、Grok Build 等只调 CLI，不要去 import `tts.py` / `asr.py`，不要为转写或合成新建 `film.json`。
+
+```bash
+npx weaver asr --file clip.wav --json
+npx weaver asr --file origin.mp4 --language zh --json
+npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
+```
+
+- `asr`：wav 或带音轨的视频 → `{ text, language, seconds, sentences? }`。不写项目资产。
+- `tts --text`：一句旁白 + `library:voice.*` 克隆源 → wav。Hi-Fi：克隆源 wav + 逐字稿。
+- 片子作业仍是 `transcribe --project`（写 `assets/transcripts`）和 `tts --project`（写 `assets/lines`）。
+- `voice asr --id` 只给库里的克隆源补文本，不是通用 STT。
+- 缺 ASR 模型或 ModelBest 密钥时失败，不要换引擎、不要装成空结果。
+
 ## study-explainer
 
 - `task: "study-explainer"`

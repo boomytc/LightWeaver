@@ -18,7 +18,7 @@ import { projectPaths } from "./project-paths.ts";
 import { applyRecipe, formatRecipe, listRecipes, loadRecipe, setFilmRecipe, summarizeRecipe } from "./recipes.ts";
 import { hasErrors, isRenderable, validateProject, validateWorkspace } from "./validate.ts";
 import { syncRemotion } from "./sync.ts";
-import { runTts } from "./tts.ts";
+import { runTts, speakLine } from "./tts.ts";
 import { runTranscribe } from "./transcribe.ts";
 import { runMatch } from "./match.ts";
 import { runDescribe } from "./describe.ts";
@@ -108,6 +108,9 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       "no-visual": { type: "boolean", default: false },
       visual: { type: "boolean", default: false },
       force: { type: "boolean", default: false },
+      language: { type: "string" },
+      voice: { type: "string" },
+      dest: { type: "string" },
     },
   });
   wantJson = Boolean(values.json);
@@ -634,6 +637,17 @@ function main(): void {
     return;
   }
 
+  if (command === "asr") {
+    const file = str(values, "file") ?? rest[0];
+    if (!file) fail("用法: weaver asr --file <wav|mp4> [--language zh]");
+    try {
+      print(runAsr({ audio: file, language: str(values, "language"), root }));
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
   if (command === "transcribe") {
     const project = requireProject(projectIdOf(rest, values));
     try {
@@ -691,6 +705,20 @@ function main(): void {
 
   if (command === "tts") {
     if (values.seed) fail("铸库请在 Studio /voices 听完再收。出片 tts 不改参考声，不要加 --seed");
+    const text = str(values, "text");
+    const dest = str(values, "dest");
+    const voice = str(values, "voice") ?? str(values, "ref");
+    if (text !== undefined || dest || (voice && !str(values, "project") && !rest[0])) {
+      if (!text || !dest || !voice) {
+        fail("用法: weaver tts --text <旁白> --voice library:voice.* --dest <wav>");
+      }
+      try {
+        print(speakLine({ text, voice, dest, root }));
+      } catch (error) {
+        fail(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
     const projectId = rest[0] ?? str(values, "project") ?? "";
     const projects = projectId ? [loadProject(projectId, root)] : listProjects(root);
     const attempted: ProjectRecord[] = [];
@@ -761,12 +789,14 @@ function main(): void {
   weaver asset list|add|set|rm
   weaver validate [id]
   weaver capture [--project]
+  weaver asr --file <wav|mp4> [--language zh]
+  weaver tts --text <旁白> --voice library:voice.* --dest <wav>
   weaver transcribe --project [--ref asset:video.*]
   weaver describe --project [--ref asset:video.*] [--force] [--visual]
   weaver match --project --edited asset:video.* [--sources asset:video.a,asset:video.b] [--no-visual]
   weaver publish --project
   weaver sync
-  weaver tts [--project]
+  weaver tts --project [--locale] [--scene]
   weaver render [--project]`);
 }
 

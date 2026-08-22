@@ -1,11 +1,9 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { findAsset, resolveAssetFile, upsertAsset } from "./assets.ts";
-import { runAsr, type AsrResult } from "./asr.ts";
+import { asrAudio, runAsr, type AsrResult } from "./asr.ts";
 import { loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
-import { execFileSync } from "node:child_process";
 import { stampTranscript, transcriptIsStamped, type TranscriptDoc, type TranscriptSentence } from "./sentences.ts";
 import type { ProjectRecord } from "./schema.ts";
 
@@ -79,9 +77,9 @@ export function runTranscribe(
     return { projectId: project.id, file: rel, transcript: cached };
   }
 
-  const audio = audioForAsr(resolved.absPath);
+  const prepared = asrAudio(resolved.absPath);
   try {
-    const raw = transcribe({ audio, root });
+    const raw = transcribe({ audio: prepared.audio, root });
     const asr: AsrResult = {
       text: raw.text,
       language: "language" in raw ? String(raw.language ?? "") : "",
@@ -94,23 +92,11 @@ export function runTranscribe(
     upsertAsset(project, { id: `transcript.${videoId}`, kind: "transcript", file: rel, scene: videoId });
     return { projectId: project.id, file: rel, transcript: stamped };
   } finally {
-    if (audio !== resolved.absPath) fs.rmSync(audio, { force: true });
+    if (prepared.tmp) fs.rmSync(prepared.tmp, { force: true });
   }
 }
 
 function firstVideoRef(project: ProjectRecord): string | undefined {
   const asset = project.assets.find((item) => item.kind === "video");
   return asset ? `asset:${asset.id}` : undefined;
-}
-
-function audioForAsr(media: string): string {
-  if (/\.wav$/i.test(media)) return media;
-  const tmp = path.join(os.tmpdir(), `weaver-asr-${process.pid}-${Date.now()}.wav`);
-  try {
-    execFileSync("ffmpeg", ["-y", "-i", media, "-vn", "-ac", "1", "-ar", "16000", tmp], { stdio: "ignore" });
-  } catch (error) {
-    const err = error as { stderr?: string; message: string };
-    throw new Error(`无法从源视频抽出音频：${err.stderr || err.message}`);
-  }
-  return tmp;
 }

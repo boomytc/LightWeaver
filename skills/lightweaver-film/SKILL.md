@@ -94,6 +94,8 @@ npx weaver voice asr --label 讲解女声
 npx weaver langs set --project <id> --langs zh
 npx weaver kit set --project <id> --refs library:element.mark
 npx weaver validate <id>
+npx weaver asr --file clip.wav --json
+npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
 npx weaver transcribe --project <id> --ref asset:video.origin
 npx weaver describe --project <id> --ref asset:video.origin [--force] [--visual]
 npx weaver match --project <id> --edited asset:video.edited [--sources asset:video.ep01]

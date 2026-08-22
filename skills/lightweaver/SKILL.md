@@ -13,6 +13,7 @@ Read `AGENTS.md` and `docs/conventions.md` first.
 | Ask | Go to |
 | --- | --- |
 | Schema, CLI, validate, tts/render/match/describe jobs | `weaver/` |
+| 独立 STT / TTS（不需要片子） | `weaver asr` / `weaver tts --text`（见下） |
 | Shared voice / element / method | `library/`（方法在 `library/methods/`） |
 | Task instance | `data/first-party/<id>/` or `data/projects/<id>/`（gitignore） |
 | Remotion cards | `products/study-films/` |
@@ -29,6 +30,15 @@ make typecheck
 make test
 make studio
 ```
+
+感知 / 合成原语（任意 agent，不建片子）：
+
+```bash
+npx weaver asr --file clip.wav --json
+npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
+```
+
+片子里的转写/旁白仍走 `transcribe --project` / `tts --project`。不要 import `weaver/scripts/*.py`。
 
 Do not copy schema into a product — import `@lightweaver/weaver`.
 Do not describe other repositories as part of this product.

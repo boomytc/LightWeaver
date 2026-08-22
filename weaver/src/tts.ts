@@ -5,7 +5,7 @@ import path from "node:path";
 import { weaverRoot, weaverScriptsRoot } from "./paths.ts";
 import { loadProject } from "./project.ts";
 import { findAsset, lineAssetId, lineRelPath, resolveVoicePrompt, upsertAsset, voiceHifiRef } from "./assets.ts";
-import { filmLangs, sceneNeedsLine, type Locale, type SceneDef } from "./schema.ts";
+import { filmLangs, parseAssetRef, sceneNeedsLine, type Locale, type SceneDef } from "./schema.ts";
 
 export type TtsOptions = {
   projectId: string;
@@ -108,6 +108,73 @@ export function runTts(options: TtsOptions): TtsResult {
     }
   }
   return { projectId: project.id, wrote };
+}
+
+export type SpeakOptions = {
+  text: string;
+  voice: string;
+  dest: string;
+  root?: string;
+};
+
+export type SpeakResult = { file: string; seconds: number; voice: string };
+
+export function speakLine(options: SpeakOptions): SpeakResult {
+  const root = options.root ?? weaverRoot();
+  const text = options.text.trim();
+  if (!text) throw new Error("合成需要旁白文本");
+  const dest = path.resolve(options.dest);
+  if (!/\.wav$/i.test(dest)) throw new Error("合成产物必须是 .wav");
+  const parsed = parseAssetRef(options.voice);
+  if (!parsed || parsed.scope !== "library") {
+    throw new Error("独立合成请用 --voice library:voice.*");
+  }
+  const voice = resolveVoicePrompt(null, options.voice, undefined, root);
+  const voiceAsset = findAsset(null, options.voice, root);
+  const hifi = voiceHifiRef(voiceAsset);
+  if (!voice || !hifi) {
+    throw new Error(`音色 ${options.voice} 还没有克隆源 wav。上传一支，或用设计指令铸完再收。`);
+  }
+  if (!hifi.said) {
+    throw new Error(`音色 ${options.voice} 缺文本，Hi-Fi 无法保证一致。`);
+  }
+  const python = path.join(weaverScriptsRoot(), "tts.py");
+  if (!fs.existsSync(python)) throw new Error(`找不到 ${python}`);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const jobFile = path.join(os.tmpdir(), `weaver-tts-line-${process.pid}.json`);
+  fs.writeFileSync(
+    jobFile,
+    `${JSON.stringify(
+      {
+        kind: "lines",
+        mode: "hifi",
+        projectRoot: path.dirname(dest),
+        locale: "line",
+        refAudio: voice.absPath,
+        refText: hifi.said,
+        configDirs: [root],
+        items: [{ id: "line", text, dest }],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  try {
+    const output = execFileSync("python3", [python, "--job", jobFile], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    const result = parseTtsResult(output);
+    const wrote = result.wrote?.[0];
+    if (!wrote || !fs.existsSync(dest)) throw new Error("合成没有写出 wav");
+    return { file: dest, seconds: wrote.seconds, voice: options.voice };
+  } catch (error) {
+    const err = error as { stderr?: string; stdout?: string; message: string };
+    throw new Error([err.stderr, err.stdout, err.message].filter(Boolean).join("\n"));
+  } finally {
+    fs.rmSync(jobFile, { force: true });
+  }
 }
 
 export function ttsItems(scenes: SceneDef[], locale: Locale): { id: string; text: string; dest: string }[] {

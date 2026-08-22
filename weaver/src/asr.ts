@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { localConfigValue } from "./config.ts";
 import { voiceCandidateRoot, weaverRoot, weaverScriptsRoot } from "./paths.ts";
@@ -91,12 +92,25 @@ export function asrRuntime(
   };
 }
 
+export function asrAudio(media: string): { audio: string; tmp?: string } {
+  const abs = path.resolve(media);
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+    throw new Error(`找不到音频 ${media}`);
+  }
+  if (/\.wav$/i.test(abs)) return { audio: abs };
+  const tmp = path.join(os.tmpdir(), `weaver-asr-${process.pid}-${Date.now()}.wav`);
+  try {
+    execFileSync("ffmpeg", ["-y", "-i", abs, "-vn", "-ac", "1", "-ar", "16000", tmp], { stdio: "ignore" });
+  } catch (error) {
+    const err = error as { stderr?: string; message: string };
+    throw new Error(`无法抽出音频：${err.stderr || err.message}`);
+  }
+  return { audio: tmp, tmp };
+}
+
 export function runAsr(options: AsrOptions): AsrResult {
   const root = options.root ?? weaverRoot();
-  const audio = path.resolve(options.audio);
-  if (!fs.existsSync(audio) || !fs.statSync(audio).isFile()) {
-    throw new Error(`找不到音频 ${options.audio}`);
-  }
+  const prepared = asrAudio(options.audio);
   const python = path.join(weaverScriptsRoot(), "asr.py");
   if (!fs.existsSync(python)) throw new Error(`找不到 ${python}`);
   const runtime = asrRuntime(root);
@@ -109,7 +123,7 @@ export function runAsr(options: AsrOptions): AsrResult {
     `${JSON.stringify(
       {
         kind: "transcribe",
-        audio,
+        audio: prepared.audio,
         language: options.language ?? "",
         model: runtime.model,
         library: runtime.library,
@@ -135,6 +149,7 @@ export function runAsr(options: AsrOptions): AsrResult {
     throw new Error([err.stderr, err.stdout, err.message].filter(Boolean).join("\n"));
   } finally {
     fs.rmSync(jobFile, { force: true });
+    if (prepared.tmp) fs.rmSync(prepared.tmp, { force: true });
   }
 }
 

@@ -21,8 +21,8 @@ src/library-material.ts 素材插件：按名称分配 element.* / reference.*
 src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
 src/sync.ts            Remotion public links + catalog
-src/tts.ts             VoxCPM2 line job（Hi-Fi：唯一克隆源）
-src/asr.ts             Qwen3-ASR-0.6B GGUF 转写 job（上传克隆源填文本；1.7B 用 asr_model 覆盖）
+src/tts.ts             VoxCPM2：speakLine（独立一句）与片子 lines job
+src/asr.ts             Qwen3-ASR：asrAudio / runAsr（独立文件，wav 或视频）
 src/transcribe.ts      源视频转写 → assets/transcripts（TranscriptResult；句/字时间）
 src/describe.ts        源视频画面树 → assets/descriptions（场/镜/观察；不写 film.json）
 src/vlm.ts             MiniCPM-V 描述 job（ModelBest；缺密钥失败）
@@ -45,6 +45,7 @@ scripts/               tts.py / asr.py / vlm.py / capture.mjs（不跟 LIGHTWEAV
 - No LLM in weaver. No model client, no `produce` / `plan`, no narration
   generator inside this package. Agent drafts `lines` in its own process;
   weaver only writes files and runs jobs (`tts.py`, `asr.py`, `vlm.py`, Remotion, ffmpeg compose / match / describe, `capture.mjs`).
+  STT/TTS 原语（`weaver asr`、`weaver tts --text`）不依赖 film.json，给任意 agent 的 CLI 调用。
 - `recipeRoot` is `library/methods` (method plugins live in the library).
   `LIGHTWEAVER_RECIPES` is test-fixture only. Never `skills/**/recipes/`.
 - `project.ts` must not import `project-paths.ts`, `assets.ts`, or
