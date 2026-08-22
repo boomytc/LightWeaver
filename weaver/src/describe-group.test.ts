@@ -7,6 +7,7 @@ import {
   foldShortShots,
   foldSkippedSequences,
   markSkips,
+  mergeByObservation,
   mergeSequences,
   pickFrameTimes,
   resolveDescribeWindow,
@@ -78,6 +79,40 @@ describe("foldShortShots / foldSkippedSequences", () => {
     assert.equal(folded[0]?.id, "seq-01");
     assert.equal(folded[0]?.out, 6);
     assert.equal(folded[0]?.shots.length, 2);
+  });
+
+  it("merges repeated observations and 同前 into the previous field", () => {
+    const merged = mergeByObservation([
+      {
+        id: "seq-01",
+        in: 0,
+        out: 3,
+        observation: "红衣人坐着。",
+        shots: [{ in: 0, out: 3, t: 1 }],
+        lines: [],
+      },
+      {
+        id: "seq-02",
+        in: 3,
+        out: 6,
+        observation: "红衣人坐着。",
+        shots: [{ in: 3, out: 6, t: 4 }],
+        lines: [],
+      },
+      {
+        id: "seq-03",
+        in: 6,
+        out: 9,
+        observation: "同前",
+        shots: [{ in: 6, out: 9, t: 7 }],
+        lines: [],
+      },
+    ]);
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0]?.id, "seq-01");
+    assert.equal(merged[0]?.out, 9);
+    assert.equal(merged[0]?.observation, "红衣人坐着。");
+    assert.equal(summaryFromSequences(merged), "红衣人坐着。");
   });
 
   it("builds at most four sequences from twelve similar 1.5s shots", () => {
@@ -216,6 +251,14 @@ describe("pickFrameTimes / descriptionIsReady", () => {
       { id: "seq-03", in: 20, out: 30, shots: [{ in: 20, out: 30, t: 25 }], lines: [] },
     ];
     assert.equal(summaryFromSequences(sequences), "黑场；红布");
+    assert.equal(
+      summaryFromSequences([
+        { id: "seq-01", in: 0, out: 2, observation: "红衣人坐着。", shots: [{ in: 0, out: 2, t: 1 }], lines: [] },
+        { id: "seq-02", in: 2, out: 4, observation: "红衣人坐着。", shots: [{ in: 2, out: 4, t: 3 }], lines: [] },
+        { id: "seq-03", in: 4, out: 6, observation: "上一场红衣人坐着。", shots: [{ in: 4, out: 6, t: 5 }], lines: [] },
+      ]),
+      "红衣人坐着。",
+    );
     assert.deepEqual(
       sequencesInWindow(sequences, { from: 0, to: 4 }).map((item) => item.id),
       ["seq-01"],

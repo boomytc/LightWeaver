@@ -5,6 +5,7 @@ import {
   buildSequences,
   describeWindowMatches,
   descriptionIsReady,
+  mergeByObservation,
   pickFrameTimes,
   resolveDescribeWindow,
   sequencesInWindow,
@@ -115,12 +116,7 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
   const jpeg = deps.jpeg ?? extractJpeg;
   const vlm = deps.vlm;
   for (const sequence of sequences) {
-    if (!sequenceNeedsVision(sequence)) {
-      if (sequence.shots.some((shot) => shot.skip === "same-as-prev") && prev) {
-        sequence.observation = prev;
-      }
-      continue;
-    }
+    if (!sequenceNeedsVision(sequence)) continue;
     const times = pickFrameTimes(sequence);
     const frames = times.map((t) => {
       const dest = path.join(project.root, jpegRel(videoId, t));
@@ -143,11 +139,12 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
     }
   }
 
+  const merged = mergeByObservation(sequences);
   const description: DescriptionDoc = {
     source_path: resolved.relPath,
     duration,
-    summary: summaryFromSequences(sequences),
-    sequences,
+    summary: summaryFromSequences(merged),
+    sequences: merged,
     ...(window ? { window } : {}),
   };
   fs.mkdirSync(path.dirname(abs), { recursive: true });

@@ -103,8 +103,9 @@ describe("runDescribe", () => {
       { ...deps, vlm: () => ({ observation: "重跑" }) },
     );
     assert.equal(forced.visualCalls, 2);
+    assert.equal(forced.description.sequences.length, 1);
     assert.equal(forced.description.sequences[0]?.observation, "重跑");
-    assert.equal(forced.description.summary, "重跑；重跑");
+    assert.equal(forced.description.summary, "重跑");
   });
 
   it("only runs VLM on sequences that overlap --from/--to", () => {
@@ -156,9 +157,8 @@ describe("runDescribe", () => {
         },
       },
     );
-    assert.equal(result.description.sequences.length, 2);
+    assert.equal(result.description.sequences.length, 1);
     assert.equal(result.description.sequences[0]?.observation, "黑场空镜");
-    assert.equal(result.description.sequences[1]?.observation, undefined);
     assert.equal(result.description.summary, "黑场空镜");
     assert.equal(result.visualCalls, 1);
   });
@@ -226,7 +226,7 @@ describe("runDescribe", () => {
         scenes: () => ({ duration: 8, boundaries: [{ time: 3, score: 0.9 }] }),
         hashes: () => hashes(),
         jpeg: stubJpeg(),
-        vlm: () => ({ observation: "空镜" }),
+        vlm: ({ prev }) => ({ observation: prev ? "红布近景" : "空镜" }),
       },
     );
     const live = loadProject(project.id, root);

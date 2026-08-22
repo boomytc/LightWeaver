@@ -1,4 +1,5 @@
 import { DESCRIBE_SETTINGS } from "./describe-settings.ts";
+import { sequenceRatio } from "./match-align.ts";
 import { frameScore, nearestHash, type FrameHash } from "./match-visual.ts";
 import type { SceneIndex } from "./match-scene.ts";
 
@@ -218,11 +219,53 @@ export function descriptionIsReady(doc: DescriptionDoc | null | undefined): bool
   return doc.sequences.every((sequence) => sequence.out > sequence.in && sequence.shots.length > 0);
 }
 
+export function isSameAsPrevObservation(text: string | undefined): boolean {
+  const value = (text ?? "").trim();
+  return !value || value === "同前" || value === "同前。" || /^上一场/.test(value);
+}
+
+export function mergeByObservation(
+  sequences: SequenceObservation[],
+  minRatio = DESCRIBE_SETTINGS.observationMergeMin,
+): SequenceObservation[] {
+  const folded: SequenceObservation[] = [];
+  for (const sequence of sequences) {
+    const prev = folded.at(-1);
+    const same =
+      Boolean(prev) &&
+      (isSameAsPrevObservation(sequence.observation) ||
+        Boolean(
+          prev?.observation?.trim() &&
+            sequence.observation?.trim() &&
+            sequenceRatio(prev.observation.trim(), sequence.observation.trim()) >= minRatio,
+        ));
+    if (prev && same) {
+      prev.out = sequence.out;
+      prev.shots.push(...sequence.shots);
+      prev.lines.push(...sequence.lines);
+      if (!prev.observation?.trim() && sequence.observation?.trim() && !isSameAsPrevObservation(sequence.observation)) {
+        prev.observation = sequence.observation;
+      }
+      continue;
+    }
+    folded.push({
+      ...sequence,
+      shots: sequence.shots.map((shot) => ({ ...shot })),
+      lines: sequence.lines.map((line) => ({ ...line })),
+    });
+  }
+  return folded.map((sequence, index) => ({ ...sequence, id: sequenceId(index) }));
+}
+
 export function summaryFromSequences(sequences: SequenceObservation[]): string {
-  return sequences
-    .map((sequence) => sequence.observation?.trim())
-    .filter((line): line is string => Boolean(line))
-    .join("；");
+  const lines: string[] = [];
+  for (const sequence of sequences) {
+    const text = sequence.observation?.trim() ?? "";
+    if (!text || isSameAsPrevObservation(text)) continue;
+    if (lines.at(-1) === text) continue;
+    lines.push(text);
+  }
+  return lines.join("；");
 }
 
 export function resolveDescribeWindow(from: number | undefined, to: number | undefined, duration: number): DescriptionWindow | undefined {
