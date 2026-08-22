@@ -128,12 +128,18 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
     });
     if (!frames.length) continue;
     const prompt = describePrompt(frames, prev);
-    const result = vlm
-      ? vlm({ frames, prompt, prev })
-      : runVlm({ frames, prompt, root });
-    visualCalls += 1;
-    sequence.observation = result.observation.trim();
-    prev = sequence.observation;
+    try {
+      const result = vlm
+        ? vlm({ frames, prompt, prev })
+        : runVlm({ frames, prompt, root });
+      visualCalls += 1;
+      sequence.observation = result.observation.trim();
+      prev = sequence.observation;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/content_policy_violation/.test(message)) throw error;
+      console.error(`画面描述跳过 ${sequence.id}：内容策略`);
+    }
   }
 
   const description: DescriptionDoc = {

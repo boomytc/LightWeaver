@@ -137,6 +137,32 @@ describe("runDescribe", () => {
     );
   });
 
+  it("keeps the tree when one sequence hits a content policy", () => {
+    const root = tempWorkspace();
+    const project = seedFootageFilm(root, "site-see", [{ id: "say", in: 0, out: 1 }], { writeVideo: true });
+    let calls = 0;
+    const result = runDescribe(
+      { projectId: project.id, ref: "asset:video.origin", root },
+      {
+        hasAudio: () => false,
+        duration: () => 8,
+        scenes: () => ({ duration: 8, boundaries: [{ time: 3, score: 0.9 }] }),
+        hashes: () => hashes(),
+        jpeg: stubJpeg(),
+        vlm: () => {
+          calls += 1;
+          if (calls === 2) throw new Error('VLM HTTP 400: {"error":{"code":"content_policy_violation"}}');
+          return { observation: "黑场空镜" };
+        },
+      },
+    );
+    assert.equal(result.description.sequences.length, 2);
+    assert.equal(result.description.sequences[0]?.observation, "黑场空镜");
+    assert.equal(result.description.sequences[1]?.observation, undefined);
+    assert.equal(result.description.summary, "黑场空镜");
+    assert.equal(result.visualCalls, 1);
+  });
+
   it("skips VLM on dense dialogue unless --visual", () => {
     const root = tempWorkspace();
     const project = seedFootageFilm(root, "site-talk", [{ id: "say", in: 0, out: 1 }], { writeVideo: true });
