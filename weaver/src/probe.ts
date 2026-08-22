@@ -2,6 +2,65 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 export type SpeechRange = { start: number; end: number };
 
+export type Rotation = 0 | 90 | 180 | 270;
+
+export function normalizeRotation(value: number): Rotation {
+  const deg = ((Math.round(value) % 360) + 360) % 360;
+  if (deg === 90 || deg === 180 || deg === 270) return deg;
+  return 0;
+}
+
+export function parseRotation(jsonText: string): Rotation {
+  try {
+    const parsed = JSON.parse(jsonText) as {
+      streams?: Array<{
+        tags?: { rotate?: string };
+        side_data_list?: Array<{ rotation?: number }>;
+      }>;
+    };
+    const stream = parsed.streams?.[0];
+    if (!stream) return 0;
+    if (stream.tags?.rotate != null && stream.tags.rotate !== "") {
+      return normalizeRotation(Number(stream.tags.rotate));
+    }
+    const side = stream.side_data_list?.find((item) => item.rotation != null);
+    if (side?.rotation != null) return normalizeRotation(side.rotation);
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function rotationFilter(rotate: Rotation): string | undefined {
+  if (rotate === 90) return "transpose=1";
+  if (rotate === 270) return "transpose=2";
+  if (rotate === 180) return "hflip,vflip";
+  return undefined;
+}
+
+export function probeRotation(file: string): Rotation {
+  try {
+    const out = execFileSync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream_tags=rotate:stream_side_data=rotation",
+        "-of",
+        "json",
+        file,
+      ],
+      { encoding: "utf8" },
+    );
+    return parseRotation(out);
+  } catch {
+    return 0;
+  }
+}
+
 export function requireBin(name: string, why?: string): void {
   try {
     execFileSync(name, ["-version"], { stdio: "ignore" });

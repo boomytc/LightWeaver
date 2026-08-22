@@ -39,6 +39,29 @@ describe("clipArgs", () => {
     assert.ok(args.includes("-c:a"));
   });
 
+  it("adds transpose when rotate is 90 and skips vf at 0", () => {
+    const rotated = clipArgs({
+      source: "/src.mp4",
+      start: 0,
+      duration: 2,
+      dest: "/out.mp4",
+      ost: "original",
+      hasAudio: true,
+      rotate: 90,
+    });
+    assert.equal(rotated[rotated.indexOf("-vf") + 1], "transpose=1");
+    const upright = clipArgs({
+      source: "/src.mp4",
+      start: 0,
+      duration: 2,
+      dest: "/out.mp4",
+      ost: "original",
+      hasAudio: true,
+      rotate: 0,
+    });
+    assert.ok(!upright.includes("-vf"));
+  });
+
   it("mixes original and voice when ost is mix", () => {
     const args = clipArgs({
       source: "/src.mp4",

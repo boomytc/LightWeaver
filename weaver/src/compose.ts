@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { outputRelPath, resolveAssetFile, upsertAsset } from "./assets.ts";
 import { loadProject } from "./project.ts";
-import { hasAudioStream, probeDuration, requireBin } from "./probe.ts";
+import { hasAudioStream, probeDuration, probeRotation, requireBin, rotationFilter, type Rotation } from "./probe.ts";
 import { filmLangs, type Locale, type OstMode, type ProjectRecord, type SceneDef } from "./schema.ts";
 import { isRenderable } from "./validate.ts";
 import { weaverRoot } from "./paths.ts";
@@ -107,6 +107,7 @@ function cutScene(
     ost,
     wav,
     hasAudio: hasAudioStream(source.absPath),
+    rotate: probeRotation(source.absPath),
   });
   onLog?.(`cut ${scene.id} ${ost}`);
   runFfmpeg(args);
@@ -120,12 +121,15 @@ export function clipArgs(input: {
   ost: OstMode;
   wav?: string;
   hasAudio: boolean;
+  rotate?: Rotation;
 }): string[] {
   const base = ["-y", "-ss", fmt(input.start), "-t", fmt(input.duration), "-i", input.source];
   const encode = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "23", "-preset", "veryfast"];
+  const vf = rotationFilter(input.rotate ?? 0);
+  const video = vf ? ["-vf", vf] : [];
   if (input.ost === "original") {
-    if (input.hasAudio) return [...base, ...encode, "-c:a", "aac", "-ac", "2", "-ar", "44100", input.dest];
-    return [...base, ...encode, "-an", input.dest];
+    if (input.hasAudio) return [...base, ...encode, ...video, "-c:a", "aac", "-ac", "2", "-ar", "44100", input.dest];
+    return [...base, ...encode, ...video, "-an", input.dest];
   }
   if (!input.wav) throw new Error("解说场需要旁白 wav");
   const withWav = [...base, "-i", input.wav];
@@ -137,6 +141,7 @@ export function clipArgs(input: {
       "-map",
       "1:a:0",
       ...encode,
+      ...video,
       "-c:a",
       "aac",
       "-ac",
@@ -156,6 +161,7 @@ export function clipArgs(input: {
     "-map",
     "[a]",
     ...encode,
+    ...video,
     "-c:a",
     "aac",
     "-ac",
