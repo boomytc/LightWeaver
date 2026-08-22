@@ -182,6 +182,14 @@ export function scoreWindow(
   return count ? sum / count : 0;
 }
 
+export function overlapLength(start: number, end: number, used: [number, number][]): number {
+  let sum = 0;
+  for (const [from, to] of used) {
+    sum += Math.max(0, Math.min(end, to) - Math.max(start, from));
+  }
+  return sum;
+}
+
 export function findBestVisualWindow(
   edited: FrameHash[],
   source: FrameHash[],
@@ -191,6 +199,7 @@ export function findBestVisualWindow(
   searchEnd: number,
   step = MATCH_SETTINGS.frameInterval,
   expected?: { start: number; end: number },
+  occupied: [number, number][] = [],
 ): { start: number; end: number; score: number } | undefined {
   const duration = Math.max(0.001, editedEnd - editedStart);
   const startMin = searchStart;
@@ -203,6 +212,12 @@ export function findBestVisualWindow(
       const midDelta = Math.abs((start + end) / 2 - (expected.start + expected.end) / 2);
       const penalty = MATCH_SETTINGS.continuityPenalty * Math.min(1, midDelta / duration);
       score = Math.max(0, score - penalty);
+    }
+    if (occupied.length) {
+      score = Math.max(
+        0,
+        score - MATCH_SETTINGS.occupiedPenalty * Math.min(1, overlapLength(start, end, occupied) / duration),
+      );
     }
     if (!best || score > best.score) best = { start, end, score };
   }
@@ -276,6 +291,9 @@ export function fillSilentGaps(
         : prev
           ? { start: prev.out, end: prev.out + (editedEnd - editedStart) }
           : undefined;
+    const occupied: [number, number][] = cuts
+      .filter((cut) => cut.sourceRef === sourceRef)
+      .map((cut) => [cut.in, cut.out]);
     const match = findBestVisualWindow(
       editedHashes,
       hashes,
@@ -285,6 +303,7 @@ export function fillSilentGaps(
       searchEnd,
       MATCH_SETTINGS.frameInterval,
       expected,
+      occupied,
     );
     if (!match || match.score < MATCH_SETTINGS.visualMinScore) continue;
     extras.push({
@@ -313,32 +332,85 @@ export function cutsFromVisualScenes(
 ): VisualCut[] {
   const ranges = splitRangeByScene(0, editedScene.duration, editedScene, 0.4);
   const cuts: VisualCut[] = [];
+  const usedBySource = new Map<string, [number, number][]>();
+  let prev: { sourceRef: string; out: number } | undefined;
   for (const [editedStart, editedEnd] of ranges) {
-    let best: { sourceRef: string; start: number; end: number; score: number } | undefined;
-    for (const [sourceRef, hashes] of sourceHashes) {
-      if (!hashes.length) continue;
-      const last = hashes[hashes.length - 1]!.t + MATCH_SETTINGS.frameInterval;
-      const found = findBestVisualWindow(editedHashes, hashes, editedStart, editedEnd, 0, last);
-      if (found && (!best || found.score > best.score)) best = { sourceRef, ...found };
-    }
-    if (!best || best.score < MATCH_SETTINGS.visualMinScore) continue;
+    const picked = pickContinuingWindow(editedHashes, sourceHashes, editedStart, editedEnd, usedBySource, prev);
+    if (!picked || picked.score < MATCH_SETTINGS.visualMinScore) continue;
     cuts.push({
       sceneId: "vis",
-      sourceRef: best.sourceRef,
-      in: best.start,
-      out: best.end,
+      sourceRef: picked.sourceRef,
+      in: picked.start,
+      out: picked.end,
       editedStart,
       editedEnd,
       text: "",
-      score: best.score,
+      score: picked.score,
       textScore: 0,
-      visualScore: best.score,
+      visualScore: picked.score,
       matchMethod: "visual",
       sceneSnapped: false,
       warnings: [],
     });
+    const used = usedBySource.get(picked.sourceRef) ?? [];
+    used.push([picked.start, picked.end]);
+    usedBySource.set(picked.sourceRef, used);
+    prev = { sourceRef: picked.sourceRef, out: picked.end };
   }
   return cuts;
+}
+
+export function pickContinuingWindow(
+  editedHashes: FrameHash[],
+  sourceHashes: Map<string, FrameHash[]>,
+  editedStart: number,
+  editedEnd: number,
+  usedBySource: Map<string, [number, number][]>,
+  prev?: { sourceRef: string; out: number },
+): { sourceRef: string; start: number; end: number; score: number } | undefined {
+  const duration = Math.max(0.001, editedEnd - editedStart);
+  let local: { sourceRef: string; start: number; end: number; score: number } | undefined;
+  if (prev) {
+    const hashes = sourceHashes.get(prev.sourceRef);
+    if (hashes?.length) {
+      const last = hashes[hashes.length - 1]!.t + MATCH_SETTINGS.frameInterval;
+      const searchStart = Math.max(0, prev.out);
+      const searchEnd = Math.min(last, prev.out + duration + MATCH_SETTINGS.continuitySlack);
+      const found = findBestVisualWindow(
+        editedHashes,
+        hashes,
+        editedStart,
+        editedEnd,
+        searchStart,
+        searchEnd,
+        MATCH_SETTINGS.frameInterval,
+        { start: prev.out, end: prev.out + duration },
+        usedBySource.get(prev.sourceRef) ?? [],
+      );
+      if (found) local = { sourceRef: prev.sourceRef, ...found };
+    }
+  }
+  let global: { sourceRef: string; start: number; end: number; score: number } | undefined;
+  for (const [sourceRef, hashes] of sourceHashes) {
+    if (!hashes.length) continue;
+    const last = hashes[hashes.length - 1]!.t + MATCH_SETTINGS.frameInterval;
+    const found = findBestVisualWindow(
+      editedHashes,
+      hashes,
+      editedStart,
+      editedEnd,
+      0,
+      last,
+      MATCH_SETTINGS.frameInterval,
+      undefined,
+      usedBySource.get(sourceRef) ?? [],
+    );
+    if (found && (!global || found.score > global.score)) global = { sourceRef, ...found };
+  }
+  if (local && local.score >= MATCH_SETTINGS.visualMinScore) {
+    if (!global || local.score + MATCH_SETTINGS.continuityMargin >= global.score) return local;
+  }
+  return global;
 }
 
 

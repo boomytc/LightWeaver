@@ -7,11 +7,13 @@ import { describe, it } from "node:test";
 import { addAsset } from "./assets.ts";
 import { runMatch } from "./match.ts";
 import {
+  cutsFromVisualScenes,
   dHashFromGray,
   extractFrameHashes,
   findBestVisualWindow,
   hashScore,
   silentRanges,
+  type FrameHash,
 } from "./match-visual.ts";
 import { createProject } from "./project.ts";
 import { setLangs } from "./scenes.ts";
@@ -56,6 +58,58 @@ describe("silentRanges", () => {
         [5, 8],
       ],
     );
+  });
+});
+
+function ramp(up: boolean): Uint8Array {
+  return Uint8Array.from({ length: 72 }, (_, i) => (up ? i % 9 : 8 - (i % 9)) * 28);
+}
+
+function frame(t: number, up: boolean, mean: [number, number, number]): FrameHash {
+  return { t, hash: dHashFromGray(ramp(up)), mean };
+}
+
+describe("occupied visual window", () => {
+  it("skips a used span and takes the later twin", () => {
+    const edited = [frame(0, true, [255, 0, 0]), frame(1, true, [255, 0, 0])];
+    const source = Array.from({ length: 13 }, (_, t) => frame(t, true, [255, 0, 0]));
+    const found = findBestVisualWindow(edited, source, 0, 2, 0, 13, 1, undefined, [[0, 6]]);
+    assert.ok(found);
+    assert.ok(found!.start >= 6, `expected unused red, got ${found!.start}`);
+  });
+});
+
+describe("cutsFromVisualScenes continuity", () => {
+  it("stays on the previous source when the local window is close enough", () => {
+    const edited = [
+      frame(0, false, [0, 0, 0]),
+      frame(1, false, [0, 0, 0]),
+      frame(2, false, [0, 0, 0]),
+      frame(3, true, [255, 0, 0]),
+      frame(4, true, [255, 0, 0]),
+      frame(5, true, [255, 0, 0]),
+    ];
+    const ep01 = [
+      frame(0, false, [0, 0, 0]),
+      frame(1, false, [0, 0, 0]),
+      frame(2, false, [0, 0, 0]),
+      frame(3, true, [200, 30, 30]),
+      frame(4, true, [200, 30, 30]),
+      frame(5, true, [200, 30, 30]),
+    ];
+    const ep02 = [frame(0, true, [255, 0, 0]), frame(1, true, [255, 0, 0]), frame(2, true, [255, 0, 0])];
+    const cuts = cutsFromVisualScenes(
+      { duration: 6, boundaries: [{ time: 3, score: 0.9 }] },
+      edited,
+      new Map([
+        ["asset:video.ep01", ep01],
+        ["asset:video.ep02", ep02],
+      ]),
+    );
+    assert.equal(cuts.length, 2);
+    assert.equal(cuts[0]?.sourceRef, "asset:video.ep01");
+    assert.equal(cuts[1]?.sourceRef, "asset:video.ep01");
+    assert.ok((cuts[1]?.in ?? 0) >= 2.5);
   });
 });
 
