@@ -7,6 +7,8 @@ export const MATCH_SETTINGS = {
   sceneMinGap: 0.4,
   snapWindow: 1.0,
   minPiece: 0.25,
+  /** 夹在同集之间、短于此时长的异源切丢掉。 */
+  islandMax: 1.5,
   silentMinGap: 0.35,
   visualMinScore: 0.55,
   visualSampleCount: 5,

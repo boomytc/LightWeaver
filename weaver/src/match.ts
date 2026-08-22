@@ -11,6 +11,7 @@ import {
   applyPadding,
   detectScenes,
   dropCrumbs,
+  dropIslands,
   enforceDuration,
   mergeAdjacentCuts,
   splitAndSnapCuts,
@@ -368,6 +369,8 @@ export function finalizeCuts(
   timed = stabilizeCuts(timed);
   timed = mergeAdjacentCuts(timed);
   timed = dropCrumbs(timed);
+  timed = dropIslands(timed);
+  timed = mergeAdjacentCuts(timed);
   return timed.map((cut, index) => fromTimed(cut, index + 1));
 }
 

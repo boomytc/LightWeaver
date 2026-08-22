@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   applyPadding,
   dropCrumbs,
+  dropIslands,
   enforceDuration,
   mergeAdjacentCuts,
   parseSceneLog,
@@ -149,5 +150,25 @@ describe("enforceDuration / dropCrumbs / mergeAdjacentCuts", () => {
     assert.equal(merged.length, 1);
     assert.equal(merged[0]!.in, 10);
     assert.equal(merged[0]!.out, 16);
+  });
+
+  it("drops a short foreign island between the same source", () => {
+    const kept = dropIslands([
+      cut({ sourceRef: "asset:video.ep01", in: 0, out: 140, editedStart: 0, editedEnd: 140 }),
+      cut({
+        sourceRef: "asset:video.ep03",
+        in: 10,
+        out: 11,
+        editedStart: 140.5,
+        editedEnd: 141.5,
+      }),
+      cut({ sourceRef: "asset:video.ep01", in: 141.5, out: 173, editedStart: 141.5, editedEnd: 173 }),
+    ]);
+    assert.equal(kept.length, 2);
+    assert.ok(kept.every((item) => item.sourceRef === "asset:video.ep01"));
+    assert.equal(kept[0]!.out, 140);
+    assert.equal(kept[0]!.editedEnd, 141.5);
+    assert.ok(kept[0]!.warnings.includes("island_dropped"));
+    assert.equal(kept[1]!.in, 141.5);
   });
 });

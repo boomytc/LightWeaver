@@ -291,6 +291,36 @@ export function dropCrumbs(cuts: TimedCut[]): TimedCut[] {
   });
 }
 
+/** 丢掉夹在两段同源之间的短异源岛；参考轴并进上一场，源轴不动。 */
+export function dropIslands(cuts: TimedCut[]): TimedCut[] {
+  const islandMax = MATCH_SETTINGS.islandMax;
+  const ordered = [...cuts].sort((a, b) => a.editedStart - b.editedStart || a.editedEnd - b.editedEnd);
+  const keep: TimedCut[] = [];
+  for (let i = 0; i < ordered.length; i++) {
+    const cur = ordered[i]!;
+    const prev = ordered[i - 1];
+    const next = ordered[i + 1];
+    const span = Math.min(cur.out - cur.in, cur.editedEnd - cur.editedStart);
+    const island =
+      span > 0 &&
+      span < islandMax &&
+      prev &&
+      next &&
+      prev.sourceRef === next.sourceRef &&
+      prev.sourceRef !== cur.sourceRef;
+    if (!island) {
+      keep.push({ ...cur, warnings: [...cur.warnings] });
+      continue;
+    }
+    const host = keep.at(-1);
+    if (host) {
+      host.editedEnd = Math.max(host.editedEnd, cur.editedEnd);
+      warn(host, "island_dropped");
+    }
+  }
+  return keep;
+}
+
 function warn(cut: TimedCut, message: string): void {
   if (!cut.warnings.includes(message)) cut.warnings.push(message);
 }
