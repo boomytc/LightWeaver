@@ -172,6 +172,7 @@ describe("workbench contract", () => {
     assert.match(page, /data\/projects/);
     assert.match(page, /data\/first-party/);
     assert.match(page, /<task>/);
+    assert.match(page, /<recipe>/);
     assert.match(page, /可选增强/);
     assert.match(page, /素材/);
     assert.doesNotMatch(page, /api\.recipes/);

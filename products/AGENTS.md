@@ -5,8 +5,8 @@ Each `products/<name>/` is a standalone product root.
 - Import `@lightweaver/weaver`. Do not import sibling products.
 - Capture may HTTP a local lab if the film says so. Publish only if
   `film.publish.dir` is already set.
-- Runtime films: `data/first-party/<task>/<id>/` and
-  `data/projects/<task>/<id>/`. Both gitignored. Do not commit task instances.
+- Runtime films: `data/first-party/<task>/<recipe>/<id>/` and
+  `data/projects/<task>/<recipe>/<id>/`. Both gitignored. Do not commit task instances.
 
 | Product | Role |
 | --- | --- |
