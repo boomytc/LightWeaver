@@ -39,7 +39,7 @@ function writeTranscript(
 function seedCloneProject(root: string) {
   const project = createProject("site-clone", { task: "footage-narration", title: "复刻" }, root);
   setLangs(project, ["zh"]);
-  saveFilm(project, { ...project.film, recipe: "clone-from-edit" });
+  saveFilm(project, { ...project.film, recipe: "clone-from-edited" });
   touch(path.join(project.root, "assets/source/edited.mp4"));
   touch(path.join(project.root, "assets/source/ep01.mp4"));
   addAsset({ kind: "project", project }, { id: "video.edited", kind: "video", file: "assets/source/edited.mp4" }, root);
@@ -74,7 +74,7 @@ describe("runMatch", () => {
     );
     assert.ok(result.cuts.length >= 1);
     const project = loadProject("site-clone", root);
-    assert.equal(project.film.recipe, "clone-from-edit");
+    assert.equal(project.film.recipe, "clone-from-edited");
     assert.deepEqual(project.film.langs, ["zh"]);
     assert.ok(project.film.scenes.every((scene) => scene.kind === "clip" && scene.ost === "original"));
     const first = project.film.scenes[0];
@@ -141,7 +141,7 @@ describe("runMatch", () => {
     runMatch({ projectId: "site-clone", edited: "asset:video.edited", root, visual: false }, deps);
     const again = runMatch({ projectId: "site-clone", edited: "asset:video.edited", root, visual: false }, deps);
     const project = loadProject("site-clone", root);
-    assert.equal(project.film.recipe, "clone-from-edit");
+    assert.equal(project.film.recipe, "clone-from-edited");
     assert.equal(project.film.scenes[0]?.id, "cut-01");
     assert.equal(again.cuts.length, project.film.scenes.length);
   });

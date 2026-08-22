@@ -33,7 +33,7 @@ description: >
 | wav 在但本会话刚 `scene set --text` | `tts --project --scene <id>` |
 | `isRenderable` 且 `outputFiles[locale].exists` 且本会话未改旁白 / 未换 still | **不** render。人另给了拷贝位置且目标缺 → 只 `publish` |
 | `isRenderable` 且 output 缺，或本会话刚 tts / 换了 png | `render --project` |
-| `film.recipe` 是 `clone-from-edit` | 登记已剪片+原片后 `weaver match --edited`。**禁止**手写 in/out，**禁止** tts |
+| `film.recipe` 是 `clone-from-edited` | 登记已剪片+原片后 `weaver match --edited`。**禁止**手写 in/out，**禁止** tts |
 | `film.recipe` 是 `see-then-narrate` | 登记源视频后 `weaver describe`。**禁止**空树写解说。按 sequences 一场一 clip，观察只当素材 |
 | `film.recipe` 是 `plot-then-match` | 转写后写解说并对 in/out。静音场先 `describe` |
 | `film.recipe` 是 `copy-then-match` | `recipe apply` 清单是文案场，再填 in/out。原片占比是铺场目标 |
@@ -51,7 +51,7 @@ description: >
 
 1. 按图存放。理念跟任务走；资产用 `library:` / `asset:`；产物进该片子在 `data/` 下的 `assets/lines` 与 `assets/outputs`。不发明顶层目录，不把产物写进理念目录或 `products/study-films/`，不把上游 idea 拷进片子。工作台没点产物位置就先问。
 2. 脚本即片子。`film.json` 是编排合同。不手写 Remotion TSX。
-3. 方法若是清单一项一场，一项一场。禁止合并。`clone-from-edit` 不 apply 清单，用 `weaver match` 铺场。`see-then-narrate` / `highlight-mix` 不 apply 清单当时间轴。
+3. 方法若是清单一项一场，一项一场。禁止合并。`clone-from-edited` 不 apply 清单，用 `weaver match` 铺场。`see-then-narrate` / `highlight-mix` 不 apply 清单当时间轴。
 4. 讲解片用真静帧，不要手绘假 UI。原片解说登记真实源视频。
 5. 只写 `film.langs` 点名的语言再 TTS。没点英文就不要硬写英文。
 6. 先形状后媒体；能复用就不重生。`validate`  error 未清不得交付；`!isRenderable` 不得 `render`。人在 Studio `/methods` `/voices` `/library` 监管库，在工作台复制说明，在 `/f/<id>` 复盘。`film.kit` 只是参考权能。`tts` 走 Hi-Fi clone，不用 `--seed` 改库。

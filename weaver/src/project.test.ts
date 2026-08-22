@@ -38,8 +38,8 @@ describe("createProject", () => {
     fs.mkdirSync(path.join(root, "library"), { recursive: true });
     fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
     const project = createProject("site-cut", { task: "footage-narration" }, root);
-    saveFilm(project, { ...project.film, recipe: "clone-from-edit" });
-    assert.ok(project.root.endsWith(`${path.sep}footage-narration${path.sep}clone-from-edit${path.sep}site-cut`));
+    saveFilm(project, { ...project.film, recipe: "clone-from-edited" });
+    assert.ok(project.root.endsWith(`${path.sep}footage-narration${path.sep}clone-from-edited${path.sep}site-cut`));
     assert.ok(fs.existsSync(path.join(project.root, "film.json")));
     assert.ok(!fs.existsSync(path.join(root, "data/projects/footage-narration/none/site-cut/film.json")));
     assert.equal(loadProject("site-cut", root).root, project.root);

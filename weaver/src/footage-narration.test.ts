@@ -113,7 +113,7 @@ describe("footage-narration", () => {
   it("lists the footage method only under that task", () => {
     const ids = listRecipes(weaverRoot(), "footage-narration").map((recipe) => recipe.id);
     assert.deepEqual(ids, [
-      "clone-from-edit",
+      "clone-from-edited",
       "copy-then-match",
       "highlight-mix",
       "plot-then-match",

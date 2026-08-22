@@ -89,7 +89,7 @@ npx weaver render --project my-film
 - `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`
 - `render` 走 ffmpeg 合成，不走 Remotion
 - 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。有转写先靠句子；静音场再读描述树。weaver 不跑规划 LLM
-- 方法卡 `clone-from-edit`：有已剪参考片和原片。不要 `recipe apply` 铺场。`asset add --kind video` 把项目外文件拷进 `assets/source/`，再 `weaver match --edited asset:video.edited`。match 写出 `ost: original` 的 clip，不自动 render
+- 方法卡 `clone-from-edited`：有已剪参考片和原片。不要 `recipe apply` 铺场。`asset add --kind video` 把项目外文件拷进 `assets/source/`，再 `weaver match --edited asset:video.edited`。match 写出 `ost: original` 的 clip，不自动 render
 - 方法卡 `see-then-narrate`：无对白先 `weaver describe`。按 `assets/descriptions/` 一场一 clip。观察不当旁白原文
 - 方法卡 `copy-then-match`：人先过解说，再对画面。原片占比是铺场目标
 - 方法卡 `highlight-mix`：转写抽点，clip `ost: original`，不要 tts

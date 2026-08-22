@@ -59,10 +59,10 @@
       "expand": "list"
     },
     {
-      "id": "method.clone-from-edit",
+      "id": "method.clone-from-edited",
       "kind": "method",
       "label": "按已剪片复刻",
-      "file": "methods/footage-narration/clone-from-edit.md",
+      "file": "methods/footage-narration/clone-from-edited.md",
       "task": "footage-narration",
       "text": "有一条已剪参考片，要从多集或长原片里找回对应画面。不要 recipe apply 铺场；登记视频后跑 weaver match。",
       "expand": "list"

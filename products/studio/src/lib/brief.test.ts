@@ -93,8 +93,8 @@ describe("buildAgentBrief", () => {
       "data/first-party/study-explainer/taxonomy-parade/nav-taxonomy",
     );
     assert.equal(
-      instanceDir("user", "demo", "footage-narration", "clone-from-edit"),
-      "data/projects/footage-narration/clone-from-edit/demo",
+      instanceDir("user", "demo", "footage-narration", "clone-from-edited"),
+      "data/projects/footage-narration/clone-from-edited/demo",
     );
     assert.equal(instanceDir("user", "demo"), "data/projects/<task>/<recipe>/demo");
     const text = buildAgentBrief({
@@ -127,10 +127,10 @@ describe("buildAgentBrief", () => {
     assert.doesNotMatch(text, /LightUI/);
   });
 
-  it("tells clone-from-edit to match instead of writing in/out", () => {
+  it("tells clone-from-edited to match instead of writing in/out", () => {
     const text = buildAgentBrief({
       task: "footage-narration",
-      recipeId: "clone-from-edit",
+      recipeId: "clone-from-edited",
       recipeTitle: "按已剪片复刻",
       requiresList: true,
       voices: {},
@@ -138,7 +138,7 @@ describe("buildAgentBrief", () => {
       langs: ["zh"],
       outputHome: "user",
     });
-    assert.match(text, /data\/projects\/footage-narration\/clone-from-edit\/<id>\/assets\/outputs/);
+    assert.match(text, /data\/projects\/footage-narration\/clone-from-edited\/<id>\/assets\/outputs/);
     assert.match(text, /方法：按已剪片复刻/);
     assert.match(text, /weaver match/);
     assert.match(text, /--edited asset:video\.edited/);

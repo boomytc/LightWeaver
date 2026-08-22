@@ -29,8 +29,8 @@ function recipeKey(recipeId?: string): string {
   return dotted;
 }
 
-export function isCloneFromEdit(recipeId?: string): boolean {
-  return recipeKey(recipeId) === "clone-from-edit";
+export function isCloneFromEdited(recipeId?: string): boolean {
+  return recipeKey(recipeId) === "clone-from-edited";
 }
 
 export function isSeeThenNarrate(recipeId?: string): boolean {
@@ -46,7 +46,7 @@ export function isCopyThenMatch(recipeId?: string): boolean {
 }
 
 function skipsRecipeApply(recipeId?: string): boolean {
-  return isCloneFromEdit(recipeId) || isSeeThenNarrate(recipeId) || isHighlightMix(recipeId);
+  return isCloneFromEdited(recipeId) || isSeeThenNarrate(recipeId) || isHighlightMix(recipeId);
 }
 
 function uniqueVoiceRef(voices: Record<string, string>): string | undefined {
@@ -117,7 +117,7 @@ export function buildAgentBrief(input: BriefInput): string {
 
   if (input.recipeId) {
     lines.push(`方法：${input.recipeTitle || input.recipeId}`);
-    if (isCloneFromEdit(input.recipeId)) {
+    if (isCloneFromEdited(input.recipeId)) {
       lines.push("  不要 recipe apply 铺场。登记视频后 weaver match。");
     } else if (isSeeThenNarrate(input.recipeId)) {
       lines.push("  不要 recipe apply 铺时间轴。登记视频后 weaver describe，按描述树一场一 clip。");
@@ -173,7 +173,7 @@ export function buildAgentBrief(input: BriefInput): string {
 
   lines.push("");
   lines.push(createLine(input));
-  if (isCloneFromEdit(input.recipeId)) {
+  if (isCloneFromEdited(input.recipeId)) {
     const project = input.projectId ? `--project ${input.projectId}` : "--project <id>";
     lines.push(
       `然后按 skill lightweaver-film：校验 → 把已剪片和原片拷进 assets/source/ → weaver asset add --kind video → weaver match ${project} --edited asset:video.edited → validate → render。`,
