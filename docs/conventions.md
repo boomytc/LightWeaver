@@ -48,7 +48,7 @@ npx weaver asr --file origin.mp4 --language zh --json
 npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
 ```
 
-- `asr`：wav 或带音轨的视频 → `{ text, language, seconds, sentences? }`。不写项目资产。
+- `asr`：wav 或带音轨的视频 → `{ text, language, seconds, sentences? }`。不写项目资产。超过 40s 自动切窗再拼接；截断则对半再切一次，仍空则失败。
 - `tts --text`：一句旁白 + `library:voice.*` 克隆源 → wav。Hi-Fi：克隆源 wav + 逐字稿。
 - 片子作业仍是 `transcribe --project`（写 `assets/transcripts`）和 `tts --project`（写 `assets/lines`）。
 - `voice asr --id` 只给库里的克隆源补文本，不是通用 STT。
@@ -89,11 +89,20 @@ npx weaver render --project my-film
 - `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`
 - `render` 走 ffmpeg 合成，不走 Remotion
 - 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。有转写先靠句子；静音场再读描述树。weaver 不跑规划 LLM
-- 方法卡 `clone-from-edited`：有已剪参考片和原片。不要 `recipe apply` 铺场。`asset add --kind video` 把项目外文件拷进 `assets/source/`，再 `weaver match --edited asset:video.edited`。match 写出 `ost: original` 的 clip，不自动 render
-- 方法卡 `see-then-narrate`：无对白先 `weaver describe`。按 `assets/descriptions/` 一场一 clip。观察不当旁白原文
+- 方法卡门槛写在 catalog（`needs` / `clipOst`），`validate` 按卡拦截，不要在任务模块写死 recipe id：
+
+| 方法 | needs | clipOst |
+| --- | --- | --- |
+| `clone-from-edited` | `match-report` | `original` |
+| `see-then-narrate` | `description` | — |
+| `highlight-mix` | `transcript` | `original` |
+| `plot-then-match` / `copy-then-match` | — | — |
+
+- 方法卡 `clone-from-edited`：有已剪参考片和原片。不要 `recipe apply` 铺场。`asset add --kind video` 把项目外文件拷进 `assets/source/`，再 `weaver match --edited asset:video.edited`。match 写出 `ost: original` 的 clip，不自动 render。没有匹配报告 `validate` 失败
+- 方法卡 `see-then-narrate`：无对白先 `weaver describe`（长片用 `--from --to`）。按 `assets/descriptions/` 一场一 clip。观察不当旁白原文。没有描述树 `validate` 失败
 - 方法卡 `copy-then-match`：人先过解说，再对画面。原片占比是铺场目标
-- 方法卡 `highlight-mix`：转写抽点，clip `ost: original`，不要 tts
-- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察）。视觉对齐沿上一场源点续搜，不复用已占用的源窗；源段短于 `minPiece` 的碎段丢掉，时长比过低则按参考窗拉回。已剪片对白与原片对不上、文本覆盖不足、或转写失败时 `match` 改走画面
+- 方法卡 `highlight-mix`：转写抽点，clip `ost: original`，不要 tts。没有转写或出现旁白场 `validate` 失败
+- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察，`summary` 由场观察拼接）。视觉对齐沿上一场源点续搜，不复用已占用的源窗；源段短于 `minPiece` 的碎段丢掉；夹在同集之间短于 `islandMax` 的异源岛丢掉。已剪片对白与原片对不上、文本覆盖不足、或转写失败时 `match` 改走画面。合成读取旋转元数据再转正
 
 - `project show` 的 `paths.matchReport` / `paths.subtitleFiles` / `paths.descriptionFiles` / `paths.sourceFiles`（含未上场的 video 资产）
 
@@ -121,7 +130,7 @@ npx weaver render --project site-clone
 ```bash
 npx weaver project create site-see --task footage-narration --source user
 npx weaver asset add --project site-see --kind video --id video.origin --file /abs/silent.mp4
-npx weaver describe --project site-see --ref asset:video.origin
+npx weaver describe --project site-see --ref asset:video.origin [--from 0 --to 90]
 # agent 按 sequences 一场一 clip，观察只当素材
 npx weaver tts --project site-see
 npx weaver validate site-see

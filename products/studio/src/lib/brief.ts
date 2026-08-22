@@ -178,20 +178,20 @@ export function buildAgentBrief(input: BriefInput): string {
     lines.push(
       `然后按 skill lightweaver-film：校验 → 把已剪片和原片拷进 assets/source/ → weaver asset add --kind video → weaver match ${project} --edited asset:video.edited → validate → render。`,
     );
-    lines.push("不要手填 clip 的 in/out，不要 tts。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+    lines.push("不要手填 clip 的 in/out，不要 tts。没有匹配报告时 validate 会失败。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
   } else if (isSeeThenNarrate(input.recipeId)) {
     const project = input.projectId ? `--project ${input.projectId}` : "--project <id>";
     lines.push(
       `然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → weaver describe ${project} --ref asset:video.origin → 按 sequences 一场一 clip → 写旁白（观察只当素材）→ tts → validate → render。`,
     );
-    lines.push("没有描述树禁止写解说。不要用观察原文当旁白。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+    lines.push("没有描述树禁止写解说，validate 会失败。长片用 --from --to。不要用观察原文当旁白。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
     lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
   } else if (isHighlightMix(input.recipeId)) {
     const project = input.projectId ? `--project ${input.projectId}` : "--project <id>";
     lines.push(
       `然后按 skill lightweaver-film：校验 → 登记源视频 → weaver transcribe ${project} → 从句子时间抽点写成 ost: original 的 clip → validate → render。`,
     );
-    lines.push("不要 tts。静音场需要看见时再 weaver describe。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+    lines.push("不要 tts。没有转写或出现旁白场时 validate 会失败。静音场需要看见时再 weaver describe。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
   } else if (input.task === "footage-narration") {
     lines.push("然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → 写 clip 的 in/out/ost 与旁白 → tts（跳过 original）→ render。");
     if (isCopyThenMatch(input.recipeId)) {

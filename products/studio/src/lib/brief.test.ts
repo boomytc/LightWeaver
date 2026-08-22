@@ -145,6 +145,7 @@ describe("buildAgentBrief", () => {
     assert.doesNotMatch(text, /weaver recipe apply/);
     assert.match(text, /不要手填 clip 的 in\/out/);
     assert.match(text, /不要 tts/);
+    assert.match(text, /没有匹配报告/);
     assert.doesNotMatch(text, /跳过 original/);
     assert.doesNotMatch(text, /VoxCPM2/);
   });
@@ -163,6 +164,7 @@ describe("buildAgentBrief", () => {
     assert.match(text, /方法：先看见再写解说/);
     assert.match(text, /weaver describe/);
     assert.match(text, /没有描述树禁止写解说/);
+    assert.match(text, /--from --to/);
     assert.doesNotMatch(text, /weaver recipe apply/);
     assert.doesNotMatch(text, /weaver match/);
     assert.doesNotMatch(text, /缺静帧再补/);
@@ -181,6 +183,7 @@ describe("buildAgentBrief", () => {
     });
     assert.match(text, /weaver transcribe/);
     assert.match(text, /不要 tts/);
+    assert.match(text, /没有转写或出现旁白场/);
     assert.doesNotMatch(text, /weaver recipe apply/);
     assert.doesNotMatch(text, /VoxCPM2/);
   });

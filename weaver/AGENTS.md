@@ -20,13 +20,15 @@ src/library-method.ts  方法插件 CRUD（写 library/methods + catalog）
 src/library-material.ts 素材插件：按名称分配 element.* / reference.*
 src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
+src/method-assert.ts   方法卡 needs / clipOst 门槛
 src/sync.ts            Remotion public links + catalog
 src/tts.ts             VoxCPM2：speakLine（独立一句）与片子 lines job
-src/asr.ts             Qwen3-ASR：asrAudio / runAsr（独立文件，wav 或视频）
+src/asr.ts             Qwen3-ASR：asrAudio / runAsr（独立文件，wav 或视频；长音频切窗）
+src/asr-chunk.ts       转写切窗与拼接（纯函数）
 src/transcribe.ts      源视频转写 → assets/transcripts（TranscriptResult；句/字时间）
 src/describe.ts        源视频画面树 → assets/descriptions（场/镜/观察；不写 film.json）
 src/vlm.ts             MiniCPM-V 描述 job（ModelBest；缺密钥失败）
-src/probe.ts           ffprobe 时长 / 音轨 / 静音岛
+src/probe.ts           ffprobe 时长 / 音轨 / 静音岛 / 旋转
 src/sentences.ts       标点切句并铺到语音岛
 src/match.ts           已剪片对齐原片，写出 clip 场（不自动 render）
 src/voice-mint.ts      设计指令铸试听 / 收下为克隆源

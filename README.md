@@ -31,7 +31,7 @@ npx weaver voice asr --label 讲解女声
 npx weaver asr --file clip.wav --json
 npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
 npx weaver tts --project <id> --locale zh
-npx weaver describe --project <id> --ref asset:video.origin
+npx weaver describe --project <id> --ref asset:video.origin [--from 0 --to 90]
 npx weaver match --project <id> --edited asset:video.edited
 npx weaver render --project <id> --locale zh
 ```

@@ -20,12 +20,12 @@
 | 3 | Script | Agent 写文案 | `scene set` / `card set` | 只写 `film.langs` 点名的语言。必须替换 `addScene` 的 id 占位。idea.md 的实现词译成动作和后果；一场只留一个名字；lede 不要整段复述旁白 |
 | 4 | Stills | Agent 或人 | 仅 lab+adapter 时 `capture --project`；manual 只手截 + `asset add` | `assets.json` 登记的 png |
 | 5 | Voice | Job | `tts --project`（只出 `film.langs`；允许缺 png） | `assets/lines/<lang>/*.wav` |
-| 6 | QA | Agent 必跑 | `validate --json`；读 `renderable` | error 或 `!isRenderable` → 不得进 7 的 render |
+| 6 | QA | Agent 必跑 | `validate --json`；读 `renderable` | error 或 `!isRenderable` → 不得进 7 的 render。方法卡 `needs` / `clipOst` 未满足也是 error（无描述树 / 无匹配报告 / 无转写 / 不该出现的旁白场） |
 | 7 | Deliver | Job | `render --project`；有 `publish.dir` 才 `publish` | 只写该片子在 `data/` 下的 `assets/outputs/<output>`。不要写 `products/study-films/` |
 
 `clone-from-edited`：阶段 2 是 `asset add --kind video`（已剪片 `video.edited` + 原片）然后 `weaver match --edited asset:video.edited`。不要 `recipe apply`。match 之后直接阶段 6–7。
 
-`see-then-narrate`：阶段 2 是 `asset add --kind video` 然后 `weaver describe --ref asset:video.origin`。不要 `recipe apply`。阶段 3 按 `sequences` 一场一 clip 写旁白（观察只当素材）。没有描述树禁止写解说。
+`see-then-narrate`：阶段 2 是 `asset add --kind video` 然后 `weaver describe --ref asset:video.origin`（长片 `--from --to`）。不要 `recipe apply`。阶段 3 按 `sequences` 一场一 clip 写旁白（观察只当素材）。没有描述树禁止写解说。
 
 `highlight-mix`：阶段 2 转写后写 `ost: original` clip。不要 tts。阶段 6–7。
 

@@ -24,7 +24,7 @@ description: >
 
 | 判据 | 动作 |
 | --- | --- |
-| `hasErrors(validate)` | **停全部生成**：不准 tts / render / capture。先修 FilmDoc |
+| `hasErrors(validate)` | **停全部生成**：不准 tts / render / capture。先修 FilmDoc。`see-then-narrate` 无描述树、`clone-from-edited` 无 match-report、`highlight-mix` 无转写或出现旁白场，都是 error |
 | `!hasErrors` 且 `!isRenderable`（讲解片 png 缺，或原片源视频/旁白缺） | 允许 `tts`（原声场除外）。**禁止** `render --project` |
 | `capture.kind` 有适配器且某 `stillFiles` `exists === false` | `weaver capture --project` |
 | `capture.kind === "manual"` 且 png 缺 | **停**。手截到 `assets.json` 已登记路径。**禁止** `weaver capture` |
@@ -101,7 +101,7 @@ npx weaver validate <id>
 npx weaver asr --file clip.wav --json
 npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
 npx weaver transcribe --project <id> --ref asset:video.origin
-npx weaver describe --project <id> --ref asset:video.origin [--force] [--visual]
+npx weaver describe --project <id> --ref asset:video.origin [--force] [--visual] [--from 0] [--to 90]
 npx weaver match --project <id> --edited asset:video.edited [--sources asset:video.ep01]
 npx weaver tts --project <id>
 npx weaver render --project <id>
