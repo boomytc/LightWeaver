@@ -52,8 +52,8 @@ scripts/               tts.py / asr.py / vlm.py / capture.mjs（不跟 LIGHTWEAV
   `validate.ts`. `project-paths.ts` must not import `validate.ts`
   (`assets.ts` already imports `saveAssets` from `project.ts`; a reverse
   import is a cycle). Put `projectPaths` only in `project-paths.ts`.
-- Task instances live under `data/` (gitignored): `data/first-party/`
-  and `data/projects/`. Voices, elements, and methods live in `library/`.
+- Task instances live under `data/` (gitignored): `data/first-party/<task>/<id>/`
+  and `data/projects/<task>/<id>/`. Voices, elements, and methods live in `library/`.
   Film-level methods are catalogued as `kind: method`.
   `createLibraryMethod` / `updateLibraryMethod` write the catalog
   (name / when / expand / scenes) and a projection file under

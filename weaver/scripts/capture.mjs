@@ -10,7 +10,7 @@ const SHOTS = JSON.parse(fs.readFileSync(path.join(here, "lightui-lab-adapters.j
 const LAB = labUrl();
 
 function stillPath(study, locale, name) {
-  return path.join(firstPartyRoot(), study, "assets", "stills", locale, name);
+  return path.join(firstPartyRoot(), "study-explainer", study, "assets", "stills", locale, name);
 }
 
 async function clipOf(page) {

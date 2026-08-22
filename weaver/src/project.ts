@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Asset, AssetDoc, FilmDoc, ProjectRecord, ProjectSource } from "./schema.ts";
-import { filmLangs, filmStudySlug, filmTask, normalizeFilm } from "./schema.ts";
-import { firstPartyRoot, projectRoots, userRoot, weaverRoot } from "./paths.ts";
+import { TASK_IDS, filmLangs, filmStudySlug, filmTask, normalizeFilm } from "./schema.ts";
+import { instanceRoot, projectRoots, weaverRoot } from "./paths.ts";
 import { atomicWriteJson, readJson } from "./io.ts";
 import { resolveTask } from "./tasks/registry.ts";
 
@@ -18,11 +18,15 @@ export function listProjects(root = weaverRoot()): ProjectRecord[] {
   const found: ProjectRecord[] = [];
   for (const { source, dir } of projectRoots(root)) {
     if (!fs.existsSync(dir)) continue;
-    for (const name of fs.readdirSync(dir).sort()) {
-      const projectDir = path.join(dir, name);
-      if (!fs.statSync(projectDir).isDirectory()) continue;
-      if (!fs.existsSync(filmPath(projectDir))) continue;
-      found.push(loadProjectAt(projectDir, source));
+    for (const task of TASK_IDS) {
+      const taskDir = path.join(dir, task);
+      if (!fs.existsSync(taskDir) || !fs.statSync(taskDir).isDirectory()) continue;
+      for (const name of fs.readdirSync(taskDir).sort()) {
+        const projectDir = path.join(taskDir, name);
+        if (!fs.statSync(projectDir).isDirectory()) continue;
+        if (!fs.existsSync(filmPath(projectDir))) continue;
+        found.push(loadProjectAt(projectDir, source));
+      }
     }
   }
   return found;
@@ -39,6 +43,11 @@ export function loadProjectAt(dir: string, source: ProjectSource): ProjectRecord
   const assets = fs.existsSync(assetsPath(dir)) ? readJson<AssetDoc>(assetsPath(dir)).assets : [];
   if (film.id !== path.basename(dir)) {
     throw new Error(`项目目录 ${path.basename(dir)} 与 film.id ${film.id} 不一致`);
+  }
+  const folderTask = path.basename(path.dirname(dir));
+  const task = filmTask(film);
+  if (folderTask !== task) {
+    throw new Error(`项目 ${film.id} 在 ${folderTask}/ 下，与 film.task ${task} 不一致`);
   }
   return { id: film.id, source, root: dir, film, assets };
 }
@@ -75,9 +84,9 @@ export function createProject(
     throw new Error(`项目已存在：${id}`);
   }
   const source = options.source ?? "user";
-  const parent = source === "first-party" ? firstPartyRoot(root) : userRoot(root);
-  const dir = path.join(parent, id);
-  const film = resolveTask(options.task).createFilm(
+  const task = resolveTask(options.task);
+  const dir = instanceRoot(source, task.id, id, root);
+  const film = task.createFilm(
     {
       id,
       title: options.title,

@@ -56,7 +56,13 @@ function relink(link: string, target: string): void {
   const absTarget = path.resolve(target);
   try {
     const stat = fs.lstatSync(link);
-    if (stat.isSymbolicLink() && fs.realpathSync(link) === fs.realpathSync(absTarget)) return;
+    if (stat.isSymbolicLink()) {
+      try {
+        if (fs.realpathSync(link) === fs.realpathSync(absTarget)) return;
+      } catch {
+        /* broken or moved */
+      }
+    }
     fs.rmSync(link, { recursive: true, force: true });
   } catch {
     /* missing */

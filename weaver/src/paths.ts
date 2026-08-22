@@ -26,6 +26,20 @@ export function userRoot(root = weaverRoot()): string {
   return path.join(root, "data/projects");
 }
 
+export function instanceRel(source: "first-party" | "user", task: string, id: string): string {
+  const tree = source === "first-party" ? "data/first-party" : "data/projects";
+  return `${tree}/${task}/${id}`;
+}
+
+export function instanceRoot(
+  source: "first-party" | "user",
+  task: string,
+  id: string,
+  root = weaverRoot(),
+): string {
+  return path.join(source === "first-party" ? firstPartyRoot(root) : userRoot(root), task, id);
+}
+
 export function voiceCandidateRoot(root = weaverRoot()): string {
   return path.join(root, "data/voice-candidates");
 }
