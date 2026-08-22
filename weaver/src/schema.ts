@@ -48,6 +48,13 @@ export function sceneNeedsLine(scene: { ost?: OstMode }): boolean {
   return scene.ost !== "original";
 }
 
+export const CLIP_ALIGNS = ["sequences"] as const;
+export type ClipAlign = (typeof CLIP_ALIGNS)[number];
+
+export function isClipAlign(value: unknown): value is ClipAlign {
+  return value === "sequences";
+}
+
 export const CAPTURE_KINDS = ["lightui-lab", "manual"] as const;
 export type CaptureKind = (typeof CAPTURE_KINDS)[number];
 
@@ -78,6 +85,8 @@ export type Asset = {
   needs?: MethodNeed[];
   /** 方法：每一场 clip 必须是这个 ost。其它 kind 不用。 */
   clipOst?: OstMode;
+  /** 方法：clip 必须与描述树一场对一场。其它 kind 不用。 */
+  clipAlign?: ClipAlign;
 };
 
 export type AssetDoc = {
@@ -90,6 +99,10 @@ export function methodExpandOf(asset: Pick<Asset, "expand">): MethodExpand {
 
 export function methodNeedsOf(asset: Pick<Asset, "needs">): MethodNeed[] {
   return (asset.needs ?? []).filter(isMethodNeed);
+}
+
+export function methodClipAlignOf(asset: Pick<Asset, "clipAlign">): ClipAlign | undefined {
+  return isClipAlign(asset.clipAlign) ? asset.clipAlign : undefined;
 }
 
 export type CardCopy = {

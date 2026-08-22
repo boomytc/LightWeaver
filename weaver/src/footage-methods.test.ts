@@ -51,7 +51,7 @@ function seedCatalogMethod(root: string, id: string, extra: Record<string, unkno
 describe("footage method fixtures", () => {
   it("see-then-narrate: empty tree is blocked; sequences become narration clips; observation is not lines", () => {
     const root = tempWorkspace();
-    seedCatalogMethod(root, "see-then-narrate", { needs: ["description"] });
+    seedCatalogMethod(root, "see-then-narrate", { needs: ["description"], clipAlign: "sequences" });
     const project = seedFootageFilm(root, "site-see", [{ id: "say", in: 0, out: 1 }], { writeVideo: true, writeWav: true });
     setFilmRecipe(project, "see-then-narrate", root);
     setLangs(project, ["zh"]);

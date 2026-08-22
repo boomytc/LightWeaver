@@ -51,6 +51,10 @@ describe("listRecipes / loadRecipe", () => {
     assert.deepEqual(clone.needs, ["match-report"]);
     assert.equal(clone.clipOst, "original");
     assert.match(formatRecipe(clone), /门槛：match-report/);
+    const see = loadRecipe("see-then-narrate");
+    assert.deepEqual(see.needs, ["description"]);
+    assert.equal(see.clipAlign, "sequences");
+    assert.match(formatRecipe(see), /对场：sequences/);
     const pack = path.join(recipeRoot(), "study-explainer");
     assert.deepEqual(
       fs.readdirSync(pack).filter((name) => name.endsWith(".md")).sort(),

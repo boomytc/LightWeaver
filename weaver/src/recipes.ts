@@ -6,9 +6,11 @@ import { saveFilm } from "./project.ts";
 import {
   filmTask,
   isOstMode,
+  methodClipAlignOf,
   methodExpandOf,
   methodNeedsOf,
   type Asset,
+  type ClipAlign,
   type MethodExpand,
   type MethodNeed,
   type MethodScene,
@@ -32,6 +34,7 @@ export type Recipe = {
   scenes?: MethodScene[];
   needs?: MethodNeed[];
   clipOst?: OstMode;
+  clipAlign?: ClipAlign;
   path?: string;
   body?: string;
 };
@@ -60,6 +63,7 @@ function recipeFromAsset(asset: Asset, root: string): Recipe {
   const hasFile = Boolean(abs && fs.existsSync(abs));
   const needs = methodNeedsOf(asset);
   const clipOst = asset.clipOst && isOstMode(asset.clipOst) ? asset.clipOst : undefined;
+  const clipAlign = methodClipAlignOf(asset);
   return {
     id,
     task: asset.task ?? "",
@@ -69,6 +73,7 @@ function recipeFromAsset(asset: Asset, root: string): Recipe {
     ...(asset.scenes ? { scenes: asset.scenes } : {}),
     ...(needs.length ? { needs } : {}),
     ...(clipOst ? { clipOst } : {}),
+    ...(clipAlign ? { clipAlign } : {}),
     ...(hasFile ? { path: abs, body: fs.readFileSync(abs!, "utf8") } : {}),
   };
 }
@@ -82,6 +87,7 @@ export function formatRecipe(recipe: Recipe): string {
   const gates = [
     ...(recipe.needs?.length ? [`门槛：${recipe.needs.join("、")}`] : []),
     ...(recipe.clipOst ? [`ost：${recipe.clipOst}`] : []),
+    ...(recipe.clipAlign ? [`对场：${recipe.clipAlign}`] : []),
   ];
   const lines = [recipe.title, recipe.when, `铺场：${expand}`, ...scenes, ...gates];
   if (recipe.path) lines.push(`投影：${recipe.path}`);

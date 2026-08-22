@@ -77,7 +77,8 @@
       "task": "footage-narration",
       "text": "无对白或对白很少。不要 recipe apply 铺时间轴；登记视频后跑 weaver describe，按描述树一场一 clip。观察只当素材，不当旁白原文。",
       "expand": "list",
-      "needs": ["description"]
+      "needs": ["description"],
+      "clipAlign": "sequences"
     },
     {
       "id": "method.copy-then-match",

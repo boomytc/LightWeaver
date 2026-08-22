@@ -7,9 +7,11 @@ import { resolveTask } from "./tasks/registry.ts";
 import {
   isMethodExpand,
   isOstMode,
+  methodClipAlignOf,
   methodExpandOf,
   methodNeedsOf,
   type Asset,
+  type ClipAlign,
   type MethodExpand,
   type MethodNeed,
   type MethodScene,
@@ -188,9 +190,11 @@ export function listLibraryMethods(root = weaverRoot()): Array<{
   scenes: MethodScene[];
   needs: MethodNeed[];
   clipOst?: OstMode;
+  clipAlign?: ClipAlign;
 }> {
   return methodsIn(root).map((item) => {
     const clipOst = item.clipOst && isOstMode(item.clipOst) ? item.clipOst : undefined;
+    const clipAlign = methodClipAlignOf(item);
     return {
       id: item.id,
       recipe: recipeIdOf(item.id),
@@ -200,6 +204,7 @@ export function listLibraryMethods(root = weaverRoot()): Array<{
       scenes: item.scenes ?? [],
       needs: methodNeedsOf(item),
       ...(clipOst ? { clipOst } : {}),
+      ...(clipAlign ? { clipAlign } : {}),
     };
   });
 }
