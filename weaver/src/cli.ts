@@ -21,6 +21,7 @@ import { syncRemotion } from "./sync.ts";
 import { runTts } from "./tts.ts";
 import { runTranscribe } from "./transcribe.ts";
 import { runMatch } from "./match.ts";
+import { runDescribe } from "./describe.ts";
 import { runPublish, runRender } from "./render.ts";
 import { ASSET_KINDS, filmTask, isOstMode } from "./schema.ts";
 import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setLangs, setVoicePack } from "./scenes.ts";
@@ -105,6 +106,8 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       edited: { type: "string" },
       sources: { type: "string" },
       "no-visual": { type: "boolean", default: false },
+      visual: { type: "boolean", default: false },
+      force: { type: "boolean", default: false },
     },
   });
   wantJson = Boolean(values.json);
@@ -641,6 +644,31 @@ function main(): void {
     return;
   }
 
+  if (command === "describe") {
+    const project = requireProject(projectIdOf(rest, values));
+    try {
+      const result = runDescribe({
+        projectId: project.id,
+        ref: str(values, "ref"),
+        force: Boolean(values.force),
+        visual: Boolean(values.visual),
+        root,
+      });
+      const next = loadProject(project.id, root);
+      print({
+        ...envelope(next, root),
+        describe: {
+          file: result.file,
+          visualCalls: result.visualCalls,
+          sequences: result.description.sequences,
+        },
+      });
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
   if (command === "match") {
     const project = requireProject(projectIdOf(rest, values));
     const edited = str(values, "edited");
@@ -734,6 +762,7 @@ function main(): void {
   weaver validate [id]
   weaver capture [--project]
   weaver transcribe --project [--ref asset:video.*]
+  weaver describe --project [--ref asset:video.*] [--force] [--visual]
   weaver match --project --edited asset:video.* [--sources asset:video.a,asset:video.b] [--no-visual]
   weaver publish --project
   weaver sync

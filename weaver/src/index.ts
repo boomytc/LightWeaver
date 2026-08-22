@@ -17,6 +17,7 @@ export * from "./probe.ts";
 export * from "./sentences.ts";
 export * from "./transcribe.ts";
 export * from "./voice-mint.ts";
+export * from "./describe.ts";
 export * from "./match.ts";
 export * from "./compose.ts";
 export * from "./render.ts";
