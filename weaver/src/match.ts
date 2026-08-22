@@ -8,6 +8,9 @@ import { alignEditedToSources, pickCandidate, type Candidate } from "./match-ali
 import {
   applyPadding,
   detectScenes,
+  dropCrumbs,
+  enforceDuration,
+  mergeAdjacentCuts,
   splitAndSnapCuts,
   stabilizeCuts,
   type SceneIndex,
@@ -272,6 +275,10 @@ export function finalizeCuts(
   timed = splitAndSnapCuts(timed, editedScene, sourceScenes);
   timed = applyPadding(timed, sourceDurations);
   timed = stabilizeCuts(timed);
+  timed = enforceDuration(timed, sourceDurations);
+  timed = stabilizeCuts(timed);
+  timed = mergeAdjacentCuts(timed);
+  timed = dropCrumbs(timed);
   return timed.map((cut, index) => fromTimed(cut, index + 1));
 }
 

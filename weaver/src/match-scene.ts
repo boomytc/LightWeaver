@@ -117,7 +117,10 @@ export function splitAndSnapCuts(
 ): TimedCut[] {
   const next: TimedCut[] = [];
   for (const cut of cuts) {
-    const pieces = splitRangeByScene(cut.editedStart, cut.editedEnd, editedScene);
+    const alreadySplit = cut.matchMethod === "visual" || cut.matchMethod === "silent_gap";
+    const pieces = alreadySplit
+      ? ([[cut.editedStart, cut.editedEnd]] as [number, number][])
+      : splitRangeByScene(cut.editedStart, cut.editedEnd, editedScene);
     const sentenceDur = Math.max(0.001, cut.editedEnd - cut.editedStart);
     const sourceDur = Math.max(0.001, cut.out - cut.in);
     for (const [editedStart, editedEnd] of pieces) {
@@ -126,23 +129,45 @@ export function splitAndSnapCuts(
       const originalIn = cut.in + sourceDur * relStart;
       const originalOut = cut.in + sourceDur * relEnd;
       const sourceScene = sourceScenes.get(cut.sourceRef);
-      const snappedIn = snapToSceneBoundary(originalIn, sourceScene);
-      const snappedOut = snapToSceneBoundary(originalOut, sourceScene);
-      const valid = snappedOut.time > snappedIn.time;
+      const snapped = snapWindow(originalIn, originalOut, sourceScene);
       next.push({
         ...cut,
         editedStart,
         editedEnd,
-        in: valid ? snappedIn.time : originalIn,
-        out: valid ? snappedOut.time : originalOut,
+        in: snapped.in,
+        out: snapped.out,
         originalIn,
         originalOut,
-        sceneSnapped: valid && (snappedIn.snapped || snappedOut.snapped || cut.sceneSnapped),
+        sceneSnapped: snapped.snapped || cut.sceneSnapped,
         warnings: [...cut.warnings],
       });
     }
   }
   return next;
+}
+
+/** 整窗吸附：只推 in，时长跟参考走。两端各自贴边界会把窗压成 0.05s。 */
+export function snapWindow(
+  start: number,
+  end: number,
+  index: SceneIndex | undefined,
+  window = MATCH_SETTINGS.snapWindow,
+  minPiece = MATCH_SETTINGS.minPiece,
+): { in: number; out: number; snapped: boolean } {
+  const duration = Math.max(0, end - start);
+  if (!(duration > 0)) return { in: start, out: end, snapped: false };
+  const snappedIn = snapToSceneBoundary(start, index, window);
+  let nextIn = snappedIn.snapped ? snappedIn.time : start;
+  let nextOut = nextIn + duration;
+  const limit = index?.duration;
+  if (limit != null && nextOut > limit) {
+    nextOut = limit;
+    nextIn = Math.max(0, nextOut - duration);
+  }
+  if (nextOut - nextIn < minPiece && duration >= minPiece) {
+    return { in: start, out: end, snapped: false };
+  }
+  return { in: nextIn, out: Math.max(nextIn, nextOut), snapped: snappedIn.snapped };
 }
 
 export function applyPadding(cuts: TimedCut[], sourceDurations: Map<string, number>): TimedCut[] {
@@ -164,6 +189,7 @@ export function applyPadding(cuts: TimedCut[], sourceDurations: Map<string, numb
 }
 
 export function stabilizeCuts(cuts: TimedCut[]): TimedCut[] {
+  const minPiece = MATCH_SETTINGS.minPiece;
   const ordered = [...cuts].sort((a, b) => a.editedStart - b.editedStart || a.editedEnd - b.editedEnd);
   for (let i = 0; i < ordered.length - 1; i++) {
     const prev = ordered[i]!;
@@ -181,8 +207,8 @@ export function stabilizeCuts(cuts: TimedCut[]): TimedCut[] {
     }
     if (sourceGap >= 0 && sourceGap <= MATCH_SETTINGS.mergeGap) {
       const boundary = (prev.out + next.in) / 2;
-      if (boundary >= prev.in + 0.05) prev.out = boundary;
-      if (boundary <= next.out - 0.05) next.in = Math.max(0, boundary);
+      if (boundary >= prev.in + minPiece) prev.out = boundary;
+      if (boundary <= next.out - minPiece) next.in = Math.max(0, boundary);
       warn(prev, "adjacent_gap_merged");
       warn(next, "adjacent_gap_merged");
     }
@@ -192,15 +218,77 @@ export function stabilizeCuts(cuts: TimedCut[]): TimedCut[] {
         next.in = Math.min(next.originalIn, prev.out);
       }
       if (prev.out - next.in > MATCH_SETTINGS.maxOverlap) {
-        const boundary = (prev.out + next.in) / 2;
-        prev.out = Math.max(prev.in + 0.05, boundary);
-        next.in = Math.min(next.out - 0.05, Math.max(0, boundary));
+        const span = next.out - prev.in;
+        if (span >= minPiece * 2) {
+          const boundary = (prev.out + next.in) / 2;
+          prev.out = Math.max(prev.in + minPiece, Math.min(boundary, next.out - minPiece));
+          next.in = Math.min(next.out - minPiece, Math.max(prev.out, boundary));
+        }
       }
       warn(prev, "overlap_fixed");
       warn(next, "overlap_fixed");
     }
   }
-  return ordered.filter((cut) => cut.out > cut.in);
+  return ordered.filter((cut) => cut.out - cut.in > 1e-6);
+}
+
+export function enforceDuration(cuts: TimedCut[], sourceDurations: Map<string, number>): TimedCut[] {
+  const minPiece = MATCH_SETTINGS.minPiece;
+  const ratioMin = MATCH_SETTINGS.durationRatioMin;
+  return cuts.map((cut) => {
+    const sourceSpan = cut.out - cut.in;
+    const editedSpan = Math.max(0, cut.editedEnd - cut.editedStart);
+    if (editedSpan < minPiece || sourceSpan >= Math.max(minPiece, editedSpan * ratioMin)) return cut;
+    const limit = sourceDurations.get(cut.sourceRef);
+    let nextIn = cut.in;
+    let nextOut = cut.in + editedSpan;
+    if (limit != null && nextOut > limit) {
+      nextOut = limit;
+      nextIn = Math.max(0, nextOut - editedSpan);
+    }
+    if (nextOut - nextIn < minPiece) return cut;
+    const next = { ...cut, in: nextIn, out: nextOut, warnings: [...cut.warnings] };
+    warn(next, "duration_restored");
+    return next;
+  });
+}
+
+export function mergeAdjacentCuts(cuts: TimedCut[]): TimedCut[] {
+  const gap = MATCH_SETTINGS.sceneMinGap;
+  const ordered = [...cuts].sort((a, b) => a.editedStart - b.editedStart || a.editedEnd - b.editedEnd);
+  const merged: TimedCut[] = [];
+  for (const cut of ordered) {
+    const prev = merged.at(-1);
+    const sourceGap = prev ? cut.in - prev.out : Infinity;
+    const editedGap = prev ? cut.editedStart - prev.editedEnd : Infinity;
+    if (
+      prev &&
+      prev.sourceRef === cut.sourceRef &&
+      sourceGap >= -MATCH_SETTINGS.maxOverlap &&
+      sourceGap <= gap &&
+      editedGap <= gap
+    ) {
+      prev.out = Math.max(prev.out, cut.out);
+      prev.editedEnd = Math.max(prev.editedEnd, cut.editedEnd);
+      prev.originalOut = Math.max(prev.originalOut, cut.originalOut);
+      for (const message of cut.warnings) warn(prev, message);
+      warn(prev, "adjacent_merged");
+      continue;
+    }
+    merged.push({ ...cut, warnings: [...cut.warnings] });
+  }
+  return merged;
+}
+
+export function dropCrumbs(cuts: TimedCut[]): TimedCut[] {
+  const minPiece = MATCH_SETTINGS.minPiece;
+  return cuts.filter((cut) => {
+    const sourceSpan = cut.out - cut.in;
+    const editedSpan = cut.editedEnd - cut.editedStart;
+    if (sourceSpan <= 0) return false;
+    if (sourceSpan < minPiece && editedSpan >= minPiece) return false;
+    return true;
+  });
 }
 
 function warn(cut: TimedCut, message: string): void {

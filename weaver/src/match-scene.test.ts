@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   applyPadding,
+  dropCrumbs,
+  enforceDuration,
+  mergeAdjacentCuts,
   parseSceneLog,
   snapToSceneBoundary,
+  snapWindow,
   splitAndSnapCuts,
   splitRangeByScene,
   stabilizeCuts,
@@ -70,6 +74,15 @@ describe("splitRangeByScene", () => {
   });
 });
 
+describe("snapWindow", () => {
+  it("keeps duration instead of snapping both ends onto one boundary", () => {
+    const index = { duration: 20, boundaries: [{ time: 5, score: 1 }, { time: 5.05, score: 1 }] };
+    const snapped = snapWindow(4.6, 6.6, index, 1);
+    assert.ok(snapped.out - snapped.in >= 1.9);
+    assert.ok(snapped.in <= 5.05);
+  });
+});
+
 describe("splitAndSnapCuts", () => {
   it("maps edited scene pieces onto the source window", () => {
     const cuts = splitAndSnapCuts(
@@ -79,6 +92,17 @@ describe("splitAndSnapCuts", () => {
     );
     assert.equal(cuts.length, 2);
     assert.ok(cuts[0]!.out <= cuts[1]!.in + 1e-6);
+  });
+
+  it("does not re-split a visual cut that is already a scene", () => {
+    const cuts = splitAndSnapCuts(
+      [cut({ matchMethod: "visual", editedStart: 0, editedEnd: 4, in: 10, out: 14 })],
+      { duration: 4, boundaries: [{ time: 2, score: 1 }] },
+      new Map([["asset:video.ep01", { duration: 30, boundaries: [] }]]),
+    );
+    assert.equal(cuts.length, 1);
+    assert.equal(cuts[0]!.editedEnd - cuts[0]!.editedStart, 4);
+    assert.ok(cuts[0]!.out - cuts[0]!.in >= 3.5);
   });
 });
 
@@ -94,5 +118,36 @@ describe("applyPadding / stabilizeCuts", () => {
     assert.ok(padded[0]!.in < 10);
     const stable = stabilizeCuts(padded);
     assert.ok(stable[0]!.out <= stable[1]!.in + 0.05 + 1e-6);
+    assert.ok(stable.every((item) => item.out - item.in >= 0.25));
+  });
+});
+
+describe("enforceDuration / dropCrumbs / mergeAdjacentCuts", () => {
+  it("restores a crushed source window to the edited duration", () => {
+    const restored = enforceDuration(
+      [cut({ in: 52.55, out: 52.6, editedStart: 547.7, editedEnd: 555.3 })],
+      new Map([["asset:video.ep01", 261]]),
+    );
+    assert.ok(restored[0]!.out - restored[0]!.in >= 7);
+    assert.ok(restored[0]!.warnings.includes("duration_restored"));
+  });
+
+  it("drops crumbs shorter than minPiece when the edited span is long", () => {
+    const kept = dropCrumbs([
+      cut({ in: 1, out: 1.05, editedStart: 0, editedEnd: 2 }),
+      cut({ in: 4, out: 8, editedStart: 2, editedEnd: 6 }),
+    ]);
+    assert.equal(kept.length, 1);
+    assert.equal(kept[0]!.in, 4);
+  });
+
+  it("merges contiguous same-source cuts", () => {
+    const merged = mergeAdjacentCuts([
+      cut({ in: 10, out: 12, editedStart: 0, editedEnd: 2 }),
+      cut({ in: 12.1, out: 16, editedStart: 2.1, editedEnd: 6, originalIn: 12, originalOut: 16 }),
+    ]);
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0]!.in, 10);
+    assert.equal(merged[0]!.out, 16);
   });
 });
