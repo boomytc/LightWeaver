@@ -4,7 +4,9 @@ import { findAsset, resolveAssetFile } from "./assets.ts";
 import { loadProject, saveFilm } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { filmLangs, filmTask, type ProjectRecord, type SceneDef } from "./schema.ts";
-import { alignEditedToSources, pickCandidate, type Candidate } from "./match-align.ts";
+import { alignEditedToSources, pickCandidate, sequenceRatio, type Candidate } from "./match-align.ts";
+import { coreText } from "./sentences.ts";
+import { MATCH_SETTINGS } from "./match-settings.ts";
 import {
   applyPadding,
   detectScenes,
@@ -137,6 +139,67 @@ function loadOrTranscribe(
   const cached = readTranscript(abs);
   if (cached?.sentences.length) return cached;
   return runTranscribe({ projectId: project.id, ref, root }, transcribe ?? runAsr).transcript;
+}
+
+export function editedCoverage(cuts: { editedStart: number; editedEnd: number }[], duration: number): number {
+  if (!(duration > 0) || !cuts.length) return 0;
+  const spans = [...cuts].sort((a, b) => a.editedStart - b.editedStart);
+  let covered = 0;
+  let cursor = 0;
+  for (const cut of spans) {
+    const from = Math.max(cursor, cut.editedStart);
+    const to = Math.max(from, cut.editedEnd);
+    if (to > from) covered += to - from;
+    cursor = Math.max(cursor, to);
+  }
+  return covered / duration;
+}
+
+function alignSpeechOrVisual(input: {
+  project: ProjectRecord;
+  edited: string;
+  sourceRefs: string[];
+  root: string;
+  transcribe: MatchDeps["transcribe"];
+  hashes?: { edited: FrameHash[]; sources: Map<string, FrameHash[]> };
+  editedScene: SceneIndex;
+}): { cuts: MatchCut[]; items: MatchItem[]; warnings: string[] } {
+  const editedTranscript = loadOrTranscribe(input.project, input.edited, input.root, input.transcribe);
+  const sourceTranscripts: { ref: string; transcript: TranscriptResult }[] = [];
+  const warnings: string[] = [];
+  for (const ref of input.sourceRefs) {
+    const transcript = loadOrTranscribe(input.project, ref, input.root, input.transcribe);
+    sourceTranscripts.push({ ref, transcript });
+    if (sourceTranscripts.length !== 1 || !input.hashes) continue;
+    const ratio = sequenceRatio(coreText(editedTranscript.full_text), coreText(transcript.full_text));
+    if (ratio < MATCH_SETTINGS.speechMismatchMax) {
+      warnings.push("已剪片对白与原片对不上，改走画面");
+      return {
+        cuts: cutsFromVisualScenes(input.editedScene, input.hashes.edited, input.hashes.sources),
+        items: [],
+        warnings,
+      };
+    }
+  }
+  const aligned = cutsFromTextAlign(editedTranscript, sourceTranscripts);
+  warnings.push(...aligned.warnings);
+  let items = aligned.items;
+  let cuts = aligned.cuts;
+  if (input.hashes) {
+    const reranked = rerankCuts(items, input.hashes.edited, input.hashes.sources);
+    items = reranked.items;
+    cuts = reranked.cuts;
+  }
+  const duration = input.editedScene.duration;
+  if (input.hashes && editedCoverage(cuts, duration) < MATCH_SETTINGS.textCoverageMin) {
+    warnings.push("文本对齐覆盖不足，改走画面");
+    return {
+      cuts: cutsFromVisualScenes(input.editedScene, input.hashes.edited, input.hashes.sources),
+      items,
+      warnings,
+    };
+  }
+  return { cuts, items, warnings };
 }
 
 export function cutsFromTextAlign(
@@ -392,26 +455,24 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
 
   let cuts: MatchCut[] = [];
   let items: MatchItem[] = [];
+  const duration = editedScene.duration || durationOf(editedVideo.resolved.absPath);
   if (editedHasAudio) {
-    const editedTranscript = loadOrTranscribe(project, edited, root, deps.transcribe);
-    const sourceTranscripts = sourceRefs.map((ref) => ({
-      ref,
-      transcript: loadOrTranscribe(project, ref, root, deps.transcribe),
-    }));
-    const aligned = cutsFromTextAlign(editedTranscript, sourceTranscripts);
-    items = aligned.items;
-    warnings.push(...aligned.warnings);
-    cuts = aligned.cuts;
-    if (hashes) {
-      const reranked = rerankCuts(items, hashes.edited, hashes.sources);
-      items = reranked.items;
-      cuts = reranked.cuts;
-    }
+    const speech = alignSpeechOrVisual({
+      project,
+      edited,
+      sourceRefs,
+      root,
+      transcribe: deps.transcribe,
+      hashes,
+      editedScene,
+    });
+    items = speech.items;
+    cuts = speech.cuts;
+    warnings.push(...speech.warnings);
   } else if (hashes) {
     cuts = cutsFromVisualScenes(editedScene, hashes.edited, hashes.sources);
   }
   if (hashes && cuts.length) {
-    const duration = editedScene.duration || durationOf(editedVideo.resolved.absPath);
     cuts = fillSilentGaps(cuts, duration, hashes.edited, hashes.sources);
   }
   cuts = finalizeCuts(cuts, editedScene, sourceScenes, sourceDurations);

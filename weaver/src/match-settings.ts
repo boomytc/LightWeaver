@@ -23,6 +23,10 @@ export const MATCH_SETTINGS = {
   occupiedPenalty: 0.45,
   /** 源段 / 参考段时长比低于此则拉回参考时长。 */
   durationRatioMin: 0.5,
+  /** 文本对齐覆盖参考时长低于此则改走画面。 */
+  textCoverageMin: 0.25,
+  /** 已剪片与原片对白相似度低于此则不再转写其余原片，改走画面。 */
+  speechMismatchMax: 0.2,
   maxOverlap: 0.05,
   maxJump: 0.6,
   mergeGap: 0.08,

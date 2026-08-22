@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { addAsset } from "./assets.ts";
-import { cutsToSrt, formatSrtTime, runMatch } from "./match.ts";
+import { cutsToSrt, editedCoverage, formatSrtTime, runMatch } from "./match.ts";
 import { createProject, loadProject, saveFilm } from "./project.ts";
 import { setLangs } from "./scenes.ts";
 import { transcriptRel } from "./transcribe.ts";
@@ -48,6 +48,14 @@ function seedCloneProject(root: string) {
   writeTranscript(project.root, "video.ep01", "工地这一下她没再退了然后走。", 10, 20);
   return loadProject(project.id, root);
 }
+
+describe("editedCoverage", () => {
+  it("is 0 with no cuts and 1 when the edited span is filled", () => {
+    assert.equal(editedCoverage([], 10), 0);
+    assert.equal(editedCoverage([{ editedStart: 0, editedEnd: 10 }], 10), 1);
+    assert.ok(editedCoverage([{ editedStart: 0, editedEnd: 2 }, { editedStart: 8, editedEnd: 10 }], 10) < 0.5);
+  });
+});
 
 describe("runMatch", () => {
   it("writes original clips from text alignment", () => {
