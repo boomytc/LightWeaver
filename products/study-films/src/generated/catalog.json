@@ -1,18 +1,6 @@
 {
   "compositions": [
     {
-      "id": "dropdown-taxonomy-zh",
-      "projectId": "dropdown-taxonomy",
-      "locale": "zh",
-      "title": "给下拉起对名字"
-    },
-    {
-      "id": "dropdown-taxonomy-en",
-      "projectId": "dropdown-taxonomy",
-      "locale": "en",
-      "title": "Name the dropdown"
-    },
-    {
       "id": "intent-cascade-zh",
       "projectId": "intent-cascade",
       "locale": "zh",
@@ -23,6 +11,18 @@
       "projectId": "intent-cascade",
       "locale": "en",
       "title": "Menu intent"
+    },
+    {
+      "id": "dropdown-taxonomy-zh",
+      "projectId": "dropdown-taxonomy",
+      "locale": "zh",
+      "title": "给下拉起对名字"
+    },
+    {
+      "id": "dropdown-taxonomy-en",
+      "projectId": "dropdown-taxonomy",
+      "locale": "en",
+      "title": "Name the dropdown"
     },
     {
       "id": "nav-taxonomy-zh",
