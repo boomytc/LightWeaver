@@ -28,7 +28,7 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 | --- | --- |
 | Film / asset / job model, CLI | `weaver/` |
 | Shared voice / element / method | `library/`（方法在 `library/methods/`） |
-| Task instance | `data/projects/<task>/<id>/` or `data/first-party/<task>/<id>/`（不提交） |
+| Task instance | `data/projects/<task>/<recipe>/<id>/` or `data/first-party/<task>/<recipe>/<id>/`（不提交；未点方法时 recipe 为 `none`） |
 | Remotion cards | `products/study-films/` |
 | TTS / ASR / capture scripts | `weaver/scripts/` |
 | Control site | `products/studio/`（`/` `/methods` `/voices` `/library` `/films`） |

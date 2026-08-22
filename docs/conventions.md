@@ -16,7 +16,7 @@ assets/clips/<locale>/    中间裁段（不提交）
 assets/outputs/           渲染 mp4（不提交）
 ```
 
-任务实例都在 `data/`（整树 gitignore），**不提交**。两棵树：`data/projects/<task>/<id>/`，`data/first-party/<task>/<id>/`。`<task>` 是 `study-explainer` 或 `footage-narration`。`film.id` 等于叶子目录名。
+任务实例都在 `data/`（整树 gitignore），**不提交**。两棵树：`data/projects/<task>/<recipe>/<id>/`，`data/first-party/<task>/<recipe>/<id>/`。`<task>` 是 `study-explainer` 或 `footage-narration`；`<recipe>` 是方法卡 id，未点方法时为 `none`。`film.id` 等于叶子目录名。点方法会挪目录。
 
 仓库只留可复用物：`weaver/`、`library/`（含 `library/methods/`）、`products/study-films/`（渲染器，不含片子、不含成片）、`products/studio/`、`skills/`。
 
@@ -26,11 +26,11 @@ assets/outputs/           渲染 mp4（不提交）
 
 | 层 | 住哪 | 不往哪写 |
 | --- | --- | --- |
-| **理念** | 任务自带：用户片 `data/projects/<task>/<id>/brief.md`（可选 `brief.en.md`）。若片子写了 `study.slug`，只当指针，不要把上游文案拷进片子目录 | 不把上游 idea 拷进片子。不把 wav/mp4 写进理念目录 |
+| **理念** | 任务自带：用户片 `data/projects/<task>/<recipe>/<id>/brief.md`（可选 `brief.en.md`）。若片子写了 `study.slug`，只当指针，不要把上游文案拷进片子目录 | 不把上游 idea 拷进片子。不把 wav/mp4 写进理念目录 |
 | **资产** | `library/`（`library:` 音色 / 元素 / 参考）+ 项目 `assets.json` + `assets/stills/<locale>/`。元素是参考权能，不强制 | `library/` 不是文件柜。不发明第三套 ref |
 | **产物** | 旁白 `assets/lines/<locale>/<scene>.wav`；成片 `assets/outputs/<output>`。整份任务实例在 `data/` | 不把 `data/` 提交进本仓。不把成片写进 `products/study-films/`。人没另给拷贝位置，就不要拷到仓库外 |
 
-**用户片 brief：** 理念写在 `data/projects/<task>/<id>/brief.md`。Agent 写正文；`createProject` **不**代写。weaver **不**解析 brief。没有 brief 就先写 brief，再写 `lines`。
+**用户片 brief：** 理念写在 `data/projects/<task>/<recipe>/<id>/brief.md`。Agent 写正文；`createProject` **不**代写。weaver **不**解析 brief。没有 brief 就先写 brief，再写 `lines`。
 
 **静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。必须先写进 `assets.json` 再落盘。
 
@@ -64,7 +64,7 @@ npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --
 - **要点板：** title / close 的正文是 `points`（2–4 条）。lede 只留一句。对照条写成 `左 || 右`
 - 静帧：`scenes[].still = "asset:still.<id>"`
 - 音色套：克隆源二选一。上传后自动转写「文本」。出片固定 Hi-Fi clone。人在 `/voices` 铸、听、留。`tts` 不改库，不加 `--seed`
-- 工作台必须写产物位置。没点名就让 agent 开始前先问写到 `data/projects/<task>/<id>/` 还是 `data/first-party/<task>/<id>/`。人没另给拷贝位置，不要拷到仓库外
+- 工作台必须写产物位置。没点名就让 agent 开始前先问写到 `data/projects/<task>/<recipe>/<id>/` 还是 `data/first-party/<task>/<recipe>/<id>/`。人没另给拷贝位置，不要拷到仓库外
 - `film.publish.dir` 若已有值，`render` 才拷一份出去。工作台不点名仓库外路径
 
 ```bash
