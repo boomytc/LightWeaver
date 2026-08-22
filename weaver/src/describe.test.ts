@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { addScene, removeScene } from "./scenes.ts";
+import { runRender } from "./render.ts";
+import { addScene, removeScene, setLangs } from "./scenes.ts";
 import { extractJpeg } from "./describe-frames.ts";
 import { runDescribe } from "./describe.ts";
 import { dHashFromGray, type FrameHash } from "./match-visual.ts";
@@ -189,6 +190,45 @@ describe("runDescribe", () => {
     assert.equal(scenes.length, 2);
     assert.equal(scenes[0]?.id, "seq-01");
     assert.equal(scenes[0]?.ost, "original");
+  });
+
+  it("renders original-sound clips taken from the description tree", () => {
+    const root = tempWorkspace();
+    const project = seedFootageFilm(root, "site-see", [{ id: "say", in: 0, out: 1, ost: "original", zh: "", en: "" }], {
+      writeVideo: true,
+    });
+    setLangs(project, ["zh"]);
+    const origin = path.join(project.root, "assets/source/origin.mp4");
+    execFileSync(
+      "ffmpeg",
+      ["-y", "-f", "lavfi", "-i", "color=c=blue:s=320x240:d=4", "-pix_fmt", "yuv420p", origin],
+      { stdio: "ignore" },
+    );
+    const result = runDescribe(
+      { projectId: project.id, ref: "asset:video.origin", root },
+      {
+        hasAudio: () => false,
+        duration: () => 4,
+        scenes: () => ({ duration: 4, boundaries: [{ time: 2, score: 0.9 }] }),
+        hashes: () => hashes(),
+        jpeg: stubJpeg(),
+        vlm: () => ({ observation: "蓝场" }),
+      },
+    );
+    const live = loadProject(project.id, root);
+    for (const sequence of result.description.sequences) {
+      addScene(live, {
+        id: sequence.id,
+        kind: "clip",
+        source: "asset:video.origin",
+        in: sequence.in,
+        out: sequence.out,
+        ost: "original",
+      });
+    }
+    removeScene(live, "say");
+    const rendered = runRender({ projectId: project.id, locale: "zh", root });
+    assert.ok(rendered.files[0]?.dest && fs.existsSync(rendered.files[0].dest));
   });
 });
 
