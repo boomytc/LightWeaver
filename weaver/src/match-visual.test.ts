@@ -212,6 +212,43 @@ describe("runMatch visual mute path", () => {
     };
     assert.ok(report.warnings.some((line) => line.includes("对白与原片对不上")));
   });
+
+  it("falls back to visual scenes when ASR throws", () => {
+    const root = tempWorkspace();
+    const project = createProject("color-clone", { task: "footage-narration" }, root);
+    setLangs(project, ["zh"]);
+    const source = path.join(project.root, "assets/source/ep01.mp4");
+    const edited = path.join(project.root, "assets/source/edited.mp4");
+    fs.mkdirSync(path.dirname(source), { recursive: true });
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-vis4-"));
+    const blackA = path.join(dir, "b1.mp4");
+    const red = path.join(dir, "r.mp4");
+    const blackB = path.join(dir, "b2.mp4");
+    colorClip(blackA, "black", 3);
+    colorClip(red, "red", 4);
+    colorClip(blackB, "black", 3);
+    colorClip(edited, "red", 2);
+    const list = path.join(dir, "list.txt");
+    fs.writeFileSync(list, [`file '${blackA}'`, `file '${red}'`, `file '${blackB}'`].join("\n"));
+    execFileSync("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", source], { stdio: "ignore" });
+    addAsset({ kind: "project", project }, { id: "video.edited", kind: "video", file: edited }, root);
+    addAsset({ kind: "project", project }, { id: "video.ep01", kind: "video", file: source }, root);
+    const result = runMatch(
+      { projectId: "color-clone", edited: "asset:video.edited", root, visual: true },
+      {
+        hasAudio: () => true,
+        transcribe: () => {
+          throw new Error("output truncated");
+        },
+      },
+    );
+    assert.ok(result.cuts.length >= 1);
+    assert.ok(result.cuts[0]!.in >= 2 && result.cuts[0]!.in <= 5);
+    const report = JSON.parse(fs.readFileSync(path.join(project.root, result.report), "utf8")) as {
+      warnings: string[];
+    };
+    assert.ok(report.warnings.some((line) => line.includes("转写失败")));
+  });
 });
 
 function writeSpeech(projectRoot: string, videoId: string, text: string, end: number): void {

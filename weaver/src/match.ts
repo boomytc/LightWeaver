@@ -164,9 +164,35 @@ function alignSpeechOrVisual(input: {
   hashes?: { edited: FrameHash[]; sources: Map<string, FrameHash[]> };
   editedScene: SceneIndex;
 }): { cuts: MatchCut[]; items: MatchItem[]; warnings: string[] } {
+  const warnings: string[] = [];
+  try {
+    return alignSpeech(input, warnings);
+  } catch (error) {
+    if (!input.hashes) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    warnings.push(`转写失败，改走画面：${message.split("\n")[0]}`);
+    return {
+      cuts: cutsFromVisualScenes(input.editedScene, input.hashes.edited, input.hashes.sources),
+      items: [],
+      warnings,
+    };
+  }
+}
+
+function alignSpeech(
+  input: {
+    project: ProjectRecord;
+    edited: string;
+    sourceRefs: string[];
+    root: string;
+    transcribe: MatchDeps["transcribe"];
+    hashes?: { edited: FrameHash[]; sources: Map<string, FrameHash[]> };
+    editedScene: SceneIndex;
+  },
+  warnings: string[],
+): { cuts: MatchCut[]; items: MatchItem[]; warnings: string[] } {
   const editedTranscript = loadOrTranscribe(input.project, input.edited, input.root, input.transcribe);
   const sourceTranscripts: { ref: string; transcript: TranscriptResult }[] = [];
-  const warnings: string[] = [];
   for (const ref of input.sourceRefs) {
     const transcript = loadOrTranscribe(input.project, ref, input.root, input.transcribe);
     sourceTranscripts.push({ ref, transcript });

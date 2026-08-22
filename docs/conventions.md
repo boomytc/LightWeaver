@@ -93,7 +93,7 @@ npx weaver render --project my-film
 - 方法卡 `see-then-narrate`：无对白先 `weaver describe`。按 `assets/descriptions/` 一场一 clip。观察不当旁白原文
 - 方法卡 `copy-then-match`：人先过解说，再对画面。原片占比是铺场目标
 - 方法卡 `highlight-mix`：转写抽点，clip `ost: original`，不要 tts
-- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察）。视觉对齐沿上一场源点续搜，不复用已占用的源窗；源段短于 `minPiece` 的碎段丢掉，时长比过低则按参考窗拉回。已剪片对白与原片对不上（或文本覆盖不足）时 `match` 改走画面，不再转写其余原片
+- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察）。视觉对齐沿上一场源点续搜，不复用已占用的源窗；源段短于 `minPiece` 的碎段丢掉，时长比过低则按参考窗拉回。已剪片对白与原片对不上、文本覆盖不足、或转写失败时 `match` 改走画面
 
 - `project show` 的 `paths.matchReport` / `paths.subtitleFiles` / `paths.descriptionFiles` / `paths.sourceFiles`（含未上场的 video 资产）
 
