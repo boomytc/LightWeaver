@@ -53,8 +53,8 @@ films: ## 截图 + 旁白 + 渲染
 	$(MAKE) films-tts PROJECT="$(PROJECT)"
 	$(MAKE) films-render PROJECT="$(PROJECT)"
 
-films-clean: ## 清掉成片（data/.../assets/outputs 与渲染器残留）。旁白 wav 保留
-	@rm -rf data/first-party/*/assets/outputs data/projects/*/assets/outputs
+films-clean: ## 清掉成片（data/<树>/<task>/<recipe>/<id>/assets/outputs 与渲染器残留）。旁白 wav 保留
+	@find data/first-party data/projects -type d -path '*/assets/outputs' -prune -exec rm -rf {} + 2>/dev/null || true
 	@rm -rf products/study-films/out products/study-films/projects
 	@find data -name '.raw-*' -delete
 	@echo "Film outputs removed."
