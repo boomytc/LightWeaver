@@ -8,7 +8,7 @@ export const MATCH_SETTINGS = {
   snapWindow: 1.0,
   minPiece: 0.25,
   /** 夹在同集之间、短于此时长的异源切丢掉。 */
-  islandMax: 1.5,
+  islandMax: 2.5,
   silentMinGap: 0.35,
   visualMinScore: 0.55,
   visualSampleCount: 5,
@@ -21,6 +21,8 @@ export const MATCH_SETTINGS = {
   continuitySlack: 12,
   /** 续搜分不低于全局最优减去这个值时，跟原片走。 */
   continuityMargin: 0.12,
+  /** 换源必须比续搜高出这么多分。dHash 分不出换装，用门槛挡闪切。 */
+  sourceSwitchMargin: 0.22,
   /** 已占用源窗的重叠惩罚（满分 1）。 */
   occupiedPenalty: 0.45,
   /** 源段 / 参考段时长比低于此则拉回参考时长。 */

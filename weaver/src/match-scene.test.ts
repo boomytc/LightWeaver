@@ -4,6 +4,7 @@ import {
   applyPadding,
   dropCrumbs,
   dropIslands,
+  dropRewinds,
   enforceDuration,
   mergeAdjacentCuts,
   parseSceneLog,
@@ -170,5 +171,49 @@ describe("enforceDuration / dropCrumbs / mergeAdjacentCuts", () => {
     assert.equal(kept[0]!.editedEnd, 141.5);
     assert.ok(kept[0]!.warnings.includes("island_dropped"));
     assert.equal(kept[1]!.in, 141.5);
+  });
+
+  it("drops a 2s foreign island between the same source", () => {
+    const kept = dropIslands([
+      cut({ sourceRef: "asset:video.ep01", in: 0, out: 140, editedStart: 0, editedEnd: 140 }),
+      cut({
+        sourceRef: "asset:video.ep02",
+        in: 88,
+        out: 90,
+        editedStart: 140,
+        editedEnd: 142,
+      }),
+      cut({ sourceRef: "asset:video.ep01", in: 142, out: 173, editedStart: 142, editedEnd: 173 }),
+    ]);
+    assert.equal(kept.length, 2);
+    assert.ok(kept.every((item) => item.sourceRef === "asset:video.ep01"));
+    assert.equal(kept[0]!.editedEnd, 142);
+    assert.ok(kept[0]!.warnings.includes("island_dropped"));
+  });
+});
+
+describe("dropRewinds", () => {
+  it("drops the shorter cut when the same source jumps backward", () => {
+    const kept = dropRewinds([
+      cut({
+        sourceRef: "asset:video.ep02",
+        in: 88,
+        out: 90,
+        editedStart: 0,
+        editedEnd: 2,
+      }),
+      cut({
+        sourceRef: "asset:video.ep02",
+        in: 0,
+        out: 88,
+        editedStart: 2,
+        editedEnd: 90,
+      }),
+    ]);
+    assert.equal(kept.length, 1);
+    assert.equal(kept[0]!.in, 0);
+    assert.equal(kept[0]!.out, 88);
+    assert.equal(kept[0]!.editedStart, 0);
+    assert.ok(kept[0]!.warnings.includes("rewind_dropped"));
   });
 });

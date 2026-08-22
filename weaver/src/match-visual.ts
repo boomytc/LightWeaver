@@ -394,12 +394,13 @@ export function pickContinuingWindow(
   for (const [sourceRef, hashes] of sourceHashes) {
     if (!hashes.length) continue;
     const last = hashes[hashes.length - 1]!.t + MATCH_SETTINGS.frameInterval;
+    const searchStart = prev && sourceRef === prev.sourceRef ? Math.max(0, prev.out) : 0;
     const found = findBestVisualWindow(
       editedHashes,
       hashes,
       editedStart,
       editedEnd,
-      0,
+      searchStart,
       last,
       MATCH_SETTINGS.frameInterval,
       undefined,
@@ -408,7 +409,9 @@ export function pickContinuingWindow(
     if (found && (!global || found.score > global.score)) global = { sourceRef, ...found };
   }
   if (local && local.score >= MATCH_SETTINGS.visualMinScore) {
-    if (!global || local.score + MATCH_SETTINGS.continuityMargin >= global.score) return local;
+    if (!global || global.sourceRef === local.sourceRef) return local;
+    if (global.score >= local.score + MATCH_SETTINGS.sourceSwitchMargin) return global;
+    return local;
   }
   return global;
 }

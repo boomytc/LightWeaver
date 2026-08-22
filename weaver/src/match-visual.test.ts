@@ -14,6 +14,7 @@ import {
   extractFrameHashes,
   findBestVisualWindow,
   hashScore,
+  pickContinuingWindow,
   silentRanges,
   type FrameHash,
 } from "./match-visual.ts";
@@ -78,6 +79,67 @@ describe("occupied visual window", () => {
     const found = findBestVisualWindow(edited, source, 0, 2, 0, 13, 1, undefined, [[0, 6]]);
     assert.ok(found);
     assert.ok(found!.start >= 6, `expected unused red, got ${found!.start}`);
+  });
+});
+
+function grayFrame(t: number, value: number): FrameHash {
+  return { t, hash: dHashFromGray(gray(value)), mean: [value, value, value] };
+}
+
+describe("pickContinuingWindow", () => {
+  it("stays on the current source unless another source beats the switch margin", () => {
+    const edited = [grayFrame(0, 0), grayFrame(1, 0)];
+    const ep01 = [grayFrame(8, 128), grayFrame(9, 128), grayFrame(10, 128)];
+    const close = [grayFrame(0, 40), grayFrame(1, 40)];
+    const exact = [grayFrame(0, 0), grayFrame(1, 0)];
+    const used = new Map<string, [number, number][]>();
+    const stay = pickContinuingWindow(
+      edited,
+      new Map([
+        ["asset:video.ep01", ep01],
+        ["asset:video.ep02", close],
+      ]),
+      0,
+      2,
+      used,
+      { sourceRef: "asset:video.ep01", out: 8 },
+    );
+    assert.equal(stay?.sourceRef, "asset:video.ep01");
+    assert.ok((stay?.start ?? 0) >= 8);
+    const switched = pickContinuingWindow(
+      edited,
+      new Map([
+        ["asset:video.ep01", ep01],
+        ["asset:video.ep02", exact],
+      ]),
+      0,
+      2,
+      used,
+      { sourceRef: "asset:video.ep01", out: 8 },
+    );
+    assert.equal(switched?.sourceRef, "asset:video.ep02");
+    assert.equal(switched?.start, 0);
+  });
+
+  it("does not search the current source backward from t=0", () => {
+    const edited = [grayFrame(0, 0), grayFrame(1, 0)];
+    const ep01 = [
+      grayFrame(0, 0),
+      grayFrame(1, 0),
+      grayFrame(8, 0),
+      grayFrame(9, 0),
+      grayFrame(10, 0),
+    ];
+    const found = pickContinuingWindow(
+      edited,
+      new Map([["asset:video.ep01", ep01]]),
+      0,
+      2,
+      new Map(),
+      { sourceRef: "asset:video.ep01", out: 8 },
+    );
+    assert.equal(found?.sourceRef, "asset:video.ep01");
+    assert.ok((found?.start ?? 0) >= 8, `expected forward window, got ${found?.start}`);
   });
 });
 

@@ -32,7 +32,7 @@ export function parseSceneLog(output: string, minGap = MATCH_SETTINGS.sceneMinGa
   return boundaries;
 }
 
-export function detectScenes(file: string, duration?: number): SceneIndex {
+export function detectScenes(file: string, duration?: number, threshold = MATCH_SETTINGS.sceneThreshold): SceneIndex {
   let total = duration && duration > 0 ? duration : 0;
   try {
     if (!(total > 0)) total = probeDuration(file);
@@ -43,7 +43,7 @@ export function detectScenes(file: string, duration?: number): SceneIndex {
       "-i",
       file,
       "-vf",
-      `select='gt(scene,${MATCH_SETTINGS.sceneThreshold})',metadata=print`,
+      `select='gt(scene,${threshold})',metadata=print`,
       "-an",
       "-f",
       "null",
@@ -317,6 +317,32 @@ export function dropIslands(cuts: TimedCut[]): TimedCut[] {
       host.editedEnd = Math.max(host.editedEnd, cur.editedEnd);
       warn(host, "island_dropped");
     }
+  }
+  return keep;
+}
+
+/** 同源源轴回跳：丢掉较短那场，参考轴并进邻场，源窗不合并。 */
+export function dropRewinds(cuts: TimedCut[]): TimedCut[] {
+  const overlap = MATCH_SETTINGS.maxOverlap;
+  const ordered = [...cuts].sort((a, b) => a.editedStart - b.editedStart || a.editedEnd - b.editedEnd);
+  const keep: TimedCut[] = [];
+  for (const cut of ordered) {
+    const prev = keep.at(-1);
+    const rewind = Boolean(prev && prev.sourceRef === cut.sourceRef && cut.in < prev.out - overlap);
+    if (!rewind || !prev) {
+      keep.push({ ...cut, warnings: [...cut.warnings] });
+      continue;
+    }
+    const prevSpan = Math.min(prev.out - prev.in, prev.editedEnd - prev.editedStart);
+    const curSpan = Math.min(cut.out - cut.in, cut.editedEnd - cut.editedStart);
+    if (curSpan <= prevSpan) {
+      prev.editedEnd = Math.max(prev.editedEnd, cut.editedEnd);
+      warn(prev, "rewind_dropped");
+      continue;
+    }
+    const next = { ...cut, editedStart: Math.min(cut.editedStart, prev.editedStart), warnings: [...cut.warnings] };
+    warn(next, "rewind_dropped");
+    keep[keep.length - 1] = next;
   }
   return keep;
 }
