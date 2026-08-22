@@ -21,11 +21,14 @@ export type SequenceObservation = {
   lines: SequenceLine[];
 };
 
+export type DescriptionWindow = { from: number; to: number };
+
 export type DescriptionDoc = {
   source_path: string;
   duration: number;
   summary: string;
   sequences: SequenceObservation[];
+  window?: DescriptionWindow;
 };
 
 export type ShotSpan = { in: number; out: number };
@@ -175,6 +178,34 @@ export function buildSequences(
 export function descriptionIsReady(doc: DescriptionDoc | null | undefined): boolean {
   if (!doc || !Array.isArray(doc.sequences) || !doc.sequences.length) return false;
   return doc.sequences.every((sequence) => sequence.out > sequence.in && sequence.shots.length > 0);
+}
+
+export function summaryFromSequences(sequences: SequenceObservation[]): string {
+  return sequences
+    .map((sequence) => sequence.observation?.trim())
+    .filter((line): line is string => Boolean(line))
+    .join("；");
+}
+
+export function resolveDescribeWindow(from: number | undefined, to: number | undefined, duration: number): DescriptionWindow | undefined {
+  const start = from ?? 0;
+  const end = to ?? duration;
+  if (!(end > start) || start < 0) throw new Error("时间窗无效");
+  const clipped = Math.min(end, duration);
+  if (start <= 1e-6 && clipped >= duration - 1e-6) return undefined;
+  return { from: start, to: clipped };
+}
+
+export function sequencesInWindow(sequences: SequenceObservation[], window?: DescriptionWindow): SequenceObservation[] {
+  if (!window) return sequences;
+  return sequences.filter((sequence) => sequence.out > window.from && sequence.in < window.to);
+}
+
+export function describeWindowMatches(doc: DescriptionDoc, window?: DescriptionWindow): boolean {
+  const saved = doc.window;
+  if (!window && !saved) return true;
+  if (!window || !saved) return false;
+  return Math.abs(saved.from - window.from) < 1e-3 && Math.abs(saved.to - window.to) < 1e-3;
 }
 
 function skipAll(sequence: SequenceObservation, skip: ShotObservation["skip"]): SequenceObservation {

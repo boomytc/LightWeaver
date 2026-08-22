@@ -7,8 +7,11 @@ import {
   markSkips,
   mergeSequences,
   pickFrameTimes,
+  resolveDescribeWindow,
+  sequencesInWindow,
   sequenceNeedsVision,
   shotsFromScenes,
+  summaryFromSequences,
 } from "./describe-group.ts";
 import { dHashFromGray, type FrameHash } from "./match-visual.ts";
 
@@ -164,6 +167,23 @@ describe("pickFrameTimes / descriptionIsReady", () => {
       true,
     );
     assert.equal(descriptionIsReady({ source_path: "/x.mp4", duration: 4, summary: "", sequences: [] }), false);
+  });
+
+  it("joins sequence observations and filters a time window", () => {
+    const sequences = [
+      { id: "seq-01", in: 0, out: 8, observation: "黑场", shots: [{ in: 0, out: 8, t: 4 }], lines: [] },
+      { id: "seq-02", in: 8, out: 20, observation: "红布", shots: [{ in: 8, out: 20, t: 14 }], lines: [] },
+      { id: "seq-03", in: 20, out: 30, shots: [{ in: 20, out: 30, t: 25 }], lines: [] },
+    ];
+    assert.equal(summaryFromSequences(sequences), "黑场；红布");
+    assert.deepEqual(
+      sequencesInWindow(sequences, { from: 0, to: 4 }).map((item) => item.id),
+      ["seq-01"],
+    );
+    assert.equal(resolveDescribeWindow(undefined, undefined, 30), undefined);
+    assert.equal(resolveDescribeWindow(0, 90, 30), undefined);
+    assert.deepEqual(resolveDescribeWindow(0, 10, 30), { from: 0, to: 10 });
+    assert.throws(() => resolveDescribeWindow(8, 2, 30), /时间窗无效/);
   });
 });
 

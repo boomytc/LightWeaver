@@ -3,9 +3,13 @@ import path from "node:path";
 import { findAsset, resolveAssetFile, upsertAsset } from "./assets.ts";
 import {
   buildSequences,
+  describeWindowMatches,
   descriptionIsReady,
   pickFrameTimes,
+  resolveDescribeWindow,
+  sequencesInWindow,
   sequenceNeedsVision,
+  summaryFromSequences,
   type DescriptionDoc,
   type SequenceObservation,
 } from "./describe-group.ts";
@@ -27,6 +31,8 @@ export type DescribeOptions = {
   root?: string;
   force?: boolean;
   visual?: boolean;
+  from?: number;
+  to?: number;
 };
 
 export type DescribeDeps = {
@@ -74,22 +80,34 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
   const videoId = findAsset(project, ref, root)?.id ?? "origin";
   const rel = descriptionRel(videoId);
   const abs = path.join(project.root, rel);
-  if (!options.force) {
+  if (!options.force && options.from == null && options.to == null) {
     const cached = readDescription(abs);
-    if (descriptionIsReady(cached)) {
+    if (descriptionIsReady(cached) && !cached!.window) {
       upsertAsset(project, { id: `description.${videoId}`, kind: "description", file: rel, scene: videoId });
       return { projectId: project.id, file: rel, visualCalls: 0, description: cached! };
     }
   }
 
   const duration = (deps.duration ?? probeDuration)(resolved.absPath);
+  const window = resolveDescribeWindow(options.from, options.to, duration);
+  if (!options.force) {
+    const cached = readDescription(abs);
+    if (descriptionIsReady(cached) && describeWindowMatches(cached!, window)) {
+      upsertAsset(project, { id: `description.${videoId}`, kind: "description", file: rel, scene: videoId });
+      return { projectId: project.id, file: rel, visualCalls: 0, description: cached! };
+    }
+  }
+
   const scenes = deps.scenes?.(resolved.absPath) ?? detectScenes(resolved.absPath, duration);
   const hashDir = path.join(project.root, "assets/match/frames", videoId);
   const hashes = deps.hashes?.(resolved.absPath) ?? extractFrameHashes(resolved.absPath, hashDir);
   const transcript = loadTranscript(project, ref, resolved.absPath, root, deps);
-  const sequences = buildSequences(scenes.duration ? scenes : { ...scenes, duration }, hashes, transcriptLines(transcript), {
-    visual: options.visual,
-  });
+  const sequences = sequencesInWindow(
+    buildSequences(scenes.duration ? scenes : { ...scenes, duration }, hashes, transcriptLines(transcript), {
+      visual: options.visual,
+    }),
+    window,
+  );
   if (!sequences.length) throw new Error("没有可用的场。检查源视频是否可读。");
 
   let visualCalls = 0;
@@ -122,8 +140,9 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
   const description: DescriptionDoc = {
     source_path: resolved.relPath,
     duration,
-    summary: "",
+    summary: summaryFromSequences(sequences),
     sequences,
+    ...(window ? { window } : {}),
   };
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, `${JSON.stringify(description, null, 2)}\n`);

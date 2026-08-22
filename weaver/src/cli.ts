@@ -111,6 +111,8 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       language: { type: "string" },
       voice: { type: "string" },
       dest: { type: "string" },
+      from: { type: "string" },
+      to: { type: "string" },
     },
   });
   wantJson = Boolean(values.json);
@@ -666,6 +668,8 @@ function main(): void {
         ref: str(values, "ref"),
         force: Boolean(values.force),
         visual: Boolean(values.visual),
+        from: num(values, "from"),
+        to: num(values, "to"),
         root,
       });
       const next = loadProject(project.id, root);
@@ -674,6 +678,7 @@ function main(): void {
         describe: {
           file: result.file,
           visualCalls: result.visualCalls,
+          summary: result.description.summary,
           sequences: result.description.sequences,
         },
       });
@@ -792,7 +797,7 @@ function main(): void {
   weaver asr --file <wav|mp4> [--language zh]
   weaver tts --text <旁白> --voice library:voice.* --dest <wav>
   weaver transcribe --project [--ref asset:video.*]
-  weaver describe --project [--ref asset:video.*] [--force] [--visual]
+  weaver describe --project [--ref asset:video.*] [--force] [--visual] [--from 0] [--to 90]
   weaver match --project --edited asset:video.* [--sources asset:video.a,asset:video.b] [--no-visual]
   weaver publish --project
   weaver sync

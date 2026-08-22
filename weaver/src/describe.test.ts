@@ -66,7 +66,7 @@ describe("runDescribe", () => {
     assert.equal(result.description.sequences.length, 2);
     assert.equal(result.description.sequences[0]?.observation, "黑场空镜");
     assert.equal(result.description.sequences[1]?.observation, "红布近景");
-    assert.equal(result.description.summary, "");
+    assert.equal(result.description.summary, "黑场空镜；红布近景");
     const abs = path.join(project.root, result.file);
     assert.ok(fs.existsSync(abs));
     const reloaded = loadProject(project.id, root);
@@ -104,6 +104,37 @@ describe("runDescribe", () => {
     );
     assert.equal(forced.visualCalls, 2);
     assert.equal(forced.description.sequences[0]?.observation, "重跑");
+    assert.equal(forced.description.summary, "重跑；重跑");
+  });
+
+  it("only runs VLM on sequences that overlap --from/--to", () => {
+    const root = tempWorkspace();
+    const project = seedFootageFilm(root, "site-see", [{ id: "say", in: 0, out: 1 }], { writeVideo: true });
+    let calls = 0;
+    const result = runDescribe(
+      { projectId: project.id, ref: "asset:video.origin", root, from: 0, to: 4 },
+      {
+        hasAudio: () => false,
+        duration: () => 20,
+        scenes: () => ({ duration: 20, boundaries: [{ time: 8, score: 0.9 }] }),
+        hashes: () => [frame(4, true, [0, 0, 0]), frame(14, false, [255, 0, 0])],
+        jpeg: stubJpeg(),
+        vlm: () => {
+          calls += 1;
+          return { observation: "窗内一场" };
+        },
+      },
+    );
+    assert.equal(calls, 1);
+    assert.equal(result.visualCalls, 1);
+    assert.equal(result.description.sequences.length, 1);
+    assert.equal(result.description.sequences[0]?.in, 0);
+    assert.equal(result.description.summary, "窗内一场");
+    assert.deepEqual(result.description.window, { from: 0, to: 4 });
+    assert.throws(
+      () => runDescribe({ projectId: project.id, ref: "asset:video.origin", root, from: 5, to: 5 }, { duration: () => 20, hasAudio: () => false }),
+      /时间窗无效/,
+    );
   });
 
   it("skips VLM on dense dialogue unless --visual", () => {
