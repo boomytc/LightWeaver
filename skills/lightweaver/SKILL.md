@@ -16,7 +16,7 @@ Read `AGENTS.md` and `docs/conventions.md` first.
 | Schema, CLI, validate, render/match/describe | `weaver/` |
 | 独立 STT / TTS（不需要片子） | 下面原语；不要 import `weaver/scripts/` |
 | Shared voice / element / method | `library/`（方法在 `library/methods/`） |
-| Task instance | `data/first-party/<id>/` or `data/projects/<id>/`（gitignore） |
+| Task instance | `data/first-party/<task>/<id>/` or `data/projects/<task>/<id>/`（gitignore） |
 | Remotion cards | `products/study-films/` |
 | Control site（工作台复制说明，片子页复盘） | `products/studio/` `http://127.0.0.1:5175/` |
 | How to author a film | **lightweaver-film** |

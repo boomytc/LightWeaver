@@ -12,10 +12,10 @@ description: >
 
 ## 存放图（约定路径）
 
-- 用户片理念：`data/projects/<id>/brief.md`
-- 任务实例：`data/first-party/<id>/` 或 `data/projects/<id>/`。**不提交**
+- 用户片理念：`data/projects/<task>/<id>/brief.md`
+- 任务实例：`data/first-party/<task>/<id>/` 或 `data/projects/<task>/<id>/`。**不提交**
 - 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）。元素是参考权能，不强制
-- 产物：只在任务实例里。`data/projects/<id>/assets/outputs/` 或 `data/first-party/<id>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/`
+- 产物：只在任务实例里。`data/projects/<task>/<id>/assets/outputs/` 或 `data/first-party/<task>/<id>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/`
 - 工作台说明若写「产物位置：未指定」，**开始前先问人**写到哪棵 data 树。人没另给拷贝位置，不要拷到仓库外
 - 方法 / 音色 / 素材都在 `library/`，都是可选增强。方法是 `library:method.*`（文件在 `library/methods/`）。出片时只 `list` / `show` / `apply`，不要为这一部片子新建方法。库的增删改在 Studio `/methods` 或 `weaver method`
 - 发现：`weaver project show --json` → `paths.stillFiles` / `sourceFiles` / `lineFiles` / `outputFiles` / `matchReport` / `subtitleFiles` / `descriptionFiles` / `brief` 与同级 `renderable`。先读 `film.task`、`film.langs`、`film.voices`、`film.kit`、`film.recipe`
