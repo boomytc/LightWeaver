@@ -8,7 +8,7 @@ description: >
 
 # Ingest assets
 
-Kinds: `voice` | `still` | `element` | `reference` | `method` | `line` | `output` | `video` | `transcript`.
+Kinds: `voice` | `still` | `element` | `reference` | `method` | `line` | `output` | `video` | `transcript` | `description`.
 `line` and `output` are produced by `weaver tts` / `weaver render`。
 方法卡登记为 `library:method.*`，文件在 `library/methods/`。人只填名称 / 何时用 / 骨架，不要当图片上传。
 

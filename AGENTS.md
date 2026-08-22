@@ -38,6 +38,8 @@ Root Makefile orchestrates. Do not put app `src/` at the repository root.
 `study-explainer` is still-card films. `footage-narration` cuts source
 video along `film.json` time ranges (ffmpeg compose). `weaver match`
 writes those clip ranges from an edited reference plus source videos.
+`weaver describe` writes a shot/sequence observation tree; the agent
+writes clip fields. Do not treat observations as narration.
 Do not turn
 `library/` into a generic file cabinet. Method plugins live in
 `library/methods/`, not `skills/`. Do not describe other repositories as

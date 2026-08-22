@@ -12,7 +12,7 @@ Read `AGENTS.md` and `docs/conventions.md` first.
 
 | Ask | Go to |
 | --- | --- |
-| Schema, CLI, validate, tts/render/match jobs | `weaver/` |
+| Schema, CLI, validate, tts/render/match/describe jobs | `weaver/` |
 | Shared voice / element / method | `library/`（方法在 `library/methods/`） |
 | Task instance | `data/first-party/<id>/` or `data/projects/<id>/`（gitignore） |
 | Remotion cards | `products/study-films/` |

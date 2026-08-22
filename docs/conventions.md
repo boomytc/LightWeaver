@@ -9,6 +9,8 @@ film.json                 task、scenes、locale copy、voice、publish
 assets.json               项目资产登记
 assets/stills/<locale>/   静帧（study-explainer）
 assets/source/            源视频（footage-narration）
+assets/transcripts/       句级转写
+assets/descriptions/      画面描述树（场/镜/观察）
 assets/lines/<locale>/    旁白 wav
 assets/clips/<locale>/    中间裁段（不提交）
 assets/outputs/           渲染 mp4（不提交）
@@ -70,10 +72,13 @@ npx weaver render --project my-film
 - `ost: narration|mix` 需要 `lines` 和 wav；合成从 `in` 起切 **旁白时长**（`out` 是画面窗，不决定成片秒数）
 - `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`
 - `render` 走 ffmpeg 合成，不走 Remotion
-- 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。weaver 不跑 LLM
+- 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。有转写先靠句子；静音场再读描述树。weaver 不跑规划 LLM
 - 方法卡 `clone-from-edit`：有已剪参考片和原片。不要 `recipe apply` 铺场。`asset add --kind video` 把项目外文件拷进 `assets/source/`，再 `weaver match --edited asset:video.edited`。match 写出 `ost: original` 的 clip，不自动 render
-- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）
-- `project show` 的 `paths.matchReport` / `paths.subtitleFiles` / `paths.sourceFiles`（含未上场的 video 资产）
+- 方法卡 `see-then-narrate`：无对白先 `weaver describe`。按 `assets/descriptions/` 一场一 clip。观察不当旁白原文
+- 方法卡 `copy-then-match`：人先过解说，再对画面。原片占比是铺场目标
+- 方法卡 `highlight-mix`：转写抽点，clip `ost: original`，不要 tts
+- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察）
+- `project show` 的 `paths.matchReport` / `paths.subtitleFiles` / `paths.descriptionFiles` / `paths.sourceFiles`（含未上场的 video 资产）
 
 ```bash
 npx weaver project create my-cut --title "工地" --task footage-narration --source user
@@ -92,6 +97,18 @@ npx weaver asset add --project site-clone --kind video --id video.ep01 --file /a
 npx weaver match --project site-clone --edited asset:video.edited
 npx weaver validate site-clone
 npx weaver render --project site-clone
+```
+
+无对白先看见：
+
+```bash
+npx weaver project create site-see --task footage-narration --source user
+npx weaver asset add --project site-see --kind video --id video.origin --file /abs/silent.mp4
+npx weaver describe --project site-see --ref asset:video.origin
+# agent 按 sequences 一场一 clip，观察只当素材
+npx weaver tts --project site-see
+npx weaver validate site-see
+npx weaver render --project site-see
 ```
 
 ## 手截

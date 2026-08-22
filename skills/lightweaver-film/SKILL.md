@@ -17,7 +17,7 @@ description: >
 - 产物：只在任务实例里。`data/projects/<id>/assets/outputs/` 或 `data/first-party/<id>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/`
 - 工作台说明若写「产物位置：未指定」，**开始前先问人**写到哪棵 data 树。人没另给拷贝位置，不要拷到仓库外
 - 方法 / 音色 / 素材都在 `library/`，都是可选增强。方法是 `library:method.*`（文件在 `library/methods/`）。出片时只 `list` / `show` / `apply`，不要为这一部片子新建方法。库的增删改在 Studio `/methods` 或 `weaver method`
-- 发现：`weaver project show --json` → `paths.stillFiles` / `sourceFiles` / `lineFiles` / `outputFiles` / `matchReport` / `subtitleFiles` / `brief` 与同级 `renderable`。先读 `film.task`、`film.langs`、`film.voices`、`film.kit`、`film.recipe`
+- 发现：`weaver project show --json` → `paths.stillFiles` / `sourceFiles` / `lineFiles` / `outputFiles` / `matchReport` / `subtitleFiles` / `descriptionFiles` / `brief` 与同级 `renderable`。先读 `film.task`、`film.langs`、`film.voices`、`film.kit`、`film.recipe`
 
 ## 结合规则
 
@@ -33,6 +33,8 @@ description: >
 | `isRenderable` 且 `outputFiles[locale].exists` 且本会话未改旁白 / 未换 still | **不** render。人另给了拷贝位置且目标缺 → 只 `publish` |
 | `isRenderable` 且 output 缺，或本会话刚 tts / 换了 png | `render --project` |
 | `film.recipe` 是 `clone-from-edit` | 登记已剪片+原片后 `weaver match --edited`。**禁止**手写 in/out，**禁止** tts |
+| `film.recipe` 是 `see-then-narrate` | 登记源视频后 `weaver describe`。**禁止**空树写解说。按 sequences 一场一 clip，观察只当素材 |
+| `film.recipe` 是 `highlight-mix` | `transcribe` 后写 `ost: original` clip。**禁止** tts |
 | 无 `publish.dir` | 只写 `assets/outputs/`；不要 `publish` |
 | `brief.kind=project-brief` 且 `brief.files.brief.exists === false` | 先写 `brief.md`，再写 lines |
 | `data/` 里已有该 id 且本会话未改旁白 | **不要**重写 lines。只补缺的静帧 / wav / mp4 |
@@ -45,12 +47,12 @@ description: >
 
 1. 按图存放。理念跟任务走；资产用 `library:` / `asset:`；产物进该片子在 `data/` 下的 `assets/lines` 与 `assets/outputs`。不发明顶层目录，不把产物写进理念目录或 `products/study-films/`，不把上游 idea 拷进片子。工作台没点产物位置就先问。
 2. 脚本即片子。`film.json` 是编排合同。不手写 Remotion TSX。
-3. 方法若是清单一项一场，一项一场。禁止合并。`clone-from-edit` 不 apply 清单，用 `weaver match` 铺场。
+3. 方法若是清单一项一场，一项一场。禁止合并。`clone-from-edit` 不 apply 清单，用 `weaver match` 铺场。`see-then-narrate` / `highlight-mix` 不 apply 清单当时间轴。
 4. 讲解片用真静帧，不要手绘假 UI。原片解说登记真实源视频。
 5. 只写 `film.langs` 点名的语言再 TTS。没点英文就不要硬写英文。
 6. 先形状后媒体；能复用就不重生。`validate`  error 未清不得交付；`!isRenderable` 不得 `render`。人在 Studio `/methods` `/voices` `/library` 监管库，在工作台复制说明，在 `/f/<id>` 复盘。`film.kit` 只是参考权能。`tts` 走 Hi-Fi clone，不用 `--seed` 改库。
 7. 先名称 / 场景 / 规则，再谈外观。口播用听者的话。`validate` 对忌语出 warning。title/close 用 `points`。
-8. 不发明 scene kind。只用该任务 `sceneKinds`（讲解片 `title | still | close`，原片解说 `clip`）。复刻用 `weaver match` 铺场，不要手写 in/out。
+8. 不发明 scene kind。只用该任务 `sceneKinds`（讲解片 `title | still | close`，原片解说 `clip`）。复刻用 `weaver match` 铺场，不要手写 in/out。无对白先 `describe`。
 9. 模式未定就停。讲解片缺静帧且无适配器就停。原片解说缺源视频就停。不要空转 `capture`。
 10. 确定性 job。weaver 内无模型。
 
@@ -93,6 +95,7 @@ npx weaver langs set --project <id> --langs zh
 npx weaver kit set --project <id> --refs library:element.mark
 npx weaver validate <id>
 npx weaver transcribe --project <id> --ref asset:video.origin
+npx weaver describe --project <id> --ref asset:video.origin [--force] [--visual]
 npx weaver match --project <id> --edited asset:video.edited [--sources asset:video.ep01]
 npx weaver tts --project <id>
 npx weaver render --project <id>
