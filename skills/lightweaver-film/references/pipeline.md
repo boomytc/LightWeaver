@@ -25,7 +25,7 @@
 
 `clone-from-edited`：阶段 2 是 `asset add --kind video`（已剪片 `video.edited` + 原片）然后 `weaver match --edited asset:video.edited`。不要 `recipe apply`。match 之后直接阶段 6–7。
 
-`see-then-narrate`：阶段 2 是 `asset add --kind video` 然后 `weaver describe --ref asset:video.origin`（长片 `--from --to`）。不要 `recipe apply`。阶段 3 按 `sequences` 一场一 clip 写旁白（观察只当素材）。没有描述树禁止写解说。解说场成片时长跟 wav，不是 `out - in`。
+`see-then-narrate`：阶段 2 是 `asset add --kind video` 然后 `weaver describe --ref asset:video.origin`（长片 `--from --to`）。不要 `recipe apply`。describe 先合并碎切和同画面。阶段 3 按 `sequences` 一场一 clip 写旁白（观察只当素材），不要再并场。validate 按场计数。没有描述树禁止写解说。解说场成片时长跟 wav，不是 `out - in`。
 
 `highlight-mix`：阶段 2 转写后写 `ost: original` clip。不要 tts。阶段 6–7。
 

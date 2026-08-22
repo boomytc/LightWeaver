@@ -20,7 +20,7 @@ src/library-method.ts  方法插件 CRUD（写 library/methods + catalog）
 src/library-material.ts 素材插件：按名称分配 element.* / reference.*
 src/assets.ts          resolve refs, add assets
 src/validate.ts        catalog + isRenderable
-src/method-assert.ts   方法卡 needs / clipOst 门槛
+src/method-assert.ts   方法卡 needs / clipOst / clipAlign 门槛
 src/sync.ts            Remotion public links + catalog
 src/tts.ts             VoxCPM2：speakLine（独立一句）与片子 lines job
 src/asr.ts             Qwen3-ASR：asrAudio / runAsr（独立文件，wav 或视频；长音频切窗）
@@ -61,6 +61,6 @@ scripts/               tts.py / asr.py / vlm.py / capture.mjs（不跟 LIGHTWEAV
   (name / when / expand / scenes) and a projection file under
   `library/methods/<recipePack>/`. Studio reads the catalog only.
   Apply / assert / `method list` / `recipe list` / `recipe show` 都只读 catalog：
-  `fixed` 用 `scenes`，`list` 用 `--items`。`recipe show` / `method list` 带出 `needs` / `clipOst`。
+  `fixed` 用 `scenes`，`list` 用 `--items`。`recipe show` / `method list` 带出 `needs` / `clipOst` / `clipAlign`。
   `library/methods/<recipePack>/` 只放 catalog 投影短文。要改场次用 Studio
   `/methods` 或 `weaver method set`，再 apply。

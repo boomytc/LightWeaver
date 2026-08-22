@@ -24,7 +24,7 @@ description: >
 
 | 判据 | 动作 |
 | --- | --- |
-| `hasErrors(validate)` | **停全部生成**：不准 tts / render / capture。先修 FilmDoc。门槛以 `recipe show` 的 `needs` / `clipOst` 为准，不要猜 |
+| `hasErrors(validate)` | **停全部生成**：不准 tts / render / capture。先修 FilmDoc。门槛以 `recipe show` 的 `needs` / `clipOst` / `clipAlign` 为准，不要猜 |
 | `!hasErrors` 且 `!isRenderable`（讲解片 png 缺，或原片源视频/旁白缺） | 允许 `tts`（原声场除外）。**禁止** `render --project` |
 | `capture.kind` 有适配器且某 `stillFiles` `exists === false` | `weaver capture --project` |
 | `capture.kind === "manual"` 且 png 缺 | **停**。手截到 `assets.json` 已登记路径。**禁止** `weaver capture` |
@@ -34,7 +34,7 @@ description: >
 | `isRenderable` 且 `outputFiles[locale].exists` 且本会话未改旁白 / 未换 still | **不** render。人另给了拷贝位置且目标缺 → 只 `publish` |
 | `isRenderable` 且 output 缺，或本会话刚 tts / 换了 png | `render --project` |
 | `film.recipe` 是 `clone-from-edited` | 登记已剪片+原片后 `weaver match --edited`。**禁止**手写 in/out，**禁止** tts |
-| `film.recipe` 是 `see-then-narrate` | 登记源视频后 `weaver describe`。**禁止**空树写解说。按 sequences 一场一 clip，不要合并。观察只当素材。解说场成片时长跟 wav |
+| `film.recipe` 是 `see-then-narrate` | 登记源视频后 `weaver describe`。**禁止**空树写解说。按 sequences 一场一 clip；合并是 describe 的事。validate 按场计数。观察只当素材。解说场成片时长跟 wav |
 | `film.recipe` 是 `plot-then-match` | 转写后写解说并对 in/out。静音场先 `describe` |
 | `film.recipe` 是 `copy-then-match` | `recipe apply` 清单是文案场，再填 in/out。原片占比是铺场目标 |
 | `film.recipe` 是 `highlight-mix` | `transcribe` 后写 `ost: original` clip。**禁止** tts |
