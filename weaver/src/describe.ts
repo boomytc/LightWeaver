@@ -5,6 +5,7 @@ import {
   buildSequences,
   describeWindowMatches,
   descriptionIsReady,
+  isSameAsPrevObservation,
   mergeByObservation,
   pickFrameTimes,
   resolveDescribeWindow,
@@ -106,6 +107,7 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
   const sequences = sequencesInWindow(
     buildSequences(scenes.duration ? scenes : { ...scenes, duration }, hashes, transcriptLines(transcript), {
       visual: options.visual,
+      window,
     }),
     window,
   );
@@ -130,7 +132,12 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
         ? vlm({ frames, prompt, prev })
         : runVlm({ frames, prompt, root });
       visualCalls += 1;
-      sequence.observation = result.observation.trim();
+      const observation = result.observation.trim();
+      if (!prev && isSameAsPrevObservation(observation)) {
+        console.error(`画面描述跳过 ${sequence.id}：第一场不能写「同前」`);
+        continue;
+      }
+      sequence.observation = observation;
       prev = sequence.observation;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -42,12 +42,19 @@ export function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
-export function shotsFromScenes(index: SceneIndex, minShot = DESCRIBE_SETTINGS.minShot): ShotSpan[] {
-  const duration = Math.max(0, index.duration);
-  if (!(duration > 0)) return [];
+export function shotsFromScenes(
+  index: SceneIndex,
+  minShot = DESCRIBE_SETTINGS.minShot,
+  range?: DescriptionWindow,
+): ShotSpan[] {
+  const from = range?.from ?? 0;
+  const to = range?.to ?? index.duration;
+  const duration = Math.max(0, Math.min(index.duration, to));
+  if (!(duration > from)) return [];
   const points: number[] = [];
-  for (const time of [0, ...index.boundaries.map((item) => item.time), duration].sort((a, b) => a - b)) {
-    const clipped = Math.max(0, Math.min(duration, time));
+  for (const time of [from, ...index.boundaries.map((item) => item.time), duration].sort((a, b) => a - b)) {
+    if (time < from - 1e-6 || time > duration + 1e-6) continue;
+    const clipped = Math.max(from, Math.min(duration, time));
     const last = points.at(-1);
     if (last == null || clipped - last > 1e-6) points.push(clipped);
   }
@@ -66,7 +73,9 @@ export function shotsFromScenes(index: SceneIndex, minShot = DESCRIBE_SETTINGS.m
       folded.push({ in: shot.in, out: shot.out });
     }
   }
-  return folded.length ? folded.map((shot) => ({ in: round3(shot.in), out: round3(shot.out) })) : [{ in: 0, out: round3(duration) }];
+  return folded.length
+    ? folded.map((shot) => ({ in: round3(shot.in), out: round3(shot.out) }))
+    : [{ in: round3(from), out: round3(duration) }];
 }
 
 export function foldShortShots(shots: ShotSpan[], minSequence = DESCRIBE_SETTINGS.minSequence): ShotSpan[] {
@@ -207,9 +216,9 @@ export function buildSequences(
   index: SceneIndex,
   hashes: FrameHash[],
   lines: SequenceLine[] = [],
-  options: { visual?: boolean } = {},
+  options: { visual?: boolean; window?: DescriptionWindow } = {},
 ): SequenceObservation[] {
-  const shots = foldShortShots(shotsFromScenes(index));
+  const shots = foldShortShots(shotsFromScenes(index, DESCRIBE_SETTINGS.minShot, options.window));
   const grouped = sequencesFromShots(mergeSequences(shots, hashes), hashes);
   return foldSkippedSequences(markSkips(attachLines(grouped, lines), hashes, options));
 }

@@ -34,7 +34,11 @@ describe("vlmRuntime", () => {
 });
 
 describe("describePrompt", () => {
-  it("carries the previous sequence line and frame times", () => {
+  it("forbids 同前 on the first sequence and carries later context", () => {
+    const first = describePrompt([{ t: 1.2 }, { t: 4 }]);
+    assert.match(first, /这是第一场/);
+    assert.match(first, /禁止只写「同前」/);
+    assert.doesNotMatch(first, /画面相对上一场没变/);
     const text = describePrompt([{ t: 1.2 }, { t: 4 }], "走廊里有人走过");
     assert.match(text, /上一场观察（只作对照，不要写进本场）：走廊里有人走过/);
     assert.match(text, /1.20/);

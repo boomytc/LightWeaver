@@ -130,6 +130,7 @@ describe("runDescribe", () => {
     assert.equal(result.visualCalls, 1);
     assert.equal(result.description.sequences.length, 1);
     assert.equal(result.description.sequences[0]?.in, 0);
+    assert.equal(result.description.sequences[0]?.out, 4);
     assert.equal(result.description.summary, "窗内一场");
     assert.deepEqual(result.description.window, { from: 0, to: 4 });
     assert.throws(
@@ -161,6 +162,25 @@ describe("runDescribe", () => {
     assert.equal(result.description.sequences[0]?.observation, "黑场空镜");
     assert.equal(result.description.summary, "黑场空镜");
     assert.equal(result.visualCalls, 1);
+  });
+
+  it("does not keep 同前 as the first sequence observation", () => {
+    const root = tempWorkspace();
+    const project = seedFootageFilm(root, "site-see", [{ id: "say", in: 0, out: 1 }], { writeVideo: true });
+    const result = runDescribe(
+      { projectId: project.id, ref: "asset:video.origin", root },
+      {
+        hasAudio: () => false,
+        duration: () => 8,
+        scenes: () => ({ duration: 8, boundaries: [] }),
+        hashes: () => hashes(),
+        jpeg: stubJpeg(),
+        vlm: () => ({ observation: "同前" }),
+      },
+    );
+    assert.equal(result.visualCalls, 1);
+    assert.equal(result.description.sequences[0]?.observation, undefined);
+    assert.equal(result.description.summary, "");
   });
 
   it("skips VLM on dense dialogue unless --visual", () => {

@@ -49,6 +49,22 @@ describe("shotsFromScenes", () => {
   it("returns one shot when there are no boundaries", () => {
     assert.deepEqual(shotsFromScenes({ duration: 4, boundaries: [] }), [{ in: 0, out: 4 }]);
   });
+
+  it("clips shots to the describe window instead of the full duration", () => {
+    const shots = shotsFromScenes(
+      {
+        duration: 560,
+        boundaries: [
+          { time: 4.8, score: 0.6 },
+          { time: 200, score: 0.7 },
+        ],
+      },
+      0.25,
+      { from: 0, to: 90 },
+    );
+    assert.equal(shots.at(-1)?.out, 90);
+    assert.ok(shots.every((shot) => shot.out <= 90 + 1e-6));
+  });
 });
 
 describe("foldShortShots / foldSkippedSequences", () => {
@@ -120,6 +136,19 @@ describe("foldShortShots / foldSkippedSequences", () => {
     const boundaries = Array.from({ length: 11 }, (_, i) => ({ time: (i + 1) * 1.5, score: 0.9 }));
     const sequences = buildSequences({ duration: 18, boundaries }, hashes);
     assert.ok(sequences.length <= 4, `expected ≤4 sequences, got ${sequences.length}`);
+  });
+
+  it("does not let a 90s window swallow the rest of a long tape", () => {
+    const hashes: FrameHash[] = Array.from({ length: 12 }, (_, t) => frame(t * 10, ramp(true), [0, 0, 0]));
+    const sequences = buildSequences(
+      { duration: 560, boundaries: [{ time: 30, score: 0.8 }, { time: 200, score: 0.8 }] },
+      hashes,
+      [],
+      { window: { from: 0, to: 90 } },
+    );
+    assert.ok(sequences.length >= 1);
+    assert.ok(sequences.every((sequence) => sequence.out <= 90 + 1e-6));
+    assert.equal(sequences[0]?.in, 0);
   });
 });
 
