@@ -56,3 +56,13 @@ export function formatMatchScore(score: number | undefined): string {
   if (typeof score !== "number" || !Number.isFinite(score)) return "";
   return score.toFixed(2);
 }
+
+export function skipLabel(skip: string | undefined): string {
+  if (skip === "dense-asr") return "对白已够";
+  if (skip === "same-as-prev") return "同前场";
+  return skip ?? "";
+}
+
+export function sequenceSpan(inPoint: number, outPoint: number): string {
+  return `${inPoint.toFixed(1)}s–${outPoint.toFixed(1)}s`;
+}

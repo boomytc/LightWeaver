@@ -23,9 +23,30 @@ function named(ref: string, labels?: Record<string, string>): string {
   return label ? `${ref}（${label}）` : ref;
 }
 
-export function isCloneFromEdit(recipeId?: string): boolean {
+function recipeKey(recipeId?: string): string {
   const id = (recipeId ?? "").trim();
-  return id === "clone-from-edit" || id.endsWith(".clone-from-edit");
+  const dotted = id.includes(".") ? id.slice(id.lastIndexOf(".") + 1) : id;
+  return dotted;
+}
+
+export function isCloneFromEdit(recipeId?: string): boolean {
+  return recipeKey(recipeId) === "clone-from-edit";
+}
+
+export function isSeeThenNarrate(recipeId?: string): boolean {
+  return recipeKey(recipeId) === "see-then-narrate";
+}
+
+export function isHighlightMix(recipeId?: string): boolean {
+  return recipeKey(recipeId) === "highlight-mix";
+}
+
+export function isCopyThenMatch(recipeId?: string): boolean {
+  return recipeKey(recipeId) === "copy-then-match";
+}
+
+function skipsRecipeApply(recipeId?: string): boolean {
+  return isCloneFromEdit(recipeId) || isSeeThenNarrate(recipeId) || isHighlightMix(recipeId);
 }
 
 function uniqueVoiceRef(voices: Record<string, string>): string | undefined {
@@ -96,11 +117,15 @@ export function buildAgentBrief(input: BriefInput): string {
     lines.push(`方法：${input.recipeTitle || input.recipeId}`);
     if (isCloneFromEdit(input.recipeId)) {
       lines.push("  不要 recipe apply 铺场。登记视频后 weaver match。");
+    } else if (isSeeThenNarrate(input.recipeId)) {
+      lines.push("  不要 recipe apply 铺时间轴。登记视频后 weaver describe，按描述树一场一 clip。");
+    } else if (isHighlightMix(input.recipeId)) {
+      lines.push("  不要 recipe apply 铺场。转写后写 ost: original 的 clip。");
     } else if (input.projectId) {
       const items = input.requiresList ? " --items <人给或任务自带的清单，逗号分隔>" : "";
       lines.push(`  weaver recipe apply --project ${input.projectId} --recipe ${input.recipeId}${items}`);
     }
-    if (input.requiresList && !isCloneFromEdit(input.recipeId)) {
+    if (input.requiresList && !skipsRecipeApply(input.recipeId)) {
       lines.push("  清单一项一场，不要合并。清单从人给或任务自带读，不要去翻别的仓库。");
     }
   } else {
@@ -152,8 +177,25 @@ export function buildAgentBrief(input: BriefInput): string {
       `然后按 skill lightweaver-film：校验 → 把已剪片和原片拷进 assets/source/ → weaver asset add --kind video → weaver match ${project} --edited asset:video.edited → validate → render。`,
     );
     lines.push("不要手填 clip 的 in/out，不要 tts。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+  } else if (isSeeThenNarrate(input.recipeId)) {
+    const project = input.projectId ? `--project ${input.projectId}` : "--project <id>";
+    lines.push(
+      `然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → weaver describe ${project} --ref asset:video.origin → 按 sequences 一场一 clip → 写旁白（观察只当素材）→ tts → validate → render。`,
+    );
+    lines.push("没有描述树禁止写解说。不要用观察原文当旁白。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+    lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
+  } else if (isHighlightMix(input.recipeId)) {
+    const project = input.projectId ? `--project ${input.projectId}` : "--project <id>";
+    lines.push(
+      `然后按 skill lightweaver-film：校验 → 登记源视频 → weaver transcribe ${project} → 从句子时间抽点写成 ost: original 的 clip → validate → render。`,
+    );
+    lines.push("不要 tts。静音场需要看见时再 weaver describe。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
   } else if (input.task === "footage-narration") {
     lines.push("然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → 写 clip 的 in/out/ost 与旁白 → tts（跳过 original）→ render。");
+    if (isCopyThenMatch(input.recipeId)) {
+      lines.push("先过解说再对画面。原片占比是铺场目标，需要原声的场用 ost: original。");
+    }
+    lines.push("无对白或静音场先 weaver describe，不要空树写旁白。");
     lines.push("render 按时间轴 ffmpeg 合成，不要走 Remotion。");
     lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
   } else {

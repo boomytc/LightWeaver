@@ -43,6 +43,7 @@ function detail(partial: Partial<ProjectDetail["paths"]> = {}): ProjectDetail {
       lineFiles: [],
       outputFiles: {},
       subtitleFiles: [],
+      descriptionFiles: [],
       library: "/library",
       recipes: "/recipes/study-explainer",
       brief: { kind: "study", root: "/ui", files: {} },
@@ -210,6 +211,7 @@ describe("films review contract", () => {
     assert.match(film, /from "\.\.\/tasks\/study-explainer"/);
     assert.match(film, /from "\.\.\/tasks\/footage-narration"/);
     assert.match(film, /surface === "clips"/);
+    assert.match(film, /画面描述/);
     assert.doesNotMatch(film, /createProject/);
     assert.doesNotMatch(film, /setRecipe/);
   });

@@ -139,4 +139,40 @@ describe("buildAgentBrief", () => {
     assert.doesNotMatch(text, /跳过 original/);
     assert.doesNotMatch(text, /VoxCPM2/);
   });
+
+  it("tells see-then-narrate to describe before writing lines", () => {
+    const text = buildAgentBrief({
+      task: "footage-narration",
+      recipeId: "see-then-narrate",
+      recipeTitle: "先看见再写解说",
+      requiresList: true,
+      voices: {},
+      kit: [],
+      langs: ["zh"],
+      outputHome: "user",
+    });
+    assert.match(text, /方法：先看见再写解说/);
+    assert.match(text, /weaver describe/);
+    assert.match(text, /没有描述树禁止写解说/);
+    assert.doesNotMatch(text, /weaver recipe apply/);
+    assert.doesNotMatch(text, /weaver match/);
+    assert.doesNotMatch(text, /缺静帧再补/);
+  });
+
+  it("tells highlight-mix to skip tts", () => {
+    const text = buildAgentBrief({
+      task: "footage-narration",
+      recipeId: "highlight-mix",
+      recipeTitle: "混剪抽点",
+      requiresList: true,
+      voices: {},
+      kit: [],
+      langs: ["zh"],
+      outputHome: "user",
+    });
+    assert.match(text, /weaver transcribe/);
+    assert.match(text, /不要 tts/);
+    assert.doesNotMatch(text, /weaver recipe apply/);
+    assert.doesNotMatch(text, /VoxCPM2/);
+  });
 });

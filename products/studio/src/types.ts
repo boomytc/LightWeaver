@@ -50,6 +50,7 @@ export type ProjectPaths = {
   outputFiles: Record<string, MediaPath>;
   matchReport?: MediaPath;
   subtitleFiles: MediaPath[];
+  descriptionFiles: MediaPath[];
   library: string;
   recipes: string;
   labUrl?: string;
@@ -63,6 +64,30 @@ export type MatchReport = {
   items?: { sentenceText: string; selected?: unknown }[];
 };
 
+export type DescriptionShot = {
+  in: number;
+  out: number;
+  t: number;
+  observation?: string;
+  skip?: string;
+};
+
+export type DescriptionSequence = {
+  id: string;
+  in: number;
+  out: number;
+  observation?: string;
+  shots: DescriptionShot[];
+  lines: { text: string; start: number; end: number }[];
+};
+
+export type DescriptionDoc = {
+  source_path: string;
+  duration: number;
+  summary: string;
+  sequences: DescriptionSequence[];
+};
+
 export type ProjectDetail = ProjectSummary & {
   film: FilmDoc;
   assets: Asset[];
@@ -70,4 +95,5 @@ export type ProjectDetail = ProjectSummary & {
   renderable: boolean;
   paths: ProjectPaths;
   match?: MatchReport;
+  description?: DescriptionDoc;
 };

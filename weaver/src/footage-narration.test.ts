@@ -112,7 +112,13 @@ describe("footage-narration", () => {
 
   it("lists the footage method only under that task", () => {
     const ids = listRecipes(weaverRoot(), "footage-narration").map((recipe) => recipe.id);
-    assert.deepEqual(ids, ["clone-from-edit", "plot-then-match"]);
+    assert.deepEqual(ids, [
+      "clone-from-edit",
+      "copy-then-match",
+      "highlight-mix",
+      "plot-then-match",
+      "see-then-narrate",
+    ]);
   });
 
   it("does not put compose films into the Remotion catalog", () => {

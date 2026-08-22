@@ -16,6 +16,8 @@ import {
   missingSourceRefs,
   ostLabel,
   sceneLinePreview,
+  sequenceSpan,
+  skipLabel,
   sourcePreviewSrc,
 } from "../tasks/footage-narration";
 import { missingStillSceneIds, stillPreviewSrc } from "../tasks/study-explainer";
@@ -205,6 +207,35 @@ export function Film({ id }: { id: string }) {
                 {warning}
               </p>
             ))}
+          </section>
+        ) : null}
+        {detail.description?.sequences?.length ? (
+          <section>
+            <h2 className="h">画面描述</h2>
+            <p className="item-meta">场界来自切镜。观察只当素材，不是旁白。</p>
+            <div className="list">
+              {detail.description.sequences.map((sequence) => {
+                const skip = skipLabel(sequence.shots.find((shot) => shot.skip)?.skip);
+                return (
+                  <div key={sequence.id} className="item">
+                    <span className="kind">
+                      {sequence.id}
+                      {skip ? ` · ${skip}` : ""}
+                    </span>
+                    <span>
+                      <span className="item-title">
+                        {sequenceSpan(sequence.in, sequence.out)}
+                        {sequence.shots.length ? ` · ${sequence.shots.length} 镜` : ""}
+                      </span>
+                      <span className="item-meta">
+                        {" "}
+                        {sequence.observation || sequence.lines.map((line) => line.text).join(" ") || "无观察"}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </section>
         ) : null}
         {detail.issues.length ? (

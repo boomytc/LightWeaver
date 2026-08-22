@@ -411,6 +411,18 @@ function readMatchReport(project: ReturnType<typeof loadProject>) {
   }
 }
 
+function readDescription(project: ReturnType<typeof loadProject>) {
+  const asset = project.assets.find((item) => item.kind === "description" && item.file);
+  const rel = asset?.file ?? "assets/descriptions/video.origin.json";
+  const file = path.join(project.root, rel);
+  if (!fs.existsSync(file)) return undefined;
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 function detailOf(project: ReturnType<typeof loadProject>) {
   return {
     ...projectSummary(project),
@@ -421,6 +433,7 @@ function detailOf(project: ReturnType<typeof loadProject>) {
     surface: tryGetTask(filmTask(project.film))?.surface,
     paths: projectPaths(project, root),
     match: readMatchReport(project),
+    description: readDescription(project),
   };
 }
 
