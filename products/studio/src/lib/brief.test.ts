@@ -37,7 +37,7 @@ describe("buildAgentBrief", () => {
     assert.match(text, /library:element\.mark（Light mark）/);
     assert.match(text, /有自己想法可以不用或另找/);
     assert.match(text, /kit set --project dropdown-taxonomy --refs library:element\.mark/);
-    assert.match(text, /data\/first-party\/dropdown-taxonomy\/assets\/outputs/);
+    assert.match(text, /data\/first-party\/study-explainer\/dropdown-taxonomy\/assets\/outputs/);
     assert.match(text, /source-tutorial\.mp4（zh）/);
     assert.match(text, /不要写到 products\/study-films/);
     assert.doesNotMatch(text, /只准用这些/);
@@ -80,7 +80,7 @@ describe("buildAgentBrief", () => {
       kit: [],
       outputHome: "user",
     });
-    assert.match(text, /data\/projects\/<id>\/assets\/outputs/);
+    assert.match(text, /data\/projects\/<task>\/<id>\/assets\/outputs/);
     assert.match(text, /不要拷到仓库外/);
     assert.match(text, /project create <id> --source user --task <task>/);
     assert.doesNotMatch(text, /开始前先问人/);
@@ -88,14 +88,15 @@ describe("buildAgentBrief", () => {
   });
 
   it("maps first-party home to data/first-party without an outside project", () => {
-    assert.equal(instanceDir("first-party", "nav-taxonomy"), "data/first-party/nav-taxonomy");
-    assert.equal(instanceDir("user", "demo"), "data/projects/demo");
+    assert.equal(instanceDir("first-party", "nav-taxonomy", "study-explainer"), "data/first-party/study-explainer/nav-taxonomy");
+    assert.equal(instanceDir("user", "demo", "footage-narration"), "data/projects/footage-narration/demo");
+    assert.equal(instanceDir("user", "demo"), "data/projects/<task>/demo");
     const text = buildAgentBrief({
       voices: {},
       kit: [],
       outputHome: "first-party",
     });
-    assert.match(text, /data\/first-party\/<id>\/assets\/outputs/);
+    assert.match(text, /data\/first-party\/<task>\/<id>\/assets\/outputs/);
     assert.match(text, /--source first-party --task <task>/);
     assert.doesNotMatch(text, /study-slug/);
     assert.doesNotMatch(text, /LightUI/);
@@ -110,6 +111,7 @@ describe("buildAgentBrief", () => {
       langs: ["zh"],
       outputHome: "user",
     });
+    assert.match(text, /data\/projects\/footage-narration\/<id>\/assets\/outputs/);
     assert.match(text, /任务：footage-narration/);
     assert.match(text, /--task footage-narration/);
     assert.match(text, /登记源视频/);

@@ -54,8 +54,9 @@ function uniqueVoiceRef(voices: Record<string, string>): string | undefined {
   return refs.length === 1 ? refs[0] : undefined;
 }
 
-export function instanceDir(home: OutputHome, id = "<id>"): string {
-  return home === "first-party" ? `data/first-party/${id}` : `data/projects/${id}`;
+export function instanceDir(home: OutputHome, id = "<id>", task = "<task>"): string {
+  const slot = task.trim() || "<task>";
+  return home === "first-party" ? `data/first-party/${slot}/${id}` : `data/projects/${slot}/${id}`;
 }
 
 function outputNames(outputs?: Record<string, string>): string {
@@ -70,13 +71,13 @@ function outputLines(input: BriefInput): string[] {
   const id = input.projectId || "<id>";
   if (!input.outputHome) {
     return [
-      "产物位置：未指定。开始前先问人写到 data/projects/<id>/ 还是 data/first-party/<id>/。",
+      "产物位置：未指定。开始前先问人写到 data/projects/<task>/<id>/ 还是 data/first-party/<task>/<id>/。",
       "成片只进该目录的 assets/outputs/。人没另给拷贝位置，就不要拷到仓库外。",
       "不要写到 products/study-films/，不要另开 out/。",
     ];
   }
 
-  const root = instanceDir(input.outputHome, id);
+  const root = instanceDir(input.outputHome, id, input.task);
   const names = outputNames(input.outputs);
   return [
     `产物：${root}/assets/outputs/${names ? `（${names}）` : "（文件名以 film.locales.*.output 为准）"}`,

@@ -134,7 +134,7 @@ export function Home() {
             onClick={() => setOutputHome(outputHome === "user" ? "" : "user")}
           >
             <strong>data/projects</strong>
-            <span className="item-meta">data/projects/&lt;id&gt;/assets/outputs/</span>
+            <span className="item-meta">data/projects/{taskId || "<task>"}/&lt;id&gt;/assets/outputs/</span>
           </button>
           <button
             type="button"
@@ -142,7 +142,7 @@ export function Home() {
             onClick={() => setOutputHome(outputHome === "first-party" ? "" : "first-party")}
           >
             <strong>data/first-party</strong>
-            <span className="item-meta">data/first-party/&lt;id&gt;/assets/outputs/</span>
+            <span className="item-meta">data/first-party/{taskId || "<task>"}/&lt;id&gt;/assets/outputs/</span>
           </button>
         </div>
       </section>

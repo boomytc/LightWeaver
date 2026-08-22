@@ -58,7 +58,7 @@ describe("outputPreview", () => {
       detail({
         outputFiles: {
           zh: {
-            path: "/Users/boom/workspace/LightWeaver/data/first-party/intent-cascade/assets/outputs/cursor-movement.mp4",
+            path: "/Users/boom/workspace/LightWeaver/data/first-party/study-explainer/intent-cascade/assets/outputs/cursor-movement.mp4",
             exists: true,
             rel: "assets/outputs/cursor-movement.mp4",
           },
@@ -171,6 +171,7 @@ describe("workbench contract", () => {
     assert.match(page, /outputHome/);
     assert.match(page, /data\/projects/);
     assert.match(page, /data\/first-party/);
+    assert.match(page, /<task>/);
     assert.match(page, /可选增强/);
     assert.match(page, /素材/);
     assert.doesNotMatch(page, /api\.recipes/);
