@@ -184,7 +184,7 @@ export function buildAgentBrief(input: BriefInput): string {
     lines.push(
       `然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → weaver describe ${project} --ref asset:video.origin → 按 sequences 一场一 clip → 写旁白（观察只当素材）→ tts → validate → render。`,
     );
-    lines.push("没有描述树禁止写解说，validate 会失败。长片用 --from --to。不要用观察原文当旁白。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+    lines.push("没有描述树禁止写解说，validate 会失败。长片用 --from --to。按 sequences 一场一 clip，不要合并。解说场成片时长跟旁白 wav，不是画面窗。不要用观察原文当旁白。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
     lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
   } else if (isHighlightMix(input.recipeId)) {
     const project = input.projectId ? `--project ${input.projectId}` : "--project <id>";
@@ -193,7 +193,7 @@ export function buildAgentBrief(input: BriefInput): string {
     );
     lines.push("不要 tts。没有转写或出现旁白场时 validate 会失败。静音场需要看见时再 weaver describe。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
   } else if (input.task === "footage-narration") {
-    lines.push("然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → 写 clip 的 in/out/ost 与旁白 → tts（跳过 original）→ render。");
+    lines.push("然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → 写 clip 的 in/out/ost 与旁白 → tts（跳过 original）→ render。create 的 cut-01 是占位，先加真场再删。");
     if (isCopyThenMatch(input.recipeId)) {
       lines.push("先过解说再对画面。原片占比是铺场目标，需要原声的场用 ost: original。");
     }

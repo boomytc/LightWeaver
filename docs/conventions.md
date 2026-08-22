@@ -85,11 +85,11 @@ npx weaver render --project my-film
 - 源视频登记在 `assets.json`，文件放 `assets/source/`。路径以 catalog 为准，不从 scene id 推导
 - CLI：`project create --source user|first-party`；场次源视频用 `--video asset:video.*`，不要用 `--source`
 - `ost: original` 不配旁白、tts 跳过，成片时长 = `out - in`
-- `ost: narration|mix` 需要 `lines` 和 wav；合成从 `in` 起切 **旁白时长**（`out` 是画面窗，不决定成片秒数）
-- `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`
+- `ost: narration|mix` 需要 `lines` 和 wav；合成从 `in` 起切 **旁白时长**（`out` 是画面窗，不决定成片秒数）。要画面跟窗走，用 `original` 或把旁白写成窗那么长
+- `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`。种子 `cut-01` 是占位：点方法后先加真场，再 `scene rm cut-01`。不能删光最后一场 clip
 - `render` 走 ffmpeg 合成，不走 Remotion
 - 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。有转写先靠句子；静音场再读描述树。weaver 不跑规划 LLM
-- 方法卡门槛写在 catalog（`needs` / `clipOst`），`validate` 按卡拦截，不要在任务模块写死 recipe id：
+- 方法卡门槛写在 catalog（`needs` / `clipOst`），`validate` / `recipe show` / `method list` 都读同一行。不要在任务模块写死 recipe id。Studio `/methods` 改名称和铺场，不改门槛：
 
 | 方法 | needs | clipOst |
 | --- | --- | --- |
@@ -99,7 +99,7 @@ npx weaver render --project my-film
 | `plot-then-match` / `copy-then-match` | — | — |
 
 - 方法卡 `clone-from-edited`：有已剪参考片和原片。不要 `recipe apply` 铺场。`asset add --kind video` 把项目外文件拷进 `assets/source/`，再 `weaver match --edited asset:video.edited`。match 写出 `ost: original` 的 clip，不自动 render。没有匹配报告 `validate` 失败
-- 方法卡 `see-then-narrate`：无对白先 `weaver describe`（长片用 `--from --to`）。按 `assets/descriptions/` 一场一 clip。观察不当旁白原文。没有描述树 `validate` 失败
+- 方法卡 `see-then-narrate`：无对白先 `weaver describe`（长片用 `--from --to`）。按 `sequences` **一场一 clip**，不要把多场并成一场。观察不当旁白原文。没有描述树 `validate` 失败。解说场成片时长跟 wav，不是 `out - in`
 - 方法卡 `copy-then-match`：人先过解说，再对画面。原片占比是铺场目标
 - 方法卡 `highlight-mix`：转写抽点，clip `ost: original`，不要 tts。没有转写或出现旁白场 `validate` 失败
 - 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察，`summary` 由场观察拼接）。视觉对齐沿上一场源点续搜，不复用已占用的源窗；源段短于 `minPiece` 的碎段丢掉；夹在同集之间短于 `islandMax` 的异源岛丢掉。已剪片对白与原片对不上、文本覆盖不足、或转写失败时 `match` 改走画面。合成读取旋转元数据再转正

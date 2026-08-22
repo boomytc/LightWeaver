@@ -2,7 +2,7 @@
 
 讲解片画面语言是 title 卡 + still + close 卡。原片解说是 clip 时间轴。阶段 5 是 TTS，不是写 Remotion TSX。
 
-原片有四条路：`plot-then-match` 手写解说；`copy-then-match` 文案先行再对画面；`clone-from-edited` 用 `weaver match` 铺 `ost: original` 场，跳过阶段 3 和 5；`see-then-narrate` 用 `weaver describe` 铺场界，阶段 3 按场写旁白。`highlight-mix` 转写抽点，跳过阶段 5。
+原片五条路：`plot-then-match` 手写解说；`copy-then-match` 文案先行再对画面；`clone-from-edited` 用 `weaver match` 铺 `ost: original` 场，跳过阶段 3 和 5；`see-then-narrate` 用 `weaver describe` 铺场界，阶段 3 按场写旁白；`highlight-mix` 转写抽点，跳过阶段 5。门槛读 `recipe show`，不要在 skill 里另写一套。
 
 ## 结构怎么选
 
@@ -25,7 +25,7 @@
 
 `clone-from-edited`：阶段 2 是 `asset add --kind video`（已剪片 `video.edited` + 原片）然后 `weaver match --edited asset:video.edited`。不要 `recipe apply`。match 之后直接阶段 6–7。
 
-`see-then-narrate`：阶段 2 是 `asset add --kind video` 然后 `weaver describe --ref asset:video.origin`（长片 `--from --to`）。不要 `recipe apply`。阶段 3 按 `sequences` 一场一 clip 写旁白（观察只当素材）。没有描述树禁止写解说。
+`see-then-narrate`：阶段 2 是 `asset add --kind video` 然后 `weaver describe --ref asset:video.origin`（长片 `--from --to`）。不要 `recipe apply`。阶段 3 按 `sequences` 一场一 clip 写旁白（观察只当素材）。没有描述树禁止写解说。解说场成片时长跟 wav，不是 `out - in`。
 
 `highlight-mix`：阶段 2 转写后写 `ost: original` clip。不要 tts。阶段 6–7。
 
