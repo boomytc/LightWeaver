@@ -167,8 +167,11 @@ function transcribeWindow(
       const right = transcribeWindow(source, { start: mid, end: window.end }, ctx, 1);
       return { start: window.start, end: window.end, result: stitchAsrResults([left, right]) };
     }
-    if (isTruncated(raw, span) || !raw.text.trim()) {
+    if (isTruncated(raw, span)) {
       throw new Error(`转写被截断（${window.start.toFixed(1)}–${window.end.toFixed(1)}s）`);
+    }
+    if (!raw.text.trim()) {
+      return { start: window.start, end: window.end, result: { text: "", language: raw.language, seconds: span } };
     }
     return { start: window.start, end: window.end, result: raw };
   } finally {

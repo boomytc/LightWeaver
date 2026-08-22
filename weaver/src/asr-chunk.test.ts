@@ -64,6 +64,7 @@ describe("isTruncated", () => {
     assert.equal(isTruncated({ text: "半句", log: "ggml OutputTruncated" }, 40), true);
     assert.equal(isTruncated({ text: "ab", truncated: true }, 10), true);
     assert.equal(isTruncated({ text: "x" }, 40), true);
+    assert.equal(isTruncated({ text: "" }, 10), false);
   });
 });
 
@@ -144,6 +145,28 @@ describe("runAsr chunking", () => {
     assert.ok(spans.some((item) => Number(item.split("-")[1]) - Number(item.split("-")[0]) > 35));
     assert.ok(spans.some((item) => Number(item.split("-")[1]) - Number(item.split("-")[0]) <= 25));
     assert.match(result.text, /这一段已经把名称/);
+    assert.equal(result.seconds, 50);
+  });
+
+  it("keeps earlier windows when a short tail is silent", () => {
+    const root = tempWorkspace();
+    const wav = path.join(root, "long.wav");
+    fs.writeFileSync(wav, "RIFF");
+    const result = runAsr(
+      { audio: wav, root },
+      {
+        duration: () => 50,
+        slice: (_file, _start, _duration, dest) => {
+          fs.writeFileSync(dest, "RIFF");
+        },
+        engine: (audio) => {
+          const startMs = Number(path.basename(audio).replace(/\.wav$/, "").split("-").at(-2));
+          if (startMs >= 38000) return { text: "", language: "zh", seconds: 12 };
+          return { text: "先把名称、场景和规则说清楚，再动手做交互。", language: "zh", seconds: 40 };
+        },
+      },
+    );
+    assert.match(result.text, /先把名称/);
     assert.equal(result.seconds, 50);
   });
 });

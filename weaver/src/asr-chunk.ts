@@ -36,7 +36,9 @@ export function isTruncated(result: TruncationHint, duration: number, sparse = t
   if (result.log && /OutputTruncated/i.test(result.log)) return true;
   if (!sparse) return false;
   const text = result.text.trim();
-  if (duration >= 2 && text.length < duration * ASR_SETTINGS.minCharsPerSecond) return true;
+  if (duration >= ASR_SETTINGS.chunkSeconds / 2 && text.length < duration * ASR_SETTINGS.minCharsPerSecond) {
+    return true;
+  }
   return false;
 }
 
