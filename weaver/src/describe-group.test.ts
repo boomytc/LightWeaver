@@ -4,6 +4,8 @@ import {
   attachLines,
   buildSequences,
   descriptionIsReady,
+  foldShortShots,
+  foldSkippedSequences,
   markSkips,
   mergeSequences,
   pickFrameTimes,
@@ -45,6 +47,44 @@ describe("shotsFromScenes", () => {
 
   it("returns one shot when there are no boundaries", () => {
     assert.deepEqual(shotsFromScenes({ duration: 4, boundaries: [] }), [{ in: 0, out: 4 }]);
+  });
+});
+
+describe("foldShortShots / foldSkippedSequences", () => {
+  it("folds adjacent shots shorter than minSequence into one span", () => {
+    const folded = foldShortShots(
+      [
+        { in: 0, out: 1.1 },
+        { in: 1.1, out: 3 },
+        { in: 3, out: 4.5 },
+      ],
+      3,
+    );
+    assert.deepEqual(folded, [{ in: 0, out: 4.5 }]);
+  });
+
+  it("merges same-as-prev sequences into the previous field", () => {
+    const folded = foldSkippedSequences([
+      { id: "seq-01", in: 0, out: 4, shots: [{ in: 0, out: 4, t: 2 }], lines: [] },
+      {
+        id: "seq-02",
+        in: 4,
+        out: 6,
+        shots: [{ in: 4, out: 6, t: 5, skip: "same-as-prev" }],
+        lines: [],
+      },
+    ]);
+    assert.equal(folded.length, 1);
+    assert.equal(folded[0]?.id, "seq-01");
+    assert.equal(folded[0]?.out, 6);
+    assert.equal(folded[0]?.shots.length, 2);
+  });
+
+  it("builds at most four sequences from twelve similar 1.5s shots", () => {
+    const hashes: FrameHash[] = Array.from({ length: 18 }, (_, t) => frame(t, ramp(true), [0, 0, 0]));
+    const boundaries = Array.from({ length: 11 }, (_, i) => ({ time: (i + 1) * 1.5, score: 0.9 }));
+    const sequences = buildSequences({ duration: 18, boundaries }, hashes);
+    assert.ok(sequences.length <= 4, `expected ≤4 sequences, got ${sequences.length}`);
   });
 });
 

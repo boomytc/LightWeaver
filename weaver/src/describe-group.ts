@@ -68,6 +68,44 @@ export function shotsFromScenes(index: SceneIndex, minShot = DESCRIBE_SETTINGS.m
   return folded.length ? folded.map((shot) => ({ in: round3(shot.in), out: round3(shot.out) })) : [{ in: 0, out: round3(duration) }];
 }
 
+export function foldShortShots(shots: ShotSpan[], minSequence = DESCRIBE_SETTINGS.minSequence): ShotSpan[] {
+  if (!shots.length) return [];
+  const folded: ShotSpan[] = [];
+  for (const shot of shots) {
+    const prev = folded.at(-1);
+    if (shot.out - shot.in < minSequence && prev) {
+      prev.out = shot.out;
+      continue;
+    }
+    folded.push({ in: shot.in, out: shot.out });
+  }
+  if (folded.length >= 2 && folded[0]!.out - folded[0]!.in < minSequence) {
+    folded[1]!.in = folded[0]!.in;
+    folded.shift();
+  }
+  return folded.map((shot) => ({ in: round3(shot.in), out: round3(shot.out) }));
+}
+
+export function foldSkippedSequences(sequences: SequenceObservation[]): SequenceObservation[] {
+  const folded: SequenceObservation[] = [];
+  for (const sequence of sequences) {
+    const skipped = sequence.shots.length > 0 && sequence.shots.every((shot) => shot.skip === "same-as-prev");
+    const prev = folded.at(-1);
+    if (skipped && prev) {
+      prev.out = sequence.out;
+      prev.shots.push(...sequence.shots);
+      prev.lines.push(...sequence.lines);
+      continue;
+    }
+    folded.push({
+      ...sequence,
+      shots: sequence.shots.map((shot) => ({ ...shot })),
+      lines: sequence.lines.map((line) => ({ ...line })),
+    });
+  }
+  return folded.map((sequence, index) => ({ ...sequence, id: sequenceId(index) }));
+}
+
 export function mergeSequences(
   shots: ShotSpan[],
   hashes: FrameHash[],
@@ -170,9 +208,9 @@ export function buildSequences(
   lines: SequenceLine[] = [],
   options: { visual?: boolean } = {},
 ): SequenceObservation[] {
-  const shots = shotsFromScenes(index);
+  const shots = foldShortShots(shotsFromScenes(index));
   const grouped = sequencesFromShots(mergeSequences(shots, hashes), hashes);
-  return markSkips(attachLines(grouped, lines), hashes, options);
+  return foldSkippedSequences(markSkips(attachLines(grouped, lines), hashes, options));
 }
 
 export function descriptionIsReady(doc: DescriptionDoc | null | undefined): boolean {

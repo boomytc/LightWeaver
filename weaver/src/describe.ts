@@ -13,6 +13,7 @@ import {
   type DescriptionDoc,
 } from "./describe-group.ts";
 import { extractJpeg, jpegRel } from "./describe-frames.ts";
+import { DESCRIBE_SETTINGS } from "./describe-settings.ts";
 import { describePrompt, runVlm, type VlmResult } from "./vlm.ts";
 import { extractFrameHashes, type FrameHash } from "./match-visual.ts";
 import { detectScenes, type SceneIndex } from "./match-scene.ts";
@@ -97,7 +98,7 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
     }
   }
 
-  const scenes = deps.scenes?.(resolved.absPath) ?? detectScenes(resolved.absPath, duration);
+  const scenes = deps.scenes?.(resolved.absPath) ?? detectScenes(resolved.absPath, duration, DESCRIBE_SETTINGS.sceneThreshold);
   const hashDir = path.join(project.root, "assets/match/frames", videoId);
   const hashes = deps.hashes?.(resolved.absPath) ?? extractFrameHashes(resolved.absPath, hashDir);
   const transcript = loadTranscript(project, ref, resolved.absPath, root, deps);
