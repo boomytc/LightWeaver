@@ -61,6 +61,6 @@ scripts/               tts.py / asr.py / vlm.py / capture.mjs（不跟 LIGHTWEAV
   (name / when / expand / scenes) and a projection file under
   `library/methods/<recipePack>/`. Studio reads the catalog only.
   Apply / assert / `method list` / `recipe list` / `recipe show` 都只读 catalog：
-  `fixed` 用 `scenes`，`list` 用 `--items`。`--kinds` 是 `--items` 的遗留别名。
+  `fixed` 用 `scenes`，`list` 用 `--items`。`recipe show` / `method list` 带出 `needs` / `clipOst`。
   `library/methods/<recipePack>/` 只放 catalog 投影短文。要改场次用 Studio
   `/methods` 或 `weaver method set`，再 apply。

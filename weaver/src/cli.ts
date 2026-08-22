@@ -94,7 +94,6 @@ function take(args: string[]): { command: string; rest: string[]; values: Flags 
       ref: { type: "string" },
       refs: { type: "string" },
       recipe: { type: "string" },
-      kinds: { type: "string" },
       items: { type: "string" },
       langs: { type: "string" },
       expand: { type: "string" },
@@ -604,7 +603,7 @@ function main(): void {
           .map((item) => item.trim())
           .filter(Boolean);
       try {
-        const { skipped } = applyRecipe(project, recipeId, { items: split("items"), kinds: split("kinds") }, root);
+        const { skipped } = applyRecipe(project, recipeId, { items: split("items") }, root);
         print({ ...envelope(project, root), skipped });
       } catch (error) {
         fail(error instanceof Error ? error.message : String(error), 2);

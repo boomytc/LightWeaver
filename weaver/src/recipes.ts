@@ -5,10 +5,14 @@ import { libraryRoot, weaverRoot } from "./paths.ts";
 import { saveFilm } from "./project.ts";
 import {
   filmTask,
+  isOstMode,
   methodExpandOf,
+  methodNeedsOf,
   type Asset,
   type MethodExpand,
+  type MethodNeed,
   type MethodScene,
+  type OstMode,
   type ProjectRecord,
   type SceneDef,
 } from "./schema.ts";
@@ -26,6 +30,8 @@ export type Recipe = {
   when: string;
   expand: MethodExpand;
   scenes?: MethodScene[];
+  needs?: MethodNeed[];
+  clipOst?: OstMode;
   path?: string;
   body?: string;
 };
@@ -52,6 +58,8 @@ function recipeFromAsset(asset: Asset, root: string): Recipe {
   const rel = asset.file;
   const abs = rel ? path.join(libraryRoot(root), rel) : undefined;
   const hasFile = Boolean(abs && fs.existsSync(abs));
+  const needs = methodNeedsOf(asset);
+  const clipOst = asset.clipOst && isOstMode(asset.clipOst) ? asset.clipOst : undefined;
   return {
     id,
     task: asset.task ?? "",
@@ -59,6 +67,8 @@ function recipeFromAsset(asset: Asset, root: string): Recipe {
     when: (asset.text ?? "").trim(),
     expand: methodExpandOf(asset),
     ...(asset.scenes ? { scenes: asset.scenes } : {}),
+    ...(needs.length ? { needs } : {}),
+    ...(clipOst ? { clipOst } : {}),
     ...(hasFile ? { path: abs, body: fs.readFileSync(abs!, "utf8") } : {}),
   };
 }
@@ -69,7 +79,11 @@ export function formatRecipe(recipe: Recipe): string {
   const scenes = (recipe.scenes ?? []).map((scene) =>
     scene.role ? `- ${scene.id}（${scene.role}）` : `- ${scene.id}`,
   );
-  const lines = [recipe.title, recipe.when, `铺场：${expand}`, ...scenes];
+  const gates = [
+    ...(recipe.needs?.length ? [`门槛：${recipe.needs.join("、")}`] : []),
+    ...(recipe.clipOst ? [`ost：${recipe.clipOst}`] : []),
+  ];
+  const lines = [recipe.title, recipe.when, `铺场：${expand}`, ...scenes, ...gates];
   if (recipe.path) lines.push(`投影：${recipe.path}`);
   return lines.filter(Boolean).join("\n");
 }
@@ -102,14 +116,11 @@ export function summarizeRecipe(recipe: Recipe): RecipeSummary {
 }
 
 export type ApplyRecipeOptions = {
-  kinds?: string[];
   items?: string[];
 };
 
 function applyItems(options: ApplyRecipeOptions): string[] {
-  const named = (options.items ?? []).map((item) => item.trim()).filter(Boolean);
-  const raw = named.length ? named : (options.kinds ?? []);
-  return [...new Set(raw.map((item) => item.trim()).filter(Boolean))];
+  return [...new Set((options.items ?? []).map((item) => item.trim()).filter(Boolean))];
 }
 
 type PlannedScene = {

@@ -47,6 +47,10 @@ describe("listRecipes / loadRecipe", () => {
     assert.match(view, /对照表阅兵/);
     assert.match(view, /清单一项一场/);
     assert.doesNotMatch(view, /requires_items|default_scenes|level:/);
+    const clone = loadRecipe("clone-from-edited");
+    assert.deepEqual(clone.needs, ["match-report"]);
+    assert.equal(clone.clipOst, "original");
+    assert.match(formatRecipe(clone), /门槛：match-report/);
     const pack = path.join(recipeRoot(), "study-explainer");
     assert.deepEqual(
       fs.readdirSync(pack).filter((name) => name.endsWith(".md")).sort(),
@@ -120,7 +124,7 @@ describe("applyRecipe", () => {
   it("expands taxonomy-parade stills then drops hero", () => {
     const root = tempProjectRoot();
     const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
-    const { skipped } = applyRecipe(project, "taxonomy-parade", { kinds: ["alpha", "bravo"] }, weaverRoot());
+    const { skipped } = applyRecipe(project, "taxonomy-parade", { items: ["alpha", "bravo"] }, weaverRoot());
     assert.deepEqual(
       project.film.scenes.map((scene) => scene.id),
       ["title", "alpha", "bravo", "close"],
@@ -143,9 +147,9 @@ describe("applyRecipe", () => {
   it("skips existing ids and does not clobber lines", () => {
     const root = tempProjectRoot();
     const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
-    applyRecipe(project, "taxonomy-parade", { kinds: ["alpha"] }, weaverRoot());
+    applyRecipe(project, "taxonomy-parade", { items: ["alpha"] }, weaverRoot());
     patchScene(project, "alpha", { lines: { zh: "真旁白", en: "real" } });
-    const { skipped } = applyRecipe(project, "taxonomy-parade", { kinds: ["alpha", "bravo"] }, weaverRoot());
+    const { skipped } = applyRecipe(project, "taxonomy-parade", { items: ["alpha", "bravo"] }, weaverRoot());
     assert.ok(skipped.includes("alpha"));
     assert.equal(project.film.scenes.find((scene) => scene.id === "alpha")?.lines.zh, "真旁白");
     assert.ok(project.film.scenes.some((scene) => scene.id === "bravo"));
@@ -231,21 +235,21 @@ default_scenes:
     const root = tempProjectRoot();
     const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     assert.throws(() => removeScene(project, "hero"), /最后一场 still/);
-    applyRecipe(project, "taxonomy-parade", { kinds: ["alpha"] }, weaverRoot());
+    applyRecipe(project, "taxonomy-parade", { items: ["alpha"] }, weaverRoot());
     assert.equal(project.film.scenes.some((scene) => scene.id === "hero"), false);
   });
 
-  it("requires --kinds for taxonomy-parade", () => {
+  it("requires --items for taxonomy-parade", () => {
     const root = tempProjectRoot();
     const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
     assert.throws(() => applyRecipe(project, "taxonomy-parade", {}, weaverRoot()), /需要 --items/);
-    assert.throws(() => applyRecipe(project, "taxonomy-parade", { kinds: [] }, weaverRoot()), /需要 --items/);
+    assert.throws(() => applyRecipe(project, "taxonomy-parade", { items: [] }, weaverRoot()), /需要 --items/);
   });
 
-  it("uses catalog scenes for problem-then-rule and ignores kinds", () => {
+  it("uses catalog scenes for problem-then-rule and ignores extra items", () => {
     const root = tempProjectRoot();
     const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
-    applyRecipe(project, "problem-then-rule", { kinds: ["nope"] }, weaverRoot());
+    applyRecipe(project, "problem-then-rule", { items: ["nope"] }, weaverRoot());
     assert.deepEqual(
       project.film.scenes.map((scene) => scene.id),
       ["title", "problem", "rule", "contrast", "close"],

@@ -6,10 +6,14 @@ import { methodNameOf, recipeIdOf } from "./method.ts";
 import { resolveTask } from "./tasks/registry.ts";
 import {
   isMethodExpand,
+  isOstMode,
   methodExpandOf,
+  methodNeedsOf,
   type Asset,
   type MethodExpand,
+  type MethodNeed,
   type MethodScene,
+  type OstMode,
 } from "./schema.ts";
 
 const ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -182,13 +186,20 @@ export function listLibraryMethods(root = weaverRoot()): Array<{
   text: string;
   expand: MethodExpand;
   scenes: MethodScene[];
+  needs: MethodNeed[];
+  clipOst?: OstMode;
 }> {
-  return methodsIn(root).map((item) => ({
-    id: item.id,
-    recipe: recipeIdOf(item.id),
-    label: methodNameOf(item),
-    text: (item.text ?? "").trim(),
-    expand: methodExpandOf(item),
-    scenes: item.scenes ?? [],
-  }));
+  return methodsIn(root).map((item) => {
+    const clipOst = item.clipOst && isOstMode(item.clipOst) ? item.clipOst : undefined;
+    return {
+      id: item.id,
+      recipe: recipeIdOf(item.id),
+      label: methodNameOf(item),
+      text: (item.text ?? "").trim(),
+      expand: methodExpandOf(item),
+      scenes: item.scenes ?? [],
+      needs: methodNeedsOf(item),
+      ...(clipOst ? { clipOst } : {}),
+    };
+  });
 }

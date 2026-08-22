@@ -91,6 +91,7 @@ describe("createLibraryMethod", () => {
     assert.equal(listed[0]?.label, "对照练习");
     assert.equal(listed[0]?.recipe, "pack");
     assert.equal(listed[0]?.expand, "list");
+    assert.deepEqual(listed[0]?.needs, []);
     removeLibraryAsset(listed[0]!.id, root);
   });
 });
