@@ -55,7 +55,7 @@
       "label": "剧情再匹配",
       "file": "methods/footage-narration/plot-then-match.md",
       "task": "footage-narration",
-      "text": "已有原片，先弄清时间轴上发生了什么，再写解说并对齐 in/out。",
+      "text": "已有原片，先弄清时间轴上发生了什么，再写解说并对齐 in/out。有转写先靠句子；静音场再读描述树。",
       "expand": "list"
     },
     {
@@ -65,6 +65,33 @@
       "file": "methods/footage-narration/clone-from-edit.md",
       "task": "footage-narration",
       "text": "有一条已剪参考片，要从多集或长原片里找回对应画面。不要 recipe apply 铺场；登记视频后跑 weaver match。",
+      "expand": "list"
+    },
+    {
+      "id": "method.see-then-narrate",
+      "kind": "method",
+      "label": "先看见再写解说",
+      "file": "methods/footage-narration/see-then-narrate.md",
+      "task": "footage-narration",
+      "text": "无对白或对白很少。不要 recipe apply 铺时间轴；登记视频后跑 weaver describe，按描述树一场一 clip。观察只当素材，不当旁白原文。",
+      "expand": "list"
+    },
+    {
+      "id": "method.copy-then-match",
+      "kind": "method",
+      "label": "文案先行再对画面",
+      "file": "methods/footage-narration/copy-then-match.md",
+      "task": "footage-narration",
+      "text": "人先过解说，再把句子对上画面。原片占比是铺场目标，需要原声的 clip 用 ost: original。",
+      "expand": "list"
+    },
+    {
+      "id": "method.highlight-mix",
+      "kind": "method",
+      "label": "混剪抽点",
+      "file": "methods/footage-narration/highlight-mix.md",
+      "task": "footage-narration",
+      "text": "已有对白时间轴，从句子里抽情节点，几乎全原声。不要 recipe apply 铺场。不要 tts。",
       "expand": "list"
     }
   ]
