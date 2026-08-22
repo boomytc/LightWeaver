@@ -26,18 +26,31 @@ export function userRoot(root = weaverRoot()): string {
   return path.join(root, "data/projects");
 }
 
-export function instanceRel(source: "first-party" | "user", task: string, id: string): string {
+export const UNSET_RECIPE = "none";
+
+export function instanceRel(source: "first-party" | "user", task: string, recipe: string, id: string): string {
   const tree = source === "first-party" ? "data/first-party" : "data/projects";
-  return `${tree}/${task}/${id}`;
+  return `${tree}/${task}/${recipe}/${id}`;
 }
 
 export function instanceRoot(
   source: "first-party" | "user",
   task: string,
+  recipe: string,
   id: string,
   root = weaverRoot(),
 ): string {
-  return path.join(source === "first-party" ? firstPartyRoot(root) : userRoot(root), task, id);
+  return path.join(source === "first-party" ? firstPartyRoot(root) : userRoot(root), task, recipe, id);
+}
+
+export function workspaceRootOf(projectDir: string): string {
+  const abs = path.resolve(projectDir);
+  for (const tree of ["data/projects", "data/first-party"] as const) {
+    const needle = `${path.sep}${tree.replaceAll("/", path.sep)}${path.sep}`;
+    const at = abs.lastIndexOf(needle);
+    if (at >= 0) return abs.slice(0, at);
+  }
+  return weaverRoot();
 }
 
 export function voiceCandidateRoot(root = weaverRoot()): string {

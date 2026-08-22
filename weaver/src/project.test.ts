@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { createProject, listProjects, loadProject } from "./project.ts";
+import { createProject, listProjects, loadProject, saveFilm } from "./project.ts";
 import { resolveAssetFile } from "./assets.ts";
 import { firstPartyRoot } from "./paths.ts";
 import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
@@ -18,7 +18,7 @@ describe("createProject", () => {
     assert.equal(project.film.locales.zh.title, "演示");
     assert.equal(project.film.task, "study-explainer");
     assert.deepEqual(project.film.scenes.map((scene) => scene.id), ["title", "hero", "close"]);
-    assert.ok(fs.existsSync(path.join(root, "data/projects/study-explainer/demo-film/film.json")));
+    assert.ok(fs.existsSync(path.join(root, "data/projects/study-explainer/none/demo-film/film.json")));
     assert.equal(listProjects(root).length, 1);
     assert.equal(loadProject("demo-film", root).id, "demo-film");
   });
@@ -29,8 +29,20 @@ describe("createProject", () => {
     fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
     const project = createProject("site-cut", { title: "工地", task: "footage-narration" }, root);
     assert.equal(project.film.task, "footage-narration");
-    assert.ok(fs.existsSync(path.join(root, "data/projects/footage-narration/site-cut/film.json")));
-    assert.ok(!fs.existsSync(path.join(root, "data/projects/site-cut/film.json")));
+    assert.ok(fs.existsSync(path.join(root, "data/projects/footage-narration/none/site-cut/film.json")));
+    assert.ok(!fs.existsSync(path.join(root, "data/projects/footage-narration/site-cut/film.json")));
+  });
+
+  it("moves the instance when a recipe is set", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+    fs.mkdirSync(path.join(root, "library"), { recursive: true });
+    fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
+    const project = createProject("site-cut", { task: "footage-narration" }, root);
+    saveFilm(project, { ...project.film, recipe: "clone-from-edit" });
+    assert.ok(project.root.endsWith(`${path.sep}footage-narration${path.sep}clone-from-edit${path.sep}site-cut`));
+    assert.ok(fs.existsSync(path.join(project.root, "film.json")));
+    assert.ok(!fs.existsSync(path.join(root, "data/projects/footage-narration/none/site-cut/film.json")));
+    assert.equal(loadProject("site-cut", root).root, project.root);
   });
 });
 

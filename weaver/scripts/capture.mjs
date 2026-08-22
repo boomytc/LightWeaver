@@ -9,8 +9,18 @@ const SHOTS = JSON.parse(fs.readFileSync(path.join(here, "lightui-lab-adapters.j
 
 const LAB = labUrl();
 
+function firstPartyStudyDir(study) {
+  const taskDir = path.join(firstPartyRoot(), "study-explainer");
+  if (!fs.existsSync(taskDir)) throw new Error(`找不到 first-party 讲解片树：${taskDir}`);
+  for (const recipe of fs.readdirSync(taskDir)) {
+    const dir = path.join(taskDir, recipe, study);
+    if (fs.existsSync(path.join(dir, "film.json"))) return dir;
+  }
+  throw new Error(`找不到 first-party 片子 ${study}`);
+}
+
 function stillPath(study, locale, name) {
-  return path.join(firstPartyRoot(), "study-explainer", study, "assets", "stills", locale, name);
+  return path.join(firstPartyStudyDir(study), "assets", "stills", locale, name);
 }
 
 async function clipOf(page) {

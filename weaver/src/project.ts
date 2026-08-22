@@ -2,9 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Asset, AssetDoc, FilmDoc, ProjectRecord, ProjectSource } from "./schema.ts";
 import { TASK_IDS, filmLangs, filmStudySlug, filmTask, normalizeFilm } from "./schema.ts";
-import { instanceRoot, projectRoots, weaverRoot } from "./paths.ts";
+import { UNSET_RECIPE, instanceRoot, projectRoots, weaverRoot, workspaceRootOf } from "./paths.ts";
 import { atomicWriteJson, readJson } from "./io.ts";
 import { resolveTask } from "./tasks/registry.ts";
+import { recipeIdOf } from "./method.ts";
+
+export function recipeFolder(recipe?: string): string {
+  return recipeIdOf(recipe ?? "") || UNSET_RECIPE;
+}
 
 export function filmPath(root: string): string {
   return path.join(root, "film.json");
@@ -21,11 +26,15 @@ export function listProjects(root = weaverRoot()): ProjectRecord[] {
     for (const task of TASK_IDS) {
       const taskDir = path.join(dir, task);
       if (!fs.existsSync(taskDir) || !fs.statSync(taskDir).isDirectory()) continue;
-      for (const name of fs.readdirSync(taskDir).sort()) {
-        const projectDir = path.join(taskDir, name);
-        if (!fs.statSync(projectDir).isDirectory()) continue;
-        if (!fs.existsSync(filmPath(projectDir))) continue;
-        found.push(loadProjectAt(projectDir, source));
+      for (const recipe of fs.readdirSync(taskDir).sort()) {
+        const recipeDir = path.join(taskDir, recipe);
+        if (!fs.statSync(recipeDir).isDirectory()) continue;
+        for (const name of fs.readdirSync(recipeDir).sort()) {
+          const projectDir = path.join(recipeDir, name);
+          if (!fs.statSync(projectDir).isDirectory()) continue;
+          if (!fs.existsSync(filmPath(projectDir))) continue;
+          found.push(loadProjectAt(projectDir, source));
+        }
       }
     }
   }
@@ -44,10 +53,15 @@ export function loadProjectAt(dir: string, source: ProjectSource): ProjectRecord
   if (film.id !== path.basename(dir)) {
     throw new Error(`项目目录 ${path.basename(dir)} 与 film.id ${film.id} 不一致`);
   }
-  const folderTask = path.basename(path.dirname(dir));
+  const folderRecipe = path.basename(path.dirname(dir));
+  const folderTask = path.basename(path.dirname(path.dirname(dir)));
   const task = filmTask(film);
   if (folderTask !== task) {
     throw new Error(`项目 ${film.id} 在 ${folderTask}/ 下，与 film.task ${task} 不一致`);
+  }
+  const wantedRecipe = recipeFolder(film.recipe);
+  if (folderRecipe !== wantedRecipe) {
+    throw new Error(`项目 ${film.id} 在 ${folderRecipe}/ 下，与 film.recipe ${wantedRecipe} 不一致`);
   }
   return { id: film.id, source, root: dir, film, assets };
 }
@@ -57,6 +71,33 @@ export function saveFilm(project: ProjectRecord, film: FilmDoc): void {
   const next = normalizeFilm(film);
   atomicWriteJson(filmPath(project.root), next);
   project.film = next;
+  relocateProject(project);
+}
+
+function relocateProject(project: ProjectRecord): void {
+  const root = workspaceRootOf(project.root);
+  const dest = instanceRoot(
+    project.source,
+    filmTask(project.film),
+    recipeFolder(project.film.recipe),
+    project.id,
+    root,
+  );
+  if (path.resolve(project.root) === path.resolve(dest)) return;
+  if (fs.existsSync(dest)) throw new Error(`项目目录已存在：${dest}`);
+  const from = project.root;
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.renameSync(from, dest);
+  project.root = dest;
+  pruneEmptyDir(path.dirname(from));
+}
+
+function pruneEmptyDir(dir: string): void {
+  try {
+    if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+  } catch {
+    /* leave it */
+  }
 }
 
 export function saveAssets(project: ProjectRecord, assets: Asset[]): void {
@@ -85,7 +126,7 @@ export function createProject(
   }
   const source = options.source ?? "user";
   const task = resolveTask(options.task);
-  const dir = instanceRoot(source, task.id, id, root);
+  const dir = instanceRoot(source, task.id, recipeFolder(), id, root);
   const film = task.createFilm(
     {
       id,
