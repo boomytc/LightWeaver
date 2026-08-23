@@ -13,9 +13,14 @@ import {
   dHashFromGray,
   extractFrameHashes,
   findBestVisualWindow,
+  frameScore,
   hashScore,
+  HASH_CACHE_VERSION,
   pickContinuingWindow,
+  quadFromRgb,
+  quadScore,
   silentRanges,
+  uniformQuad,
   type FrameHash,
 } from "./match-visual.ts";
 import { createProject } from "./project.ts";
@@ -33,6 +38,55 @@ function colorClip(dest: string, color: string, seconds: number): void {
     { stdio: "ignore" },
   );
 }
+
+describe("quadrant score", () => {
+  it("separates left-red from right-red better than a global mean", () => {
+    const left = new Uint8Array(9 * 8 * 3);
+    const right = new Uint8Array(9 * 8 * 3);
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 9; x++) {
+        const i = (y * 9 + x) * 3;
+        if (x < 4) left[i] = 255;
+        else right[i] = 255;
+      }
+    }
+    const a = { t: 0, hash: 0n, mean: rgbAvg(left), quad: quadFromRgb(left) };
+    const b = { t: 1, hash: 0n, mean: rgbAvg(right), quad: quadFromRgb(right) };
+    const same = { t: 2, hash: 0n, mean: a.mean, quad: a.quad };
+    assert.ok(quadScore(a.quad, b.quad) < 0.8);
+    assert.ok(frameScore(a, b) < frameScore(a, same));
+  });
+});
+
+function rgbAvg(pixels: Uint8Array): [number, number, number] {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  const count = pixels.length / 3;
+  for (let i = 0; i < pixels.length; i += 3) {
+    r += pixels[i] ?? 0;
+    g += pixels[i + 1] ?? 0;
+    b += pixels[i + 2] ?? 0;
+  }
+  return [r / count, g / count, b / count];
+}
+
+describe("hash cache version", () => {
+  it("ignores a cache file without v and rewrites it", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-hashv-"));
+    const clip = path.join(dir, "red.mp4");
+    colorClip(clip, "red", 1);
+    const cacheDir = path.join(dir, "hash");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cachePath = path.join(cacheDir, "dhash.json");
+    fs.writeFileSync(cachePath, `${JSON.stringify({ interval: 1, frames: [{ t: 0, hash: "0", mean: [1, 2, 3] }] })}\n`);
+    const frames = extractFrameHashes(clip, cacheDir);
+    assert.ok(frames.length >= 1);
+    assert.ok(frames[0]!.quad);
+    const saved = JSON.parse(fs.readFileSync(cachePath, "utf8")) as { v?: number };
+    assert.equal(saved.v, HASH_CACHE_VERSION);
+  });
+});
 
 describe("dHash", () => {
   it("scores identical frames as 1 and opposite ramps as lower", () => {
@@ -69,7 +123,7 @@ function ramp(up: boolean): Uint8Array {
 }
 
 function frame(t: number, up: boolean, mean: [number, number, number]): FrameHash {
-  return { t, hash: dHashFromGray(ramp(up)), mean };
+  return { t, hash: dHashFromGray(ramp(up)), mean, quad: uniformQuad(mean) };
 }
 
 describe("occupied visual window", () => {
@@ -83,7 +137,8 @@ describe("occupied visual window", () => {
 });
 
 function grayFrame(t: number, value: number): FrameHash {
-  return { t, hash: dHashFromGray(gray(value)), mean: [value, value, value] };
+  const mean: [number, number, number] = [value, value, value];
+  return { t, hash: dHashFromGray(gray(value)), mean, quad: uniformQuad(mean) };
 }
 
 describe("pickContinuingWindow", () => {

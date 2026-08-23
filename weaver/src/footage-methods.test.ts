@@ -10,7 +10,7 @@ import { createProject, loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
 import { hasErrors, isRenderable, validateProject } from "./validate.ts";
 import { runDescribe } from "./describe.ts";
-import { dHashFromGray, type FrameHash } from "./match-visual.ts";
+import { dHashFromGray, uniformQuad, type FrameHash } from "./match-visual.ts";
 import { seedFootageFilm, tempWorkspace, touch } from "./test-workspace.ts";
 
 function ramp(up: boolean): Uint8Array {
@@ -18,7 +18,7 @@ function ramp(up: boolean): Uint8Array {
 }
 
 function frame(t: number, up: boolean, mean: [number, number, number]): FrameHash {
-  return { t, hash: dHashFromGray(ramp(up)), mean };
+  return { t, hash: dHashFromGray(ramp(up)), mean, quad: uniformQuad(mean) };
 }
 
 function hashes(): FrameHash[] {

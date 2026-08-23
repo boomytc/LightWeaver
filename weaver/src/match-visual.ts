@@ -21,7 +21,11 @@ export type VisualCut = {
   warnings: string[];
 };
 
-export type FrameHash = { t: number; hash: bigint; mean: [number, number, number] };
+export type Rgb = [number, number, number];
+export type QuadMean = [Rgb, Rgb, Rgb, Rgb];
+export type FrameHash = { t: number; hash: bigint; mean: Rgb; quad: QuadMean };
+
+export const HASH_CACHE_VERSION = 2;
 
 const WIDTH = 9;
 const HEIGHT = 8;
@@ -60,7 +64,7 @@ export function hashFromHex(hex: string): bigint {
   return BigInt(`0x${hex}`);
 }
 
-export function rgbMean(pixels: Uint8Array): [number, number, number] {
+export function rgbMean(pixels: Uint8Array): Rgb {
   let r = 0;
   let g = 0;
   let b = 0;
@@ -85,16 +89,57 @@ export function lumaPlane(pixels: Uint8Array, width = WIDTH, height = HEIGHT): U
   return gray;
 }
 
-export function colorScore(a: [number, number, number], b: [number, number, number]): number {
+export function colorScore(a: Rgb, b: Rgb): number {
   const dist = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
   return 1 - dist / (255 * 3);
 }
 
-export function frameScore(a: FrameHash, b: FrameHash): number {
-  return hashScore(a.hash, b.hash) * 0.5 + colorScore(a.mean, b.mean) * 0.5;
+export function uniformQuad(mean: Rgb): QuadMean {
+  return [mean, mean, mean, mean];
 }
 
-type HashCache = { interval: number; frames: { t: number; hash: string; mean: [number, number, number] }[] };
+export function quadFromRgb(pixels: Uint8Array, width = WIDTH, height = HEIGHT): QuadMean {
+  const xMid = Math.floor(width / 2);
+  const yMid = Math.floor(height / 2);
+  return [
+    blockMean(pixels, width, 0, 0, xMid, yMid),
+    blockMean(pixels, width, xMid, 0, width, yMid),
+    blockMean(pixels, width, 0, yMid, xMid, height),
+    blockMean(pixels, width, xMid, yMid, width, height),
+  ];
+}
+
+function blockMean(pixels: Uint8Array, width: number, x0: number, y0: number, x1: number, y1: number): Rgb {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * width + x) * 3;
+      r += pixels[i] ?? 0;
+      g += pixels[i + 1] ?? 0;
+      b += pixels[i + 2] ?? 0;
+      count++;
+    }
+  }
+  if (!count) return [0, 0, 0];
+  return [r / count, g / count, b / count];
+}
+
+export function quadScore(a: QuadMean, b: QuadMean): number {
+  return (colorScore(a[0], b[0]) + colorScore(a[1], b[1]) + colorScore(a[2], b[2]) + colorScore(a[3], b[3])) / 4;
+}
+
+export function frameScore(a: FrameHash, b: FrameHash): number {
+  return hashScore(a.hash, b.hash) * 0.4 + colorScore(a.mean, b.mean) * 0.2 + quadScore(a.quad, b.quad) * 0.4;
+}
+
+type HashCache = {
+  v: number;
+  interval: number;
+  frames: { t: number; hash: string; mean: Rgb; quad: QuadMean }[];
+};
 
 export function extractFrameHashes(
   file: string,
@@ -104,11 +149,12 @@ export function extractFrameHashes(
   const cachePath = path.join(cacheDir, "dhash.json");
   if (fs.existsSync(cachePath)) {
     const cached = JSON.parse(fs.readFileSync(cachePath, "utf8")) as HashCache;
-    if (cached.interval === interval && Array.isArray(cached.frames)) {
+    if (cached.v === HASH_CACHE_VERSION && cached.interval === interval && Array.isArray(cached.frames) && cached.frames.every((frame) => frame.quad)) {
       return cached.frames.map((frame) => ({
         t: frame.t,
         hash: hashFromHex(frame.hash),
-        mean: frame.mean ?? [0, 0, 0],
+        mean: frame.mean,
+        quad: frame.quad,
       }));
     }
   }
@@ -140,12 +186,14 @@ export function extractFrameHashes(
       t: index * interval,
       hash: dHashFromGray(lumaPlane(pixels)),
       mean: rgbMean(pixels),
+      quad: quadFromRgb(pixels),
     });
   }
   if (!frames.length) throw new Error(`抽帧为空：${file}`);
   const cache: HashCache = {
+    v: HASH_CACHE_VERSION,
     interval,
-    frames: frames.map((frame) => ({ t: frame.t, hash: hashToHex(frame.hash), mean: frame.mean })),
+    frames: frames.map((frame) => ({ t: frame.t, hash: hashToHex(frame.hash), mean: frame.mean, quad: frame.quad })),
   };
   fs.writeFileSync(cachePath, `${JSON.stringify(cache, null, 2)}\n`);
   return frames;

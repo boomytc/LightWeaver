@@ -9,7 +9,7 @@ import { runRender } from "./render.ts";
 import { addScene, removeScene, setLangs } from "./scenes.ts";
 import { extractJpeg } from "./describe-frames.ts";
 import { runDescribe } from "./describe.ts";
-import { dHashFromGray, type FrameHash } from "./match-visual.ts";
+import { dHashFromGray, uniformQuad, type FrameHash } from "./match-visual.ts";
 import { loadProject } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
 import { createProject } from "./project.ts";
@@ -23,7 +23,7 @@ function ramp(up: boolean): Uint8Array {
 }
 
 function frame(t: number, up: boolean, mean: [number, number, number]): FrameHash {
-  return { t, hash: dHashFromGray(ramp(up)), mean };
+  return { t, hash: dHashFromGray(ramp(up)), mean, quad: uniformQuad(mean) };
 }
 
 function hashes(): FrameHash[] {

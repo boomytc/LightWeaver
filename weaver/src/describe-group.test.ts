@@ -16,14 +16,14 @@ import {
   shotsFromScenes,
   summaryFromSequences,
 } from "./describe-group.ts";
-import { dHashFromGray, type FrameHash } from "./match-visual.ts";
+import { dHashFromGray, uniformQuad, type FrameHash } from "./match-visual.ts";
 
 function ramp(up: boolean): Uint8Array {
   return Uint8Array.from({ length: 72 }, (_, i) => (up ? i % 9 : 8 - (i % 9)) * 28);
 }
 
 function frame(t: number, pixels: Uint8Array, mean: [number, number, number]): FrameHash {
-  return { t, hash: dHashFromGray(pixels), mean };
+  return { t, hash: dHashFromGray(pixels), mean, quad: uniformQuad(mean) };
 }
 
 describe("shotsFromScenes", () => {
