@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { loadLibrary } from "./assets.ts";
-import { descriptionIsReady, type DescriptionDoc } from "./describe-group.ts";
-import { readDescription } from "./describe.ts";
+import { descriptionIsReady, readDescription, type DescriptionDoc } from "./describe-group.ts";
 import { recipeIdOf } from "./method.ts";
 import { err, isOstMode, methodClipAlignOf, methodNeedsOf, type Issue, type ProjectRecord, type SceneDef } from "./schema.ts";
 

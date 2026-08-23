@@ -378,7 +378,7 @@ export function finalizeCuts(
   return timed.map((cut, index) => fromTimed(cut, index + 1));
 }
 
-function writeScenes(project: ProjectRecord, cuts: MatchCut[], locale: string): void {
+function writeScenes(project: ProjectRecord, cuts: MatchCut[]): void {
   const locales = Object.keys(project.film.locales);
   const scenes: SceneDef[] = cuts.map((cut) => ({
     id: cut.sceneId,
@@ -387,7 +387,7 @@ function writeScenes(project: ProjectRecord, cuts: MatchCut[], locale: string): 
     in: cut.in,
     out: cut.out,
     ost: "original",
-    lines: Object.fromEntries(locales.map((key) => [key, key === locale ? cut.text : ""])),
+    lines: Object.fromEntries(locales.map((key) => [key, ""])),
   }));
   saveFilm(project, { ...project.film, scenes });
 }
@@ -512,7 +512,7 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
   if (!cuts.length) throw new Error("未能生成任何剪辑点，检查转写或匹配阈值");
 
   const locale = matchLocale(project);
-  writeScenes(project, cuts, locale);
+  writeScenes(project, cuts);
   const report = writeReport(project, {
     edited,
     sources: sourceRefs,

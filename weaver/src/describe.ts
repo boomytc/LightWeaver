@@ -8,6 +8,7 @@ import {
   isSameAsPrevObservation,
   mergeByObservation,
   pickFrameTimes,
+  readDescription,
   resolveDescribeWindow,
   sequencesInWindow,
   sequenceNeedsVision,
@@ -56,17 +57,6 @@ export type DescribeResult = {
 
 export function descriptionRel(videoId: string): string {
   return path.posix.join("assets/descriptions", `${videoId}.json`);
-}
-
-export function readDescription(abs: string): DescriptionDoc | null {
-  if (!fs.existsSync(abs)) return null;
-  try {
-    const raw = JSON.parse(fs.readFileSync(abs, "utf8")) as DescriptionDoc;
-    if (!raw || !Array.isArray(raw.sequences)) return null;
-    return raw;
-  } catch {
-    return null;
-  }
 }
 
 export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): DescribeResult {

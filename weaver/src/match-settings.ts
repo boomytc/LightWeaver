@@ -19,8 +19,6 @@ export const MATCH_SETTINGS = {
   continuityPenalty: 0.25,
   /** 视觉下一场先在上一场源点附近搜（秒）。 */
   continuitySlack: 12,
-  /** 续搜分不低于全局最优减去这个值时，跟原片走。 */
-  continuityMargin: 0.12,
   /** 换源必须比续搜高出这么多分。dHash 分不出换装，用门槛挡闪切。 */
   sourceSwitchMargin: 0.22,
   /** 已占用源窗的重叠惩罚（满分 1）。 */

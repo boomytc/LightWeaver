@@ -80,7 +80,7 @@ describe("runMatch", () => {
     const first = project.film.scenes[0];
     assert.equal(first?.source, "asset:video.ep01");
     assert.ok((first?.in ?? 99) < (first?.out ?? 0));
-    assert.match(first?.lines.zh ?? "", /这一下她没再退/);
+    assert.equal(first?.lines?.zh ?? "", "");
     assert.ok(fs.existsSync(path.join(project.root, result.report)));
     assert.ok(result.subtitle);
     assert.ok(fs.existsSync(path.join(project.root, result.subtitle!)));
