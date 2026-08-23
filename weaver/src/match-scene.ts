@@ -321,6 +321,39 @@ export function dropIslands(cuts: TimedCut[]): TimedCut[] {
   return keep;
 }
 
+/** 同源且源轴连续的句子并成镜。比 mergeAdjacentCuts 的 0.4s 缝更宽。 */
+export function coalesceSourceRuns(cuts: TimedCut[]): TimedCut[] {
+  const sourceGapMax = MATCH_SETTINGS.sourceCoalesceGap;
+  const editedGapMax = MATCH_SETTINGS.editedCoalesceGap;
+  const overlap = MATCH_SETTINGS.maxOverlap;
+  const ordered = [...cuts].sort((a, b) => a.editedStart - b.editedStart || a.editedEnd - b.editedEnd);
+  const merged: TimedCut[] = [];
+  for (const cut of ordered) {
+    const prev = merged.at(-1);
+    const sourceGap = prev ? cut.in - prev.out : Infinity;
+    const editedGap = prev ? cut.editedStart - prev.editedEnd : Infinity;
+    if (
+      prev &&
+      prev.sourceRef === cut.sourceRef &&
+      sourceGap >= -overlap &&
+      sourceGap <= sourceGapMax &&
+      editedGap <= editedGapMax
+    ) {
+      prev.out = Math.max(prev.out, cut.out);
+      prev.editedEnd = Math.max(prev.editedEnd, cut.editedEnd);
+      prev.originalOut = Math.max(prev.originalOut, cut.originalOut);
+      if (cut.text.trim()) {
+        prev.text = prev.text.trim() ? `${prev.text.trim()}；${cut.text.trim()}` : cut.text.trim();
+      }
+      for (const message of cut.warnings) warn(prev, message);
+      warn(prev, "source_coalesced");
+      continue;
+    }
+    merged.push({ ...cut, warnings: [...cut.warnings] });
+  }
+  return merged;
+}
+
 /** 同源源轴回跳：丢掉较短那场，参考轴并进邻场，源窗不合并。 */
 export function dropRewinds(cuts: TimedCut[]): TimedCut[] {
   const overlap = MATCH_SETTINGS.maxOverlap;

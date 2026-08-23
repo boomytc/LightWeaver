@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   applyPadding,
   dropCrumbs,
+  coalesceSourceRuns,
   dropIslands,
   dropRewinds,
   enforceDuration,
@@ -189,6 +190,41 @@ describe("enforceDuration / dropCrumbs / mergeAdjacentCuts", () => {
     assert.ok(kept.every((item) => item.sourceRef === "asset:video.ep01"));
     assert.equal(kept[0]!.editedEnd, 142);
     assert.ok(kept[0]!.warnings.includes("island_dropped"));
+  });
+});
+
+describe("coalesceSourceRuns", () => {
+  it("merges a run of same-source sentence cuts with 0.3–1.2s gaps", () => {
+    const cuts = [0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132].map((start, index) =>
+      cut({
+        in: start,
+        out: start + 11.5,
+        editedStart: start,
+        editedEnd: start + 11.7,
+        originalIn: start,
+        originalOut: start + 11.5,
+        text: `句${index + 1}`,
+      }),
+    );
+    const merged = coalesceSourceRuns(cuts);
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0]!.in, 0);
+    assert.ok(merged[0]!.out > 140);
+    assert.ok(merged[0]!.warnings.includes("source_coalesced"));
+    assert.match(merged[0]!.text, /句1；句2/);
+  });
+
+  it("does not merge a 5s source jump or a different episode", () => {
+    const jumped = coalesceSourceRuns([
+      cut({ in: 0, out: 10, editedStart: 0, editedEnd: 10 }),
+      cut({ in: 15, out: 25, editedStart: 10, editedEnd: 20 }),
+    ]);
+    assert.equal(jumped.length, 2);
+    const foreign = coalesceSourceRuns([
+      cut({ sourceRef: "asset:video.ep01", in: 0, out: 10, editedStart: 0, editedEnd: 10 }),
+      cut({ sourceRef: "asset:video.ep02", in: 10.2, out: 20, editedStart: 10, editedEnd: 20 }),
+    ]);
+    assert.equal(foreign.length, 2);
   });
 });
 

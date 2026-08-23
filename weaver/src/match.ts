@@ -13,6 +13,7 @@ import {
   dropCrumbs,
   dropIslands,
   dropRewinds,
+  coalesceSourceRuns,
   enforceDuration,
   mergeAdjacentCuts,
   splitAndSnapCuts,
@@ -372,6 +373,7 @@ export function finalizeCuts(
   timed = dropCrumbs(timed);
   timed = dropIslands(timed);
   timed = dropRewinds(timed);
+  timed = coalesceSourceRuns(timed);
   timed = mergeAdjacentCuts(timed);
   return timed.map((cut, index) => fromTimed(cut, index + 1));
 }

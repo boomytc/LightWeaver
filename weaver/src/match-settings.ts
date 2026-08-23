@@ -34,6 +34,10 @@ export const MATCH_SETTINGS = {
   maxOverlap: 0.05,
   maxJump: 0.6,
   mergeGap: 0.08,
+  /** 同源源轴缝小于此时并成一场（句子聚成镜）。 */
+  sourceCoalesceGap: 2.0,
+  /** 参考轴缝小于此时才允许同源聚合。 */
+  editedCoalesceGap: 4.0,
   paddingBefore: 0.5,
   paddingAfter: 0.5,
   textWeight: 0.65,

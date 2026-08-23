@@ -102,7 +102,7 @@ npx weaver render --project my-film
 - 方法卡 `see-then-narrate`：无对白先 `weaver describe`（长片用 `--from --to`，时间窗裁切描述树，不会把窗外的带子并进来）。describe 先把碎切和同画面场合成可写旁白的 `sequences`。按 `sequences` **一场一 clip**，agent 不要再合并；`clipAlign: sequences` 时 `validate` 按场计数，多种子 `cut-01` 或并场都会失败。观察不当旁白原文。没有描述树 `validate` 失败。解说场成片时长跟 wav，不是 `out - in`
 - 方法卡 `copy-then-match`：人先过解说，再对画面。原片占比是铺场目标
 - 方法卡 `highlight-mix`：转写抽点，clip `ost: original`，不要 tts。没有转写或出现旁白场 `validate` 失败
-- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察，`summary` 由场观察拼接）。视觉对齐沿上一场源点续搜，不复用已占用的源窗；源段短于 `minPiece` 的碎段丢掉；夹在同集之间短于 `islandMax` 的异源岛丢掉。同源源轴回跳丢掉较短那场。换源必须比续搜高出 `sourceSwitchMargin`：9×8 dHash 分不出同布景换装，match 用粘集和单向时间轴挡闪切，不在 match 里跑 VLM。已剪片对白与原片对不上、文本覆盖不足、或转写失败时 `match` 改走画面。合成读取旋转元数据再转正
+- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察，`summary` 由场观察拼接）。视觉对齐沿上一场源点续搜，不复用已占用的源窗；源段短于 `minPiece` 的碎段丢掉；夹在同集之间短于 `islandMax` 的异源岛丢掉。同源源轴回跳丢掉较短那场。同源连续句按 `sourceCoalesceGap` 并成镜，不要一句一切。换源必须比续搜高出 `sourceSwitchMargin`：9×8 dHash 仍分不出换装，画面分加上 2×2 象限；match 用粘集挡闪切，不在 match 里跑 VLM。描述场 3–18 秒，skip 不把整段并成一场。已剪片对白与原片对不上、文本覆盖不足、或转写失败时 `match` 改走画面。合成读取旋转元数据再转正
 
 - `project show` 的 `paths.matchReport` / `paths.subtitleFiles` / `paths.descriptionFiles` / `paths.sourceFiles`（含未上场的 video 资产）
 
