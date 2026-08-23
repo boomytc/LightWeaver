@@ -166,6 +166,7 @@ describe("buildAgentBrief", () => {
     assert.match(text, /没有描述树禁止写解说/);
     assert.match(text, /--from --to/);
     assert.match(text, /validate 按场计数/);
+    assert.match(text, /same-as-prev 仍要一场一 clip/);
     assert.match(text, /成片时长跟旁白 wav/);
     assert.doesNotMatch(text, /weaver recipe apply/);
     assert.doesNotMatch(text, /weaver match/);

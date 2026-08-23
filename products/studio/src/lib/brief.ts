@@ -184,7 +184,7 @@ export function buildAgentBrief(input: BriefInput): string {
     lines.push(
       `然后按 skill lightweaver-film：校验 → 登记源视频到 assets/source/ → weaver describe ${project} --ref asset:video.origin → 按 sequences 一场一 clip → 写旁白（观察只当素材）→ tts → validate → render。`,
     );
-    lines.push("没有描述树禁止写解说，validate 会失败。长片用 --from --to。describe 先合并碎切和同画面；按 sequences 一场一 clip，不要再并。validate 按场计数。解说场成片时长跟旁白 wav，不是画面窗。不要用观察原文当旁白。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
+    lines.push("没有描述树禁止写解说，validate 会失败。长片用 --from --to。describe 先合并碎切和同画面（3–18 秒一场）；same-as-prev 仍要一场一 clip。按 sequences 铺场，不要再并。validate 按场计数。解说场成片时长跟旁白 wav，不是画面窗。不要用观察原文当旁白。render 按时间轴 ffmpeg 合成，不要走 Remotion。");
     lines.push("tts 按 VoxCPM2 Hi-Fi clone：ref_audio + 克隆源逐字稿，不要加语言标签。");
   } else if (isHighlightMix(input.recipeId)) {
     const project = input.projectId ? `--project ${input.projectId}` : "--project <id>";
