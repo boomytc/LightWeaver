@@ -96,12 +96,32 @@ export function foldShortShots(shots: ShotSpan[], minSequence = DESCRIBE_SETTING
   return folded.map((shot) => ({ in: round3(shot.in), out: round3(shot.out) }));
 }
 
+export function capSequences(groups: ShotSpan[][], maxSequence = DESCRIBE_SETTINGS.maxSequence): ShotSpan[][] {
+  const capped: ShotSpan[][] = [];
+  for (const group of groups) {
+    let current: ShotSpan[] = [];
+    for (const shot of group) {
+      const start = current[0]?.in ?? shot.in;
+      if (current.length && shot.out - start > maxSequence) {
+        capped.push(current);
+        current = [shot];
+      } else {
+        current.push(shot);
+      }
+    }
+    if (current.length) capped.push(current);
+  }
+  return capped;
+}
+
 export function foldSkippedSequences(sequences: SequenceObservation[]): SequenceObservation[] {
   const folded: SequenceObservation[] = [];
+  const skipMax = DESCRIBE_SETTINGS.maxSequence / 2;
   for (const sequence of sequences) {
     const skipped = sequence.shots.length > 0 && sequence.shots.every((shot) => shot.skip === "same-as-prev");
     const prev = folded.at(-1);
-    if (skipped && prev) {
+    const span = sequence.out - sequence.in;
+    if (skipped && prev && span < skipMax && sequence.out - prev.in <= DESCRIBE_SETTINGS.maxSequence) {
       prev.out = sequence.out;
       prev.shots.push(...sequence.shots);
       prev.lines.push(...sequence.lines);
@@ -182,7 +202,7 @@ export function markSkips(
       return shot;
     });
     const next = { ...sequence, shots };
-    if (prev && similarCoverage(hashes, midRange(prev), midRange(next), mergeMin)) {
+    if (prev && similarSequences(hashes, prev, next, mergeMin)) {
       return skipAll(next, "same-as-prev");
     }
     return next;
@@ -219,7 +239,7 @@ export function buildSequences(
   options: { visual?: boolean; window?: DescriptionWindow } = {},
 ): SequenceObservation[] {
   const shots = foldShortShots(shotsFromScenes(index, DESCRIBE_SETTINGS.minShot, options.window));
-  const grouped = sequencesFromShots(mergeSequences(shots, hashes), hashes);
+  const grouped = sequencesFromShots(capSequences(mergeSequences(shots, hashes)), hashes);
   return foldSkippedSequences(markSkips(attachLines(grouped, lines), hashes, options));
 }
 
@@ -248,7 +268,7 @@ export function mergeByObservation(
             sequence.observation?.trim() &&
             sequenceRatio(prev.observation.trim(), sequence.observation.trim()) >= minRatio,
         ));
-    if (prev && same) {
+    if (prev && same && sequence.out - prev.in <= DESCRIBE_SETTINGS.maxSequence) {
       prev.out = sequence.out;
       prev.shots.push(...sequence.shots);
       prev.lines.push(...sequence.lines);
@@ -319,6 +339,31 @@ function similarCoverage(hashes: FrameHash[], a: number, b: number, mergeMin: nu
   const right = nearestHash(hashes, b);
   if (!left || !right) return false;
   return frameScore(left, right) >= mergeMin;
+}
+
+function sampleTimes(span: Pick<SequenceObservation, "in" | "out">): number[] {
+  const length = span.out - span.in;
+  if (length < DESCRIBE_SETTINGS.shortSequence) return [midRange(span)];
+  return [
+    span.in + 0.1,
+    midRange(span),
+    Math.max(span.in, span.out - 0.1),
+  ];
+}
+
+function similarSequences(
+  hashes: FrameHash[],
+  prev: SequenceObservation,
+  next: SequenceObservation,
+  mergeMin: number,
+): boolean {
+  const left = sampleTimes(prev);
+  const right = sampleTimes(next);
+  const n = Math.min(left.length, right.length);
+  for (let i = 0; i < n; i++) {
+    if (!similarCoverage(hashes, left[i]!, right[i]!, mergeMin)) return false;
+  }
+  return n > 0;
 }
 
 function overlap(inPoint: number, outPoint: number, start: number, end: number): number {

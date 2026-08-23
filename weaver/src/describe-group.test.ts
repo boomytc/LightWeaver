@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   attachLines,
   buildSequences,
+  capSequences,
   descriptionIsReady,
   foldShortShots,
   foldSkippedSequences,
@@ -97,6 +98,22 @@ describe("foldShortShots / foldSkippedSequences", () => {
     assert.equal(folded[0]?.shots.length, 2);
   });
 
+  it("does not fold a 20s same-as-prev sequence into the previous field", () => {
+    const folded = foldSkippedSequences([
+      { id: "seq-01", in: 0, out: 4, shots: [{ in: 0, out: 4, t: 2 }], lines: [] },
+      {
+        id: "seq-02",
+        in: 4,
+        out: 24,
+        shots: [{ in: 4, out: 24, t: 14, skip: "same-as-prev" }],
+        lines: [],
+      },
+    ]);
+    assert.equal(folded.length, 2);
+    assert.equal(folded[1]?.id, "seq-02");
+    assert.equal(folded[1]?.out, 24);
+  });
+
   it("merges repeated observations and 同前 into the previous field", () => {
     const merged = mergeByObservation([
       {
@@ -131,6 +148,38 @@ describe("foldShortShots / foldSkippedSequences", () => {
     assert.equal(summaryFromSequences(merged), "红衣人坐着。");
   });
 
+  it("does not merge observations past maxSequence", () => {
+    const merged = mergeByObservation([
+      {
+        id: "seq-01",
+        in: 0,
+        out: 8,
+        observation: "红衣人坐着。",
+        shots: [{ in: 0, out: 8, t: 4 }],
+        lines: [],
+      },
+      {
+        id: "seq-02",
+        in: 8,
+        out: 16,
+        observation: "红衣人坐着。",
+        shots: [{ in: 8, out: 16, t: 12 }],
+        lines: [],
+      },
+      {
+        id: "seq-03",
+        in: 16,
+        out: 24,
+        observation: "红衣人坐着。",
+        shots: [{ in: 16, out: 24, t: 20 }],
+        lines: [],
+      },
+    ]);
+    assert.equal(merged.length, 2);
+    assert.equal(merged[0]?.out, 16);
+    assert.equal(merged[1]?.in, 16);
+  });
+
   it("builds at most four sequences from twelve similar 1.5s shots", () => {
     const hashes: FrameHash[] = Array.from({ length: 18 }, (_, t) => frame(t, ramp(true), [0, 0, 0]));
     const boundaries = Array.from({ length: 11 }, (_, i) => ({ time: (i + 1) * 1.5, score: 0.9 }));
@@ -149,6 +198,31 @@ describe("foldShortShots / foldSkippedSequences", () => {
     assert.ok(sequences.length >= 1);
     assert.ok(sequences.every((sequence) => sequence.out <= 90 + 1e-6));
     assert.equal(sequences[0]?.in, 0);
+  });
+
+  it("caps a 90s similar-hash run into fields no longer than maxSequence", () => {
+    const hashes: FrameHash[] = Array.from({ length: 91 }, (_, t) => frame(t, ramp(true), [0, 0, 0]));
+    const boundaries = Array.from({ length: 8 }, (_, i) => ({ time: (i + 1) * 10, score: 0.9 }));
+    const sequences = buildSequences({ duration: 90, boundaries }, hashes);
+    assert.ok(sequences.length >= 4, `expected ≥4 sequences, got ${sequences.length}`);
+    assert.ok(
+      sequences.every((sequence) => sequence.out - sequence.in <= 18 + 1e-6),
+      sequences.map((sequence) => sequence.out - sequence.in).join(","),
+    );
+  });
+
+  it("splits a merged shot group on maxSequence at shot boundaries", () => {
+    const capped = capSequences(
+      [[
+        { in: 0, out: 10 },
+        { in: 10, out: 20 },
+        { in: 20, out: 30 },
+        { in: 30, out: 40 },
+      ]],
+      18,
+    );
+    assert.equal(capped.length, 4);
+    assert.deepEqual(capped[0], [{ in: 0, out: 10 }]);
   });
 });
 

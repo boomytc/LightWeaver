@@ -63,9 +63,9 @@ export function vlmRuntime(
 export function describePrompt(frames: { t: number }[], prev?: string): string {
   const times = frames.map((frame) => frame.t.toFixed(2)).join("、");
   if (!prev?.trim()) {
-    return `这是第一场。这些帧时间（秒）：${times}。只写能看见的画面，一句中文。必须写看见的内容，禁止只写「同前」。不要解说、不要推测、不要编号。`;
+    return `这是第一场。这些帧时间（秒）：${times}。只写能看见的画面，一句中文。几帧场景不同时写清变化，不要只写人物服饰。必须写看见的内容，禁止只写「同前」。不要解说、不要推测、不要编号。`;
   }
-  return `上一场观察（只作对照，不要写进本场）：${prev.trim()}\n这些帧时间（秒）：${times}。只写能看见的画面，一句中文。画面相对上一场没变时只写「同前」。不要解说、不要推测、不要编号、不要把「上一场」写进观察。`;
+  return `上一场观察（只作对照，不要写进本场）：${prev.trim()}\n这些帧时间（秒）：${times}。只写能看见的画面，一句中文。几帧场景不同时写清变化，不要只写人物服饰。画面相对上一场没变时只写「同前」。不要解说、不要推测、不要编号、不要把「上一场」写进观察。`;
 }
 
 export function runVlm(request: VlmRequest): VlmResult {

@@ -9,6 +9,7 @@ export const DESCRIBE_SETTINGS = {
   maxFramesPerSequence: 3,
   minShot: MATCH_SETTINGS.minPiece,
   minSequence: 3,
+  maxSequence: 18,
   shortSequence: 2,
 };
 
