@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { createProject } from "./project.ts";
 import { addScene, moveScene, patchScene, removeScene, setCard, setKit, setLangs, setVoicePack } from "./scenes.ts";
 import { getTask } from "./tasks/registry.ts";
+import { tempDir } from "./test-workspace.ts";
 import { hasErrors, validateProject } from "./validate.ts";
 
 function tempRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+  const root = tempDir();
   fs.mkdirSync(path.join(root, "library"), { recursive: true });
   fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
   return root;

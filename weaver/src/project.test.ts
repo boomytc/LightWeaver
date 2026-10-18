@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { createProject, listProjects, loadProject, saveFilm } from "./project.ts";
 import { resolveAssetFile } from "./assets.ts";
 import { firstPartyRoot } from "./paths.ts";
-import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
+import { seedLabFilm, tempDir, tempWorkspace } from "./test-workspace.ts";
 
 describe("createProject", () => {
   it("writes a user project under data/projects", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+    const root = tempDir();
     fs.mkdirSync(path.join(root, "library"), { recursive: true });
     fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
     const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);
@@ -24,7 +23,7 @@ describe("createProject", () => {
   });
 
   it("writes a footage-narration project under data/projects/footage-narration", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+    const root = tempDir();
     fs.mkdirSync(path.join(root, "library"), { recursive: true });
     fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
     const project = createProject("site-cut", { title: "工地", task: "footage-narration" }, root);
@@ -34,7 +33,7 @@ describe("createProject", () => {
   });
 
   it("moves the instance when a recipe is set", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+    const root = tempDir();
     fs.mkdirSync(path.join(root, "library"), { recursive: true });
     fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
     const project = createProject("site-cut", { task: "footage-narration" }, root);

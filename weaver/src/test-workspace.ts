@@ -5,8 +5,30 @@ import { createProject, loadProject, saveAssets, saveFilm } from "./project.ts";
 import type { Asset } from "./schema.ts";
 import { addScene, patchScene, removeScene } from "./scenes.ts";
 
+const tempRoots: string[] = [];
+let cleanupHooked = false;
+
+/** 测试用临时目录；同一进程内的目录在退出时统一删掉。 */
+export function tempDir(prefix = "weaver-"): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tempRoots.push(root);
+  if (!cleanupHooked) {
+    cleanupHooked = true;
+    process.once("exit", () => {
+      for (const dir of tempRoots) {
+        try {
+          fs.rmSync(dir, { recursive: true, force: true });
+        } catch {
+          /* 退出清理尽力而为，失败不影响测试结果 */
+        }
+      }
+    });
+  }
+  return root;
+}
+
 export function tempWorkspace(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+  const root = tempDir();
   fs.mkdirSync(path.join(root, "library"), { recursive: true });
   fs.writeFileSync(
     path.join(root, "library/assets.json"),

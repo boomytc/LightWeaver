@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { filmTask } from "./schema.ts";
@@ -8,7 +7,7 @@ import { createProject } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
 import { applyRecipe, formatRecipe, listRecipes, loadRecipe, recipeIdOf } from "./recipes.ts";
 import { recipeRoot, weaverRoot } from "./paths.ts";
-import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
+import { seedLabFilm, tempDir, tempWorkspace } from "./test-workspace.ts";
 import { patchScene, removeScene } from "./scenes.ts";
 
 function write(file: string, text: string): void {
@@ -17,7 +16,7 @@ function write(file: string, text: string): void {
 }
 
 function tempProjectRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-"));
+  const root = tempDir();
   fs.mkdirSync(path.join(root, "library"), { recursive: true });
   fs.writeFileSync(path.join(root, "library/assets.json"), `${JSON.stringify({ assets: [] })}\n`);
   return root;

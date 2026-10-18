@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -13,7 +12,7 @@ import { dHashFromGray, uniformQuad, type FrameHash } from "./match-visual.ts";
 import { loadProject } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
 import { createProject } from "./project.ts";
-import { seedFootageFilm, seedLabFilm, tempWorkspace } from "./test-workspace.ts";
+import { seedFootageFilm, seedLabFilm, tempDir, tempWorkspace } from "./test-workspace.ts";
 import { validateProject } from "./validate.ts";
 
 const weaverPkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -311,7 +310,7 @@ describe("runDescribe", () => {
 
 describe("extractJpeg", () => {
   it("writes a readable jpeg from a color clip", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-jpeg-"));
+    const dir = tempDir("weaver-jpeg-");
     const video = path.join(dir, "red.mp4");
     const dest = path.join(dir, "frame.jpg");
     execFileSync(

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { addAsset } from "./assets.ts";
@@ -25,7 +24,7 @@ import {
 } from "./match-visual.ts";
 import { createProject } from "./project.ts";
 import { setLangs } from "./scenes.ts";
-import { tempWorkspace } from "./test-workspace.ts";
+import { tempDir, tempWorkspace } from "./test-workspace.ts";
 
 function gray(value: number): Uint8Array {
   return Uint8Array.from({ length: 72 }, () => value);
@@ -73,7 +72,7 @@ function rgbAvg(pixels: Uint8Array): [number, number, number] {
 
 describe("hash cache version", () => {
   it("ignores a cache file without v and rewrites it", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-hashv-"));
+    const dir = tempDir("weaver-hashv-");
     const clip = path.join(dir, "red.mp4");
     colorClip(clip, "red", 1);
     const cacheDir = path.join(dir, "hash");
@@ -234,7 +233,7 @@ describe("cutsFromVisualScenes continuity", () => {
 
 describe("visual window", () => {
   it("finds a red edited clip inside a black-red-black source", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-vis-"));
+    const dir = tempDir("weaver-vis-");
     const blackA = path.join(dir, "b1.mp4");
     const red = path.join(dir, "r.mp4");
     const blackB = path.join(dir, "b2.mp4");
@@ -263,7 +262,7 @@ describe("runMatch visual mute path", () => {
     const source = path.join(project.root, "assets/source/ep01.mp4");
     const edited = path.join(project.root, "assets/source/edited.mp4");
     fs.mkdirSync(path.dirname(source), { recursive: true });
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-vis2-"));
+    const dir = tempDir("weaver-vis2-");
     const blackA = path.join(dir, "b1.mp4");
     const red = path.join(dir, "r.mp4");
     const blackB = path.join(dir, "b2.mp4");
@@ -293,7 +292,7 @@ describe("runMatch visual mute path", () => {
     const source = path.join(project.root, "assets/source/ep01.mp4");
     const edited = path.join(project.root, "assets/source/edited.mp4");
     fs.mkdirSync(path.dirname(source), { recursive: true });
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-vis3-"));
+    const dir = tempDir("weaver-vis3-");
     const blackA = path.join(dir, "b1.mp4");
     const red = path.join(dir, "r.mp4");
     const blackB = path.join(dir, "b2.mp4");
@@ -337,7 +336,7 @@ describe("runMatch visual mute path", () => {
     const source = path.join(project.root, "assets/source/ep01.mp4");
     const edited = path.join(project.root, "assets/source/edited.mp4");
     fs.mkdirSync(path.dirname(source), { recursive: true });
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-vis4-"));
+    const dir = tempDir("weaver-vis4-");
     const blackA = path.join(dir, "b1.mp4");
     const red = path.join(dir, "r.mp4");
     const blackB = path.join(dir, "b2.mp4");
