@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { listProjects, loadProject } from "./project.ts";
 import { setLangs, setVoice } from "./scenes.ts";
-import { hasErrors, isCompletedFilm, isRenderable, validateProject } from "./validate.ts";
+import { hasErrors, isRenderable, validateProject } from "./validate.ts";
 import { tryGetTask } from "./tasks/registry.ts";
 import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 import fs from "node:fs";
@@ -16,7 +16,7 @@ describe("first-party films", () => {
     assert.deepEqual(ids, ["intent-cascade"]);
   });
 
-  it("treats a lab film with stills as completed and renderable", () => {
+  it("treats a lab film with stills as renderable", () => {
     const root = tempWorkspace();
     const project = seedLabFilm(
       root,
@@ -27,7 +27,6 @@ describe("first-party films", () => {
       ],
       { writePng: true },
     );
-    assert.equal(isCompletedFilm(project, root), true);
     assert.equal(isRenderable(project, root), true);
     assert.equal(hasErrors(validateProject(project, root)), false);
   });

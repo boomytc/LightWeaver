@@ -42,25 +42,6 @@ export function IconGitHub({ size = 16 }: { size?: number }) {
   );
 }
 
-export function IconFilm({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M8 5v14M16 5v14M3 10h18M3 14h18" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
-
-export function IconImage({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="9" cy="10" r="1.6" fill="currentColor" />
-      <path d="m7 17 4-4 3 3 3-4 3 5" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
-
 export function IconUpload({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -71,14 +52,6 @@ export function IconUpload({ size = 28 }: { size?: number }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-export function IconWave({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 12h2v0M8 8v8M12 5v14M16 9v6M20 11v2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

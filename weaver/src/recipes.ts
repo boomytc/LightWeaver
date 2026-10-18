@@ -45,11 +45,6 @@ export function recipePackName(task: string): string | undefined {
   return tryGetTask(task)?.recipePack;
 }
 
-export function methodAssetId(recipeId: string): string {
-  const id = recipeIdOf(recipeId);
-  return id ? `method.${id}` : "";
-}
-
 function catalogFilmMethod(ref: string, root: string): Asset | undefined {
   const wanted = recipeIdOf(ref);
   if (!wanted) return undefined;
@@ -110,10 +105,6 @@ export function loadRecipe(id: string, root = weaverRoot()): Recipe {
   const catalog = catalogFilmMethod(wanted, root);
   if (!catalog) throw new Error(`找不到方法：${wanted}`);
   return recipeFromAsset(catalog, root);
-}
-
-export function showRecipe(id: string, root = weaverRoot()): Recipe {
-  return loadRecipe(id, root);
 }
 
 export function summarizeRecipe(recipe: Recipe): RecipeSummary {

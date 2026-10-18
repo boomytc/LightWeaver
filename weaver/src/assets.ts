@@ -5,14 +5,12 @@ import { isAssetKind, parseAssetRef } from "./schema.ts";
 import { libraryRoot, weaverRoot } from "./paths.ts";
 import { atomicWriteJson, readJson } from "./io.ts";
 import { saveAssets } from "./project.ts";
-import { voiceHifiRef, voiceSetId } from "./voices.ts";
+import { voiceHifiRef } from "./voices.ts";
 
 export {
   voiceCloneSource,
   voiceHifiRef,
   voiceSetId,
-  type VoiceClip,
-  type VoiceClone,
   type VoiceOrigin,
 } from "./voices.ts";
 
@@ -68,12 +66,6 @@ export function resolveVoicePrompt(
   const absPath = path.join(scopeRoot, relPath);
   if (!fs.existsSync(absPath)) return null;
   return { asset, relPath, scopeRoot, absPath };
-}
-
-export function voiceStyle(asset: Asset, locale?: string): string {
-  if (locale && asset.styles?.[locale]) return asset.styles[locale] ?? "";
-  if (locale && asset.locale === locale && asset.style) return asset.style;
-  return asset.styles?.zh ?? asset.styles?.en ?? asset.style ?? "";
 }
 
 export function remotionPublicPath(projectId: string, relPath: string): string {
@@ -155,45 +147,6 @@ export function removeLibraryAsset(id: string, root = weaverRoot()): Asset {
     fs.rmSync(path.join(libraryRoot(root), rel), { force: true });
   }
   return current;
-}
-
-export function voiceCloneText(asset: Asset, locale?: string): string {
-  if (locale && asset.texts?.[locale]) return asset.texts[locale] ?? "";
-  if (locale && asset.locale === locale && asset.text) return asset.text;
-  return asset.text ?? "";
-}
-
-export type VoiceSet = {
-  id: string;
-  label: string;
-  ref: string;
-  asset: Asset;
-  locales: string[];
-};
-
-export function listVoiceSets(assets: Asset[]): VoiceSet[] {
-  const groups = new Map<string, Asset[]>();
-  for (const asset of assets.filter((item) => item.kind === "voice")) {
-    const id = voiceSetId(asset);
-    const bucket = groups.get(id) ?? [];
-    bucket.push(asset);
-    groups.set(id, bucket);
-  }
-  return [...groups.entries()].map(([id, members]) => {
-    const primary = members.find((item) => item.files && (item.files.zh || item.files.en)) ?? members[0]!;
-    const locales = new Set<string>();
-    for (const member of members) {
-      if (member.locale) locales.add(member.locale);
-      for (const locale of Object.keys(member.files ?? {})) locales.add(locale);
-    }
-    return {
-      id,
-      label: primary.label ?? id,
-      ref: `library:${primary.id}`,
-      asset: primary,
-      locales: [...locales],
-    };
-  });
 }
 
 export function patchLibraryAsset(

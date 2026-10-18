@@ -43,7 +43,6 @@ export const studyExplainer: TaskModule = {
   createFilm,
   validate: validateStudyExplainer,
   isReadyToRender: everyStillPngExists,
-  isComplete: (project, root) => project.film.capture?.kind === "lightui-lab" && everyStillPngExists(project, root),
 };
 
 function createFilm(input: CreateFilmInput, root: string): FilmDoc {

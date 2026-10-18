@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import { filmTask } from "./schema.ts";
 import { createProject } from "./project.ts";
 import { projectPaths } from "./project-paths.ts";
-import { applyRecipe, formatRecipe, listRecipes, loadRecipe, methodAssetId, recipeIdOf, showRecipe } from "./recipes.ts";
+import { applyRecipe, formatRecipe, listRecipes, loadRecipe, recipeIdOf } from "./recipes.ts";
 import { recipeRoot, weaverRoot } from "./paths.ts";
 import { seedLabFilm, tempWorkspace } from "./test-workspace.ts";
 import { patchScene, removeScene } from "./scenes.ts";
@@ -28,7 +28,6 @@ describe("recipeIdOf", () => {
     assert.equal(recipeIdOf("taxonomy-parade"), "taxonomy-parade");
     assert.equal(recipeIdOf("library:method.taxonomy-parade"), "taxonomy-parade");
     assert.equal(recipeIdOf("method.taxonomy-parade"), "taxonomy-parade");
-    assert.equal(methodAssetId("taxonomy-parade"), "method.taxonomy-parade");
   });
 });
 
@@ -37,9 +36,8 @@ describe("listRecipes / loadRecipe", () => {
     const ids = listRecipes(weaverRoot(), "study-explainer").map((recipe) => recipe.id);
     assert.deepEqual(ids, ["problem-then-rule", "taxonomy-parade"]);
     assert.deepEqual(listRecipes(weaverRoot(), "not-a-task"), []);
-    const shown = showRecipe("taxonomy-parade");
-    const loaded = loadRecipe("taxonomy-parade");
-    assert.equal(shown.id, loaded.id);
+    const shown = loadRecipe("taxonomy-parade");
+    assert.equal(shown.id, "taxonomy-parade");
     assert.equal(shown.task, "study-explainer");
     assert.equal(shown.expand, "list");
     assert.ok(shown.path?.endsWith(path.join("library", "methods", "study-explainer", "taxonomy-parade.md")));
@@ -201,7 +199,7 @@ default_scenes:
     assert.equal(fs.existsSync(path.join(root, "library/methods/study-explainer/catalog-only.md")), false);
     const listed = listRecipes(root).map((recipe) => recipe.id);
     assert.deepEqual(listed, ["catalog-only"]);
-    const shown = showRecipe("catalog-only", root);
+    const shown = loadRecipe("catalog-only", root);
     assert.equal(shown.path, undefined);
     assert.equal(shown.body, undefined);
     const project = createProject("demo-film", { title: "演示", task: "study-explainer" }, root);

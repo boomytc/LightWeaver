@@ -99,10 +99,6 @@ export function isRenderable(project: ProjectRecord, root = weaverRoot()): boole
   return task?.isReadyToRender?.(project, root) ?? true;
 }
 
-export function isCompletedFilm(project: ProjectRecord, root = weaverRoot()): boolean {
-  return tryGetTask(filmTask(project.film))?.isComplete?.(project, root) ?? false;
-}
-
 export function validateWorkspace(root = weaverRoot(), id?: string): { project: string; issues: Issue[] }[] {
   const projects = id ? [loadProject(id, root)] : listProjects(root);
   return projects.map((project) => ({ project: project.id, issues: validateProject(project, root) }));

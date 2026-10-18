@@ -6,5 +6,3 @@ export const ASR_SETTINGS = {
   minCharsPerSecond: 0.4,
   overlapRatio: 0.75,
 };
-
-export type AsrSettings = typeof ASR_SETTINGS;

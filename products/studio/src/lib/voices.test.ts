@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filmVoiceRef, listVoicePacks, voiceCloneSource, voiceFile, voiceSetId } from "./voices.ts";
+import { filmVoiceRef, listVoicePacks, voiceCloneSource, voiceSetId } from "./voices.ts";
 import type { Asset } from "../types.ts";
 
 describe("listVoicePacks", () => {
@@ -14,8 +14,6 @@ describe("listVoicePacks", () => {
     const listed = listVoicePacks([pack, { id: "element.mark", kind: "element", file: "elements/mark.svg" }]);
     assert.equal(listed.length, 1);
     assert.equal(listed[0]?.id, "voice.prompt");
-    assert.equal(voiceFile(pack, "zh"), "voices/prompt-zh.wav");
-    assert.equal(voiceFile(pack, "en"), "voices/prompt-en.wav");
   });
 
   it("does not list zh and en leftovers as two picks", () => {

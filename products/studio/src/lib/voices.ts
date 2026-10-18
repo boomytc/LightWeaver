@@ -1,14 +1,7 @@
-import {
-  voiceCloneSource,
-  voiceHifiRef,
-  voiceSetId,
-  type VoiceClip,
-  type VoiceClone,
-  type VoiceOrigin,
-} from "@lightweaver/weaver/voices";
+import { voiceCloneSource, voiceSetId, type VoiceOrigin } from "@lightweaver/weaver/voices";
 import type { Asset } from "../types";
 
-export { voiceCloneSource, voiceHifiRef, voiceSetId, type VoiceClip, type VoiceClone, type VoiceOrigin };
+export { voiceCloneSource, voiceSetId, type VoiceOrigin };
 
 export function listVoicePacks(assets: Asset[]): Asset[] {
   const groups = new Map<string, Asset>();
@@ -18,10 +11,6 @@ export function listVoicePacks(assets: Asset[]): Asset[] {
     if (!current || asset.files) groups.set(id, asset);
   }
   return [...groups.values()];
-}
-
-export function voiceFile(asset: Asset, locale: string): string | undefined {
-  return asset.files?.[locale] ?? (asset.locale === locale ? asset.file : undefined) ?? asset.file;
 }
 
 export function filmVoiceRef(voices: Record<string, string> | undefined): string {

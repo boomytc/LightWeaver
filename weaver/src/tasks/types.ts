@@ -1,6 +1,4 @@
-import type { FilmDoc, Issue, ProjectRecord, ProjectSource, TaskId } from "../schema.ts";
-
-export type { TaskId };
+import type { FilmDoc, Issue, ProjectRecord, ProjectSource } from "../schema.ts";
 
 export type CreateFilmInput = {
   id: string;
@@ -49,5 +47,4 @@ export type TaskModule = {
   createFilm: (input: CreateFilmInput, root: string) => FilmDoc;
   validate: (project: ProjectRecord, root: string) => Issue[];
   isReadyToRender?: (project: ProjectRecord, root: string) => boolean;
-  isComplete?: (project: ProjectRecord, root: string) => boolean;
 };

@@ -15,7 +15,6 @@ import {
   listTasks,
   loadLibrary,
   loadProject,
-  asrRuntime,
   modelbestStatus,
   parseMethodExpand,
   parseMethodScenes,
@@ -76,11 +75,6 @@ app.put("/api/settings/modelbest", (req, res) => {
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
   }
-});
-
-app.get("/api/settings/asr", (_req, res) => {
-  const runtime = asrRuntime(root);
-  res.json({ ready: runtime.ready, hint: runtime.hint });
 });
 
 app.post("/api/settings/modelbest/probe", async (_req, res) => {
@@ -179,25 +173,6 @@ app.post("/api/voices/stage", upload.single("file"), (req, res) => {
       asr,
       error,
     });
-  } catch (error) {
-    res.status(400).json({ error: messageOf(error) });
-  }
-});
-
-app.post("/api/voices/asr", (req, res) => {
-  req.setTimeout(200000);
-  res.setTimeout(200000);
-  try {
-    const source = req.body?.source as
-      | { kind: "candidate"; rel: string }
-      | { kind: "project"; projectId: string; rel: string }
-      | undefined;
-    if (!source || (source.kind !== "candidate" && source.kind !== "project")) {
-      res.status(400).json({ error: "转写需要 candidate 或片子旁白路径" });
-      return;
-    }
-    const abs = resolveKeepSource(source, root);
-    res.json(runAsr({ audio: abs, root }));
   } catch (error) {
     res.status(400).json({ error: messageOf(error) });
   }

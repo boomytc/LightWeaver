@@ -15,11 +15,6 @@ export type ModelbestStatus = {
   probe?: { ok: boolean; message: string };
 };
 
-export type AsrStatus = {
-  ready: boolean;
-  hint?: string;
-};
-
 export type StagedVoice = {
   rel: string;
   dest: string;
@@ -32,7 +27,6 @@ export type StagedVoice = {
 
 export const api = {
   modelbest: () => fetch("/api/settings/modelbest").then((res) => parse<ModelbestStatus>(res)),
-  asr: () => fetch("/api/settings/asr").then((res) => parse<AsrStatus>(res)),
   probeModelbest: () =>
     fetch("/api/settings/modelbest/probe", { method: "POST" }).then((res) =>
       parse<{ ok: boolean; message: string }>(res),
@@ -80,12 +74,6 @@ export const api = {
   library: () => fetch("/api/library").then((res) => parse<Asset[]>(res)),
   stageVoice: (form: FormData) =>
     fetch("/api/voices/stage", { method: "POST", body: form }).then((res) => parse<StagedVoice>(res)),
-  asrVoice: (source: { kind: "candidate"; rel: string } | { kind: "project"; projectId: string; rel: string }) =>
-    fetch("/api/voices/asr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source }),
-    }).then((res) => parse<{ text: string; language: string; seconds: number }>(res)),
   mintVoice: (body: {
     id?: string;
     text: string;

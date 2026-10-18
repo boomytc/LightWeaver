@@ -1,6 +1,6 @@
-import type { Asset, CardCopy, FilmDoc, Issue, SceneDef } from "@lightweaver/weaver/schema";
+import type { Asset, FilmDoc, Issue, SceneDef } from "@lightweaver/weaver/schema";
 
-export type { Asset, CardCopy, FilmDoc, Issue, SceneDef };
+export type { Asset, FilmDoc, Issue, SceneDef };
 
 export type ProjectSummary = {
   id: string;
