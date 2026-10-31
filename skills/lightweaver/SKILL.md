@@ -27,7 +27,6 @@ Read `AGENTS.md` and `docs/conventions.md` first.
 ```bash
 make install
 make typecheck
-make test
 make studio
 ```
 

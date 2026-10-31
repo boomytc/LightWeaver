@@ -59,7 +59,6 @@ export function transcriptFromAsr(sourcePath: string, asr: AsrResult): Transcrip
 
 export function runTranscribe(
   options: TranscribeOptions,
-  transcribe: (opts: { audio: string; root?: string }) => AsrResult | Pick<AsrResult, "text"> = runAsr,
 ): { projectId: string; file: string; transcript: TranscriptResult } {
   const root = options.root ?? weaverRoot();
   const project = loadProject(options.projectId, root);
@@ -79,13 +78,7 @@ export function runTranscribe(
 
   const prepared = asrAudio(resolved.absPath);
   try {
-    const raw = transcribe({ audio: prepared.audio, root });
-    const asr: AsrResult = {
-      text: raw.text,
-      language: "language" in raw ? String(raw.language ?? "") : "",
-      seconds: "seconds" in raw ? Number(raw.seconds) || 0 : 0,
-      sentences: "sentences" in raw ? raw.sentences : undefined,
-    };
+    const asr = runAsr({ audio: prepared.audio, root });
     const stamped = stampTranscript(transcriptFromAsr(resolved.absPath, asr), { media: resolved.absPath });
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, `${JSON.stringify(stamped, null, 2)}\n`);

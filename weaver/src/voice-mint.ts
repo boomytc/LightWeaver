@@ -5,7 +5,7 @@ import { firstPartyRoot, libraryRoot, userRoot, voiceCandidateRoot, weaverRoot, 
 import { loadLibrary, patchLibraryAsset, upsertLibraryAsset, voiceCloneSource, type VoiceOrigin } from "./assets.ts";
 import { loadProject } from "./project.ts";
 import { parseTtsResult } from "./tts.ts";
-import { ensureVoiceSaid, type TranscribeFn } from "./asr.ts";
+import { ensureVoiceSaid } from "./asr.ts";
 import type { Asset } from "./schema.ts";
 
 const ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -145,7 +145,6 @@ export function runVoiceMint(options: VoiceMintOptions): VoiceMintResult {
 export function keepLibraryVoice(
   input: KeepLibraryVoiceInput,
   root = weaverRoot(),
-  transcribe?: TranscribeFn,
 ): Asset {
   assertReadableSource(input.sourceAbs, root);
   const assets = loadLibrary(root);
@@ -166,7 +165,7 @@ export function keepLibraryVoice(
   const rel = voiceKeepRel(id, source.file);
   const dest = path.join(libraryRoot(root), rel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  const said = ensureVoiceSaid(input.sourceAbs, input.said, root, transcribe);
+  const said = ensureVoiceSaid(input.sourceAbs, input.said, root);
   if (path.resolve(input.sourceAbs) !== path.resolve(dest)) {
     fs.copyFileSync(input.sourceAbs, dest);
   }

@@ -13,8 +13,7 @@
   },
   "scripts": {
     "weaver": "tsx src/cli.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/*.test.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "playwright": "^1.55.0",

@@ -50,3 +50,14 @@ docs/                           现网约定
 ```
 
 Agent 入口：`/lightweaver`、`/lightweaver-film`、`/lightweaver-assets`。
+
+## 开发
+
+采用 `confident-development-conventions`，优先从实现逻辑、类型和模块边界保证正确性。按改动选择一次必要验收：
+
+```bash
+make typecheck
+npm run build -w @lightweaver/studio
+```
+
+涉及 CLI、截图、模型或渲染时，按需运行受影响的实际路径，并说明未验证部分。不保留常驻测试套件；临时脚本、样本及验证输出放系统临时目录，完成后清理。依赖统一从仓库根目录通过 `make install` 安装，使用根目录 `package-lock.json`。

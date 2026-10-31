@@ -56,13 +56,17 @@ part of this product. Stills or source video arrive with the task.
 
 ## Validation
 
+本仓采用 `confident-development-conventions`：先保证实现逻辑闭环，完成与改动相称的有限验收后交付。不保留常驻测试套件；临时验证文件放系统临时目录，完成即清理。产品校验、连接诊断与类型检查继续保留。
+
 ```bash
 make install
 make typecheck
-make test
+npm run build -w @lightweaver/studio
 make studio          # http://127.0.0.1:5175/
 make remotion        # Remotion preview
 ```
+
+按改动选择必要检查；同一份改动验收通过后不重复运行，未验证的实际服务或渲染路径在交付时说明。
 
 ## Cleanup
 

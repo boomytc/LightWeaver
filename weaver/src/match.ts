@@ -29,7 +29,6 @@ import {
   type FrameHash,
 } from "./match-visual.ts";
 import { hasAudioStream, probeDuration } from "./probe.ts";
-import { runAsr, type AsrResult } from "./asr.ts";
 import { readTranscript, runTranscribe, transcriptRel, type TranscriptResult } from "./transcribe.ts";
 
 export type MatchCut = {
@@ -71,14 +70,6 @@ export type MatchOptions = {
   sources?: string[] | string;
   visual?: boolean;
   root?: string;
-};
-
-export type MatchDeps = {
-  transcribe?: (opts: { audio: string; root?: string }) => AsrResult | Pick<AsrResult, "text">;
-  hasAudio?: (file: string) => boolean;
-  scenes?: (file: string) => SceneIndex;
-  duration?: (file: string) => number;
-  hashes?: (file: string) => FrameHash[];
 };
 
 export type MatchResult = {
@@ -135,13 +126,12 @@ function loadOrTranscribe(
   project: ProjectRecord,
   ref: string,
   root: string,
-  transcribe: MatchDeps["transcribe"],
 ): TranscriptResult {
   const videoId = findAsset(project, ref, root)?.id ?? "origin";
   const abs = path.join(project.root, transcriptRel(videoId));
   const cached = readTranscript(abs);
   if (cached?.sentences.length) return cached;
-  return runTranscribe({ projectId: project.id, ref, root }, transcribe ?? runAsr).transcript;
+  return runTranscribe({ projectId: project.id, ref, root }).transcript;
 }
 
 export function editedCoverage(cuts: { editedStart: number; editedEnd: number }[], duration: number): number {
@@ -163,7 +153,6 @@ function alignSpeechOrVisual(input: {
   edited: string;
   sourceRefs: string[];
   root: string;
-  transcribe: MatchDeps["transcribe"];
   hashes?: { edited: FrameHash[]; sources: Map<string, FrameHash[]> };
   editedScene: SceneIndex;
 }): { cuts: MatchCut[]; items: MatchItem[]; warnings: string[] } {
@@ -188,16 +177,15 @@ function alignSpeech(
     edited: string;
     sourceRefs: string[];
     root: string;
-    transcribe: MatchDeps["transcribe"];
     hashes?: { edited: FrameHash[]; sources: Map<string, FrameHash[]> };
     editedScene: SceneIndex;
   },
   warnings: string[],
 ): { cuts: MatchCut[]; items: MatchItem[]; warnings: string[] } {
-  const editedTranscript = loadOrTranscribe(input.project, input.edited, input.root, input.transcribe);
+  const editedTranscript = loadOrTranscribe(input.project, input.edited, input.root);
   const sourceTranscripts: { ref: string; transcript: TranscriptResult }[] = [];
   for (const ref of input.sourceRefs) {
-    const transcript = loadOrTranscribe(input.project, ref, input.root, input.transcribe);
+    const transcript = loadOrTranscribe(input.project, ref, input.root);
     sourceTranscripts.push({ ref, transcript });
     if (sourceTranscripts.length !== 1 || !input.hashes) continue;
     const ratio = sequenceRatio(coreText(editedTranscript.full_text), coreText(transcript.full_text));
@@ -278,10 +266,9 @@ function loadHashes(
   editedId: string,
   editedFile: string,
   sourceFiles: Map<string, string>,
-  custom?: (file: string) => FrameHash[],
 ): { edited: FrameHash[]; sources: Map<string, FrameHash[]> } {
   const grab = (file: string, id: string) =>
-    custom?.(file) ?? extractFrameHashes(file, path.join(project.root, "assets/match/frames", id));
+    extractFrameHashes(file, path.join(project.root, "assets/match/frames", id));
   const sources = new Map<string, FrameHash[]>();
   for (const [ref, file] of sourceFiles) {
     sources.set(ref, grab(file, ref.replace(/^asset:/, "")));
@@ -436,7 +423,7 @@ function writeReport(project: ProjectRecord, report: MatchReport): string {
   return rel;
 }
 
-export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResult {
+export function runMatch(options: MatchOptions): MatchResult {
   const root = options.root ?? weaverRoot();
   const project = loadProject(options.projectId, root);
   if (filmTask(project.film) !== "footage-narration") {
@@ -449,22 +436,19 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
   for (const ref of sourceRefs) requireVideoRef(project, ref, root, "原片");
 
   const visual = options.visual !== false;
-  const audioCheck = deps.hasAudio ?? hasAudioStream;
-  const editedHasAudio = audioCheck(editedVideo.resolved.absPath);
+  const editedHasAudio = hasAudioStream(editedVideo.resolved.absPath);
   if (!editedHasAudio && !visual) {
     throw new Error("已剪片没有音轨，需要视觉对齐（不要加 --no-visual）");
   }
 
-  const sceneOf = deps.scenes ?? detectScenes;
-  const durationOf = deps.duration ?? probeDuration;
-  const editedScene = sceneOf(editedVideo.resolved.absPath);
+  const editedScene = detectScenes(editedVideo.resolved.absPath);
   const sourceScenes = new Map<string, SceneIndex>();
   const sourceDurations = new Map<string, number>();
   const sourceFiles = new Map<string, string>();
   for (const ref of sourceRefs) {
     const file = requireVideoRef(project, ref, root, "原片").resolved.absPath;
-    sourceScenes.set(ref, sceneOf(file));
-    sourceDurations.set(ref, durationOf(file));
+    sourceScenes.set(ref, detectScenes(file));
+    sourceDurations.set(ref, probeDuration(file));
     sourceFiles.set(ref, file);
   }
 
@@ -477,7 +461,6 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
         editedVideo.asset.id,
         editedVideo.resolved.absPath,
         sourceFiles,
-        deps.hashes,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -488,14 +471,13 @@ export function runMatch(options: MatchOptions, deps: MatchDeps = {}): MatchResu
 
   let cuts: MatchCut[] = [];
   let items: MatchItem[] = [];
-  const duration = editedScene.duration || durationOf(editedVideo.resolved.absPath);
+  const duration = editedScene.duration || probeDuration(editedVideo.resolved.absPath);
   if (editedHasAudio) {
     const speech = alignSpeechOrVisual({
       project,
       edited,
       sourceRefs,
       root,
-      transcribe: deps.transcribe,
       hashes,
       editedScene,
     });

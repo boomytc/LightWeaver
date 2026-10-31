@@ -4,6 +4,8 @@ Remotion renderer for LightWeaver. Task instances (film.json, stills, wav,
 mp4) live in `data/first-party/<task>/<recipe>/<id>/` and
 `data/projects/<task>/<recipe>/<id>/` — not in this package, not in git. Capture / TTS live in `weaver/scripts`.
 
+Install dependencies with `make install` at the repository root; all workspaces use the root `package-lock.json`.
+
 ```bash
 npm run sync       # link public/projects + catalog
 npm run studio     # Remotion preview

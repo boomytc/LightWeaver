@@ -65,16 +65,14 @@ export function modelbestBackend(
 
 export async function probeModelbest(
   root = weaverRoot(),
-  env: NodeJS.ProcessEnv = process.env,
-  request: typeof fetch = fetch,
 ): Promise<ModelbestProbe> {
-  const { base, key } = modelbestBackend(root, env);
+  const { base, key } = modelbestBackend(root);
   if (!key) {
     clearProbeCache(root);
     return { ok: false, message: "还没有密钥，先去获取" };
   }
   try {
-    const response = await request(`${base}/audio/speech`, {
+    const response = await fetch(`${base}/audio/speech`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,

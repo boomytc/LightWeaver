@@ -37,17 +37,9 @@ export type AsrOptions = {
   root?: string;
 };
 
-export type TranscribeFn = (options: AsrOptions) => Pick<AsrResult, "text">;
+type AsrEngineOutput = AsrResult & { truncated?: boolean; log?: string };
 
-export type AsrEngineOutput = AsrResult & { truncated?: boolean; log?: string };
-
-export type AsrEngine = (audio: string) => AsrEngineOutput;
-
-export type AsrDeps = {
-  engine?: AsrEngine;
-  duration?: (file: string) => number;
-  slice?: (file: string, start: number, duration: number, dest: string) => void;
-};
+type AsrEngine = (audio: string) => AsrEngineOutput;
 
 export function parseAsrResult(output: string): AsrResult {
   const lines = output.split(/\r?\n/).map((row) => row.trim());
@@ -126,21 +118,20 @@ export function asrAudio(media: string): { audio: string; tmp?: string } {
   return { audio: tmp, tmp };
 }
 
-export function runAsr(options: AsrOptions, deps: AsrDeps = {}): AsrResult {
+export function runAsr(options: AsrOptions): AsrResult {
   const root = options.root ?? weaverRoot();
   const prepared = asrAudio(options.audio);
   try {
-    const duration = (deps.duration ?? wavFileSeconds)(prepared.audio);
-    const engine = deps.engine ?? ((audio: string) => invokeAsrJob(audio, options, root));
+    const duration = wavFileSeconds(prepared.audio);
+    const engine: AsrEngine = (audio) => invokeAsrJob(audio, options, root);
     if (!(duration > ASR_SETTINGS.chunkSeconds)) {
       const one = engine(prepared.audio);
       if (!one.text.trim()) throw new Error("转写没有得到文本，请手写这句再说的话");
       if (isTruncated(one, duration, false)) throw new Error("转写被截断");
       return { text: one.text.trim(), language: one.language, seconds: duration || one.seconds, sentences: one.sentences };
     }
-    const slice = deps.slice ?? sliceAudio;
     const parts = windowsFor(duration).map((window) =>
-      transcribeWindow(prepared.audio, window, { engine, slice, language: options.language, root }, 0),
+      transcribeWindow(prepared.audio, window, engine, 0),
     );
     const stitched = stitchAsrResults(parts);
     if (!stitched.text.trim()) throw new Error("转写没有得到文本，请手写这句再说的话");
@@ -153,18 +144,18 @@ export function runAsr(options: AsrOptions, deps: AsrDeps = {}): AsrResult {
 function transcribeWindow(
   source: string,
   window: AsrWindow,
-  ctx: { engine: AsrEngine; slice: NonNullable<AsrDeps["slice"]>; language?: string; root: string },
+  engine: AsrEngine,
   depth: number,
 ): AsrWindowResult {
   const dest = path.join(os.tmpdir(), `weaver-asr-w-${process.pid}-${Math.round(window.start * 1000)}-${Math.round(window.end * 1000)}.wav`);
   try {
-    ctx.slice(source, window.start, window.end - window.start, dest);
-    const raw = ctx.engine(dest);
+    sliceAudio(source, window.start, window.end - window.start, dest);
+    const raw = engine(dest);
     const span = window.end - window.start;
     if (isTruncated(raw, span) && depth === 0) {
       const mid = (window.start + window.end) / 2;
-      const left = transcribeWindow(source, { start: window.start, end: mid }, ctx, 1);
-      const right = transcribeWindow(source, { start: mid, end: window.end }, ctx, 1);
+      const left = transcribeWindow(source, { start: window.start, end: mid }, engine, 1);
+      const right = transcribeWindow(source, { start: mid, end: window.end }, engine, 1);
       return { start: window.start, end: window.end, result: stitchAsrResults([left, right]) };
     }
     if (isTruncated(raw, span)) {
@@ -243,11 +234,10 @@ export function ensureVoiceSaid(
   audio: string,
   said: string | undefined,
   root = weaverRoot(),
-  transcribe: TranscribeFn = runAsr,
 ): string {
   const given = (said ?? "").trim();
   if (given) return given;
-  const text = transcribe({ audio, root }).text.trim();
+  const text = runAsr({ audio, root }).text.trim();
   if (!text) throw new Error("转写没有得到文本，请手写这句再说的话");
   return text;
 }

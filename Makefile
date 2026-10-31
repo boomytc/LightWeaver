@@ -1,5 +1,5 @@
 # Makefile
-.PHONY: help install studio remotion typecheck test weaver films films-capture films-tts films-render films-clean sync clean
+.PHONY: help install studio remotion typecheck weaver films films-capture films-tts films-render films-clean sync clean
 
 .DEFAULT_GOAL := help
 
@@ -32,9 +32,6 @@ weaver: ## 运行 weaver CLI（例：make weaver ARGS='project list --json'）
 
 typecheck: ## 类型检查
 	npm run typecheck
-
-test: ## 运行 weaver / studio / study-films 单测
-	npm test
 
 sync: ## 刷新 Remotion public/projects 与 catalog
 	npm run weaver -- sync

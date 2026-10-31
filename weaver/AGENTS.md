@@ -49,7 +49,7 @@ scripts/               tts.py / asr.py / vlm.py / capture.mjs（不跟 LIGHTWEAV
   weaver only writes files and runs jobs (`tts.py`, `asr.py`, `vlm.py`, Remotion, ffmpeg compose / match / describe, `capture.mjs`).
   STT/TTS 原语（`weaver asr`、`weaver tts --text`）不依赖 film.json，给任意 agent 的 CLI 调用。
 - `recipeRoot` is `library/methods` (method plugins live in the library).
-  `LIGHTWEAVER_RECIPES` is test-fixture only. Never `skills/**/recipes/`.
+  Never `skills/**/recipes/`.
 - `project.ts` must not import `project-paths.ts`, `assets.ts`, or
   `validate.ts`. `project-paths.ts` must not import `validate.ts`
   (`assets.ts` already imports `saveAssets` from `project.ts`; a reverse

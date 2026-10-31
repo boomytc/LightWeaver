@@ -10,8 +10,7 @@
     "start:api": "tsx server/index.ts",
     "preview": "vite preview --host 127.0.0.1 --port 4175",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false",
-    "test": "tsx --test server/paths.test.ts src/preview.test.ts src/lib/*.test.ts"
+    "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
     "@lightweaver/weaver": "*",

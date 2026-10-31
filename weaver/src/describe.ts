@@ -17,9 +17,9 @@ import {
 } from "./describe-group.ts";
 import { extractJpeg, jpegRel } from "./describe-frames.ts";
 import { DESCRIBE_SETTINGS } from "./describe-settings.ts";
-import { describePrompt, runVlm, type VlmResult } from "./vlm.ts";
-import { extractFrameHashes, type FrameHash } from "./match-visual.ts";
-import { detectScenes, type SceneIndex } from "./match-scene.ts";
+import { describePrompt, runVlm } from "./vlm.ts";
+import { extractFrameHashes } from "./match-visual.ts";
+import { detectScenes } from "./match-scene.ts";
 import { hasAudioStream, probeDuration } from "./probe.ts";
 import { loadProject } from "./project.ts";
 import { weaverRoot } from "./paths.ts";
@@ -38,16 +38,6 @@ export type DescribeOptions = {
   to?: number;
 };
 
-export type DescribeDeps = {
-  transcribe?: (opts: { projectId: string; ref: string; root: string }) => { transcript: TranscriptResult };
-  hasAudio?: (file: string) => boolean;
-  scenes?: (file: string) => SceneIndex;
-  duration?: (file: string) => number;
-  hashes?: (file: string) => FrameHash[];
-  jpeg?: (file: string, t: number, dest: string) => void;
-  vlm?: (input: { frames: { t: number; path: string }[]; prompt: string; prev?: string }) => VlmResult;
-};
-
 export type DescribeResult = {
   projectId: string;
   file: string;
@@ -59,7 +49,7 @@ export function descriptionRel(videoId: string): string {
   return path.posix.join("assets/descriptions", `${videoId}.json`);
 }
 
-export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): DescribeResult {
+export function runDescribe(options: DescribeOptions): DescribeResult {
   const root = options.root ?? weaverRoot();
   const project = loadProject(options.projectId, root);
   if (filmTask(project.film) !== "footage-narration") {
@@ -80,7 +70,7 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
     }
   }
 
-  const duration = (deps.duration ?? probeDuration)(resolved.absPath);
+  const duration = probeDuration(resolved.absPath);
   const window = resolveDescribeWindow(options.from, options.to, duration);
   if (!options.force) {
     const cached = readDescription(abs);
@@ -90,10 +80,10 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
     }
   }
 
-  const scenes = deps.scenes?.(resolved.absPath) ?? detectScenes(resolved.absPath, duration, DESCRIBE_SETTINGS.sceneThreshold);
+  const scenes = detectScenes(resolved.absPath, duration, DESCRIBE_SETTINGS.sceneThreshold);
   const hashDir = path.join(project.root, "assets/match/frames", videoId);
-  const hashes = deps.hashes?.(resolved.absPath) ?? extractFrameHashes(resolved.absPath, hashDir);
-  const transcript = loadTranscript(project, ref, resolved.absPath, root, deps);
+  const hashes = extractFrameHashes(resolved.absPath, hashDir);
+  const transcript = loadTranscript(project, ref, resolved.absPath, root);
   const sequences = sequencesInWindow(
     buildSequences(scenes.duration ? scenes : { ...scenes, duration }, hashes, transcriptLines(transcript), {
       visual: options.visual,
@@ -105,22 +95,18 @@ export function runDescribe(options: DescribeOptions, deps: DescribeDeps = {}): 
 
   let visualCalls = 0;
   let prev = "";
-  const jpeg = deps.jpeg ?? extractJpeg;
-  const vlm = deps.vlm;
   for (const sequence of sequences) {
     if (!sequenceNeedsVision(sequence)) continue;
     const times = pickFrameTimes(sequence);
     const frames = times.map((t) => {
       const dest = path.join(project.root, jpegRel(videoId, t));
-      jpeg(resolved.absPath, t, dest);
+      extractJpeg(resolved.absPath, t, dest);
       return { t, path: dest };
     });
     if (!frames.length) continue;
     const prompt = describePrompt(frames, prev);
     try {
-      const result = vlm
-        ? vlm({ frames, prompt, prev })
-        : runVlm({ frames, prompt, root });
+      const result = runVlm({ frames, prompt, root });
       visualCalls += 1;
       const observation = result.observation.trim();
       if (!prev && isSameAsPrevObservation(observation)) {
@@ -167,14 +153,11 @@ function loadTranscript(
   ref: string,
   media: string,
   root: string,
-  deps: DescribeDeps,
 ): TranscriptResult | null {
   const videoId = findAsset(project, ref, root)?.id ?? "origin";
   const cached = readTranscript(path.join(project.root, transcriptRel(videoId)));
   if (cached) return cached;
-  const hasAudio = deps.hasAudio ?? hasAudioStream;
-  if (!hasAudio(media)) return null;
-  if (deps.transcribe) return deps.transcribe({ projectId: project.id, ref, root }).transcript;
+  if (!hasAudioStream(media)) return null;
   try {
     return runTranscribe({ projectId: project.id, ref, root }).transcript;
   } catch (error) {
