@@ -1,10 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RunRecord, z } from "@lightweaver/weaver/contracts";
 import { api } from "../api";
 import { runLabel } from "../domain/format";
 import { isActiveRun, RESUMABLE_RUN_STATES, RunDetail } from "../domain/run";
 import { useRunStream } from "./useRunStream";
+import { notifyRunsChanged, useRunList } from "./useRunList";
 import { useSession } from "../session/context";
+import { PageHeader } from "../ui/PageHeader";
+import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
+import { JobsIcon, ProjectIcon, RefreshIcon } from "../ui/Icons";
+
+type Filter = "all" | "active" | "resumable" | "completed";
+
+const kindLabels: Record<string, string> = {
+  build: "影片制作",
+  analyze: "素材分析",
+  match: "参考成片匹配",
+  search: "候选检索",
+  export: "项目导出",
+  download: "模型下载",
+  "caption-assist": "字幕翻译",
+  "voice-design": "音色设计",
+  "voice-transcribe": "参考音频转写",
+};
 
 function errorMessage(reason: unknown) {
   return reason instanceof Error ? reason.message : String(reason);
@@ -12,28 +31,35 @@ function errorMessage(reason: unknown) {
 
 export function JobsPage() {
   const session = useSession();
-  const [runs, setRuns] = useState<z.infer<typeof RunRecord>[]>([]);
   const [selected, setSelected] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
   const [detail, setDetail] = useState<z.infer<typeof RunDetail> | null>(null);
-  const load = () =>
-    api("/runs", z.array(RunRecord))
-      .then(setRuns)
-      .catch((reason) => session.setError(errorMessage(reason)));
+  const { runs, refresh } = useRunList((reason) => session.setError(errorMessage(reason)));
+  const visibleRuns = useMemo(() => runs.filter((run) =>
+    filter === "all" ||
+    (filter === "active" && isActiveRun(run.state)) ||
+    (filter === "resumable" && RESUMABLE_RUN_STATES.has(run.state)) ||
+    (filter === "completed" && run.state === "succeeded"),
+  ), [filter, runs]);
   useEffect(() => {
-    void load();
-  }, []);
+    if (!visibleRuns.some((run) => run.id === selected)) {
+      setSelected(visibleRuns[0]?.id || "");
+      setDetail(null);
+    }
+  }, [visibleRuns, selected]);
   const stream = useRunStream({
     runId: selected,
     enabled: Boolean(selected),
     onDetail: (next) => {
       if (next.run.id !== selected) return;
       setDetail(next);
-      void load();
+      void refresh();
     },
     onError: (reason) => session.setError(errorMessage(reason)),
   });
   const selectRun = (runId: string) => {
     setSelected(runId);
+    setDetail(null);
     stream.retry();
   };
   const changeRun = async (kind: "cancel" | "resume", runId: string) => {
@@ -42,53 +68,88 @@ export function JobsPage() {
       setSelected(runId);
       if (kind === "resume") setDetail(null);
       stream.retry();
-      await load();
+      notifyRunsChanged();
+      await refresh();
     } catch (reason) {
       session.setError(errorMessage(reason));
     }
   };
+  const selectedRun = runs.find((run) => run.id === selected);
   return (
-    <main className="min-h-0 flex-1 overflow-auto p-4">
-      {runs.length === 0 && <p>还没有作业。</p>}
-      {runs.map((run) => (
-        <article key={run.id} className="my-3 rounded-md border border-line bg-panel p-3">
-          <div className="section-title">
-            <button type="button" onClick={() => selectRun(run.id)}>
-              {run.kind} · {runLabel(run.state)}
-            </button>
-            <div>
-              <button
-                type="button"
-                disabled={!isActiveRun(run.state)}
-                onClick={() => void changeRun("cancel", run.id)}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                disabled={!RESUMABLE_RUN_STATES.has(run.state)}
-                onClick={() => void changeRun("resume", run.id)}
-              >
-                恢复
-              </button>
-              {run.projectId && (
-                <button type="button" onClick={() => void session.navigate("projects", run.projectId || "")}>
-                  打开项目
-                </button>
-              )}
-            </div>
+    <main className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        title="任务"
+        description="查看本地制作、分析与模型作业，取消或恢复未完成的步骤。"
+        actions={<>
+          <div className="seg" role="group" aria-label="作业状态筛选">
+            {([["all", "全部"], ["active", "运行中"], ["resumable", "可恢复"], ["completed", "已完成"]] as const).map(([value, label]) => (
+              <button key={value} type="button" className={filter === value ? "is-on" : ""} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>
+            ))}
           </div>
-          <small>{run.id}</small>
-          {run.error && <p className="error">{run.error.message}</p>}
-          {selected === run.id && stream.error && <p className="error">{stream.error}</p>}
-          {detail?.run.id === run.id && (
-            <details>
-              <summary>进度详情</summary>
-              <pre>{JSON.stringify(detail, null, 2)}</pre>
-            </details>
-          )}
-        </article>
-      ))}
+          <Button size="icon" variant="ghost" aria-label="刷新作业" onClick={() => void refresh()}><RefreshIcon /></Button>
+        </>}
+      />
+      <div className="split-page grid min-h-0 flex-1 grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+        <aside className="scroll-region border-r border-line p-3">
+          <div className="mb-2 flex items-center justify-between px-1"><small>{visibleRuns.length} 个作业</small>{isActiveRun(selectedRun?.state || "") && <Badge tone="accent" dot pulse>实时更新</Badge>}</div>
+          <div className="flex flex-col gap-1">
+            {visibleRuns.map((run) => (
+              <button key={run.id} type="button" className={`row-item ${selected === run.id ? "is-on" : ""}`} onClick={() => selectRun(run.id)}>
+                <span className="dropzone-icon size-8"><JobsIcon /></span>
+                <span className="row-item-copy">
+                  <span className="flex items-center gap-2"><b>{kindLabels[run.kind] || run.kind}</b><RunBadge state={run.state} /></span>
+                  <small className="numeric mt-1">{run.id.slice(0, 12)}{run.projectId ? ` · ${run.projectId}` : ""}</small>
+                </span>
+              </button>
+            ))}
+            {visibleRuns.length === 0 && <div className="subtle-card p-6 text-center"><b>{runs.length ? "当前筛选没有作业" : "还没有作业"}</b><p className="hint mx-auto mt-1 mb-0 text-xs">制作、分析或模型任务会显示在这里。</p></div>}
+          </div>
+        </aside>
+        <section className="scroll-region p-5">
+          {selectedRun ? (
+            <div className="narrow-content flex flex-col gap-4">
+              <div className="section-title items-start">
+                <div className="flex-col !items-start gap-1">
+                  <div className="flex flex-wrap items-center gap-2"><h2 className="m-0">{kindLabels[selectedRun.kind] || selectedRun.kind}</h2><RunBadge state={selectedRun.state} /></div>
+                  <small className="numeric">作业 {selectedRun.id}</small>
+                </div>
+                <div>
+                  {selectedRun.projectId && <Button size="sm" variant="ghost" onClick={() => void session.navigate("projects", selectedRun.projectId || "")}><ProjectIcon />打开项目</Button>}
+                  <Button size="sm" disabled={!isActiveRun(selectedRun.state)} onClick={() => void changeRun("cancel", selectedRun.id)}>取消</Button>
+                  <Button size="sm" disabled={!RESUMABLE_RUN_STATES.has(selectedRun.state)} onClick={() => void changeRun("resume", selectedRun.id)}>恢复</Button>
+                </div>
+              </div>
+              {stream.error && <p className="error m-0">{stream.error}</p>}
+              {selectedRun.error && <div className="rounded-[10px] border border-line bg-[var(--lw-danger-bg)] p-3 text-danger"><b>作业错误</b><p className="m-0 mt-1">{selectedRun.error.message}</p></div>}
+              <dl className="key-value-list panel-card px-4">
+                <dt>作业类型</dt><dd>{selectedRun.kind}</dd>
+                <dt>当前状态</dt><dd>{runLabel(selectedRun.state)}</dd>
+                <dt>所属项目</dt><dd>{selectedRun.projectId || "无项目"}</dd>
+                <dt>更新时间</dt><dd className="numeric">{selectedRun.updatedAt}</dd>
+              </dl>
+              <section className="panel-card p-4">
+                <div className="section-title mb-3"><h3 className="m-0 text-sm">节点执行步骤</h3>{detail && <Badge>{detail.nodes.length} 个节点</Badge>}</div>
+                {!detail && <p className="hint">正在读取作业详情…</p>}
+                <div className="flex flex-col gap-2">
+                  {detail?.nodes.map((node, index) => (
+                    <div className="subtle-card flex items-start gap-3 p-3" key={node.key}>
+                      <span className="storyboard-index mt-1">{String(index + 1).padStart(2, "0")}</span>
+                      <div className="min-w-0 flex-1"><b className="text-xs">{node.key}</b><small className="numeric block">尝试 {node.attempts} 次</small>{node.error != null && <p className="error mb-0 mt-1 text-xs">{JSON.stringify(node.error)}</p>}</div>
+                      <RunBadge state={node.state} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+              {detail && <details className="panel-card p-4"><summary className="font-medium">原始诊断数据</summary><pre className="code-block mt-3 max-h-[420px]">{JSON.stringify(detail, null, 2)}</pre></details>}
+            </div>
+          ) : <div className="subtle-card flex h-full min-h-64 flex-col items-center justify-center p-8 text-center"><JobsIcon className="mb-3 size-6" /><b>选择一个作业查看详情</b><p className="hint mx-auto mt-1 mb-0">状态、错误、节点步骤和原始诊断会显示在右侧。</p></div>}
+        </section>
+      </div>
     </main>
   );
+}
+
+function RunBadge({ state }: { state: string }) {
+  const tone = isActiveRun(state) ? "accent" : state === "succeeded" ? "ok" : RESUMABLE_RUN_STATES.has(state as z.infer<typeof RunRecord>["state"]) ? "warn" : "neutral";
+  return <Badge tone={tone} dot pulse={isActiveRun(state)}>{runLabel(state)}</Badge>;
 }

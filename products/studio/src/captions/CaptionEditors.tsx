@@ -13,6 +13,9 @@ import { localeName } from "../domain/format";
 import { MICROS_PER_SECOND } from "../domain/time";
 import { SourceWindowPlayer } from "../scenes/SourceWindowPlayer";
 import { Field } from "../ui/Field";
+import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
+import { TrashIcon } from "../ui/Icons";
 import { mediaUrl } from "../api";
 
 type CaptionCueValue = z.infer<typeof CaptionCue>;
@@ -269,7 +272,7 @@ export function CaptionCueEditor({
           }}
         />
       </Field>
-      <details>
+      <details open>
         <summary>
           时间与预览 · {timingLabel} · {cue.timingQuality}
         </summary>
@@ -531,6 +534,7 @@ export function CaptionTrackEditor({
   const [query, setQuery] = useState("");
   const [overlapsOnly, setOverlapsOnly] = useState(false);
   const [requestedPage, setRequestedPage] = useState(1);
+  const [selectedId, setSelectedId] = useState("");
   const overlapIds = useMemo(
     () => overlappingCaptionCueIds(cues),
     [cues],
@@ -560,77 +564,67 @@ export function CaptionTrackEditor({
     if (requestedPage !== page) setRequestedPage(page);
   }, [page, requestedPage]);
 
+  const selectedCue = pageCues.find((cue) => cue.id === selectedId) || pageCues[0];
+  const selectedIndex = selectedCue ? visibleCues.findIndex((cue) => cue.id === selectedCue.id) : -1;
+
   return (
-    <section>
-      <div className="actions">
-        <Field label="检索字幕">
-          <input
-            data-lw-find=""
-            value={query}
-            placeholder="字幕文本、原始转写或说话人标识"
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setRequestedPage(1);
-            }}
-          />
-        </Field>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={overlapsOnly}
-            onChange={(event) => {
-              setOverlapsOnly(event.target.checked);
-              setRequestedPage(1);
-            }}
-          />
-          仅看重叠
-        </label>
-      </div>
-      <div className="section-title">
-        <small>
-          共 {visibleCues.length} 条
-          {visibleCues.length > 0
-            ? ` · 第 ${page}/${pageCount} 页 · 当前第 ${pageStart + 1}–${pageStart + pageCues.length} 条`
-            : " · 当前没有字幕"}
-        </small>
-        <div>
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => setRequestedPage(page - 1)}
-          >
-            上一页
-          </button>
-          <button
-            type="button"
-            disabled={page >= pageCount}
-            onClick={() => setRequestedPage(page + 1)}
-          >
-            下一页
-          </button>
+    <section className="caption-container panel-card p-3">
+      <div className="caption-master-detail">
+        <div className="flex min-w-0 flex-col gap-3">
+          <Field label="检索字幕">
+            <input
+              data-lw-find=""
+              value={query}
+              placeholder="文本、原始转写或说话人"
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setRequestedPage(1);
+              }}
+            />
+          </Field>
+          <div className="flex items-center justify-between gap-2">
+            <label className="check text-xs">
+              <input type="checkbox" checked={overlapsOnly} onChange={(event) => { setOverlapsOnly(event.target.checked); setRequestedPage(1); }} />
+              仅看重叠
+            </label>
+            <Badge tone={overlapIds.size ? "warn" : "neutral"}>{overlapIds.size} 条重叠</Badge>
+          </div>
+          <div className="section-title">
+            <small className="numeric">{visibleCues.length} 条 · {page}/{pageCount} 页</small>
+            <div>
+              <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => setRequestedPage(page - 1)}>上一页</Button>
+              <Button size="sm" variant="ghost" disabled={page >= pageCount} onClick={() => setRequestedPage(page + 1)}>下一页</Button>
+            </div>
+          </div>
+          <div className="scroll-region max-h-[620px] flex flex-col gap-1 pr-1">
+            {pageCues.map((cue, index) => (
+              <button
+                key={cue.id}
+                type="button"
+                className={`row-item ${selectedCue?.id === cue.id ? "is-on" : ""}`}
+                aria-pressed={selectedCue?.id === cue.id}
+                onClick={() => setSelectedId(cue.id)}
+              >
+                <span className="storyboard-index">{pageStart + index + 1}</span>
+                <span className="row-item-copy">
+                  <b className="text-xs">{cue.text}</b>
+                  <small>{cue.speakerId || (cue.time.kind === "source" ? "源片" : cue.time.kind === "speech" ? "场景语音" : "成片")} · {cue.timingQuality}</small>
+                </span>
+                {overlapIds.has(cue.id) && <Badge tone="warn">重叠</Badge>}
+              </button>
+            ))}
+            {pageCues.length === 0 && <p className="hint px-2 text-xs">{cues.length ? "没有匹配当前检索或重叠筛选的字幕。" : "当前字幕轨没有 cue。"}</p>}
+          </div>
         </div>
-      </div>
-      {pageCues.length > 0 ? (
-        pageCues.map((cue, index) => {
-          const hasOverlap = overlapIds.has(cue.id);
-          return (
-            <div key={cue.id}>
+        <div className="min-w-0 border-t border-line pt-3 @min-[760px]:border-t-0 @min-[760px]:border-l @min-[760px]:pt-0 @min-[760px]:pl-4">
+          {selectedCue ? (
+            <div className="flex flex-col gap-3">
               <div className="section-title">
-                <b>第 {pageStart + index + 1} 条字幕</b>
-                <div>
-                  {hasOverlap && (
-                    <span className="badge">时间重叠，请核对</span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onRemoveCue(cue.id)}
-                  >
-                    移除此条字幕
-                  </button>
-                </div>
+                <div><b>第 {selectedIndex + 1} 条字幕</b>{overlapIds.has(selectedCue.id) && <Badge tone="warn">时间重叠，请核对</Badge>}</div>
+                <Button size="sm" variant="danger" onClick={() => onRemoveCue(selectedCue.id)}><TrashIcon />移除此条</Button>
               </div>
               <CaptionCueEditor
-                cue={cue}
+                cue={selectedCue}
                 track={track}
                 draft={draft}
                 assets={assets}
@@ -639,15 +633,9 @@ export function CaptionTrackEditor({
                 onChange={onCueChange}
               />
             </div>
-          );
-        })
-      ) : (
-        <p className="hint">
-          {cues.length
-            ? "没有匹配当前检索或重叠筛选的字幕。"
-            : "当前字幕轨没有 cue。"}
-        </p>
-      )}
+          ) : <div className="subtle-card p-6 text-center"><b>选择一条字幕进行精修</b><p className="hint mx-auto mt-1 mb-0 text-xs">可核对文本、说话人、时间以及与源窗的对应画面。</p></div>}
+        </div>
+      </div>
     </section>
   );
 }

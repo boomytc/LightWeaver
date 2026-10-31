@@ -6,6 +6,8 @@ import type { SourceWindow } from "../domain/time";
 import { SourceWindowPlayer } from "../scenes/SourceWindowPlayer";
 import { useSession } from "../session/context";
 import { Field } from "../ui/Field";
+import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
 
 function findMedia(assets: MediaAssetVersion[], key: string) {
   return assets.find((asset) => refKey(asset) === key);
@@ -33,8 +35,12 @@ export function EvidencePanel() {
   const missing = !source ? "先选择源素材。" : !asrReady ? "缺少已就绪的 ASR。" : !alignmentReady ? "缺少已就绪的精确对齐，不会退回估算时间。" : "";
 
   return (
-    <div className="min-w-0">
-      <div className="actions">
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="section-title">
+        <h3 className="m-0 text-sm">分析作业控制</h3>
+        <Badge tone={asrReady ? "ok" : "warn"} dot>{asrReady ? "转写已就绪" : "需要模型配置"}</Badge>
+      </div>
+      <div className="subtle-card flex flex-col gap-3 p-3">
         <Field label="分析源片或音轨">
           <select value={source} onChange={(event) => setAnalysisSource(event.target.value)}>
             <option value="">先选择源素材</option>
@@ -45,40 +51,44 @@ export function EvidencePanel() {
             ))}
           </select>
         </Field>
-        <button
-          type="button"
-          disabled={session.busy || !source || !asrReady}
-          onClick={() =>
-            void session.act(() =>
-              session.submitJob(`/projects/${draft.id}/analyze`, {
-                kinds: ["asr"],
-                sourceId: source,
-                align: false,
-                locale: session.locale,
-                requestId: requestId(),
-              }),
-            )
-          }
-        >
-          仅转写
-        </button>
-        <button
-          type="button"
-          disabled={session.busy || !source || !asrReady || !alignmentReady}
-          onClick={() =>
-            void session.act(() =>
-              session.submitJob(`/projects/${draft.id}/analyze`, {
-                kinds: ["asr"],
-                sourceId: source,
-                align: true,
-                locale: session.locale,
-                requestId: requestId(),
-              }),
-            )
-          }
-        >
-          转写并精确对齐
-        </button>
+        <div className="actions">
+          <Button
+            size="sm"
+            type="button"
+            disabled={session.busy || !source || !asrReady}
+            onClick={() =>
+              void session.act(() =>
+                session.submitJob(`/projects/${draft.id}/analyze`, {
+                  kinds: ["asr"],
+                  sourceId: source,
+                  align: false,
+                  locale: session.locale,
+                  requestId: requestId(),
+                }),
+              )
+            }
+          >
+            仅转写
+          </Button>
+          <Button
+            size="sm"
+            type="button"
+            disabled={session.busy || !source || !asrReady || !alignmentReady}
+            onClick={() =>
+              void session.act(() =>
+                session.submitJob(`/projects/${draft.id}/analyze`, {
+                  kinds: ["asr"],
+                  sourceId: source,
+                  align: true,
+                  locale: session.locale,
+                  requestId: requestId(),
+                }),
+              )
+            }
+          >
+            转写并精确对齐
+          </Button>
+        </div>
         <Field label="画面观察模型">
           <select aria-label="画面观察模型" value={vlmProvider} onChange={(event) => setVlmProvider(event.target.value)}>
             {session.providers
@@ -91,92 +101,109 @@ export function EvidencePanel() {
               ))}
           </select>
         </Field>
-        <button
-          type="button"
-          disabled={session.busy}
-          onClick={() =>
-            void session.act(() =>
-              session.submitJob(`/projects/${draft.id}/analyze`, {
-                kinds: ["describe"],
-                ...(source ? { sourceId: source } : {}),
-                vlmProvider,
-                requestId: requestId(),
-              }),
-            )
-          }
-        >
-          观察画面
-        </button>
+        <div>
+          <Button
+            size="sm"
+            type="button"
+            disabled={session.busy}
+            onClick={() =>
+              void session.act(() =>
+                session.submitJob(`/projects/${draft.id}/analyze`, {
+                  kinds: ["describe"],
+                  ...(source ? { sourceId: source } : {}),
+                  vlmProvider,
+                  requestId: requestId(),
+                }),
+              )
+            }
+          >
+            观察画面
+          </Button>
+        </div>
       </div>
       {missing && (
-        <p className="hint">
-          {missing}{" "}
-          <button type="button" onClick={() => void session.navigate("settings", "", "models")}>
-            打开模型设置
-          </button>
-          {!alignmentReady && source && asrReady && (
-            <button type="button" onClick={() => void session.navigate("settings", "", "runtime")}>
-              查看运行时
-            </button>
-          )}
-        </p>
-      )}
-      <p className="hint">观察和候选不会自动改写场景或字幕。采用是单独的动作。</p>
-      <h3>人工证据</h3>
-      {manual.length === 0 && <p className="hint">没有人工证据。</p>}
-      {manual.map((entry) => (
-        <article key={entry.id}>
-          <small>
-            {entry.kind} · {entry.state} · {entry.timingQuality}
-          </small>
-          <p>{entry.text}</p>
-        </article>
-      ))}
-      <h3>观察</h3>
-      {observed.map((entry) => (
-        <article key={entry.id}>
-          <small>
-            {entry.kind} · {(entry.range.startUs / 1e6).toFixed(2)}–
-            {((entry.range.startUs + entry.range.durationUs) / 1e6).toFixed(2)} 秒 · {entry.state} · {entry.timingQuality}
-          </small>
-          <p>{entry.text}</p>
-          {entry.sourceText && entry.sourceText !== entry.text && (
-            <div className="source-copy">
-              <small>原始转写</small>
-              <p>{entry.sourceText}</p>
-            </div>
-          )}
-          {entry.kind === "asr" &&
-            entry.state === "current" &&
-            entry.timingQuality === "aligned" &&
-            (entry.locale === undefined || entry.locale === session.locale) && (
-              <button
-                type="button"
-                disabled={session.busy || session.dirty}
-                onClick={() => void session.adoptAnalysisCaptions({ sourceId: entry.source.assetId, locale: session.locale })}
-              >
-                采用为{localeName(session.locale)}字幕
-              </button>
+        <div className="subtle-card flex flex-col gap-2 p-3">
+          <p className="hint m-0 text-xs">{missing}</p>
+          <div className="actions">
+            <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "models")}>
+              打开模型设置
+            </Button>
+            {!alignmentReady && source && asrReady && (
+              <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "runtime")}>
+                查看运行时
+              </Button>
             )}
-        </article>
-      ))}
-      <h3>建议</h3>
-      <div className="actions">
-        <input
-          data-lw-find=""
-          aria-label="候选查询"
-          placeholder="需要的画面或情节"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <select aria-label="检索方式" value={mode} onChange={(event) => setMode(event.target.value)}>
-          <option value="text">文本检索</option>
-          <option value="semantic">语义检索（字幕与观察）</option>
-          <option value="visual">画面检索</option>
-        </select>
-        <button type="button" onClick={() => void session.searchCandidates(query, mode)}>
-          查询候选
-        </button>
+          </div>
+        </div>
+      )}
+      <p className="hint m-0 text-xs">观察和候选不会自动改写场景或字幕。采用是单独的动作。</p>
+      <div className="flex flex-col gap-2">
+        <h3 className="m-0 text-xs font-semibold text-muted">人工证据</h3>
+        {manual.length === 0 && <p className="hint m-0 text-xs">没有人工证据。</p>}
+        {manual.map((entry) => (
+          <article className="panel-card p-3" key={entry.id}>
+            <small className="numeric">
+              {entry.kind} · {entry.state} · {entry.timingQuality}
+            </small>
+            <p className="m-0 mt-1 text-xs">{entry.text}</p>
+          </article>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        <h3 className="m-0 text-xs font-semibold text-muted">观察</h3>
+        {observed.length === 0 && <p className="hint m-0 text-xs">尚无观察记录。</p>}
+        {observed.map((entry) => (
+          <article className="panel-card flex flex-col gap-2 p-3" key={entry.id}>
+            <small className="numeric">
+              {entry.kind} · {(entry.range.startUs / 1e6).toFixed(2)}–
+              {((entry.range.startUs + entry.range.durationUs) / 1e6).toFixed(2)} 秒 · {entry.state} · {entry.timingQuality}
+            </small>
+            <p className="m-0 text-xs">{entry.text}</p>
+            {entry.sourceText && entry.sourceText !== entry.text && (
+              <div className="source-copy">
+                <small>原始转写</small>
+                <p className="m-0 mt-1 text-xs">{entry.sourceText}</p>
+              </div>
+            )}
+            {entry.kind === "asr" &&
+              entry.state === "current" &&
+              entry.timingQuality === "aligned" &&
+              (entry.locale === undefined || entry.locale === session.locale) && (
+                <div>
+                  <Button
+                    size="sm"
+                    type="button"
+                    disabled={session.busy || session.dirty}
+                    onClick={() => void session.adoptAnalysisCaptions({ sourceId: entry.source.assetId, locale: session.locale })}
+                  >
+                    采用为{localeName(session.locale)}字幕
+                  </Button>
+                </div>
+              )}
+          </article>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        <h3 className="m-0 text-xs font-semibold text-muted">建议</h3>
+        <div className="subtle-card flex flex-col gap-2 p-3">
+          <input
+            data-lw-find=""
+            aria-label="候选查询"
+            placeholder="需要的画面或情节"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <select aria-label="检索方式" value={mode} onChange={(event) => setMode(event.target.value)}>
+            <option value="text">文本检索</option>
+            <option value="semantic">语义检索（字幕与观察）</option>
+            <option value="visual">画面检索</option>
+          </select>
+          <div>
+            <Button size="sm" type="button" onClick={() => void session.searchCandidates(query, mode)}>
+              查询候选
+            </Button>
+          </div>
+        </div>
       </div>
       <Field label="参考成片反向匹配">
         <select
@@ -203,17 +230,17 @@ export function EvidencePanel() {
         const suggested = proposal.candidates.filter((candidate) => !proposal.selections.includes(candidate.id));
         const adopted = proposal.candidates.filter((candidate) => proposal.selections.includes(candidate.id));
         return (
-          <details key={proposal.id} open>
-            <summary>
+          <details key={proposal.id} className="panel-card p-3" open>
+            <summary className="text-xs font-medium">
               {proposal.query} · 建议 {suggested.length} · 已采用 {adopted.length} {proposal.warnings.join("；")}
               {stale && " · 基于旧修订，仅可查看"}
             </summary>
             {stale && (
-              <p className="hint">
+              <p className="hint mt-2 mb-0 text-xs">
                 此候选基于修订 {proposal.revision.slice(0, 16)}，当前修订是 {session.base.slice(0, 16)}。重新查询后才能应用。
               </p>
             )}
-            <h4>建议</h4>
+            <h4 className="mt-3 mb-2 text-xs font-semibold text-muted">建议</h4>
             {suggested.map((candidate) => (
               <Candidate
                 key={candidate.id}
@@ -226,10 +253,10 @@ export function EvidencePanel() {
                 setAllowReuse={setAllowReuse}
               />
             ))}
-            <h4>已采用</h4>
-            {adopted.length === 0 && <p className="hint">这条建议里还没有写入项目的候选。</p>}
+            <h4 className="mt-3 mb-1 text-xs font-semibold text-muted">已采用</h4>
+            {adopted.length === 0 && <p className="hint m-0 text-xs">这条建议里还没有写入项目的候选。</p>}
             {adopted.map((candidate) => (
-              <p key={candidate.id}>{candidate.evidence[0] || candidate.id}</p>
+              <p className="m-0 text-xs" key={candidate.id}>{candidate.evidence[0] || candidate.id}</p>
             ))}
           </details>
         );
@@ -263,8 +290,8 @@ function Candidate({
   const range = ranges[rangeKey] || candidate.range;
   const asset = findMedia(ctx.assets, refKey(candidate.source));
   return (
-    <article>
-      <p>{candidate.evidence[0]}</p>
+    <article className="panel-card mb-3 flex flex-col gap-2 p-3">
+      <p className="m-0">{candidate.evidence[0]}</p>
       <small>
         {(candidate.range.startUs / 1e6).toFixed(2)} 秒起 · 文本 {candidate.scores.text.toFixed(2)} / 画面{" "}
         {candidate.scores.visual.toFixed(2)} / 语义 {candidate.scores.semantic.toFixed(2)}
@@ -288,20 +315,23 @@ function Candidate({
         />
         允许与已有场景复用重叠源窗
       </label>
-      <button
-        type="button"
-        disabled={session.busy || session.dirty || stale}
-        onClick={() =>
-          void session.applyProposal({
-            proposalId,
-            selection: [candidate.id],
-            ranges: { [candidate.id]: range },
-            allowReuse: !!allowReuse[rangeKey],
-          })
-        }
-      >
-        应用此源窗
-      </button>
+      <div>
+        <Button
+          size="sm"
+          type="button"
+          disabled={session.busy || session.dirty || stale}
+          onClick={() =>
+            void session.applyProposal({
+              proposalId,
+              selection: [candidate.id],
+              ranges: { [candidate.id]: range },
+              allowReuse: !!allowReuse[rangeKey],
+            })
+          }
+        >
+          应用此源窗
+        </Button>
+      </div>
     </article>
   );
 }

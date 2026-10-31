@@ -89,8 +89,10 @@ export function SceneEditor({
       ? undefined
       : selectAsset(refKey(s.kind === "clip" ? s.source : s.image));
   return (
-    <>
+    <div className="flex flex-col gap-4">
       {localError && <p className="error">{localError}</p>}
+      <section className="flex flex-col gap-3 border-b border-line pb-5">
+        <h3 className="m-0 text-xs font-semibold text-muted">01 · 视觉源与画幅裁剪</h3>
       {s.kind === "card" ? (
         <>
           <Field label="卡片样式">
@@ -271,6 +273,9 @@ export function SceneEditor({
           </div>
         </>
       )}
+      </section>
+      <section className="flex flex-col gap-3 border-b border-line pb-5">
+        <h3 className="m-0 text-xs font-semibold text-muted">02 · 声音策略与旁白</h3>
       {s.kind === "clip" && (
         <Field label="声音策略">
           <select
@@ -447,6 +452,9 @@ export function SceneEditor({
           )}
         </>
       )}
+      </section>
+      <section className="flex flex-col gap-3 border-b border-line pb-5">
+        <h3 className="m-0 text-xs font-semibold text-muted">03 · 时长与超窗处理</h3>
       {s.kind !== "clip" ? (
         <div className="actions">
           <Field label="时长策略">
@@ -652,7 +660,7 @@ export function SceneEditor({
                   }
                 />
               </Field>
-              <label>
+              <label className="check">
                 <input
                   type="checkbox"
                   checked={s.playback.audio.ducking}
@@ -675,27 +683,31 @@ export function SceneEditor({
           )}
         </>
       )}
+      </section>
       {onMasksChange && (
-        <MaskEditor
-          sceneId={s.id}
-          masks={masks}
-          profile={profile}
-          coordinateOnly={s.kind === "card"}
-          media={
-            s.kind !== "card" && selectedAsset
-              ? {
-                  kind: s.kind === "clip" ? "video" : "image",
-                  url: mediaUrl(selectedAsset.digest),
-                  sourceKey: refKey(s.kind === "clip" ? s.source : s.image),
-                  startUs:
-                    s.kind === "clip" ? s.sourceRange.startUs : undefined,
-                  framing: s.framing,
-                }
-              : undefined
-          }
-          onChange={onMasksChange}
-        />
+        <section className="flex flex-col gap-3">
+          <h3 className="m-0 text-xs font-semibold text-muted">04 · 遮罩编辑器</h3>
+          <MaskEditor
+            sceneId={s.id}
+            masks={masks}
+            profile={profile}
+            coordinateOnly={s.kind === "card"}
+            media={
+              s.kind !== "card" && selectedAsset
+                ? {
+                    kind: s.kind === "clip" ? "video" : "image",
+                    url: mediaUrl(selectedAsset.digest),
+                    sourceKey: refKey(s.kind === "clip" ? s.source : s.image),
+                    startUs:
+                      s.kind === "clip" ? s.sourceRange.startUs : undefined,
+                    framing: s.framing,
+                  }
+                : undefined
+            }
+            onChange={onMasksChange}
+          />
+        </section>
       )}
-    </>
+    </div>
   );
 }

@@ -3,7 +3,9 @@ import { CaptionTrack, RunRecord, z } from "@lightweaver/weaver/contracts";
 import { api, requestId } from "../api";
 import { localeName, runLabel } from "../domain/format";
 import { ACTIVE_RUN_STATES, RESUMABLE_RUN_STATES, RunDetail } from "../domain/run";
+import { notifyRunsChanged } from "../jobs/useRunList";
 import { Field } from "../ui/Field";
+import { Button } from "../ui/Button";
 
 const CaptionAssistResult = z.object({
   projectId: z.string(),
@@ -69,7 +71,10 @@ export function CaptionAssistPanel({
           if (next.run.error) fail(new Error(next.run.error.message));
           if (ACTIVE_RUN_STATES.has(next.run.state))
             timer = setTimeout(poll, 1000);
-          else onRunChange?.();
+          else {
+            notifyRunsChanged();
+            onRunChange?.();
+          }
         })
         .catch((error) => {
           if (
@@ -113,6 +118,7 @@ export function CaptionAssistPanel({
         setSubmitting(false);
         setRun(next);
         setStatus(runLabel(next.state));
+        notifyRunsChanged();
         onRunChange?.();
       })
       .catch((error) => {
@@ -139,6 +145,7 @@ export function CaptionAssistPanel({
         setRun(next);
         setDetail(null);
         setStatus(runLabel(next.state));
+        notifyRunsChanged();
         onRunChange?.();
       })
       .catch((error) => {
@@ -149,8 +156,8 @@ export function CaptionAssistPanel({
       });
   };
   return (
-    <section className="assist-panel">
-      <h3>字幕译文作业</h3>
+    <section className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+      <h3 className="m-0 text-sm">译文作业状态</h3>
       <p className="hint">
         译文只改变字幕语言。项目输出语言和音频保持不变。完成后必须再点击“采用译文”。
       </p>
@@ -162,7 +169,7 @@ export function CaptionAssistPanel({
             placeholder="例如 en"
           />
         </Field>
-        <button
+        <Button
           disabled={
             disabled ||
             !targetLocale ||
@@ -173,11 +180,11 @@ export function CaptionAssistPanel({
           onClick={submit}
         >
           生成译文字幕
-        </button>
+        </Button>
       </div>
       {run && (
         <div className="actions">
-          <button
+          <Button
             disabled={
               !hasActiveRun ||
               run.state === "cancelling" ||
@@ -186,13 +193,13 @@ export function CaptionAssistPanel({
             onClick={() => changeRun("cancel")}
           >
             取消作业
-          </button>
-          <button
+          </Button>
+          <Button
             disabled={!canResume || runAction !== null}
             onClick={() => changeRun("resume")}
           >
             恢复未完成步骤
-          </button>
+          </Button>
         </div>
       )}
       {status && <small>{status}</small>}
@@ -206,14 +213,14 @@ export function CaptionAssistPanel({
               原文 {localeName(result.data.sourceLocale)} → 译文{" "}
               {localeName(result.data.targetLocale)}
             </b>
-            <button
+            <Button
               disabled={disabled || staleResult}
               onClick={() => {
                 if (run) onApply(run.id);
               }}
             >
               采用译文到原字幕轨
-            </button>
+            </Button>
           </div>
           {result.data.track.cues.map((cue) => (
             <div className="translation-cue" key={cue.id}>

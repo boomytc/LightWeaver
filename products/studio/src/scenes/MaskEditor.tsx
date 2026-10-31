@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PROFILES, ProjectDocument } from "@lightweaver/weaver/contracts";
 import { clamp, MICROS_PER_SECOND } from "../domain/time";
 import { Field } from "../ui/Field";
+import { Button } from "../ui/Button";
 
 export type SceneMask = ProjectDocument["masks"][number];
 type OutputProfileValue = ProjectDocument["profiles"][number];
@@ -126,8 +127,8 @@ export function MaskEditor({
     );
   };
   return (
-    <details className="mask-editor">
-      <summary>遮罩草稿 · {masks.length}</summary>
+    <details className="mask-editor flex flex-col gap-3">
+      <summary className="font-medium">遮罩草稿 · {masks.length}</summary>
       <p className="hint">
         坐标与尺寸使用画面归一化值，颜色会随项目修订一起保存。
       </p>
@@ -216,19 +217,19 @@ export function MaskEditor({
                 />
               </Field>
             </div>
-            <button
+            <Button size="sm"
               onClick={() =>
                 onChange(masks.filter((_, current) => current !== index))
               }
             >
               删除遮罩
-            </button>
+            </Button>
           </article>
         ))}
       </div>
-      <button onClick={() => onChange([...masks, emptyMask(sceneId)])}>
+      <Button onClick={() => onChange([...masks, emptyMask(sceneId)])}>
         添加遮罩
-      </button>
+      </Button>
     </details>
   );
 }

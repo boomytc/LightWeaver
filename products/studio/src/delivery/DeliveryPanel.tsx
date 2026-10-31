@@ -6,6 +6,8 @@ import { labels } from "../domain/format";
 import { useSession } from "../session/context";
 import { Field } from "../ui/Field";
 import { Modal } from "../ui/Modal";
+import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
 
 const exportKinds = ["file", "otio", "jianying", "bundle"] as const;
 type ExportKind = (typeof exportKinds)[number];
@@ -64,46 +66,61 @@ export function DeliveryPanel() {
   };
 
   return (
-    <div className="min-w-0">
-      <h2>交付规格</h2>
-      <Field label="片名">
-        <input value={draft.title} onChange={(event) => session.edit({ ...draft, title: event.target.value })} />
-      </Field>
-      <div className="actions">
-        {["zh", "en"].map((locale) => (
-          <label key={locale} className="check">
-            <input
-              type="checkbox"
-              checked={draft.locales.includes(locale)}
-              onChange={(event) =>
-                session.edit({
-                  ...draft,
-                  locales: event.target.checked ? [...draft.locales, locale] : draft.locales.filter((item) => item !== locale),
-                })
-              }
-            />
-            {locale === "zh" ? "中文" : "英文"}
-          </label>
-        ))}
-      </div>
-      {Object.values(PROFILES).map((profile) => (
-        <label className="check" key={profile.id}>
-          <input
-            type="checkbox"
-            checked={draft.profiles.some((item) => item.id === profile.id)}
-            onChange={(event) =>
-              session.edit({
-                ...draft,
-                profiles: event.target.checked ? [...draft.profiles, profile] : draft.profiles.filter((item) => item.id !== profile.id),
-              })
-            }
-          />
-          {labels[profile.id] || profile.id}
-        </label>
-      ))}
+    <div className="narrow-content flex min-w-0 flex-col gap-5">
+      <div><h2 className="m-0">交付规格</h2><p className="hint mb-0 mt-1 text-xs">选择输出语言与画幅，逐项确认帧率、字幕和响度目标。</p></div>
+      <section className="panel-card flex flex-col gap-4 p-4">
+        <Field label="片名">
+          <input value={draft.title} onChange={(event) => session.edit({ ...draft, title: event.target.value })} />
+        </Field>
+        <div className="form-grid">
+          <div className="field">
+            <span>输出语言</span>
+            <div className="row">
+              {["zh", "en"].map((locale) => (
+                <label key={locale} className="check">
+                  <input
+                    type="checkbox"
+                    checked={draft.locales.includes(locale)}
+                    onChange={(event) =>
+                      session.edit({
+                        ...draft,
+                        locales: event.target.checked ? [...draft.locales, locale] : draft.locales.filter((item) => item !== locale),
+                      })
+                    }
+                  />
+                  {locale === "zh" ? "中文" : "英文"}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="field">
+            <span>输出画幅</span>
+            <div className="row">
+              {Object.values(PROFILES).map((profile) => (
+                <label className="check" key={profile.id}>
+                  <input
+                    type="checkbox"
+                    checked={draft.profiles.some((item) => item.id === profile.id)}
+                    onChange={(event) =>
+                      session.edit({
+                        ...draft,
+                        profiles: event.target.checked ? [...draft.profiles, profile] : draft.profiles.filter((item) => item.id !== profile.id),
+                      })
+                    }
+                  />
+                  {labels[profile.id] || profile.id}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
       {draft.profiles.map((profile, index) => (
-        <article key={profile.id}>
-          <h3>{labels[profile.id] || profile.id}</h3>
+        <article className="panel-card p-4" key={profile.id}>
+          <div className="section-title mb-3">
+            <h3 className="m-0 text-sm">{labels[profile.id] || profile.id}</h3>
+            <Badge className="numeric">{profile.width}×{profile.height}</Badge>
+          </div>
           <div className="actions">
             <Field label="帧率">
               <input
@@ -179,97 +196,119 @@ export function DeliveryPanel() {
           </div>
         </article>
       ))}
-      <div className="actions">
-        <button
+      <div className="actions panel-card p-3">
+        <Button
           type="button"
           disabled={session.dirty}
           onClick={() => void session.act(() => session.showPlan(`/projects/${draft.id}/plan`, { requestId: requestId() }))}
         >
           检查制作计划
-        </button>
+        </Button>
         {exportKinds.map((kind) => (
-          <button key={kind} type="button" onClick={() => void start(kind)}>
+          <Button key={kind} type="button" onClick={() => void start(kind)}>
             导出{kindLabel[kind]}
-          </button>
+          </Button>
         ))}
       </div>
       {session.dirty && <small>先保存修订，再提交制作。</small>}
-      <h2>交付与历史</h2>
-      {ctx.deliveries.length === 0 && <p>尚未有通过验证的交付。</p>}
-      {ctx.deliveries.map((delivery) => (
-        <article key={delivery.id}>
-          <h3>
-            {delivery.target} <span className="badge">{labels[delivery.state] || delivery.state}</span>
-          </h3>
-          <small>
-            制作修订 {delivery.revisionId} · {delivery.createdAt}
-          </small>
-          {delivery.artifacts.video && <video controls src={mediaUrl(delivery.artifacts.video)} />}
-          <div className="actions">
-            <button type="button" onClick={() => setDeliveryId(delivery.id)}>
-              {deliveryId === delivery.id ? "将用这份交付导出" : "导出时使用这份"}
-            </button>
-            {["srt", "ass", "manifest", "receipt", "audio"]
-              .filter((key) => delivery.artifacts[key])
-              .map((key) => (
-                <a key={key} href={mediaUrl(delivery.artifacts[key] || "")}>
-                  {key}
-                </a>
-              ))}
+      <section className="flex flex-col gap-3">
+        <div className="section-title">
+          <h2 className="m-0">交付与历史</h2>
+          <Badge>{ctx.deliveries.length}</Badge>
+        </div>
+        {ctx.deliveries.length === 0 && (
+          <div className="subtle-card p-6 text-center">
+            <b>尚未有通过验证的交付</b>
+            <p className="hint mx-auto mt-1 mb-0 text-xs">点击右上角“制作”生成成片后，可在此核验画面并导出。</p>
           </div>
-          <p>
-            按场景定位：
-            {draft.scenes.map((scene, index) => (
-              <button
-                key={scene.id}
-                type="button"
-                onClick={() =>
-                  void session.act(async () => {
-                    const manifest = await api(
-                      `/artifacts/${delivery.timelineDigest}`,
-                      z.object({
-                        visuals: z.array(z.object({ sceneId: z.string(), startFrame: z.number() })),
-                        output: z.object({ fps: z.object({ num: z.number(), den: z.number() }) }),
-                      }),
-                    );
-                    const visual = manifest.visuals.find((item) => item.sceneId === scene.id);
-                    const video = document.querySelector<HTMLVideoElement>(`video[src="${mediaUrl(delivery.artifacts.video || "")}"]`);
-                    if (visual && video) {
-                      video.currentTime = (visual.startFrame * manifest.output.fps.den) / manifest.output.fps.num;
-                      await video.play();
+        )}
+        {ctx.deliveries.map((delivery) => (
+          <article className="panel-card flex flex-col gap-3 p-4" key={delivery.id}>
+            <div className="section-title">
+              <div>
+                <h3 className="m-0 text-sm">{delivery.target}</h3>
+                <Badge tone="ok" dot>{labels[delivery.state] || delivery.state}</Badge>
+              </div>
+              <small className="numeric">
+                修订 {delivery.revisionId.slice(0, 12)} · {delivery.createdAt}
+              </small>
+            </div>
+            {delivery.artifacts.video && <video className="max-h-96 rounded-[8px] bg-black" controls src={mediaUrl(delivery.artifacts.video)} />}
+            <div className="actions">
+              <Button size="sm" emphasized={deliveryId === delivery.id} type="button" onClick={() => setDeliveryId(delivery.id)}>
+                {deliveryId === delivery.id ? "将用这份交付导出" : "导出时使用这份"}
+              </Button>
+              {["srt", "ass", "manifest", "receipt", "audio"]
+                .filter((key) => delivery.artifacts[key])
+                .map((key) => (
+                  <a
+                    key={key}
+                    className="ui-button no-underline"
+                    data-variant="secondary"
+                    data-size="sm"
+                    href={mediaUrl(delivery.artifacts[key] || "")}
+                  >
+                    {key}
+                  </a>
+                ))}
+            </div>
+            {draft.scenes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <small>按场景定位：</small>
+                {draft.scenes.map((scene, index) => (
+                  <Button
+                    key={scene.id}
+                    size="sm"
+                    variant="ghost"
+                    className="numeric"
+                    type="button"
+                    onClick={() =>
+                      void session.act(async () => {
+                        const manifest = await api(
+                          `/artifacts/${delivery.timelineDigest}`,
+                          z.object({
+                            visuals: z.array(z.object({ sceneId: z.string(), startFrame: z.number() })),
+                            output: z.object({ fps: z.object({ num: z.number(), den: z.number() }) }),
+                          }),
+                        );
+                        const visual = manifest.visuals.find((item) => item.sceneId === scene.id);
+                        const video = document.querySelector<HTMLVideoElement>(`video[src="${mediaUrl(delivery.artifacts.video || "")}"]`);
+                        if (visual && video) {
+                          video.currentTime = (visual.startFrame * manifest.output.fps.den) / manifest.output.fps.num;
+                          await video.play();
+                        }
+                      })
                     }
-                  })
-                }
-              >
-                {index + 1}
-              </button>
-            ))}
-          </p>
-        </article>
-      ))}
-      {session.plan !== null && (
-        <details>
-          <summary>计划与影响</summary>
-          <pre>{JSON.stringify(session.plan, null, 2)}</pre>
-        </details>
-      )}
+                  >
+                    {index + 1}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </article>
+        ))}
+      </section>
       <Modal open={pendingKind !== null} title="导出目标" onOpenChange={(open) => !open && setPendingKind(null)}>
-        <Field label="绝对路径">
-          <input value={destination} onChange={(event) => setDestination(event.target.value)} />
-        </Field>
-        <button
-          type="button"
-          className="primary"
-          disabled={!destination.trim() || !pendingKind}
-          onClick={() => {
-            if (!pendingKind) return;
-            const kind = pendingKind;
-            setPendingKind(null);
-            void send(kind, destination.trim());
-          }}
-        >
-          导出
-        </button>
+        <div className="flex flex-col gap-4">
+          <Field label="绝对路径">
+            <input value={destination} onChange={(event) => setDestination(event.target.value)} />
+          </Field>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!destination.trim() || !pendingKind}
+              onClick={() => {
+                if (!pendingKind) return;
+                const kind = pendingKind;
+                setPendingKind(null);
+                void send(kind, destination.trim());
+              }}
+            >
+              导出
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -1,8 +1,13 @@
-import { CreateProject } from "./CreateProject";
-import { useSession } from "../session/context";
 import { ProjectRevision } from "@lightweaver/weaver/contracts";
 import { api, requestId } from "../api";
 import { desktop } from "../desktop";
+import { useSession } from "../session/context";
+import { CreateProject } from "./CreateProject";
+import { PageHeader } from "../ui/PageHeader";
+import { Badge } from "../ui/Badge";
+import { Button } from "../ui/Button";
+import { Dropzone } from "../ui/Dropzone";
+import { FolderIcon, ProjectIcon } from "../ui/Icons";
 
 export function ProjectHome() {
   const session = useSession();
@@ -16,10 +21,21 @@ export function ProjectHome() {
     const file = kind === "directory" ? await bridge?.pickDirectory?.() : await bridge?.pickModelFile?.();
     if (!file) return;
     const project = await api("/projects/import-bundle", ProjectRevision, {
-      method: "POST", body: { file, requestId: requestId() },
+      method: "POST",
+      body: { file, requestId: requestId() },
     });
     await acceptImport(project);
   });
+  const importFiles = (files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+    void session.act(async () => {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("requestId", requestId());
+      await acceptImport(await api("/projects/import-bundle/upload", ProjectRevision, { method: "POST", body }));
+    });
+  };
   const recent = new Set(session.client.recentProjectIds);
   const ordered = [...session.projects].sort((left, right) => {
     const leftRecent = recent.has(left.projectId) ? session.client.recentProjectIds.indexOf(left.projectId) : 99;
@@ -27,53 +43,83 @@ export function ProjectHome() {
     return leftRecent - rightRecent;
   });
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]">
-      <aside className="overflow-auto border-r border-line p-4">
-        <h2 className="m-0 mb-3 text-sm font-medium text-muted">最近项目</h2>
-        {ordered.map((project) => (
-          <button
-            key={project.projectId}
-            type="button"
-            className="row-item my-1 w-full px-3 py-3 text-left"
-            onClick={() => void session.navigate("projects", project.projectId)}
-          >
-            <b className="block">{project.document.title || "未命名项目"}</b>
-            <small className="text-muted">{project.projectId}</small>
-          </button>
-        ))}
-        {ordered.length === 0 && <p className="hint">还没有项目。</p>}
-      </aside>
-      <section className="overflow-auto p-8">
-        <section aria-label="导入项目" className="mx-auto max-w-xl">
-          <h2>打开已有项目包</h2>
-          <p className="hint">导入 LightWeaver bundle ZIP 或完整目录，创建独立项目并校验媒体摘要。</p>
-          {desktop() ? (
-            <div className="actions">
-              <button disabled={session.busy} onClick={() => void importPath("file")}>选择项目包 ZIP</button>
-              <button disabled={session.busy} onClick={() => void importPath("directory")}>选择项目包目录</button>
+    <main className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title="项目" description="继续最近的创作，或从草稿与项目包开始一部新片。" />
+      <div className="scroll-region page-scroll">
+        <div className="page-content grid items-start gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.7fr)]">
+          <section aria-labelledby="project-list-title">
+            <div className="section-title mb-3">
+              <div>
+                <h2 id="project-list-title" className="m-0">最近与全部项目</h2>
+                <Badge>{ordered.length}</Badge>
+              </div>
             </div>
-          ) : (
-            <input type="file" accept=".zip" aria-label="导入项目包 ZIP" disabled={session.busy} onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (!file) return;
-              void session.act(async () => {
-                const body = new FormData();
-                body.append("file", file);
-                body.append("requestId", requestId());
-                await acceptImport(await api("/projects/import-bundle/upload", ProjectRevision, { method: "POST", body }));
-              });
-            }} />
-          )}
-        </section>
-        <CreateProject
-          onCreated={async (project) => {
-            await session.refreshLists();
-            await session.navigate("projects", project.projectId);
-          }}
-          fail={(reason) => session.setError(reason instanceof Error ? reason.message : String(reason))}
-        />
-      </section>
-    </div>
+            <div className="flex flex-col gap-2">
+              {ordered.map((project) => {
+                const draft = session.client.drafts.find((item) => item.projectId === project.projectId);
+                return (
+                  <button
+                    key={project.projectId}
+                    type="button"
+                    className="row-item surface-card p-4"
+                    onClick={() => void session.navigate("projects", project.projectId)}
+                  >
+                    <span className="dropzone-icon size-10"><ProjectIcon /></span>
+                    <span className="row-item-copy">
+                      <span className="flex items-center gap-2">
+                        <b className="truncate">{project.document.title || "未命名项目"}</b>
+                        {recent.has(project.projectId) && <Badge tone="accent">最近打开</Badge>}
+                        {draft && <Badge tone="warn" dot>可恢复草稿</Badge>}
+                      </span>
+                      <small className="numeric mt-1">{project.projectId} · rev {project.id.slice(0, 10)}</small>
+                      <small className="mt-1">
+                        {project.document.locales.join(" / ") || "未设置语言"} · {project.document.profiles.map((profile) => profile.id).join(" / ") || "未设置规格"}
+                      </small>
+                    </span>
+                  </button>
+                );
+              })}
+              {ordered.length === 0 && (
+                <div className="subtle-card flex flex-col items-center px-6 py-12 text-center">
+                  <span className="dropzone-icon mb-3 size-12"><ProjectIcon /></span>
+                  <b>还没有项目</b>
+                  <p className="hint mb-0 mt-1 text-xs">从右侧创建草稿，或打开已有的 LightWeaver 项目包。</p>
+                </div>
+              )}
+            </div>
+          </section>
+          <div className="flex flex-col gap-4">
+            <CreateProject
+              onCreated={async (project) => {
+                await session.refreshLists();
+                await session.navigate("projects", project.projectId);
+              }}
+              fail={(reason) => session.setError(reason instanceof Error ? reason.message : String(reason))}
+            />
+            <section className="panel-card p-5" aria-labelledby="import-project-title">
+              <div className="mb-4">
+                <h2 id="import-project-title" className="m-0">打开已有项目包</h2>
+                <p className="hint mb-0 mt-1 text-xs">导入 bundle ZIP 或完整目录，创建独立项目并校验媒体摘要。</p>
+              </div>
+              <Dropzone
+                inputAriaLabel="导入项目包 ZIP"
+                accept=".zip"
+                disabled={session.busy}
+                onFiles={importFiles}
+                title="拖入项目包 ZIP"
+                description="原项目与媒体保持不变"
+                browseLabel={desktop() ? "选择 ZIP" : "选择文件"}
+                onBrowse={desktop() ? () => void importPath("file") : undefined}
+              />
+              {desktop() && (
+                <Button className="mt-3 w-full" disabled={session.busy} onClick={() => void importPath("directory")}>
+                  <FolderIcon />选择项目包目录
+                </Button>
+              )}
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }

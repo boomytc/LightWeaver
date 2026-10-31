@@ -16,7 +16,7 @@ export type ToastItem = {
 export function ToastStack({ items, onDismiss }: { items: ToastItem[]; onDismiss: (id: string) => void }) {
   if (items.length === 0) return null;
   return (
-    <div className="pointer-events-none fixed top-4 right-4 z-30 flex w-80 flex-col gap-2" aria-live="polite">
+    <div className="pointer-events-none fixed top-[68px] right-5 z-40 flex w-80 flex-col gap-2" aria-live="polite">
       {items.map((item) => (
         <ToastCard key={item.id} item={item} onDismiss={() => onDismiss(item.id)} />
       ))}
@@ -61,7 +61,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       data-slot="toast-notification-banner"
       data-phase={phase}
       data-tone={item.tone}
-      className="toast-card pointer-events-auto flex items-start gap-3 rounded-xl border border-line bg-panel/95 px-3 py-2.5 shadow-[var(--lw-shadow-menu)] backdrop-blur-xl"
+      className="toast-card pointer-events-auto flex items-start gap-3 rounded-[14px] border border-line bg-elevated/95 px-3.5 py-3 shadow-[var(--lw-shadow-menu)] backdrop-blur-xl"
       onPointerEnter={() => {
         contact.current.pointer = true;
         clearTimer();
