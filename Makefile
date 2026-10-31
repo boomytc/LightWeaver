@@ -13,7 +13,7 @@ studio: ## 启动同一 API、worker 与 Studio（127.0.0.1:5175）
 desktop: ## 桌面开发：Electron、Vite HMR、动态端口服务
 	npm run dev -w @lightweaver/desktop
 
-desktop-package: ## 本机未签名可运行 macOS 包
+desktop-package: ## 本机平台未签名可运行包
 	npm run package -w @lightweaver/desktop
 
 desktop-dist: ## 未签名安装分发包（不含公证）

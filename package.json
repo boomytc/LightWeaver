@@ -8,6 +8,7 @@
     "products/desktop"
   ],
   "scripts": {
+    "start": "node scripts/start-desktop.mjs",
     "weaver": "npm run weaver -w @lightweaver/weaver --",
     "typecheck": "node weaver/scripts/check-boundaries.mjs && npm run typecheck --workspaces --if-present"
   },

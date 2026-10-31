@@ -237,8 +237,8 @@ function runtimePaths(prefs: DesktopPreferences) {
   const tools: RuntimeTools = dev
     ? {
         node: process.env.LIGHTWEAVER_NODE || "node",
-        ffmpeg: "",
-        ffprobe: "",
+        ffmpeg: process.env.LIGHTWEAVER_FFMPEG || "",
+        ffprobe: process.env.LIGHTWEAVER_FFPROBE || "",
         supervisor: path.join(
           repoRoot,
           "weaver",
@@ -253,7 +253,7 @@ function runtimePaths(prefs: DesktopPreferences) {
         ),
         cardBrowser: "",
         cardSite: "",
-        python: "",
+        python: process.env.LIGHTWEAVER_PYTHON || "",
       }
     : resolveRuntimeTools(bundleRoot);
   return {

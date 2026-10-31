@@ -6,4 +6,4 @@ CLI 与 Studio 可以同时编辑。冲突页保留本地未提交内容，显�
 
 音色页支持参考音频上传、参考文本转写、设计试听、收下与删除。素材和方法页管理不可变版本，项目绑定选定版本。
 
-配置和命令见仓库 `README.md` 与 `docs/conventions.md`。
+界面操作与模型配置见[用户指南](../../docs/user-guide.md)。源码启动与构建见[开发指南](../../docs/development.md)，CLI 与运行合同见[命令与配置参考](../../docs/conventions.md)。
