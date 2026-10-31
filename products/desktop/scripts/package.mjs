@@ -8,6 +8,10 @@ import { createRequire } from "node:module";
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(desktopRoot, "../..");
 const require = createRequire(path.join(desktopRoot, "package.json"));
+const electronVersion = require("electron/package.json").version;
+if (!/^\d+\.\d+\.\d+/.test(electronVersion)) {
+  throw new Error(`Electron 版本必须是已安装的固定号，当前是 ${electronVersion}`);
+}
 const staging = path.join(desktopRoot, "staging", "lightweaver");
 const distFlag = process.argv.includes("--dist");
 const platform = process.platform;
@@ -233,6 +237,7 @@ const builder = require("electron-builder");
 await builder.build({
   config: {
     appId: "app.lightweaver.desktop",
+    electronVersion,
     productName: "LightWeaver",
     executableName: "LightWeaver",
     directories: { output: path.join(desktopRoot, "release"), app: desktopRoot },
