@@ -223,7 +223,7 @@ export function ProjectWorkspace() {
           )}
         </aside>
         <button type="button" aria-label="调整左侧宽度" className="w-1 cursor-col-resize border-0 bg-line p-0" onPointerDown={drag("left")} />
-        <main className="min-w-0 flex-1 overflow-auto bg-[color:color-mix(in_srgb,var(--lw-canvas)_65%,white)] p-4">
+        <main className="min-w-0 flex-1 overflow-auto bg-panel p-4">
           {focus === "edit" && scene?.kind === "clip" && (
             <SourceWindowPlayer sourceUrl={assetUrl(ctx.assets, refKey(scene.source))} sourceKey={refKey(scene.source)} range={scene.sourceRange} label="当前片段" />
           )}

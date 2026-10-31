@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { AudioLines, Clapperboard, Library, ListChecks, Monitor, Moon, Settings, SlidersHorizontal, Sun } from "lucide-react";
 import { useSession } from "../session/context";
 import { HintProvider } from "../ui/Hint";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -24,10 +23,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <HintProvider>
       <div className="app-frame text-ink">
         <aside className="app-rail">
-          <div className="app-brand">
-            <span className="app-mark" aria-hidden="true">织</span>
-            LightWeaver
-          </div>
+          <div className="app-brand">LightWeaver</div>
           <Popover.Root open={session.findOpen} onOpenChange={session.setFindOpen}>
             <Popover.Anchor asChild>
               <div>
@@ -54,7 +50,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-current={session.route.page === page ? "page" : undefined}
                 onClick={() => void session.navigate(page)}
               >
-                <NavIcon page={page} />
                 {label}
               </button>
             ))}
@@ -64,7 +59,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             className="nav-item"
             onClick={() => session.client.setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
           >
-            <NavIcon page={theme === "dark" ? "theme-dark" : theme === "light" ? "theme-light" : "theme-system"} />
             {theme === "dark" ? "深色" : theme === "light" ? "浅色" : "跟随系统"}
           </button>
         </aside>
@@ -111,15 +105,4 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function NavIcon({ page }: { page: string }) {
-  const Icon = page === "projects" ? Clapperboard
-    : page === "methods" ? SlidersHorizontal
-    : page === "voices" ? AudioLines
-    : page === "library" ? Library
-    : page === "jobs" ? ListChecks
-    : page === "settings" ? Settings
-    : page === "theme-dark" ? Moon
-    : page === "theme-light" ? Sun
-    : Monitor;
-  return <Icon size={16} strokeWidth={1.75} aria-hidden />;
-}
+

@@ -10,7 +10,6 @@ import {
   type ChangeEvent,
   type ComponentPropsWithoutRef,
 } from "react";
-import { Search, X } from "lucide-react";
 import { cn } from "./cn";
 
 export type SearchInputProps = {
@@ -92,7 +91,6 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
         {label}
       </label>
       <div className="relative">
-        <Search size={16} strokeWidth={2} aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
         <input
           ref={setRefs}
           id={inputId}
@@ -105,7 +103,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
           aria-describedby={error ? errorId : hint ? hintId : undefined}
           onChange={handleChange}
           className={cn(
-            "h-10 w-full rounded-lg border border-line bg-panel py-2 pr-10 pl-10 text-sm text-ink ring-0 outline-none placeholder:text-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
+            "h-10 w-full rounded-lg border border-line bg-panel py-2 pr-16 pl-3.5 text-sm text-ink ring-0 outline-none placeholder:text-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
             "[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
             className,
           )}
@@ -116,9 +114,9 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
             type="button"
             aria-label={clearLabel}
             onClick={handleClear}
-            className="absolute top-1/2 right-2.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted shadow-none hover:bg-canvas hover:text-ink"
+            className="absolute top-1/2 right-1.5 -translate-y-1/2 border-0 bg-transparent px-1.5 py-0.5 text-xs font-medium text-muted shadow-none hover:text-ink"
           >
-            <X size={14} strokeWidth={2} aria-hidden />
+            清除
           </button>
         ) : null}
       </div>
