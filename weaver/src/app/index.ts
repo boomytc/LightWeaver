@@ -18,6 +18,12 @@ import { Library } from "../library/service.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { Jobs } from "../jobs/index.ts";
 import { Providers, AsrResult, workspaceRoot } from "../adapters/providers.ts";
+import {
+  currentRuntime,
+  installRuntime,
+  resourcePath,
+  type RuntimeContext,
+} from "../runtime.ts";
 import { Builds, targetFingerprint } from "./build.ts";
 import { Analysis } from "../search/index.ts";
 import { Interchange } from "../interchange/index.ts";
@@ -31,6 +37,14 @@ import { VisualSearch } from "../search/visual.ts";
 import { SpeakerAssistance } from "../captions/speakers.ts";
 import { Models } from "../models/service.ts";
 export { errorProtocol, httpStatus } from "../contracts/errors.ts";
+export {
+  RuntimeContext,
+  currentRuntime,
+  developmentRuntime,
+  installRuntime,
+  resourcePath,
+  resolveConfiguredPath,
+} from "../runtime.ts";
 
 export class Application {
   private readonly store: Store;
@@ -47,12 +61,29 @@ export class Application {
   readonly captions: CaptionAssistance;
   readonly visual: VisualSearch;
   readonly speakers: SpeakerAssistance;
-  constructor(options: { dataDir?: string } = {}) {
-    this.store = new Store(options.dataDir);
+  readonly runtime: RuntimeContext;
+  constructor(options: { dataDir?: string; runtime?: RuntimeContext } = {}) {
+    const base = options.runtime ?? currentRuntime();
+    const dataDir = options.dataDir ? path.resolve(options.dataDir) : "";
+    this.runtime = installRuntime(
+      dataDir && dataDir !== base.dataDir
+        ? {
+            ...base,
+            dataDir,
+            modelDir: path.relative(base.dataDir, base.modelDir).startsWith("..") ||
+              path.isAbsolute(path.relative(base.dataDir, base.modelDir))
+              ? base.modelDir
+              : path.join(dataDir, path.relative(base.dataDir, base.modelDir)),
+            tempDir: path.join(dataDir, "tmp"),
+            logDir: path.join(dataDir, "logs"),
+          }
+        : base,
+    );
+    this.store = new Store(this.runtime.dataDir);
     this.projects = new Projects(this.store);
     this.library = new Library(this.store);
     this.jobs = new Jobs(this.store);
-    this.models = new Models(workspaceRoot, this.jobs);
+    this.models = new Models(this.runtime.configBase, this.jobs);
     this.providers = new Providers(this.store);
     this.builds = new Builds(
       this.store,
@@ -85,7 +116,7 @@ export class Application {
       builtinPackageVersion: digest(
         JSON.parse(
           fs.readFileSync(
-            path.join(workspaceRoot, "library/assets.json"),
+            resourcePath("library", "assets.json"),
             "utf8",
           ),
         ),
@@ -326,7 +357,7 @@ export class Application {
     return { file: dest, digest: result.digest };
   }
   importBuiltins(input: { expectedPackageVersion: string; requestId: string }) {
-    const root = workspaceRoot,
+    const root = workspaceRoot(),
       catalog = JSON.parse(
         fs.readFileSync(path.join(root, "library/assets.json"), "utf8"),
       ),

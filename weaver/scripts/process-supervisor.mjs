@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const GRACE_MS = 3000;
 const POLL_MS = 25;
@@ -31,7 +31,17 @@ function parseStart(value) {
   return { command: value.command, args: value.args };
 }
 
+const windows = process.platform === "win32";
+
 function groupExists() {
+  if (windows) {
+    if (!target?.pid) return false;
+    const listed = spawnSync("tasklist", ["/FI", `PID eq ${target.pid}`, "/NH"], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    return listed.stdout.includes(String(target.pid));
+  }
   if (!targetGroup) return false;
   try {
     process.kill(-targetGroup, 0);
@@ -41,7 +51,14 @@ function groupExists() {
   }
 }
 
-function signalGroup(signal) {
+function signalTree(signal) {
+  if (windows) {
+    if (!target?.pid) return;
+    const args = ["/PID", String(target.pid), "/T"];
+    if (signal === "SIGKILL") args.push("/F");
+    spawnSync("taskkill", args, { stdio: "ignore", windowsHide: true });
+    return;
+  }
   if (!targetGroup) return;
   try {
     process.kill(-targetGroup, signal);
@@ -89,23 +106,26 @@ function settleIfFinished() {
 
 function requestTermination() {
   stopRequested = true;
-  if (!targetGroup || terminationStarted) return;
+  if (terminationStarted) return;
+  if (!windows && !targetGroup) return;
+  if (windows && !target?.pid) return;
   terminationStarted = true;
-  signalGroup("SIGTERM");
+  signalTree("SIGTERM");
   escalationTimer = setTimeout(() => {
     killedAt = Date.now();
-    signalGroup("SIGKILL");
+    signalTree("SIGKILL");
   }, GRACE_MS);
   pollTimer = setInterval(settleIfFinished, POLL_MS);
 }
 
 function start(command, args) {
   target = spawn(command, args, {
-    detached: true,
+    detached: !windows,
     shell: false,
+    windowsHide: true,
     stdio: ["ignore", "inherit", "inherit"],
   });
-  targetGroup = target.pid;
+  targetGroup = windows ? undefined : target.pid;
   if (stopRequested) requestTermination();
   target.once("error", (error) => {
     spawnFailure = error.message;

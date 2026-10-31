@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { currentRuntime } from "../runtime.ts";
 
 export function defaultModelPython(
   platform: NodeJS.Platform = process.platform,
@@ -24,6 +25,16 @@ function defaultVenvPython(
 
 export function resolveExecutable(value: string, root: string): string {
   if (!value) return "";
+  const runtime = currentRuntime();
+  const named = path.basename(value).toLowerCase();
+  if (!/[\\/]/.test(value) || named === value.toLowerCase()) {
+    if ((named === "ffmpeg" || named === "ffmpeg.exe") && runtime.tools.ffmpeg)
+      return runtime.tools.ffmpeg;
+    if ((named === "ffprobe" || named === "ffprobe.exe") && runtime.tools.ffprobe)
+      return runtime.tools.ffprobe;
+    if ((named === "python3" || named === "python" || named === "python3.exe" || named === "python.exe") && runtime.tools.python)
+      return runtime.tools.python;
+  }
   const candidates = /[\\/]/.test(value)
     ? executableCandidates(
         path.resolve(root, value.replace(/[\\/]/g, path.sep)),

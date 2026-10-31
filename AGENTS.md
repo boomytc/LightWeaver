@@ -23,6 +23,8 @@ make install
 make typecheck
 npm run build -w @lightweaver/studio
 make studio
+make desktop
+make desktop-package
 ```
 
 只清理本次创建的临时数据。用户原始媒体、旧项目和迁移备份保留。Git 提交、推送和发布需要用户授权。

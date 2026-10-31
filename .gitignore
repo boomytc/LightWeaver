@@ -1,6 +1,8 @@
 .DS_Store
 node_modules/
 dist/
+products/desktop/staging/
+products/desktop/release/
 out/
 .cache/
 *.tsbuildinfo

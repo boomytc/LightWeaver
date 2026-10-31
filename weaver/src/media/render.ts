@@ -10,11 +10,11 @@ import {
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { Store, canonical } from "../store/index.ts";
-import { processRun } from "./process.ts";
+import { nodeScriptInvocation, processRun } from "./process.ts";
 import { verifyVideo } from "./probe.ts";
 import { frameUs, frameSamples } from "../timeline/clock.ts";
 import { toSrt, toAss } from "../timeline/captions.ts";
-import { workspaceRoot } from "../adapters/providers.ts";
+import { currentRuntime } from "../runtime.ts";
 
 export const RENDER_ALGORITHM = "unified-ffmpeg-v6-caption-timing";
 
@@ -156,12 +156,11 @@ export async function renderTimeline(input: {
         ),
       );
       const rawCard = path.join(workDir, `card-raw-${i}.mp4`);
-      await processRun(
-        process.env.LIGHTWEAVER_CARD_RENDERER ||
-          path.join(workspaceRoot, "node_modules/.bin/weaver-card"),
-        [job, rawCard],
-        { signal },
-      );
+      const card = nodeScriptInvocation(currentRuntime().tools.cardRenderer, [
+        job,
+        rawCard,
+      ]);
+      await processRun(card.command, card.args, { signal, env: card.env });
       await verifyVideo(
         rawCard,
         {

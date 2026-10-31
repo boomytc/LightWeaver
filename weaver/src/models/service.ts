@@ -25,6 +25,7 @@ import {
   defaultModelPython,
   resolveExecutable,
 } from "../adapters/executable.ts";
+import { currentRuntime } from "../runtime.ts";
 import { fileDigest } from "../adapters/toolchain.ts";
 import {
   catalog,
@@ -194,7 +195,7 @@ export class Models {
       );
     if (values.downloadRoot.source === "unset")
       values.downloadRoot = {
-        value: path.join(this.root, "weaver/models"),
+        value: currentRuntime().modelDir,
         source: "default",
       };
     const keySource = env.MODELBEST_API_KEY?.trim()

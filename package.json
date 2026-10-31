@@ -4,7 +4,8 @@
   "workspaces": [
     "weaver",
     "products/study-films",
-    "products/studio"
+    "products/studio",
+    "products/desktop"
   ],
   "scripts": {
     "weaver": "npm run weaver -w @lightweaver/weaver --",

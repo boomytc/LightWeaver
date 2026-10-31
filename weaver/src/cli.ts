@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import { Application } from "./app/index.ts";
+import { developmentRuntime, type RuntimeContext } from "./runtime.ts";
+import path from "node:path";
 import {
   z,
   ProjectDocument,
@@ -54,16 +56,32 @@ const requestId =
   typeof options["request-id"] === "string"
     ? options["request-id"]
     : newId("request");
+function cliRuntime(): RuntimeContext {
+  const runtime = developmentRuntime();
+  const configFile = str("config-file", true);
+  const configBase = str("config-base", true);
+  if (!configFile && !configBase) return runtime;
+  const file = configFile ? path.resolve(configFile) : runtime.configFile;
+  return {
+    ...runtime,
+    configFile: file,
+    configBase: configBase ? path.resolve(configBase) : path.dirname(file),
+  };
+}
 let application: Application | undefined;
 try {
-  const app = new Application({ dataDir: str("data-dir", true) || undefined });
+  const app = new Application({
+    runtime: cliRuntime(),
+    dataDir: str("data-dir", true) || undefined,
+  });
   application = app;
   let result: unknown;
   let jsonlOutput = false;
   const [command, action, arg] = words;
   if (!command || command === "help" || options.help)
     result = {
-      usage: "weaver <command> [--json] [--data-dir /absolute/root]",
+      usage:
+        "weaver <command> [--json] [--data-dir /absolute/root] [--config-file /absolute/config.local.yaml] [--config-base /absolute/base]",
       writes:
         "--expected-revision <rev> / --expected-version <version> 和 --request-id <stable-id>；未给 request-id 时本次生成",
       commands: [

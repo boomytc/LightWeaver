@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>LightWeaver</title>
+    <style>
+      body { margin: 0; font: 15px/1.5 "PingFang SC", "Noto Sans SC", sans-serif; background: #10141a; color: #e7edf5; display: grid; min-height: 100vh; place-items: center; }
+      main { width: min(520px, calc(100% - 48px)); }
+      button { font: inherit; margin-right: 8px; padding: 8px 14px; border-radius: 8px; border: 1px solid #8ea0bd; background: #1c2430; color: inherit; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>LightWeaver</h1>
+      <p id="status">正在准备本地服务…</p>
+      <p id="actions" hidden>
+        <button id="retry" type="button">重试</button>
+        <button id="logs" type="button">查看诊断</button>
+      </p>
+    </main>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const error = params.get("error");
+      if (error) {
+        document.getElementById("status").textContent = error;
+        document.getElementById("actions").hidden = false;
+      }
+      document.getElementById("retry").addEventListener("click", () => window.lightweaver && window.lightweaver.retry());
+      document.getElementById("logs").addEventListener("click", () => window.lightweaver && window.lightweaver.openLogs());
+    </script>
+  </body>
+</html>

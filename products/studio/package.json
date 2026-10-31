@@ -5,15 +5,22 @@
   "scripts": {
     "dev": "concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:web": "vite",
-    "dev:api": "tsx watch server/index.ts",
+    "dev:api": "tsx watch server/listen.ts",
     "start": "concurrently -k -n api,web -c cyan,magenta \"npm:start:api\" \"npm:preview\"",
-    "start:api": "tsx server/index.ts",
+    "start:api": "tsx server/listen.ts",
     "preview": "vite preview --host 127.0.0.1 --port 4175",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
     "@lightweaver/weaver": "*",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.8",
     "concurrently": "^9.1.2",
     "cors": "^2.8.5",
     "express": "^5.1.0",
@@ -23,6 +30,7 @@
     "tsx": "^4.23.1"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.16",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/multer": "^1.4.13",
@@ -30,6 +38,7 @@
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
+    "tailwindcss": "^4.1.16",
     "typescript": "^5.9.2",
     "vite": "^7.1.3"
   }

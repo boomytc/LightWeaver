@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { z, VlmProvider, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import {
@@ -9,6 +8,7 @@ import {
   deepseekBackend,
 } from "../config.ts";
 import { processRun } from "../media/process.ts";
+import { currentRuntime, resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { Store } from "../store/index.ts";
 import { localModelDigest } from "./toolchain.ts";
 import { readSpeechWav } from "./speech.ts";
@@ -40,15 +40,15 @@ export {
   RERANK_PROVIDER,
 } from "./local-models.ts";
 
-export const workspaceRoot = fileURLToPath(
-  new URL("../../../", import.meta.url),
-);
-const scripts = fileURLToPath(new URL("../../scripts/", import.meta.url));
+export function workspaceRoot(): string {
+  return currentRuntime().resourcesDir;
+}
+const scriptsDir = () => resourcePath("weaver", "scripts");
 const cfg = (env: string, key: string) =>
-  process.env[env]?.trim() || localConfigValue(key, workspaceRoot);
+  process.env[env]?.trim() || localConfigValue(key, currentRuntime().configBase);
 const cfgPath = (env: string, key: string) => {
   const value = cfg(env, key);
-  return value ? path.resolve(workspaceRoot, value) : "";
+  return value ? resolveConfiguredPath(value) : "";
 };
 export const AsrResult = z.object({
   text: z.string(),
@@ -83,14 +83,20 @@ export const AsrResult = z.object({
     .optional(),
 });
 export class Providers {
-  readonly local = new LocalModels(workspaceRoot);
-  readonly speech = new SpeechModels(workspaceRoot);
-  readonly visual = new VisualModels(workspaceRoot);
-  readonly speakers = new SpeakerModels(workspaceRoot);
-  constructor(private readonly store: Store) {}
+  readonly local: LocalModels;
+  readonly speech: SpeechModels;
+  readonly visual: VisualModels;
+  readonly speakers: SpeakerModels;
+  constructor(private readonly store: Store) {
+    const root = currentRuntime().configBase;
+    this.local = new LocalModels(root);
+    this.speech = new SpeechModels(root);
+    this.visual = new VisualModels(root);
+    this.speakers = new SpeakerModels(root);
+  }
   descriptors() {
-    const modelbest = modelbestBackend(workspaceRoot),
-      deepseek = deepseekBackend(workspaceRoot);
+    const modelbest = modelbestBackend(currentRuntime().configBase),
+      deepseek = deepseekBackend(currentRuntime().configBase);
     return z.array(ProviderDescriptor).parse([
       {
         id: "modelbest-voxcpm2",
@@ -216,7 +222,7 @@ export class Providers {
               cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
               cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
               this.local.settings().python,
-              path.join(scripts, "asr.py"),
+              path.join(scriptsDir(), "asr.py"),
             ]
           : [base.model, ...adapter.files(id)];
       const files: string[] = [];
@@ -275,8 +281,8 @@ export class Providers {
   ): Promise<Response> {
     const { key, base } =
       provider === "deepseek"
-        ? deepseekBackend(workspaceRoot)
-        : modelbestBackend(workspaceRoot);
+        ? deepseekBackend(currentRuntime().configBase)
+        : modelbestBackend(currentRuntime().configBase);
     let response: Response;
     try {
       response = await fetch(`${base}/${endpoint}`, {
@@ -426,7 +432,7 @@ export class Providers {
     );
     const out = await processRun(
       this.local.settings().python,
-      [path.join(scripts, "asr.py"), "--job", jobFile],
+      [path.join(scriptsDir(), "asr.py"), "--job", jobFile],
       { signal: input.signal, env: { ...process.env, PYTHONHOME: undefined,
         PYTHONPATH: "", PYTHONNOUSERSITE: "1", PYTHONDONTWRITEBYTECODE: "1" } },
     );

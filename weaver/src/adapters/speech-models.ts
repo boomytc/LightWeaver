@@ -3,6 +3,7 @@ import path from "node:path";
 import { z, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { localConfigValue } from "../config.ts";
+import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { defaultSpeechPython, resolveExecutable } from "./executable.ts";
 import { localModelDigest } from "./toolchain.ts";
@@ -97,11 +98,11 @@ export class SpeechModels {
   }
 
   private localPath(value: string) {
-    return value ? path.resolve(this.root, value) : "";
+    return value ? resolveConfiguredPath(value) : "";
   }
 
   private script(name: "speech_models.py" | "subtitle_models.py") {
-    return path.join(this.root, "weaver/scripts", name);
+    return resourcePath("weaver", "scripts", name);
   }
 
   private isLocalVoxcpmModel(model: string) {
@@ -235,13 +236,13 @@ export class SpeechModels {
     if (provider === LOCAL_TTS_PROVIDER)
       return [
         this.script("speech_models.py"),
-        path.join(this.root, "weaver/src/adapters/speech-models.ts"),
-        path.join(this.root, "weaver/requirements.speech.txt"),
+        resourcePath("weaver", "src", "adapters", "speech-models.ts"),
+        resourcePath("weaver", "requirements.speech.txt"),
         settings.speechPython,
       ];
     return [
       this.script("subtitle_models.py"),
-      path.join(this.root, "weaver/src/adapters/speech-models.ts"),
+      resourcePath("weaver", "src", "adapters", "speech-models.ts"),
       settings.python3,
       settings.translationServer,
     ];

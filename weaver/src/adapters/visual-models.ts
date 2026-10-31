@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z, Digest, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { localConfigValue } from "../config.ts";
+import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { defaultModelPython, resolveExecutable } from "./executable.ts";
 import { fileDigest } from "./toolchain.ts";
@@ -96,7 +97,7 @@ export class VisualModels {
   }
 
   private localPath(value: string): string {
-    return value ? path.resolve(this.root, value) : "";
+    return value ? resolveConfiguredPath(value) : "";
   }
 
   settings() {
@@ -119,7 +120,7 @@ export class VisualModels {
         ),
         this.root,
       ),
-      script: path.join(this.root, "weaver/scripts/visual_models.py"),
+      script: resourcePath("weaver", "scripts", "visual_models.py"),
     };
   }
 

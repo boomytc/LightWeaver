@@ -19,7 +19,8 @@ import { WeaverError } from "../contracts/errors.ts";
 import { Store, digest, newId, canonical } from "../store/index.ts";
 import { Projects } from "../project/service.ts";
 import { Jobs, type NodeContext } from "../jobs/index.ts";
-import { fileURLToPath } from "node:url";
+import { nodeScriptInvocation } from "../media/process.ts";
+import { resourcePath } from "../runtime.ts";
 import {
   Providers,
   AsrResult,
@@ -1932,14 +1933,14 @@ export class Analysis {
       dest = path.join(c.workDir, "capture.png"),
       job = path.join(c.workDir, "capture-job.json");
     fs.writeFileSync(job, canonical({ ...input, dest }));
-    await processRun(
-      process.execPath,
-      [
-        fileURLToPath(new URL("../../scripts/capture.mjs", import.meta.url)),
-        job,
-      ],
-      { signal: c.signal },
+    const capture = nodeScriptInvocation(
+      resourcePath("weaver", "scripts", "capture.mjs"),
+      [job],
     );
+    await processRun(capture.command, capture.args, {
+      signal: c.signal,
+      env: capture.env,
+    });
     const fact = await probe(dest, c.signal);
     if (!fact.video) throw new WeaverError("INVALID_MEDIA", "截图无法解码");
     return {

@@ -1,11 +1,40 @@
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { WeaverError } from "../contracts/errors.ts";
 import { z } from "../contracts/index.ts";
+import { resolveExecutable } from "../adapters/executable.ts";
+import { currentRuntime } from "../runtime.ts";
 
-const supervisorPath = fileURLToPath(
-  new URL("../../scripts/process-supervisor.mjs", import.meta.url),
-);
+function supervisorLaunch(): { command: string; args: string[] } {
+  const runtime = currentRuntime();
+  return {
+    command: runtime.tools.node,
+    args: [runtime.tools.supervisor],
+  };
+}
+
+export function nodeScriptInvocation(
+  script: string,
+  args: string[],
+): { command: string; args: string[]; env: NodeJS.ProcessEnv } {
+  const runtime = currentRuntime();
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  if (runtime.tools.ffmpeg) env.LIGHTWEAVER_FFMPEG = runtime.tools.ffmpeg;
+  if (runtime.tools.ffprobe) env.LIGHTWEAVER_FFPROBE = runtime.tools.ffprobe;
+  if (runtime.tools.cardBrowser) env.LIGHTWEAVER_CHROME = runtime.tools.cardBrowser;
+  else if (runtime.mode === "production") delete env.LIGHTWEAVER_CHROME;
+  if (runtime.tools.cardSite) env.LIGHTWEAVER_CARD_SITE = runtime.tools.cardSite;
+  if (runtime.mode === "production") env.LIGHTWEAVER_PACKAGED = "1";
+  delete env.ELECTRON_RUN_AS_NODE;
+  return { command: runtime.tools.node, args: [script, ...args], env };
+}
+
+function resolveCommand(command: string): string {
+  if (["ffmpeg", "ffprobe", "python3", "python"].includes(command)) {
+    const resolved = resolveExecutable(command, currentRuntime().configBase);
+    if (resolved) return resolved;
+  }
+  return command;
+}
 
 const SupervisorMessage = z.discriminatedUnion("type", [
   z.strictObject({
@@ -53,7 +82,8 @@ export async function processRun(
 ): Promise<{ stdout: string; stderr: string }> {
   options.signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const supervisor = spawn(process.execPath, [supervisorPath], {
+    const supervisorLaunchSpec = supervisorLaunch();
+    const supervisor = spawn(supervisorLaunchSpec.command, supervisorLaunchSpec.args, {
       cwd: options.cwd,
       env: options.env ?? process.env,
       detached: true,
@@ -117,7 +147,7 @@ export async function processRun(
     supervisor.once("spawn", () => {
       spawned = true;
       supervisor.send(
-        { type: "start", command, args },
+        { type: "start", command: resolveCommand(command), args },
         (error?: Error | null) => {
           if (error) {
             protocolFailure ??= error.message;

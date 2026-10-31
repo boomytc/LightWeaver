@@ -3,10 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { WeaverError } from "./contracts/errors.ts";
+import { currentRuntime, usesInstalledConfig } from "./runtime.ts";
 const defaultRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 export function localConfigPath(root = defaultRoot): string {
-  return path.join(root, "config.local.yaml");
+  if (usesInstalledConfig(root)) return currentRuntime().configFile;
+  return path.join(path.resolve(root), "config.local.yaml");
 }
 
 export function configRevision(content: string): string {

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { fileURLToPath } from "node:url";
+import { resourcePath } from "../runtime.ts";
 import {
   z,
   Digest,
@@ -529,9 +529,7 @@ export class Interchange {
       const adapter = parseLastJson(
         (
           await processRun("python3", [
-            fileURLToPath(
-              new URL("../../scripts/interchange.py", import.meta.url),
-            ),
+            resourcePath("weaver", "scripts", "interchange.py"),
             input.format,
             temp,
           ])

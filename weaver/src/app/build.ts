@@ -34,13 +34,13 @@ import { Artifacts } from "../artifacts/index.ts";
 import { toolVersion, fileDigest } from "../adapters/toolchain.ts";
 import {
   Providers,
-  workspaceRoot,
   parseLastJson,
   AlignmentResult,
   ALIGNMENT_PROVIDER,
 } from "../adapters/providers.ts";
 import { probe } from "../media/probe.ts";
-import { processRun } from "../media/process.ts";
+import { nodeScriptInvocation, processRun } from "../media/process.ts";
+import { currentRuntime } from "../runtime.ts";
 import { renderTimeline, RENDER_ALGORITHM } from "../media/render.ts";
 import { compileTimeline } from "../timeline/compiler.ts";
 
@@ -196,12 +196,13 @@ export class Builds {
       tools["tool:card"] = JSON.stringify(
         parseLastJson(
           (
-            await processRun(
-              process.env.LIGHTWEAVER_CARD_RENDERER ||
-                path.join(workspaceRoot, "node_modules/.bin/weaver-card"),
-              ["--describe"],
-              { signal },
-            )
+            await (async () => {
+              const card = nodeScriptInvocation(
+                currentRuntime().tools.cardRenderer,
+                ["--describe"],
+              );
+              return processRun(card.command, card.args, { signal, env: card.env });
+            })()
           ).stdout,
         ),
       );

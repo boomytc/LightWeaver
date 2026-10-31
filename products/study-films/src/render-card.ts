@@ -27,16 +27,23 @@ if (
 const { cancel, cancelSignal } = makeCancelSignal();
 process.on("SIGTERM", cancel);
 process.on("SIGINT", cancel);
-const serveUrl = await bundle({
-  entryPoint: fileURLToPath(new URL("./card-entry.tsx", import.meta.url)),
-  outDir: path.join(path.dirname(dest), "card-bundle"),
-  enableCaching: false,
-});
+const prebuiltSite = process.env.LIGHTWEAVER_CARD_SITE || "";
+const serveUrl = prebuiltSite
+  ? prebuiltSite
+  : await bundle({
+      entryPoint: fileURLToPath(new URL("./card-entry.tsx", import.meta.url)),
+      outDir: path.join(path.dirname(dest), "card-bundle"),
+      enableCaching: false,
+    });
 const chrome =
   process.env.LIGHTWEAVER_CHROME ||
-  (fs.existsSync("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-    ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    : undefined);
+  (process.env.LIGHTWEAVER_PACKAGED === "1"
+    ? undefined
+    : fs.existsSync("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+      ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      : undefined);
+if (process.env.LIGHTWEAVER_PACKAGED === "1" && !chrome)
+  throw new Error("卡片浏览器未随包提供");
 const composition = await selectComposition({
   serveUrl,
   id: "Card",

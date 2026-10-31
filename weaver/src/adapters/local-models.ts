@@ -3,6 +3,7 @@ import path from "node:path";
 import { z, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { localConfigValue } from "../config.ts";
+import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { defaultModelPython, resolveExecutable } from "./executable.ts";
 
@@ -80,7 +81,7 @@ export class LocalModels {
     );
   }
   private localPath(value: string) {
-    return value ? path.resolve(this.root, value) : "";
+    return value ? resolveConfiguredPath(value) : "";
   }
   settings() {
     return {
@@ -176,8 +177,8 @@ export class LocalModels {
     if (![ALIGNMENT_PROVIDER, RERANK_PROVIDER].includes(id))
       return [];
     return [
-      path.join(this.root, "weaver/scripts/models.py"),
-      path.join(this.root, "weaver/src/adapters/local-models.ts"),
+      resourcePath("weaver", "scripts", "models.py"),
+      resourcePath("weaver", "src", "adapters", "local-models.ts"),
       s.python,
       ...(id === ALIGNMENT_PROVIDER ? [s.ffmpeg] : [s.server]),
     ];
@@ -219,7 +220,7 @@ export class LocalModels {
     delete env.PYTHONHOME;
     const result = await processRun(
       python,
-      [path.join(this.root, "weaver/scripts/models.py"), kind, input],
+      [resourcePath("weaver", "scripts", "models.py"), kind, input],
       {
         cwd: invocation.kind === "inspect" ? this.root : invocation.workDir,
         signal: invocation.kind === "inspect" ? undefined : invocation.signal,

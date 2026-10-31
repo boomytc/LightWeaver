@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z, Digest, Id, Locale, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { localConfigValue } from "../config.ts";
+import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { probe } from "../media/probe.ts";
 import { digest } from "../store/index.ts";
@@ -113,7 +114,7 @@ export class SpeakerModels {
   }
 
   private localPath(value: string): string {
-    return value ? path.resolve(this.root, value) : "";
+    return value ? resolveConfiguredPath(value) : "";
   }
 
   private isGguf(file: string): boolean {
@@ -160,7 +161,7 @@ export class SpeakerModels {
         this.value("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
       ),
       ffmpeg: resolveExecutable("ffmpeg", this.root),
-      script: path.join(this.root, "weaver/scripts/speakers.py"),
+      script: resourcePath("weaver", "scripts", "speakers.py"),
       backend: SpeakerBackend.parse(
         this.value(
           "LIGHTWEAVER_DIARIZATION_BACKEND",

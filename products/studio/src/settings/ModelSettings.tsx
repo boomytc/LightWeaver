@@ -7,7 +7,8 @@ import {
   VerifyResult,
   EventRecord,
 } from "@lightweaver/weaver/contracts";
-import { api, requestId } from "./api";
+import { api, requestId } from "../api";
+import { desktop, openLink } from "../desktop";
 
 const RunDetail = z.object({
   run: RunRecord,
@@ -59,10 +60,12 @@ function ProgressEvent({ event }: { event: unknown }) {
   );
 }
 
-export function ModelPanel({
+export function ModelSettings({
   fail,
+  onOpenRuntime,
 }: {
   fail: (error: unknown) => void;
+  onOpenRuntime: () => void;
 }) {
   const [view, setView] = useState<z.infer<typeof ModelsView> | null>(null),
     [root, setRoot] = useState(""),
@@ -214,12 +217,8 @@ export function ModelPanel({
             </span>
           </div>
           <div>
-            <a href={provider.keyUrl} target="_blank" rel="noreferrer">
-              获取 Key
-            </a>
-            <a href={provider.docsUrl} target="_blank" rel="noreferrer">
-              查看文档
-            </a>
+            <button type="button" onClick={() => void openLink(provider.keyUrl)}>获取 Key</button>
+            <button type="button" onClick={() => void openLink(provider.docsUrl)}>查看文档</button>
           </div>
         </div>
         <div className="grid">
@@ -322,6 +321,21 @@ export function ModelPanel({
             </small>
           </label>
           <button
+            type="button"
+            disabled={!!busy}
+            onClick={() =>
+              void desktop()?.pickDirectory?.().then((picked) => {
+                if (!picked) return;
+                rootDirty.current = true;
+                setVerify({});
+                rootRef.current = picked;
+                setRoot(picked);
+              })
+            }
+          >
+            选择目录
+          </button>
+          <button
             disabled={!root || !!busy}
             onClick={() =>
               act("保存路径", () => saveSettings({ downloadRoot: root }))
@@ -331,9 +345,9 @@ export function ModelPanel({
           </button>
         </div>
 
-        <div className="model-list">
+        <div className="flex flex-col gap-4">
           {local.map(({ model, status, runtime, activeBindings, adoptPath }) => (
-            <article key={model.id}>
+            <article key={model.id} className="rounded-lg border border-line bg-panel p-3">
               <div className="section-title">
                 <div>
                   <b>{model.name}</b>
@@ -342,16 +356,19 @@ export function ModelPanel({
                     {model.license ? ` · ${model.license}` : ""}
                   </small>
                 </div>
-                <span
-                  className={`model-state ${
-                    verify[model.id]?.state === "verified" ||
-                    status?.state === "unchecked"
-                      ? "ready"
-                      : ""
-                  }`}
-                >
-                  {stateLabel[verify[model.id]?.state || status?.state || "missing"]}
-                </span>
+                <div className="flex min-w-48 flex-col gap-1 text-sm">
+                  <small>文件：{status && status.state !== "missing" ? "已存在" : "不存在"}</small>
+                  <small>
+                    完整性：{stateLabel[verify[model.id]?.state || (status?.state === "invalid" ? "invalid" : "unchecked")]}
+                  </small>
+                  <small>
+                    运行时：{runtime.length === 0 ? "无额外条件" : runtime.every((item) => item.ready) ? "条件已满足" : "有缺失"}
+                    {runtime.some((item) => !item.ready) && (
+                      <button type="button" onClick={onOpenRuntime}>打开运行时设置</button>
+                    )}
+                  </small>
+                  <small>调用：尚未成功调用。下载完成不等于可以推理。</small>
+                </div>
               </div>
               <small>{model.repository}@{model.revision.slice(0, 12)}</small>
               {model.files.length ? (
@@ -389,13 +406,9 @@ export function ModelPanel({
                       {item.documentationUrl && (
                         <>
                           {" "}
-                          <a
-                            href={item.documentationUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
+                          <button type="button" onClick={() => void openLink(item.documentationUrl || "")}>
                             获取说明
-                          </a>
+                          </button>
                         </>
                       )}
                     </span>
@@ -466,6 +479,38 @@ export function ModelPanel({
                   }
                 />
               </label>
+              <div className="actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void desktop()?.pickDirectory?.().then((picked) => {
+                      if (!picked) return;
+                      setAdoptPaths((current) => ({ ...current, [model.id]: picked }));
+                    })
+                  }
+                >
+                  选择目录
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void desktop()?.pickModelFile?.().then((picked) => {
+                      if (!picked) return;
+                      setAdoptPaths((current) => ({ ...current, [model.id]: picked }));
+                    })
+                  }
+                >
+                  选择文件
+                </button>
+              </div>
+              {model.id === "qwen3-forced-aligner" && (
+                <details>
+                  <summary>高级说明</summary>
+                  <p>
+                    ForcedAligner 默认后端是 torch，设备是 cpu。MLX 只在这里说明，不作为默认下载或推理路径。独立重排和说话人区分不进入默认流程。
+                  </p>
+                </details>
+              )}
               <button
                 disabled={
                   !model.available ||
@@ -488,7 +533,7 @@ export function ModelPanel({
                   })
                 }
               >
-                校验后采用路径
+                校验后采用
               </button>
             </article>
           ))}

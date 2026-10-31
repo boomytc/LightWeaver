@@ -12,9 +12,13 @@
 make install
 python3 -m pip install -r weaver/requirements.txt
 make studio
+make desktop
+make desktop-package
 ```
 
-打开 `http://127.0.0.1:5175/`，创建草稿、导入素材、编辑并保存修订。制作按钮提交作业，作业页支持取消与恢复，复盘页显示当前、过期和历史交付。
+`make studio` 打开 `http://127.0.0.1:5175/`。`make desktop` 用 Electron 和独立的开发数据目录。`make desktop-package` 生成本机未签名的 macOS 应用，路径是 `products/desktop/release/mac-arm64/LightWeaver.app`。这个包没有公证。签名发布不在这些命令里。
+
+创建草稿、导入素材、编辑并保存修订。制作按钮提交作业，任务页支持取消与恢复，交付区分当前、过期、历史和缺失产物。
 
 命令行从发现能力开始：
 

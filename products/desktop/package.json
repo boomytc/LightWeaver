@@ -1,0 +1,23 @@
+{
+  "name": "@lightweaver/desktop",
+  "version": "0.1.0",
+  "description": "LightWeaver 桌面制作客户端",
+  "author": "LightWeaver",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "typecheck": "tsc --noEmit --pretty false",
+    "build": "tsc --pretty false",
+    "package": "node scripts/package.mjs",
+    "dist": "node scripts/package.mjs --dist",
+    "check-resources": "node scripts/check-resources.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "electron": "^35.7.5",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2"
+  }
+}

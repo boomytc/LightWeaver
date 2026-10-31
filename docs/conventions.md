@@ -190,6 +190,16 @@ npx weaver migrate --root /absolute/legacy-workspace --execute --request-id migr
 npx weaver migrate rollback JOURNAL --json
 ```
 
-失败与取消保留已完成独立目标及上一份有效交付。作业总时限返回 `DEADLINE_EXCEEDED`，用户取消与 worker 停止分别登记 cancelled 与 interrupted。工具探测接收节点取消信号。媒体监督进程通过父进程管道与 IPC 断连感知 worker 退出，终止目标进程组，三秒后强制回收未退出后代。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
+失败与取消保留已完成独立目标及上一份有效交付。作业总时限返回 `DEADLINE_EXCEEDED`，用户取消与 worker 停止分别登记 cancelled 与 interrupted。工具探测接收节点取消信号。媒体监督进程通过父进程管道与 IPC 断连感知 worker 退出。POSIX 终止目标进程组；Windows 用 `taskkill /T` 终止进程树，三秒后强制回收未退出后代。界面上的“取消”只表示请求已提交，进程回收以监督结果为准。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
+
+## 桌面客户端
+
+```bash
+make desktop          # Electron + Vite HMR + 动态端口服务
+make desktop-package  # 本机未签名可运行包
+make desktop-dist     # 未签名安装分发包
+```
+
+`make studio` 继续使用仓库 `data/.weaver` 与 Vite。桌面开发包和正式包默认把数据库写到各自的用户目录，不写安装目录或仓库数据。CLI 仍可用 `--data-dir`、`--config-file`、`--config-base` 指向同一位置。正式包内的服务由随包 Node 启动。签名和公证不在这些命令里。Windows 与 Linux 目标写在 electron-builder 配置中，需在对应系统上执行打包脚本后才有安装包。
 
 备份使用 SQLite backup API，并复制快照引用的不可变 blob。restore 写入空目录，GC 默认 dry-run，保护修订、库版本、run、收据、pin 和保留交付。迁移保留旧原件，旧派生结果无完整来源时登记 historical/unverified。rollback 只在迁移后未被修改时执行。
