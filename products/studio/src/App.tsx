@@ -1,33 +1,2655 @@
-import { Link } from "./components/Link";
-import { Shell } from "./components/Shell";
-import { parseRoute, usePath } from "./lib/nav";
-import { Film } from "./pages/Film";
-import { Films } from "./pages/Films";
-import { Home } from "./pages/Home";
-import { Library } from "./pages/Library";
-import { Methods } from "./pages/Methods";
-import { Voices } from "./pages/Voices";
+import { useEffect, useRef, useState } from "react";
+import {
+  z,
+  ProviderDescriptor,
+  CaptionTrack,
+  Frames,
+  ProjectRevision,
+  ProjectDocument,
+  Scene,
+  MediaAssetVersion,
+  LibraryVersion,
+  Proposal,
+  RunRecord,
+  Delivery,
+  AnalysisEntry,
+  PROFILES,
+  WORKFLOWS,
+  speechOf,
+  refKey,
+  type Speech,
+} from "@lightweaver/weaver/contracts";
+import { api, ApiError, mediaUrl, requestId } from "./api";
 
-export function App() {
-  const route = parseRoute(usePath());
-
+const Context = z.object({
+  revision: ProjectRevision,
+  assets: z.array(MediaAssetVersion),
+  library: z.array(LibraryVersion),
+  analysis: z.array(AnalysisEntry.extend({ state: z.string() })),
+  proposals: z.array(Proposal),
+  runs: z.array(RunRecord),
+  deliveries: z.array(Delivery.extend({ state: z.string() })),
+});
+type Context = z.infer<typeof Context>;
+const RunDetail = z.object({
+  run: RunRecord,
+  nodes: z.array(
+    z.object({
+      key: z.string(),
+      state: z.string(),
+      attempts: z.number(),
+      result: z.unknown(),
+      error: z.unknown().optional(),
+    }),
+  ),
+});
+const labels: Record<string, string> = {
+  landscape: "横屏 1920×1080",
+  portrait: "竖屏 1080×1920",
+  square: "方形 1080×1080",
+  queued: "排队",
+  running: "运行中",
+  cancelling: "取消中",
+  succeeded: "成功",
+  failed: "失败",
+  cancelled: "已取消",
+  interrupted: "中断",
+  partial: "部分成功",
+  current: "当前",
+  stale: "已过期",
+  historical: "历史",
+  missing: "缺失",
+  card: "卡片",
+  still: "静帧",
+  clip: "视频片段",
+};
+function currentRoute() {
+  const path = location.pathname.split("/").filter(Boolean);
+  return {
+    page: path[0] || "films",
+    projectId: path[0] === "films" ? path[1] || "" : "",
+  };
+}
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Shell>
-      {route.name === "home" ? <Home /> : null}
-      {route.name === "films" ? <Films /> : null}
-      {route.name === "film" ? <Film id={route.id} /> : null}
-      {route.name === "voices" ? <Voices /> : null}
-      {route.name === "library" ? <Library /> : null}
-      {route.name === "methods" ? <Methods /> : null}
-      {route.name === "missing" ? (
-        <div className="page-width page">
-          <p className="eyebrow">404</p>
-          <h1 className="page-title">没有这个页面</h1>
-          <p className="lede">
-            找不到 {route.path}。回 <Link href="/">工作台</Link>，或去 <Link href="/films">片子</Link>。
-          </p>
+    <label className="field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+function Json({ value }: { value: unknown }) {
+  return <pre>{JSON.stringify(value, null, 2)}</pre>;
+}
+export function App() {
+  const [route, setRoute] = useState(currentRoute),
+    [projects, setProjects] = useState<z.infer<typeof ProjectRevision>[]>([]),
+    [library, setLibrary] = useState<z.infer<typeof LibraryVersion>[]>([]);
+  const [ctx, setCtx] = useState<Context | null>(null),
+    [draft, setDraft] = useState<ProjectDocument | null>(null),
+    [base, setBase] = useState(""),
+    [dirty, setDirty] = useState(false),
+    [tab, setTab] = useState("script");
+  const [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [conflict, setConflict] = useState<z.infer<typeof ProjectRevision> | null>(
+      null,
+    ),
+    [backup, setBackup] = useState("");
+  const [activeRun, setActiveRun] = useState(""),
+    [runDetail, setRunDetail] = useState<z.infer<typeof RunDetail> | null>(
+      null,
+    ),
+    [events, setEvents] = useState<unknown[]>([]);
+  const [providers, setProviders] = useState<
+      z.infer<typeof ProviderDescriptor>[]
+    >([]),
+    [vlmProvider, setVlmProvider] = useState("modelbest-vlm"),
+    [captionSource, setCaptionSource] = useState("");
+  const [query, setQuery] = useState(""),
+    [mode, setMode] = useState("text"),
+    [plan, setPlan] = useState<unknown>(null),
+    [busy, setBusy] = useState(false),
+    [locale, setLocale] = useState("zh");
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const draftSeq = useRef(0);
+  const listSeq = useRef(0);
+  const refreshSeq = useRef(0),
+    epoch = useRef(0),
+    dirtyRef = useRef(false),
+    projectRef = useRef(route.projectId);
+  const refreshLists = async () => {
+    const seq = ++listSeq.current;
+    const [p, l] = await Promise.all([
+      api("/projects", z.array(ProjectRevision)),
+      api("/library", z.array(LibraryVersion)),
+    ]);
+    if (seq !== listSeq.current) return;
+    setProjects(p);
+    setLibrary(l);
+  };
+  useEffect(() => {
+    api(
+      "/capabilities",
+      z.object({
+        providers: z.array(ProviderDescriptor),
+        defaultVlm: z.string(),
+      }),
+    )
+      .then((c) => {
+        setProviders(c.providers);
+        setVlmProvider(c.defaultVlm);
+      })
+      .catch((e) => setError(String(e)));
+    refreshLists().catch((e) => setError(String(e)));
+    const pop = () => setRoute(currentRoute());
+    addEventListener("popstate", pop);
+    return () => removeEventListener("popstate", pop);
+  }, []);
+  useEffect(() => {
+    const id = route.projectId,
+      generation = ++epoch.current,
+      controller = new AbortController();
+    projectRef.current = id;
+    draftSeq.current++;
+    dirtyRef.current = false;
+    setCaptionSource("");
+    setCtx(null);
+    setDraft(null);
+    setDirty(false);
+    setConflict(null);
+    setActiveRun("");
+    setRunDetail(null);
+    setEvents([]);
+    setPlan(null);
+    setError("");
+    setBusy(false);
+    if (id)
+      api(`/projects/${id}/context`, Context, { signal: controller.signal })
+        .then((c) => {
+          if (epoch.current !== generation) return;
+          setCtx(c);
+          setDraft(c.revision.document);
+          setBase(c.revision.id);
+          setLocale(c.revision.document.locales[0]);
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted) setError(String(e));
+        });
+    return () => controller.abort();
+  }, [route.projectId]);
+  const navigate = (page: string, id = "") => {
+    if (dirty && draft) setBackup(JSON.stringify(draft, null, 2));
+    history.pushState(null, "", `/${page}${id ? `/${id}` : ""}`);
+    setRoute({ page, projectId: id });
+  };
+  const reload = async (id = projectRef.current) => {
+    if (!id) return;
+    const generation = epoch.current,
+      seq = ++refreshSeq.current,
+      c = await api(`/projects/${id}/context`, Context);
+    if (
+      id !== projectRef.current ||
+      generation !== epoch.current ||
+      seq !== refreshSeq.current
+    )
+      return;
+    setCtx(c);
+    if (!dirtyRef.current) {
+      setDraft(c.revision.document);
+      setBase(c.revision.id);
+    }
+  };
+  const fail = (e: unknown) => {
+    setError(e instanceof Error ? e.message : String(e));
+    if (e instanceof ApiError && e.protocol.code === "REVISION_CONFLICT") {
+      const details = e.protocol.details;
+      if (details && typeof details === "object" && "current" in details) {
+        const r = ProjectRevision.safeParse(details.current);
+        if (r.success) setConflict(r.data);
+      }
+    }
+  };
+  const act = async (fn: () => Promise<void>) => {
+    const generation = epoch.current;
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+    } catch (e) {
+      if (generation === epoch.current) fail(e);
+    } finally {
+      if (generation === epoch.current) setBusy(false);
+    }
+  };
+  const edit = (doc: ProjectDocument) => {
+    draftSeq.current++;
+    draftRef.current = doc;
+    setDraft(doc);
+    setDirty(true);
+    dirtyRef.current = true;
+    setPlan(null);
+  };
+  const save = () =>
+    act(async () => {
+      if (!draft) return;
+      const seq = draftSeq.current,
+        generation = epoch.current;
+      const id = draft.id,
+        rev = await api(`/projects/${id}`, ProjectRevision, {
+          method: "PUT",
+          body: {
+            expectedRevision: base,
+            requestId: requestId(),
+            document: ProjectDocument.parse(draft),
+          },
+        });
+      if (projectRef.current !== id || generation !== epoch.current) return;
+      setBase(rev.id);
+      if (seq === draftSeq.current) {
+        dirtyRef.current = false;
+        setDirty(false);
+        setDraft(rev.document);
+      }
+      setConflict(null);
+      setNotice("修订已保存");
+      await reload(id);
+      await refreshLists();
+    });
+  const submitJob = async (path: string, body: unknown) => {
+    const generation = epoch.current,
+      id = projectRef.current,
+      run = await api(path, RunRecord, { method: "POST", body });
+    if (id === projectRef.current && generation === epoch.current) {
+      setActiveRun(run.id);
+      setTab("jobs");
+      await reload(id);
+    }
+  };
+  const showPlan = async (path: string, body: unknown) => {
+    const generation = epoch.current,
+      seq = draftSeq.current;
+    const result = await api(path, z.unknown(), { method: "POST", body });
+    if (generation === epoch.current && seq === draftSeq.current)
+      setPlan(result);
+  };
+  useEffect(() => {
+    if (!activeRun || !route.projectId) return;
+    const id = route.projectId,
+      run = activeRun,
+      controller = new AbortController(),
+      source = new EventSource(`/api/runs/${run}/events`);
+    setEvents([]);
+    const update = () =>
+      api(`/runs/${run}`, RunDetail, { signal: controller.signal })
+        .then((d) => {
+          if (!controller.signal.aborted && projectRef.current === id) {
+            setRunDetail(d);
+            reload(id).catch(fail);
+          }
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted) fail(e);
+        });
+    source.addEventListener("weaver", (event) => {
+      if (controller.signal.aborted || projectRef.current !== id) return;
+      const data: unknown = JSON.parse(event.data);
+      setEvents((v) => [...v.slice(-99), data]);
+      update();
+    });
+    update();
+    return () => {
+      controller.abort();
+      source.close();
+    };
+  }, [activeRun, route.projectId]);
+  const sceneUpdate = (index: number, scene: Scene) => {
+    if (draft)
+      edit({
+        ...draft,
+        scenes: draft.scenes.map((s, i) => (i === index ? scene : s)),
+      });
+  };
+  const addScene = (kind: "card" | "still" | "clip") => {
+    if (!draft || !ctx) return;
+    const id = `scene-${crypto.randomUUID()}`,
+      timing = { kind: "fixed", frames: 90 },
+      image = ctx.assets.find((a) => a.kind === "image"),
+      video = ctx.assets.find((a) => a.kind === "video");
+    const raw =
+      kind === "card"
+        ? {
+            id,
+            kind,
+            cardSpec: {
+              template: "title",
+              version: "2",
+              copy: Object.fromEntries(
+                draft.locales.map((l) => [l, { headline: "新卡片" }]),
+              ),
+            },
+            timing,
+          }
+        : kind === "still" && image
+          ? {
+              id,
+              kind,
+              image: { assetId: image.assetId, version: image.version },
+              framing: { fit: "contain" },
+              timing,
+            }
+          : kind === "clip" && video
+            ? {
+                id,
+                kind,
+                source: { assetId: video.assetId, version: video.version },
+                sourceRange: { startUs: 0, durationUs: 1000000 },
+                framing: { fit: "contain" },
+                playback: { kind: "source", audio: { kind: "original" } },
+              }
+            : null;
+    if (!raw) {
+      setError("先导入对应的图片或视频素材");
+      return;
+    }
+    edit({ ...draft, scenes: [...draft.scenes, Scene.parse(raw)] });
+  };
+  return (
+    <div className="app">
+      <header>
+        <strong>LightWeaver</strong>
+        <span>本地制作工作台</span>
+        <nav>
+          {[
+            ["films", "片子"],
+            ["methods", "方法"],
+            ["voices", "音色"],
+            ["library", "素材"],
+          ].map(([page, label]) => (
+            <button
+              className={route.page === page ? "selected" : ""}
+              key={page}
+              onClick={() => navigate(page)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </header>
+      {error && (
+        <div role="alert" className="alert">
+          <b>操作未完成：</b>
+          {error}
+          <button onClick={() => setError("")}>关闭</button>
         </div>
-      ) : null}
-    </Shell>
+      )}
+      {notice && (
+        <div className="notice" onClick={() => setNotice("")}>
+          {notice}
+        </div>
+      )}
+      {backup && (
+        <details className="alert">
+          <summary>保留的未提交草稿</summary>
+          <textarea readOnly value={backup} rows={12} />
+          <button onClick={() => navigator.clipboard.writeText(backup)}>
+            复制草稿
+          </button>
+        </details>
+      )}
+      {route.page !== "films" ? (
+        <LibraryPanel
+          key={route.page}
+          kind={
+            route.page === "voices"
+              ? "voice"
+              : route.page === "methods"
+                ? "method"
+                : "material"
+          }
+          library={library}
+          refresh={refreshLists}
+          fail={fail}
+        />
+      ) : (
+        <div className="workspace">
+          <aside>
+            <div className="section-title">
+              项目 <button onClick={() => navigate("films")}>＋</button>
+            </div>
+            {projects.map((p) => (
+              <button
+                className={
+                  route.projectId === p.projectId
+                    ? "project selected"
+                    : "project"
+                }
+                key={p.projectId}
+                onClick={() => navigate("films", p.projectId)}
+              >
+                <b>{p.document.title || "未命名项目"}</b>
+                <small>
+                  {WORKFLOWS.find((w) => w.id === p.document.workflow)?.name}
+                </small>
+              </button>
+            ))}
+          </aside>
+          <main>
+            {!route.projectId ? (
+              <CreateProject
+                onCreated={async (p) => {
+                  await refreshLists();
+                  navigate("films", p.projectId);
+                }}
+                fail={fail}
+              />
+            ) : !ctx || !draft ? (
+              <p>加载项目…</p>
+            ) : (
+              <>
+                <div className="project-head">
+                  <div>
+                    <h1>{draft.title || "未命名项目"}</h1>
+                    <small>
+                      {dirty ? "● 未保存草稿" : "当前修订"} ·{" "}
+                      {base.slice(0, 16)}
+                      {ctx.revision.id !== base && " · 服务器有新修订"}
+                    </small>
+                  </div>
+                  <div className="actions">
+                    <button
+                      onClick={() =>
+                        act(async () => {
+                          const text = await api(
+                            `/projects/${draft.id}/brief`,
+                            z.string(),
+                          );
+                          await navigator.clipboard.writeText(text);
+                          setNotice("已复制当前项目与修订给 agent");
+                        })
+                      }
+                    >
+                      复制给 agent
+                    </button>
+                    <button
+                      onClick={() =>
+                        act(() =>
+                          showPlan(`/projects/${draft.id}/impact`, {
+                            document: draft,
+                          }),
+                        )
+                      }
+                    >
+                      查看影响
+                    </button>
+                    <button
+                      className="primary"
+                      disabled={busy || !dirty}
+                      onClick={save}
+                    >
+                      保存修订
+                    </button>
+                  </div>
+                </div>
+                {conflict && (
+                  <div className="alert">
+                    <b>修订冲突，未覆盖服务器内容。</b>
+                    <p>当前服务器修订 {conflict.id}；你的草稿已保留。</p>
+                    <details>
+                      <summary>对照服务器内容</summary>
+                      <Json value={conflict.document} />
+                    </details>
+                    <button
+                      onClick={() => {
+                        setBackup(JSON.stringify(draft, null, 2));
+                        dirtyRef.current = false;
+                        setDirty(false);
+                        setDraft(conflict.document);
+                        setBase(conflict.id);
+                        setConflict(null);
+                      }}
+                    >
+                      保留草稿并加载当前修订
+                    </button>
+                  </div>
+                )}
+                <div className="tabs">
+                  {[
+                    ["assets", "素材与观察"],
+                    ["script", "脚本与选段"],
+                    ["captions", "字幕"],
+                    ["sound", "声音"],
+                    ["output", "输出"],
+                    ["jobs", "作业"],
+                    ["review", "成片复盘"],
+                  ].map(([key, name]) => (
+                    <button
+                      className={tab === key ? "selected" : ""}
+                      key={key}
+                      onClick={() => setTab(key)}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                {plan !== null && (
+                  <details open>
+                    <summary>计划与影响</summary>
+                    <Json value={plan} />
+                  </details>
+                )}
+                {tab === "assets" && (
+                  <>
+                    <h2>受管素材</h2>
+                    <input
+                      aria-label="上传项目素材"
+                      type="file"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        act(async () => {
+                          const form = new FormData();
+                          form.append("file", file);
+                          form.append("expectedRevision", base);
+                          form.append("requestId", requestId());
+                          await api(
+                            `/projects/${draft.id}/assets`,
+                            z.unknown(),
+                            { method: "POST", body: form },
+                          );
+                          await reload();
+                        });
+                      }}
+                    />
+                    <div className="grid">
+                      {ctx.assets.map((a) => (
+                        <article key={a.version}>
+                          <b>{a.name}</b>
+                          <small>
+                            {a.kind} · {a.digest.slice(0, 12)}
+                          </small>
+                          {a.kind === "video" ? (
+                            <video
+                              controls
+                              preload="metadata"
+                              src={mediaUrl(a.digest)}
+                            />
+                          ) : a.kind === "image" ? (
+                            <img src={mediaUrl(a.digest)} />
+                          ) : a.kind === "audio" ? (
+                            <audio controls src={mediaUrl(a.digest)} />
+                          ) : (
+                            <a href={mediaUrl(a.digest)}>读取文件</a>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                    <Field label="可选方法">
+                      <select
+                        value={
+                          draft.method
+                            ? `${draft.method.itemId}@${draft.method.version}`
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const v = library.find(
+                            (v) =>
+                              `${v.itemId}@${v.version}` === e.target.value,
+                          );
+                          edit({
+                            ...draft,
+                            method: v
+                              ? { itemId: v.itemId, version: v.version }
+                              : undefined,
+                          });
+                        }}
+                      >
+                        <option value="">不指定方法</option>
+                        {library
+                          .filter((v) => v.payload.kind === "method")
+                          .map((v) => (
+                            <option
+                              key={v.itemId}
+                              value={`${v.itemId}@${v.version}`}
+                            >
+                              {v.payload.name}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    <Field label="从素材库采用">
+                      <select
+                        defaultValue=""
+                        disabled={dirty}
+                        onChange={(e) => {
+                          const v = library.find(
+                            (v) => v.itemId === e.target.value,
+                          );
+                          e.target.value = "";
+                          if (v)
+                            act(async () => {
+                              await api(
+                                `/projects/${draft.id}/adopt`,
+                                z.unknown(),
+                                {
+                                  method: "POST",
+                                  body: {
+                                    itemId: v.itemId,
+                                    version: v.version,
+                                    expectedRevision: base,
+                                    requestId: requestId(),
+                                  },
+                                },
+                              );
+                              await reload();
+                            });
+                        }}
+                      >
+                        <option value="">选择可复用素材</option>
+                        {library
+                          .filter((v) => v.payload.kind === "material")
+                          .map((v) => (
+                            <option key={v.itemId} value={v.itemId}>
+                              {v.payload.name}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    <div className="actions">
+                      <button
+                        onClick={() =>
+                          act(() =>
+                            submitJob(`/projects/${draft.id}/analyze`, {
+                              kinds: ["asr"],
+                              requestId: requestId(),
+                            }),
+                          )
+                        }
+                      >
+                        转写音轨
+                      </button>
+                      <select
+                        aria-label="画面观察模型"
+                        value={vlmProvider}
+                        onChange={(e) => setVlmProvider(e.target.value)}
+                      >
+                        {providers
+                          .filter((p) => p.capabilities.includes("describe"))
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.model}
+                              {p.ready ? "" : " · 未配置"}
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        onClick={() =>
+                          act(() =>
+                            submitJob(`/projects/${draft.id}/analyze`, {
+                              kinds: ["describe"],
+                              vlmProvider,
+                              requestId: requestId(),
+                            }),
+                          )
+                        }
+                      >
+                        观察画面
+                      </button>
+                    </div>
+                    <h2>源时间证据</h2>
+                    {ctx.analysis.map((e) => (
+                      <article key={e.id}>
+                        <small>
+                          {e.kind} · {(e.range.startUs / 1e6).toFixed(2)}–
+                          {(
+                            (e.range.startUs + e.range.durationUs) /
+                            1e6
+                          ).toFixed(2)}{" "}
+                          秒 · {e.state} · {e.timingQuality}
+                        </small>
+                        <p>{e.text}</p>
+                      </article>
+                    ))}
+                  </>
+                )}
+                {tab === "script" && (
+                  <>
+                    <div className="actions">
+                      <Field label="编辑语言">
+                        <select
+                          value={locale}
+                          onChange={(e) => setLocale(e.target.value)}
+                        >
+                          {draft.locales.map((l) => (
+                            <option key={l}>{l}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      {(["card", "still", "clip"] as const).map((k) => (
+                        <button key={k} onClick={() => addScene(k)}>
+                          ＋{labels[k]}
+                        </button>
+                      ))}
+                    </div>
+                    {draft.scenes.map((s, i) => (
+                      <article key={s.id}>
+                        <div className="section-title">
+                          <b>
+                            {i + 1}. {labels[s.kind]} {s.label}
+                          </b>
+                          <div>
+                            <button
+                              disabled={i === 0}
+                              onClick={() => {
+                                const scenes = [...draft.scenes];
+                                [scenes[i - 1], scenes[i]] = [
+                                  scenes[i],
+                                  scenes[i - 1],
+                                ];
+                                edit({ ...draft, scenes });
+                              }}
+                            >
+                              上移
+                            </button>
+                            <button
+                              onClick={() =>
+                                edit({
+                                  ...draft,
+                                  scenes: draft.scenes.filter(
+                                    (_, j) => j !== i,
+                                  ),
+                                })
+                              }
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                        <SceneEditor
+                          scene={s}
+                          locale={locale}
+                          assets={ctx.assets}
+                          voices={[...library, ...ctx.library].filter(
+                            (v, i, a) =>
+                              v.payload.kind === "voice" &&
+                              a.findIndex(
+                                (x) =>
+                                  x.itemId === v.itemId &&
+                                  x.version === v.version,
+                              ) === i,
+                          )}
+                          onChange={(scene) => sceneUpdate(i, scene)}
+                        />
+                      </article>
+                    ))}
+                    <h2>候选查询</h2>
+                    <div className="actions">
+                      <input
+                        placeholder="需要的画面或情节"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                      <select
+                        value={mode}
+                        onChange={(e) => setMode(e.target.value)}
+                      >
+                        <option value="text">文本检索</option>
+                        <option value="semantic">
+                          语义检索（需配置向量模型）
+                        </option>
+                      </select>
+                      <button
+                        onClick={() =>
+                          act(async () => {
+                            const generation = epoch.current;
+                            const r = await api(
+                              `/projects/${draft.id}/search`,
+                              z.union([Proposal, RunRecord]),
+                              {
+                                method: "POST",
+                                body: { query, mode, requestId: requestId() },
+                              },
+                            );
+                            if (generation !== epoch.current) return;
+                            if ("candidates" in r) await reload();
+                            else {
+                              setActiveRun(r.id);
+                              setTab("jobs");
+                            }
+                          })
+                        }
+                      >
+                        查询候选
+                      </button>
+                    </div>
+                    <Field label="参考成片反向匹配">
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value)
+                            act(() =>
+                              submitJob(`/projects/${draft.id}/match`, {
+                                editedId: e.target.value,
+                                requestId: requestId(),
+                              }),
+                            );
+                        }}
+                      >
+                        <option value="">选择参考成片，其他视频作为源片</option>
+                        {ctx.assets
+                          .filter((a) => a.kind === "video")
+                          .map((a) => (
+                            <option key={a.version} value={a.assetId}>
+                              {a.name}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    {ctx.proposals.map((p) => (
+                      <details key={p.id}>
+                        <summary>
+                          {p.query} · {p.candidates.length} 个候选{" "}
+                          {p.warnings.join("；")}
+                        </summary>
+                        {p.candidates.map((c) => (
+                          <article key={c.id}>
+                            <p>{c.evidence[0]}</p>
+                            <small>
+                              {(c.range.startUs / 1e6).toFixed(2)} 秒起 · 文本{" "}
+                              {c.scores.text.toFixed(2)} / 画面{" "}
+                              {c.scores.visual.toFixed(2)} / 语义{" "}
+                              {c.scores.semantic.toFixed(2)}
+                            </small>
+                            <p>{c.limitations.join("；")}</p>
+                            <button
+                              disabled={dirty}
+                              onClick={() =>
+                                act(async () => {
+                                  await api(
+                                    `/projects/${draft.id}/proposal`,
+                                    ProjectRevision,
+                                    {
+                                      method: "POST",
+                                      body: {
+                                        proposalId: p.id,
+                                        selection: [c.id],
+                                        expectedRevision: base,
+                                        requestId: requestId(),
+                                      },
+                                    },
+                                  );
+                                  await reload();
+                                })
+                              }
+                            >
+                              应用此选段
+                            </button>
+                          </article>
+                        ))}
+                      </details>
+                    ))}
+                  </>
+                )}
+                {tab === "captions" && (
+                  <>
+                    <p>
+                      人工字幕、语音对齐和估算字幕使用同一 cue
+                      计划。估算结果会显示在交付收据中。
+                    </p>
+                    <Field label="导入字幕的时钟">
+                      <select
+                        value={captionSource}
+                        onChange={(e) => setCaptionSource(e.target.value)}
+                      >
+                        <option value="">成片时间</option>
+                        {ctx.assets
+                          .filter((a) => a.kind === "video")
+                          .map((a) => (
+                            <option
+                              key={a.version}
+                              value={`${a.assetId}@${a.version}`}
+                            >
+                              源片：{a.name}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    {draft.locales.map((l) => {
+                      const track = draft.captions.find((t) => t.locale === l);
+                      return (
+                        <article key={l}>
+                          <h2>
+                            {l === "zh" ? "中文" : l === "en" ? "英文" : l}
+                          </h2>
+                          <Field label="计时方式">
+                            <select
+                              value={track?.mode || "none"}
+                              onChange={(e) => {
+                                const next = {
+                                  locale: l,
+                                  mode: z
+                                    .enum([
+                                      "none",
+                                      "manual",
+                                      "precise",
+                                      "estimated",
+                                    ])
+                                    .parse(e.target.value),
+                                  fps: track?.fps || draft.profiles[0].fps,
+                                  style: track?.style || {
+                                    font: "Noto Sans CJK SC",
+                                    size: 48,
+                                    color: "#FFFFFF",
+                                    outline: 2,
+                                    marginV: 80,
+                                    maxChars: 24,
+                                  },
+                                  cues: track?.cues || [],
+                                };
+                                edit({
+                                  ...draft,
+                                  captions: [
+                                    ...draft.captions.filter(
+                                      (t) => t.locale !== l,
+                                    ),
+                                    next,
+                                  ],
+                                });
+                              }}
+                            >
+                              <option value="none">无字幕</option>
+                              <option value="manual">
+                                人工 cue / 导入 SRT
+                              </option>
+                              <option value="precise">实际语音对齐</option>
+                              <option value="estimated">显式估算</option>
+                            </select>
+                          </Field>
+                          <input
+                            aria-label={`导入 ${l} SRT`}
+                            type="file"
+                            accept=".srt,.vtt"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              act(async () => {
+                                const generation = epoch.current,
+                                  seq = draftSeq.current;
+                                const body = await file.text();
+                                const t = await api(
+                                  "/captions/parse",
+                                  CaptionTrack,
+                                  {
+                                    method: "POST",
+                                    body: {
+                                      body,
+                                      locale: l,
+                                      source: ctx.assets.find(
+                                        (a) =>
+                                          `${a.assetId}@${a.version}` ===
+                                          captionSource,
+                                      )
+                                        ? draft.assets.find(
+                                            (a) =>
+                                              `${a.assetId}@${a.version}` ===
+                                              captionSource,
+                                          )
+                                        : undefined,
+                                      fps: draft.profiles[0].fps,
+                                    },
+                                  },
+                                );
+                                if (
+                                  generation !== epoch.current ||
+                                  projectRef.current !== draft.id
+                                )
+                                  return;
+                                if (seq !== draftSeq.current)
+                                  throw new Error(
+                                    "导入期间草稿已编辑，请重新导入字幕",
+                                  );
+                                const currentDraft = draftRef.current;
+                                if (!currentDraft) return;
+                                const parsed = ProjectDocument.parse({
+                                  ...currentDraft,
+                                  captions: [
+                                    ...currentDraft.captions.filter(
+                                      (t) => t.locale !== l,
+                                    ),
+                                    t,
+                                  ],
+                                });
+                                edit(parsed);
+                              });
+                            }}
+                          />
+                          {track && (
+                            <>
+                              <div className="actions">
+                                <Field label="字体">
+                                  <input
+                                    value={track.style.font}
+                                    onChange={(e) =>
+                                      edit({
+                                        ...draft,
+                                        captions: draft.captions.map((t) =>
+                                          t.locale === l
+                                            ? {
+                                                ...t,
+                                                style: {
+                                                  ...t.style,
+                                                  font: e.target.value,
+                                                },
+                                              }
+                                            : t,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                </Field>
+                                <Field label="字号">
+                                  <input
+                                    type="number"
+                                    value={track.style.size}
+                                    onChange={(e) =>
+                                      edit({
+                                        ...draft,
+                                        captions: draft.captions.map((t) =>
+                                          t.locale === l
+                                            ? {
+                                                ...t,
+                                                style: {
+                                                  ...t.style,
+                                                  size: Number(e.target.value),
+                                                },
+                                              }
+                                            : t,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                </Field>
+                                <Field label="底部安全区">
+                                  <input
+                                    type="number"
+                                    value={track.style.marginV}
+                                    onChange={(e) =>
+                                      edit({
+                                        ...draft,
+                                        captions: draft.captions.map((t) =>
+                                          t.locale === l
+                                            ? {
+                                                ...t,
+                                                style: {
+                                                  ...t.style,
+                                                  marginV: Number(
+                                                    e.target.value,
+                                                  ),
+                                                },
+                                              }
+                                            : t,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                </Field>
+                              </div>
+                              {track.cues.map((cue, index) => (
+                                <Field
+                                  key={cue.id}
+                                  label={`${cue.id} · ${cue.timingQuality}`}
+                                >
+                                  <textarea
+                                    value={cue.text}
+                                    onChange={(e) =>
+                                      edit({
+                                        ...draft,
+                                        captions: draft.captions.map((t) =>
+                                          t.locale === l
+                                            ? {
+                                                ...t,
+                                                cues: t.cues.map((c, j) =>
+                                                  j === index
+                                                    ? {
+                                                        ...c,
+                                                        text: e.target.value,
+                                                        timingQuality: "manual",
+                                                      }
+                                                    : c,
+                                                ),
+                                              }
+                                            : t,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                </Field>
+                              ))}
+                            </>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </>
+                )}
+                {tab === "sound" && (
+                  <>
+                    <h2>场景声音</h2>
+                    <p>
+                      原声场景无需音色。旁白或混音在“脚本与选段”中选择精确声音版本，也可使用上传的旁白音频。
+                    </p>
+                    <BgmEditor draft={draft} assets={ctx.assets} edit={edit} />
+                  </>
+                )}
+                {tab === "output" && (
+                  <>
+                    <Field label="片名">
+                      <input
+                        value={draft.title}
+                        onChange={(e) =>
+                          edit({ ...draft, title: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <div className="actions">
+                      {["zh", "en"].map((l) => (
+                        <label key={l}>
+                          <input
+                            type="checkbox"
+                            checked={draft.locales.includes(l)}
+                            onChange={(e) =>
+                              edit({
+                                ...draft,
+                                locales: e.target.checked
+                                  ? [...draft.locales, l]
+                                  : draft.locales.filter((x) => x !== l),
+                              })
+                            }
+                          />
+                          {l === "zh" ? "中文" : "英文"}
+                        </label>
+                      ))}
+                    </div>
+                    <h2>交付规格</h2>
+                    {Object.values(PROFILES).map((p) => (
+                      <label className="check" key={p.id}>
+                        <input
+                          type="checkbox"
+                          checked={draft.profiles.some((x) => x.id === p.id)}
+                          onChange={(e) =>
+                            edit({
+                              ...draft,
+                              profiles: e.target.checked
+                                ? [...draft.profiles, p]
+                                : draft.profiles.filter((x) => x.id !== p.id),
+                            })
+                          }
+                        />
+                        {labels[p.id]}
+                      </label>
+                    ))}
+                    {draft.profiles.map((p, i) => (
+                      <article key={p.id}>
+                        <h3>{labels[p.id] || p.id}</h3>
+                        <div className="actions">
+                          <Field label="帧率">
+                            <input
+                              type="number"
+                              value={p.fps.num / p.fps.den}
+                              onChange={(e) =>
+                                edit({
+                                  ...draft,
+                                  profiles: draft.profiles.map((x, j) =>
+                                    j === i
+                                      ? {
+                                          ...x,
+                                          fps: {
+                                            num: Math.round(
+                                              Number(e.target.value) * 1000,
+                                            ),
+                                            den: 1000,
+                                          },
+                                        }
+                                      : x,
+                                  ),
+                                })
+                              }
+                            />
+                          </Field>
+                          <Field label="字幕">
+                            <select
+                              value={p.subtitles}
+                              onChange={(e) =>
+                                edit({
+                                  ...draft,
+                                  profiles: draft.profiles.map((x, j) =>
+                                    j === i
+                                      ? {
+                                          ...x,
+                                          subtitles: z
+                                            .enum([
+                                              "sidecar",
+                                              "burn",
+                                              "both",
+                                              "none",
+                                            ])
+                                            .parse(e.target.value),
+                                        }
+                                      : x,
+                                  ),
+                                })
+                              }
+                            >
+                              <option value="both">烧录与外挂</option>
+                              <option value="sidecar">外挂</option>
+                              <option value="burn">烧录</option>
+                              <option value="none">无</option>
+                            </select>
+                          </Field>
+                          <Field label="目标 LUFS">
+                            <input
+                              type="number"
+                              value={p.loudness.integratedLufs}
+                              onChange={(e) =>
+                                edit({
+                                  ...draft,
+                                  profiles: draft.profiles.map((x, j) =>
+                                    j === i
+                                      ? {
+                                          ...x,
+                                          loudness: {
+                                            ...x.loudness,
+                                            integratedLufs: Number(
+                                              e.target.value,
+                                            ),
+                                          },
+                                        }
+                                      : x,
+                                  ),
+                                })
+                              }
+                            />
+                          </Field>
+                          <Field label="True peak dB">
+                            <input
+                              type="number"
+                              value={p.loudness.truePeakDb}
+                              onChange={(e) =>
+                                edit({
+                                  ...draft,
+                                  profiles: draft.profiles.map((x, j) =>
+                                    j === i
+                                      ? {
+                                          ...x,
+                                          loudness: {
+                                            ...x.loudness,
+                                            truePeakDb: Number(e.target.value),
+                                          },
+                                        }
+                                      : x,
+                                  ),
+                                })
+                              }
+                            />
+                          </Field>
+                        </div>
+                      </article>
+                    ))}
+                    <div className="actions">
+                      <button
+                        disabled={dirty}
+                        onClick={() =>
+                          act(() =>
+                            showPlan(`/projects/${draft.id}/plan`, {
+                              requestId: requestId(),
+                            }),
+                          )
+                        }
+                      >
+                        检查制作计划
+                      </button>
+                      <button
+                        className="primary"
+                        disabled={dirty || busy}
+                        onClick={() =>
+                          act(() =>
+                            submitJob(`/projects/${draft.id}/build`, {
+                              requestId: requestId(),
+                            }),
+                          )
+                        }
+                      >
+                        开始制作
+                      </button>
+                    </div>
+                    {dirty && <small>先保存修订，再提交制作。</small>}
+                  </>
+                )}
+                {tab === "jobs" && (
+                  <>
+                    <h2>作业与恢复</h2>
+                    {ctx.runs.map((r) => (
+                      <article key={r.id}>
+                        <div className="section-title">
+                          <button onClick={() => setActiveRun(r.id)}>
+                            {r.kind} · {labels[r.state]}
+                          </button>
+                          <div>
+                            <button
+                              disabled={
+                                !["queued", "running", "cancelling"].includes(
+                                  r.state,
+                                )
+                              }
+                              onClick={() =>
+                                act(async () => {
+                                  await api(`/runs/${r.id}/cancel`, RunRecord, {
+                                    method: "POST",
+                                    body: {},
+                                  });
+                                  await reload();
+                                })
+                              }
+                            >
+                              取消
+                            </button>
+                            <button
+                              disabled={
+                                ![
+                                  "failed",
+                                  "partial",
+                                  "cancelled",
+                                  "interrupted",
+                                ].includes(r.state)
+                              }
+                              onClick={() =>
+                                act(async () => {
+                                  await api(`/runs/${r.id}/resume`, RunRecord, {
+                                    method: "POST",
+                                    body: {},
+                                  });
+                                  setActiveRun(r.id);
+                                  await reload();
+                                })
+                              }
+                            >
+                              恢复未完成步骤
+                            </button>
+                          </div>
+                        </div>
+                        <small>{r.id}</small>
+                        {r.error && <p className="error">{r.error.message}</p>}
+                      </article>
+                    ))}
+                    {runDetail && <Json value={runDetail} />}
+                    <details>
+                      <summary>事件（自动断线重连）</summary>
+                      <Json value={events} />
+                    </details>
+                  </>
+                )}
+                {tab === "review" && (
+                  <>
+                    <h2>交付与历史</h2>
+                    {ctx.deliveries.length === 0 && (
+                      <p>尚未有通过验证的交付。</p>
+                    )}
+                    {ctx.deliveries.map((d) => (
+                      <article key={d.id}>
+                        <h3>
+                          {d.target}{" "}
+                          <span className="badge">{labels[d.state]}</span>
+                        </h3>
+                        <small>
+                          制作修订 {d.revisionId} · {d.createdAt}
+                        </small>
+                        <video controls src={mediaUrl(d.artifacts.video)} />
+                        <div className="actions">
+                          {["srt", "ass", "manifest", "receipt", "audio"]
+                            .filter((k) => d.artifacts[k])
+                            .map((k) => (
+                              <a
+                                key={k}
+                                href={mediaUrl(d.artifacts[k])}
+                                target="_blank"
+                              >
+                                {k}
+                              </a>
+                            ))}
+                        </div>
+                        <p>
+                          按场景定位：
+                          {draft.scenes.map((s, i) => (
+                            <button
+                              key={s.id}
+                              onClick={() =>
+                                act(async () => {
+                                  const m = await api(
+                                    `/artifacts/${d.timelineDigest}`,
+                                    z.object({
+                                      visuals: z.array(
+                                        z.object({
+                                          sceneId: z.string(),
+                                          startFrame: z.number(),
+                                        }),
+                                      ),
+                                      output: z.object({
+                                        fps: z.object({
+                                          num: z.number(),
+                                          den: z.number(),
+                                        }),
+                                      }),
+                                    }),
+                                  );
+                                  const v = m.visuals.find(
+                                    (v) => v.sceneId === s.id,
+                                  );
+                                  const video =
+                                    document.querySelector<HTMLVideoElement>(
+                                      `video[src="${mediaUrl(d.artifacts.video)}"]`,
+                                    );
+                                  if (v && video) {
+                                    video.currentTime =
+                                      (v.startFrame * m.output.fps.den) /
+                                      m.output.fps.num;
+                                    await video.play();
+                                  }
+                                })
+                              }
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+                        </p>
+                      </article>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </main>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CreateProject({
+  onCreated,
+  fail,
+}: {
+  onCreated: (p: z.infer<typeof ProjectRevision>) => Promise<void>;
+  fail: (e: unknown) => void;
+}) {
+  const [title, setTitle] = useState(""),
+    [workflow, setWorkflow] = useState("study-explainer");
+  return (
+    <section className="empty">
+      <h1>开始一部片子</h1>
+      <p>素材、观察、创作与制作结果保存在同一个项目里。</p>
+      <Field label="片名">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="输入片名"
+        />
+      </Field>
+      <Field label="工作流预设">
+        <select value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
+          {WORKFLOWS.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <p>{WORKFLOWS.find((w) => w.id === workflow)?.guidance}</p>
+      <button
+        className="primary"
+        onClick={() =>
+          api("/projects", ProjectRevision, {
+            method: "POST",
+            body: { title, workflow, requestId: requestId() },
+          })
+            .then(onCreated)
+            .catch(fail)
+        }
+      >
+        创建草稿
+      </button>
+    </section>
+  );
+}
+function SceneEditor({
+  scene: s,
+  locale,
+  assets,
+  voices,
+  onChange,
+}: {
+  scene: Scene;
+  locale: string;
+  assets: z.infer<typeof MediaAssetVersion>[];
+  voices: z.infer<typeof LibraryVersion>[];
+  onChange: (s: Scene) => void;
+}) {
+  const speech = speechOf(s),
+    [localError, setLocalError] = useState("");
+  const patch = (value: unknown) => {
+    const r = Scene.safeParse(value);
+    if (r.success) {
+      setLocalError("");
+      onChange(r.data);
+    } else setLocalError(r.error.issues[0]?.message || "字段无效");
+  };
+  const speechChange = (next: Speech | undefined) => {
+    if (s.kind !== "clip")
+      onChange({
+        ...s,
+        timing:
+          s.timing.kind === "fixed"
+            ? { ...s.timing, speech: next }
+            : next
+              ? { ...s.timing, speech: next }
+              : { kind: "fixed", frames: Frames.parse(90) },
+      });
+    else if (next) {
+      const audio =
+        s.playback.audio.kind === "mix"
+          ? { ...s.playback.audio, speech: next }
+          : { kind: "narration" as const, speech: next, gainDb: 0 };
+      onChange({
+        ...s,
+        playback:
+          s.playback.kind === "speech"
+            ? { ...s.playback, audio }
+            : { kind: "source", audio },
+      });
+    } else
+      onChange({
+        ...s,
+        playback: { kind: "source", audio: { kind: "silent" } },
+      });
+  };
+  const newSpeech = (): Speech => ({
+    kind: "authored",
+    text: { [locale]: "" },
+    voice: voices[0]
+      ? { [locale]: { itemId: voices[0].itemId, version: voices[0].version } }
+      : {},
+  });
+  const selectAsset = (value: string) =>
+    assets.find((a) => refKey(a) === value);
+  return (
+    <>
+      {localError && <p className="error">{localError}</p>}
+      {s.kind === "card" ? (
+        <>
+          <Field label="卡片样式">
+            <select
+              value={s.cardSpec.template}
+              onChange={(e) =>
+                onChange({
+                  ...s,
+                  cardSpec: {
+                    ...s.cardSpec,
+                    template: z
+                      .enum(["title", "points", "close"])
+                      .parse(e.target.value),
+                  },
+                })
+              }
+            >
+              <option value="title">标题</option>
+              <option value="points">要点</option>
+              <option value="close">收束</option>
+            </select>
+          </Field>
+          <Field label="标题">
+            <input
+              value={s.cardSpec.copy[locale]?.headline || ""}
+              onChange={(e) =>
+                onChange({
+                  ...s,
+                  cardSpec: {
+                    ...s.cardSpec,
+                    copy: {
+                      ...s.cardSpec.copy,
+                      [locale]: {
+                        ...(s.cardSpec.copy[locale] || {
+                          kicker: "",
+                          lede: "",
+                          points: [],
+                          tags: [],
+                          headline: "",
+                        }),
+                        headline: e.target.value,
+                      },
+                    },
+                  },
+                })
+              }
+            />
+          </Field>
+          <Field label="要点（每行一条，左右对照用 ||）">
+            <textarea
+              value={s.cardSpec.copy[locale]?.points.join("\n") || ""}
+              onChange={(e) =>
+                onChange({
+                  ...s,
+                  cardSpec: {
+                    ...s.cardSpec,
+                    copy: {
+                      ...s.cardSpec.copy,
+                      [locale]: {
+                        ...(s.cardSpec.copy[locale] || {
+                          kicker: "",
+                          lede: "",
+                          points: [],
+                          tags: [],
+                          headline: "",
+                        }),
+                        points: e.target.value.split("\n"),
+                      },
+                    },
+                  },
+                })
+              }
+            />
+          </Field>
+        </>
+      ) : (
+        <>
+          <Field label={s.kind === "clip" ? "源片" : "图片"}>
+            <select
+              value={refKey(s.kind === "clip" ? s.source : s.image)}
+              onChange={(e) => {
+                const a = selectAsset(e.target.value);
+                if (!a) return;
+                const ref = { assetId: a.assetId, version: a.version };
+                onChange(
+                  s.kind === "clip"
+                    ? { ...s, source: ref }
+                    : { ...s, image: ref },
+                );
+              }}
+            >
+              {assets
+                .filter(
+                  (a) => a.kind === (s.kind === "clip" ? "video" : "image"),
+                )
+                .map((a) => (
+                  <option value={refKey(a)} key={a.version}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          <div className="actions">
+            <Field label="画面适配">
+              <select
+                value={s.framing.fit}
+                onChange={(e) =>
+                  onChange({
+                    ...s,
+                    framing: {
+                      ...s.framing,
+                      fit: z.enum(["contain", "cover"]).parse(e.target.value),
+                    },
+                  })
+                }
+              >
+                <option value="contain">完整显示</option>
+                <option value="cover">填满画幅</option>
+              </select>
+            </Field>
+            {s.kind === "clip" && (
+              <>
+                <Field label="源入点（秒）">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={s.sourceRange.startUs / 1e6}
+                    onChange={(e) =>
+                      patch({
+                        ...s,
+                        sourceRange: {
+                          ...s.sourceRange,
+                          startUs: Math.round(Number(e.target.value) * 1e6),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="源窗时长（秒）">
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={s.sourceRange.durationUs / 1e6}
+                    onChange={(e) =>
+                      patch({
+                        ...s,
+                        sourceRange: {
+                          ...s.sourceRange,
+                          durationUs: Math.round(Number(e.target.value) * 1e6),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+              </>
+            )}
+          </div>
+        </>
+      )}
+      {s.kind === "clip" && (
+        <Field label="声音策略">
+          <select
+            value={s.playback.audio.kind}
+            onChange={(e) => {
+              const kind = e.target.value;
+              if (kind === "silent" || kind === "original")
+                onChange({
+                  ...s,
+                  playback: {
+                    kind: "source",
+                    audio: kind === "silent" ? { kind } : { kind, gainDb: 0 },
+                  },
+                });
+              else {
+                const sp = speech || newSpeech();
+                const audio =
+                  kind === "mix"
+                    ? {
+                        kind: "mix" as const,
+                        speech: sp,
+                        gainDb: 0,
+                        sourceGainDb: -12,
+                        ducking: true,
+                      }
+                    : { kind: "narration" as const, speech: sp, gainDb: 0 };
+                onChange({
+                  ...s,
+                  playback:
+                    s.playback.kind === "speech"
+                      ? { ...s.playback, audio }
+                      : { kind: "source", audio },
+                });
+              }
+            }}
+          >
+            <option value="silent">静音</option>
+            <option value="original">保留原声</option>
+            <option value="narration">旁白</option>
+            <option value="mix">旁白与原声混音</option>
+          </select>
+        </Field>
+      )}
+      {s.kind !== "clip" && (
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={!!speech}
+            onChange={(e) =>
+              speechChange(e.target.checked ? newSpeech() : undefined)
+            }
+          />
+          添加旁白
+        </label>
+      )}
+      {speech && (
+        <>
+          <Field label="旁白来源">
+            <select
+              value={speech.kind}
+              onChange={(e) => {
+                const a = assets.find((a) => a.kind === "audio");
+                speechChange(
+                  e.target.value === "authored"
+                    ? newSpeech()
+                    : {
+                        kind: "imported",
+                        text: {},
+                        audio: a
+                          ? {
+                              [locale]: {
+                                assetId: a.assetId,
+                                version: a.version,
+                              },
+                            }
+                          : {},
+                      },
+                );
+              }}
+            >
+              <option value="authored">文案与音色</option>
+              <option value="imported">已上传音频</option>
+            </select>
+          </Field>
+          {speech.kind === "authored" ? (
+            <>
+              <Field label="旁白文案">
+                <textarea
+                  value={speech.text[locale] || ""}
+                  onChange={(e) =>
+                    speechChange({
+                      ...speech,
+                      text: { ...speech.text, [locale]: e.target.value },
+                    })
+                  }
+                />
+              </Field>
+              <Field label="精确音色版本">
+                <select
+                  value={
+                    speech.voice[locale]
+                      ? `${speech.voice[locale].itemId}@${speech.voice[locale].version}`
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const v = voices.find(
+                      (v) => `${v.itemId}@${v.version}` === e.target.value,
+                    );
+                    if (v)
+                      speechChange({
+                        ...speech,
+                        voice: {
+                          ...speech.voice,
+                          [locale]: { itemId: v.itemId, version: v.version },
+                        },
+                      });
+                  }}
+                >
+                  <option value="">选择音色</option>
+                  {voices.map((v) => (
+                    <option
+                      key={`${v.itemId}@${v.version}`}
+                      value={`${v.itemId}@${v.version}`}
+                    >
+                      {v.payload.name} · {v.version.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </>
+          ) : (
+            <Field label="旁白音频">
+              <select
+                value={speech.audio[locale] ? refKey(speech.audio[locale]) : ""}
+                onChange={(e) => {
+                  const a = selectAsset(e.target.value);
+                  if (a)
+                    speechChange({
+                      ...speech,
+                      audio: {
+                        ...speech.audio,
+                        [locale]: { assetId: a.assetId, version: a.version },
+                      },
+                    });
+                }}
+              >
+                <option value="">选择音频</option>
+                {assets
+                  .filter((a) => a.kind === "audio")
+                  .map((a) => (
+                    <option key={a.version} value={refKey(a)}>
+                      {a.name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          )}
+        </>
+      )}
+      {s.kind !== "clip" ? (
+        <div className="actions">
+          <Field label="时长策略">
+            <select
+              value={s.timing.kind}
+              onChange={(e) => {
+                if (e.target.value === "speech" && speech)
+                  patch({
+                    ...s,
+                    timing: { kind: "speech", speech, tailFrames: 8 },
+                  });
+                else
+                  patch({
+                    ...s,
+                    timing: { kind: "fixed", frames: 90, speech },
+                  });
+              }}
+            >
+              <option value="fixed">固定帧长</option>
+              {speech && <option value="speech">真实旁白加尾帧</option>}
+            </select>
+          </Field>
+          <Field label={s.timing.kind === "fixed" ? "帧数" : "尾帧数"}>
+            <input
+              type="number"
+              min="0"
+              value={
+                s.timing.kind === "fixed"
+                  ? s.timing.frames
+                  : s.timing.tailFrames
+              }
+              onChange={(e) =>
+                patch({
+                  ...s,
+                  timing: {
+                    ...s.timing,
+                    [s.timing.kind === "fixed" ? "frames" : "tailFrames"]:
+                      Number(e.target.value),
+                  },
+                })
+              }
+            />
+          </Field>
+        </div>
+      ) : (
+        <>
+          <Field label="画面时长">
+            <select
+              value={s.playback.kind}
+              onChange={(e) => {
+                const audio = s.playback.audio;
+                if (
+                  e.target.value === "speech" &&
+                  (audio.kind === "narration" || audio.kind === "mix")
+                )
+                  patch({
+                    ...s,
+                    playback: {
+                      kind: "speech",
+                      audio,
+                      tailFrames: 0,
+                      overflow: { kind: "reject" },
+                    },
+                  });
+                else patch({ ...s, playback: { kind: "source", audio } });
+              }}
+            >
+              <option value="source">由选定源窗决定</option>
+              {speech && <option value="speech">由真实旁白决定</option>}
+            </select>
+          </Field>
+          {s.playback.kind === "speech" && (
+            <div className="actions">
+              <Field label="旁白超窗处理">
+                <select
+                  value={s.playback.overflow.kind}
+                  onChange={(e) =>
+                    patch({
+                      ...s,
+                      playback: {
+                        ...s.playback,
+                        overflow:
+                          e.target.value === "freeze"
+                            ? { kind: "freeze", maxFrames: 30 }
+                            : e.target.value === "speed"
+                              ? { kind: "speed", min: 0.5, max: 2 }
+                              : { kind: "reject" },
+                      },
+                    })
+                  }
+                >
+                  <option value="reject">报错并保留草稿</option>
+                  <option value="freeze">允许有限末帧定格</option>
+                  <option value="speed">允许限定速度适配</option>
+                </select>
+              </Field>
+              {s.playback.overflow.kind === "freeze" && (
+                <Field label="最多定格帧数">
+                  <input
+                    type="number"
+                    min="0"
+                    value={s.playback.overflow.maxFrames}
+                    onChange={(e) =>
+                      patch({
+                        ...s,
+                        playback: {
+                          ...s.playback,
+                          overflow: {
+                            kind: "freeze",
+                            maxFrames: Number(e.target.value),
+                          },
+                        },
+                      })
+                    }
+                  />
+                </Field>
+              )}
+              {s.playback.overflow.kind === "speed" && (
+                <>
+                  <Field label="最小速度">
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={s.playback.overflow.min}
+                      onChange={(e) =>
+                        patch({
+                          ...s,
+                          playback: {
+                            ...s.playback,
+                            overflow: {
+                              ...(s.playback.kind === "speech"
+                                ? s.playback.overflow
+                                : {}),
+                              min: Number(e.target.value),
+                            },
+                          },
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label="最大速度">
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={s.playback.overflow.max}
+                      onChange={(e) =>
+                        patch({
+                          ...s,
+                          playback: {
+                            ...s.playback,
+                            overflow: {
+                              ...(s.playback.kind === "speech"
+                                ? s.playback.overflow
+                                : {}),
+                              max: Number(e.target.value),
+                            },
+                          },
+                        })
+                      }
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+          )}
+          {s.playback.audio.kind === "original" && (
+            <Field label="原声增益（dB）">
+              <input
+                type="number"
+                value={s.playback.audio.gainDb}
+                onChange={(e) =>
+                  patch({
+                    ...s,
+                    playback: {
+                      ...s.playback,
+                      audio: {
+                        ...s.playback.audio,
+                        gainDb: Number(e.target.value),
+                      },
+                    },
+                  })
+                }
+              />
+            </Field>
+          )}
+          {s.playback.audio.kind === "mix" && (
+            <div className="actions">
+              <Field label="原声增益（dB）">
+                <input
+                  type="number"
+                  value={s.playback.audio.sourceGainDb}
+                  onChange={(e) =>
+                    patch({
+                      ...s,
+                      playback: {
+                        ...s.playback,
+                        audio: {
+                          ...s.playback.audio,
+                          sourceGainDb: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </Field>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={s.playback.audio.ducking}
+                  onChange={(e) =>
+                    patch({
+                      ...s,
+                      playback: {
+                        ...s.playback,
+                        audio: {
+                          ...s.playback.audio,
+                          ducking: e.target.checked,
+                        },
+                      },
+                    })
+                  }
+                />
+                旁白驱动原声压低
+              </label>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+function BgmEditor({
+  draft,
+  assets,
+  edit,
+}: {
+  draft: ProjectDocument;
+  assets: z.infer<typeof MediaAssetVersion>[];
+  edit: (p: ProjectDocument) => void;
+}) {
+  const bgm = draft.bgm;
+  const update = (raw: unknown) => {
+    const parsed = ProjectDocument.shape.bgm.safeParse(raw);
+    if (parsed.success) edit({ ...draft, bgm: parsed.data });
+  };
+  return (
+    <article>
+      <Field label="背景音乐">
+        <select
+          value={bgm ? refKey(bgm.source) : ""}
+          onChange={(e) => {
+            const a = assets.find((a) => refKey(a) === e.target.value);
+            update(
+              a
+                ? {
+                    source: { assetId: a.assetId, version: a.version },
+                    range: { startUs: 0, durationUs: 1000000 },
+                    loop: true,
+                    gainDb: -18,
+                    fadeInFrames: 10,
+                    fadeOutFrames: 15,
+                    ducking: true,
+                  }
+                : undefined,
+            );
+          }}
+        >
+          <option value="">不使用背景音乐</option>
+          {assets
+            .filter((a) => a.kind === "audio")
+            .map((a) => (
+              <option key={a.version} value={refKey(a)}>
+                {a.name}
+              </option>
+            ))}
+        </select>
+      </Field>
+      {bgm && (
+        <>
+          <div className="actions">
+            {[
+              ["startUs", "音乐入点（秒）"],
+              ["durationUs", "音乐裁剪时长（秒）"],
+            ].map(([key, label]) => (
+              <Field key={key} label={label}>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={
+                    (key === "startUs"
+                      ? bgm.range.startUs
+                      : bgm.range.durationUs) / 1e6
+                  }
+                  onChange={(e) =>
+                    update({
+                      ...bgm,
+                      range: {
+                        ...bgm.range,
+                        [key]: Math.round(Number(e.target.value) * 1e6),
+                      },
+                    })
+                  }
+                />
+              </Field>
+            ))}
+            <Field label="增益（dB）">
+              <input
+                type="number"
+                value={bgm.gainDb}
+                onChange={(e) =>
+                  update({ ...bgm, gainDb: Number(e.target.value) })
+                }
+              />
+            </Field>
+            {[
+              ["fadeInFrames", "淡入帧数"],
+              ["fadeOutFrames", "淡出帧数"],
+            ].map(([key, label]) => (
+              <Field key={key} label={label}>
+                <input
+                  type="number"
+                  value={
+                    key === "fadeInFrames"
+                      ? bgm.fadeInFrames
+                      : bgm.fadeOutFrames
+                  }
+                  onChange={(e) =>
+                    update({ ...bgm, [key]: Number(e.target.value) })
+                  }
+                />
+              </Field>
+            ))}
+          </div>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={bgm.loop}
+              onChange={(e) => update({ ...bgm, loop: e.target.checked })}
+            />
+            循环裁剪段
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={bgm.ducking}
+              onChange={(e) => update({ ...bgm, ducking: e.target.checked })}
+            />
+            旁白驱动音乐压低
+          </label>
+        </>
+      )}
+    </article>
+  );
+}
+function LibraryPanel({
+  kind,
+  library,
+  refresh,
+  fail,
+}: {
+  kind: "voice" | "method" | "material";
+  library: z.infer<typeof LibraryVersion>[];
+  refresh: () => Promise<void>;
+  fail: (e: unknown) => void;
+}) {
+  const formEpoch = useRef(0);
+  const [selected, setSelected] = useState<z.infer<
+      typeof LibraryVersion
+    > | null>(null),
+    [name, setName] = useState(""),
+    [referenceText, setReferenceText] = useState(""),
+    [description, setDescription] = useState(""),
+    [file, setFile] = useState<File | null>(null),
+    [style, setStyle] = useState(""),
+    [sample, setSample] = useState(""),
+    [runId, setRunId] = useState(""),
+    [result, setResult] = useState<unknown>(null),
+    [status, setStatus] = useState(""),
+    [purpose, setPurpose] = useState<"design" | "transcribe">("design"),
+    [needs, setNeeds] = useState<string[]>([]),
+    [clipAudio, setClipAudio] = useState(""),
+    [observed, setObserved] = useState(false);
+  useEffect(() => {
+    setSelected(null);
+    setName("");
+    setReferenceText("");
+    setDescription("");
+    setFile(null);
+    setResult(null);
+    setRunId("");
+  }, [kind]);
+  useEffect(() => {
+    if (!runId) return;
+    const generation = formEpoch.current;
+    const ctrl = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = () =>
+      api(`/runs/${runId}`, RunDetail, { signal: ctrl.signal })
+        .then((r) => {
+          if (ctrl.signal.aborted || generation !== formEpoch.current) return;
+          setStatus(labels[r.run.state]);
+          setResult(r.nodes[0]?.result);
+          if (r.run.state === "succeeded" && purpose === "transcribe") {
+            const t = z.object({ text: z.string() }).parse(r.nodes[0]?.result);
+            setReferenceText(t.text);
+          }
+          if (["queued", "running"].includes(r.run.state))
+            timer = setTimeout(poll, 1000);
+          else if (r.run.error) fail(new Error(r.run.error.message));
+        })
+        .catch((e) => {
+          if (!ctrl.signal.aborted) fail(e);
+        });
+    poll();
+    return () => {
+      ctrl.abort();
+      clearTimeout(timer);
+    };
+  }, [runId, purpose]);
+  const preview = z
+    .object({ digest: z.string(), text: z.string() })
+    .safeParse(result);
+  const startRun = (
+    url: string,
+    body: unknown,
+    purpose: "design" | "transcribe",
+  ) => {
+    const generation = ++formEpoch.current;
+    setRunId("");
+    setResult(null);
+    setStatus("提交中");
+    setPurpose(purpose);
+    api(url, RunRecord, { method: "POST", body })
+      .then((r) => {
+        if (generation !== formEpoch.current) return;
+        setPurpose(purpose);
+        setRunId(r.id);
+      })
+      .catch((e) => {
+        if (generation === formEpoch.current) {
+          setStatus("");
+          fail(e);
+        }
+      });
+  };
+  const save = async () => {
+    const generation = formEpoch.current;
+    if (file) {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("kind", kind);
+      body.append("name", name);
+      body.append("referenceText", referenceText);
+      body.append("requestId", requestId());
+      if (selected) {
+        body.append("itemId", selected.itemId);
+        body.append("expectedVersion", selected.version);
+      }
+      await api("/library/upload", LibraryVersion, { method: "POST", body });
+    } else {
+      const payload =
+        kind === "method"
+          ? {
+              ...(selected?.payload.kind === "method"
+                ? selected.payload
+                : { kind, sceneTemplate: [] }),
+              name,
+              description,
+              needs,
+              clipAudio: clipAudio || undefined,
+              clipAlignment: observed ? "observed-sequences" : undefined,
+            }
+          : selected?.payload.kind === "voice"
+            ? { ...selected.payload, name, referenceText }
+            : selected
+              ? { ...selected.payload, name }
+              : null;
+      if (!payload) throw Error("先选择文件");
+      await api("/library", LibraryVersion, {
+        method: "POST",
+        body: {
+          itemId: selected?.itemId,
+          expectedVersion: selected?.version || null,
+          requestId: requestId(),
+          payload,
+        },
+      });
+    }
+    await refresh();
+    if (generation !== formEpoch.current) return;
+    setSelected(null);
+    setName("");
+    setReferenceText("");
+    setDescription("");
+    setFile(null);
+  };
+  return (
+    <main className="library">
+      <h1>
+        {kind === "voice" ? "音色" : kind === "method" ? "方法" : "可复用素材"}
+      </h1>
+      <p>
+        项目绑定精确版本。编辑发布新版本；删除只隐藏当前库项，历史引用继续有效。
+      </p>
+      <div className="two">
+        <section>
+          {library
+            .filter((v) => v.payload.kind === kind)
+            .map((v) => (
+              <article key={v.itemId}>
+                <div className="section-title">
+                  <b>{v.payload.name}</b>
+                  <div>
+                    <button
+                      onClick={() => {
+                        formEpoch.current++;
+                        setRunId("");
+                        setResult(null);
+                        setStatus("");
+                        setSelected(v);
+                        setName(v.payload.name);
+                        setReferenceText(
+                          v.payload.kind === "voice"
+                            ? v.payload.referenceText
+                            : "",
+                        );
+                        setNeeds(
+                          v.payload.kind === "method" ? v.payload.needs : [],
+                        );
+                        setClipAudio(
+                          v.payload.kind === "method"
+                            ? v.payload.clipAudio || ""
+                            : "",
+                        );
+                        setObserved(
+                          v.payload.kind === "method" &&
+                            !!v.payload.clipAlignment,
+                        );
+                        setDescription(
+                          v.payload.kind === "method"
+                            ? v.payload.description
+                            : "",
+                        );
+                      }}
+                    >
+                      编辑
+                    </button>
+                    <button
+                      onClick={() =>
+                        api(`/library/${v.itemId}`, z.unknown(), {
+                          method: "DELETE",
+                          body: {
+                            expectedVersion: v.version,
+                            requestId: requestId(),
+                          },
+                        })
+                          .then(refresh)
+                          .catch(fail)
+                      }
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+                <small>版本 {v.version.slice(0, 12)}</small>
+                {v.payload.kind === "voice" && (
+                  <audio controls src={mediaUrl(v.payload.reference)} />
+                )}
+              </article>
+            ))}
+        </section>
+        <section>
+          <h2>{selected ? "发布新版本" : "添加"}</h2>
+          <Field label="名称">
+            <input value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          {kind === "method" ? (
+            <>
+              <Field label="适用条件与方法">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </Field>
+              <div className="row">
+                {[
+                  ["transcript", "转写证据"],
+                  ["description", "画面观察"],
+                  ["match-report", "匹配报告"],
+                ].map(([key, label]) => (
+                  <label className="check" key={key}>
+                    <input
+                      type="checkbox"
+                      checked={needs.includes(key)}
+                      onChange={(e) =>
+                        setNeeds(
+                          e.target.checked
+                            ? [...needs, key]
+                            : needs.filter((n) => n !== key),
+                        )
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <Field label="片段声音约束">
+                <select
+                  value={clipAudio}
+                  onChange={(e) => setClipAudio(e.target.value)}
+                >
+                  <option value="">不限制</option>
+                  <option value="original">原声</option>
+                  <option value="narration">旁白</option>
+                  <option value="mix">混音</option>
+                </select>
+              </Field>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={observed}
+                  onChange={(e) => setObserved(e.target.checked)}
+                />
+                选段必须位于已有观察区间
+              </label>
+            </>
+          ) : (
+            <input
+              type="file"
+              aria-label="上传库文件"
+              onChange={(e) => {
+                formEpoch.current++;
+                setRunId("");
+                setResult(null);
+                setStatus("");
+                setFile(e.target.files?.[0] || null);
+              }}
+            />
+          )}{" "}
+          {kind === "voice" && (
+            <Field label="克隆源的实际参考文本">
+              <button
+                aria-label="转写参考音频"
+                disabled={!file && selected?.payload.kind !== "voice"}
+                onClick={() => {
+                  const body = file
+                    ? new FormData()
+                    : {
+                        voiceId: selected?.itemId,
+                        voiceVersion: selected?.version,
+                        requestId: requestId(),
+                      };
+                  if (body instanceof FormData && file) {
+                    body.append("file", file);
+                    body.append("requestId", requestId());
+                  }
+                  startRun(
+                    file ? "/voice/transcribe-upload" : "/voice/transcribe",
+                    body,
+                    "transcribe",
+                  );
+                }}
+              >
+                转写参考音频
+              </button>
+              <small>{purpose === "transcribe" ? status : ""}</small>
+              <textarea
+                value={referenceText}
+                onChange={(e) => {
+                  if (purpose === "transcribe") {
+                    formEpoch.current++;
+                    setRunId("");
+                    setStatus("");
+                  }
+                  setReferenceText(e.target.value);
+                }}
+              />
+            </Field>
+          )}
+          <button
+            className="primary"
+            disabled={["提交中", "排队", "运行中"].includes(status)}
+            onClick={() => save().catch(fail)}
+          >
+            保存版本
+          </button>
+          {kind === "voice" && (
+            <>
+              <h2>设计试听</h2>
+              <Field label="声音描述">
+                <textarea
+                  value={style}
+                  onChange={(e) => setStyle(e.target.value)}
+                />
+              </Field>
+              <Field label="试听文案">
+                <textarea
+                  value={sample}
+                  onChange={(e) => setSample(e.target.value)}
+                />
+              </Field>
+              <button
+                onClick={() =>
+                  startRun(
+                    "/voice/design",
+                    { style, text: sample, requestId: requestId() },
+                    "design",
+                  )
+                }
+              >
+                生成试听作业
+              </button>
+              <small>{status}</small>
+              {purpose === "design" && preview.success && (
+                <>
+                  <audio controls src={mediaUrl(preview.data.digest)} />
+                  <button
+                    onClick={() =>
+                      api("/voice/accept", LibraryVersion, {
+                        method: "POST",
+                        body: {
+                          runId,
+                          name: name || "新音色",
+                          expectedVersion: null,
+                          requestId: requestId(),
+                        },
+                      })
+                        .then(refresh)
+                        .catch(fail)
+                    }
+                  >
+                    收下为音色
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+    </main>
   );
 }

@@ -1,18 +1,7 @@
-# QA 门禁
+# 复盘
 
-前 5 条是 weaver 已实现的事实，去 **读**，不要在 agent 里重写一套校验。
+读取 `build --plan` 的 Issues，检查作者内容、源范围、音色版本、字幕模式和输出规格。完成后读取 `artifacts` 和成片 receipt，核对帧数、采样时钟与字幕 timingQuality。
 
-| # | 门 | 证据 | 不过则 |
-| --- | --- | --- | --- |
-| Q1 | `validate` 无 error | `weaver validate <id> --json` | 停。修形状 / 旁白空 / 缺 still 引用 |
-| Q2 | title 在 `[0]`、close 在末、恰好各一 | study-explainer validate | 已是 error |
-| Q3 | 每 locale 每场 `lines` 非空 | `scenes.*.lines.<locale>` trim 后为空 → error。`addScene` 的 id 占位也算非空，阶段 3 仍须替换 | error |
-| Q4 | 任务若自带输出名清单 | 清单在且正文不含该 locale 的 `copy.output` → warning | warning；对齐后再考虑拷贝 |
-| Q5 | 若写了任一 `role`：problem+contrast 或全 still=contrast | D11 | warning |
-| Q6 | 点名语言对等 | `film.langs` 里每种语言的旁白针对同一事实；点了英文才读 `idea.en.md` | 停，改稿。不进 weaver |
-| Q7 | 无种子 `hero`（first-party） | `project show` | `scene rm --id hero` |
-| Q8 | 清单方法：scene id 集合 = `--items` 集合 | 与传入的清单对一下 | 补场，不合并 |
-| Q9 | `isRenderable === true` | `project show` 的 `renderable` | **禁止 `render --project`** |
-| Q10 | 成片文件名不是猜的 | 与 SOURCE.md 逐字相同 | 用手写 `--output` |
-| Q11 | 口播/卡片无实现词堆叠 | `validate` warning：`口播忌术语` / `卡片忌术语` | 改成动作和后果再 tts。忌语含叶子、提交模型、安全三角、走廊、sticky、观察器、悬停、宽度为零 |
-| Q12 | title/close 有 points | `validate` warning：`卡片正文用 points` | lede 缩成一句，要点 2–4 条 |
+复盘内容包括选段是否符合意图、旁白是否完整、字幕是否可读、原声与音乐是否合适。模型质量需要真实素材判断，功能样例只证明已执行的链路。
+
+取消或失败保留上一份有效交付。恢复后检查成功步骤是否复用，当前结果、过期结果与历史结果分别显示。剪映实际打开、OTIO 重载、移动包引用检查是不同证据。

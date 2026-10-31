@@ -1,153 +1,128 @@
-# How to add a film
+# 运行合同与命令参考
 
-一部片子是一个 **任务实例**。已实现 `study-explainer`（静帧讲解）和 `footage-narration`（原片时间轴解说）。LightWeaver 做后处理出片：编排、配音、渲染。上游文案和画面由任务自带，不在本仓描述别的仓库。
+## 数据位置
 
-## Project layout
+| 位置 | 内容 |
+| --- | --- |
+| `data/.weaver/state.sqlite3` | 项目 head、不可变修订、资产与库版本、作业、事件、候选、交付 |
+| `data/.weaver/blobs/<prefix>/<digest>` | SHA-256 内容存储 |
+| `data/.weaver/work/<node>/<attempt>` | 独立 attempt 工作目录与完成收据 |
+| `data/.weaver/materialized/` | 可重建的友好文件名副本 |
+| `data/.weaver/backups/` | 一致性数据库、引用 blob 与迁移前 JSON 备份 |
+| `library/` | 可复用内置包和方法说明的显式导入来源 |
+| `data/projects/`、`data/first-party/` | 保留的旧输入，一次性迁移器读取 |
 
+`LIGHTWEAVER_DATA_DIR` 或 CLI `--data-dir` 选择运行根。项目 ID 不依赖方法、工作流或目录。完整 DB 与 blobs 可一起搬迁，内部 locator 保持相对值。JSON 用于显式交换和不可变快照。
+
+## 公开入口
+
+Node 产品使用 `@lightweaver/weaver/app`，浏览器使用 `@lightweaver/weaver/contracts`。`weaver capabilities` 返回工作流、输出规格、provider 描述符和内置包版本。`schema` 由运行时 Zod 合同生成。
+
+stdout 结果为 `{ok:true,result,requestId}`，错误为 `{ok:false,error:{code,message,retryable,details,hints}}`。日志进 stderr。`--json` 输出单行 JSON。CLI `events` 输出 JSONL，`run events` 返回事件数组。HTTP 返回相同结果与错误形状；SSE 使用单调 seq，支持 Last-Event-ID。
+
+项目写入携带 expectedRevision，库写入携带 expectedVersion。requestId 标识一次逻辑请求，相同请求可重试。修订冲突返回当前内容。删除库 head 使用墓碑，精确版本继续可读。
+
+## 编辑与制作
+
+```bash
+npx weaver project create demo --workflow observe-narrate --json
+npx weaver asset add --project demo --file /absolute/source.mp4 --expected-revision REV --request-id source-1 --json
+npx weaver project brief demo --json
+npx weaver schema scene --json
+npx weaver project apply --project demo --ops /absolute/ops.json --expected-revision REV --request-id edit-1 --json
+npx weaver build --project demo --locales zh --profiles landscape,portrait,square --plan --json
+npx weaver build --project demo --wait --json
+npx weaver artifacts --project demo --json
 ```
-film.json                 task、scenes、locale copy、voice、publish
-assets.json               项目资产登记
-assets/stills/<locale>/   静帧（study-explainer）
-assets/source/            源视频（footage-narration）
-assets/transcripts/       句级转写
-assets/descriptions/      画面描述树（场/镜/观察）
-assets/lines/<locale>/    旁白 wav
-assets/clips/<locale>/    中间裁段（不提交）
-assets/outputs/           渲染 mp4（不提交）
+
+Draft 可为空。Scene 是 card、still 或 clip。静帧使用固定帧或真实语音时长，clip 使用整数微秒源窗，并显式选择源时长或语音时长。超窗默认拒绝，定格和变速由作者设置上限。原声场无需音色。
+
+build 冻结作者、资产、库、provider 和工具，先准备真实事实，再编译 TimelineManifest。Remotion 只输出无声卡片，FFmpeg 统一画面、字幕、混音与最终封装。低清预览来自同一正式时间轴。
+
+缓存按实际依赖与工具版本查找。改标题保留无关语音，按 locale 的文字与字幕独立失效。输出状态同时检查完整性和依赖；历史结果可以显式导出。
+
+## 分析与候选
+
+```bash
+npx weaver analyze --project demo --with asr,describe --provider modelbest-vlm --wait --json
+npx weaver analyze --project demo --with describe --provider deepseek-vlm --from-us 0 --duration-us 10000000 --wait --json
+npx weaver search --project demo --query "需要的画面" --mode text --json
+npx weaver search --project demo --query "需要的画面" --mode semantic --wait --json
+npx weaver match --project demo --edited edited-asset-id --sources source-asset-id --wait --json
+npx weaver proposal apply --project demo --proposal PROPOSAL --select CANDIDATE --expected-revision REV --json
 ```
 
-任务实例都在 `data/`（整树 gitignore），**不提交**。两棵树：`data/projects/<task>/<recipe>/<id>/`，`data/first-party/<task>/<recipe>/<id>/`。`<task>` 是 `study-explainer` 或 `footage-narration`；`<recipe>` 是方法卡 id，未点方法时为 `none`。`film.id` 等于叶子目录名。点方法会挪目录。
+ASR、描述按源版本与窗口保存。describe 的观察和镜头树供作者判断，核心不代写旁白。文本模式按已存证据检索，semantic 模式调用配置的向量后端。未配置时显式失败。
 
-仓库只留可复用物：`weaver/`、`library/`（含 `library/methods/`）、`products/study-films/`（渲染器，不含片子、不含成片）、`products/studio/`、`skills/`。
+人工证据文件是 `[{sourceId,startUs,durationUs,text}]`，通过 `analyze --import /absolute/evidence.json --expected-revision REV --wait` 导入。外部候选使用 `schema proposal`，经 `proposal import --file /absolute/proposal.json --expected-revision REV --wait` 校验后保存。应用选择生成新修订，并保留选择记录。
 
-## 三层存放
+## 字幕与声音
 
-片子目录里的 `film.json` 是编排合同，不是理念源，也不是媒体文件。先按层找对象，再跑 weaver。
+```bash
+npx weaver captions import --project demo --file /absolute/subtitles.srt --locale zh --expected-revision REV --json
+# 源片字幕额外带 --source-id ASSET --source-version DIGEST
+```
 
-| 层 | 住哪 | 不往哪写 |
+字幕支持人工 SRT、VTT，时间可映射到成片、源片或场景语音。manual、native、aligned、estimated 分别记录。precise 模式缺对齐能力时报错；estimated 需要显式选择。SRT、ASS、烧录和交接使用同一 cue。
+
+声音计划包含原声、语音、BGM、增益、裁剪、循环、淡变、旁白驱动 ducking 和最终 LUFS、true peak 目标。默认 -16 LUFS、-1 dBTP。静音节目不填写虚构测量值。正式视频验证帧数、规格和解码音频采样数，AAC 允许最多 2048 个额外样本。
+
+## 模型边界
+
+| 能力 | 当前适配 | 配置 |
 | --- | --- | --- |
-| **理念** | 任务自带：用户片 `data/projects/<task>/<recipe>/<id>/brief.md`（可选 `brief.en.md`）。若片子写了 `study.slug`，只当指针，不要把上游文案拷进片子目录 | 不把上游 idea 拷进片子。不把 wav/mp4 写进理念目录 |
-| **资产** | `library/`（`library:` 音色 / 元素 / 参考）+ 项目 `assets.json` + `assets/stills/<locale>/`。元素是参考权能，不强制 | `library/` 不是文件柜。不发明第三套 ref |
-| **产物** | 旁白 `assets/lines/<locale>/<scene>.wav`；成片 `assets/outputs/<output>`。整份任务实例在 `data/` | 不把 `data/` 提交进本仓。不把成片写进 `products/study-films/`。人没另给拷贝位置，就不要拷到仓库外 |
+| TTS、音色设计 | ModelBest VoxCPM2 SSE 音频事件 | MODELBEST_API_KEY、LIGHTWEAVER_TTS_MODEL |
+| VLM | ModelBest MiniCPM-V 或 DeepSeek flash | MODELBEST_API_KEY、DEEPSEEK_API_KEY，analyze --provider |
+| VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | LIGHTWEAVER_VAD_LIBRARY、LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS |
+| 精确对齐 | WhisperX | LIGHTWEAVER_ALIGNMENT_MODEL |
+| 向量 | Transformers masked mean pooling | LIGHTWEAVER_EMBEDDING_MODEL、LIGHTWEAVER_EMBEDDING_REVISION |
 
-**用户片 brief：** 理念写在 `data/projects/<task>/<recipe>/<id>/brief.md`。Agent 写正文；`createProject` **不**代写。weaver **不**解析 brief。没有 brief 就先写 brief，再写 `lines`。
+本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。
 
-**静帧文件名：** 盘上路径以该项目 `assets.json` 里 `files.<locale>` 为准，**不要**从 `scenes[].id` 或 `asset:still.<id>` 推导。`stillRelPath` 不自动加 `.png`。必须先写进 `assets.json` 再落盘。
+`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认记录在 acceptance-v2.md。
 
-**可选增强（方法 / 音色 / 素材）：** 三套都在 `library/`，同一套可增删改的插件。工作台点了才约束 agent，没点就让它自己定，不要代点。方法资产 `library:method.*`，人只填名称 / 何时用 / 铺场（`expand: fixed|list`，固定场次自带 `scenes`）。apply / list / show 都按 catalog。`library/methods/<pack>/` 只放 catalog 投影短文，不是第二套库。音色、素材同样登记在 `library/assets.json`。素材人只填名称，id 自动分配。出片时不要为这一部片子新建方法。库的增删改在 Studio `/methods` `/voices` `/library`，或 `weaver method` / `weaver asset`。禁止把方法写进 `skills/`。
-
-发现三层路径与文件是否存在：`npx weaver project show <id> --json` 的 `paths`（`brief` / `stillFiles` / `sourceFiles` / `lineFiles` / `outputFiles`）和 `renderable`。不要扫仓库。
-
-## 感知 / 合成原语（任意 agent）
-
-STT / TTS 是 weaver 可调用的基础模块，**不需要片子**。OpenClaw、QwenPaw、Codex、Claude Code、Grok Build 等只调 CLI，不要去 import `tts.py` / `asr.py`，不要为转写或合成新建 `film.json`。
+## 库与交接
 
 ```bash
-npx weaver asr --file clip.wav --json
-npx weaver asr --file origin.mp4 --language zh --json
-npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
+npx weaver library list --json
+npx weaver library set --file /absolute/payload.json --media /absolute/reference.wav --json
+npx weaver library show ITEM --version DIGEST --json
+npx weaver library delete --id ITEM --expected-version DIGEST --json
+npx weaver asset adopt --project demo --item ITEM --version DIGEST --expected-revision REV --json
+npx weaver library import-builtin --package-version DIGEST --json
 ```
 
-- `asr`：wav 或带音轨的视频 → `{ text, language, seconds, sentences? }`。不写项目资产。超过 40s 自动切窗再拼接；截断则对半再切一次，仍空则失败。
-- `tts --text`：一句旁白 + `library:voice.*` 克隆源 → wav。Hi-Fi：克隆源 wav + 逐字稿。
-- 片子作业仍是 `transcribe --project`（写 `assets/transcripts`）和 `tts --project`（写 `assets/lines`）。
-- `voice asr --id` 只给库里的克隆源补文本，不是通用 STT。
-- 缺 ASR 模型或 ModelBest 密钥时失败，不要换引擎、不要装成空结果。
-
-## study-explainer
-
-- `task: "study-explainer"`
-- 场景形状：title 在首、close 在末、至少一场 still
-- 旁白写在 `scenes[].lines`
-- **口播通俗：** 上游文案可以写实现词；片子 `lines` 与 title/close 卡片必须改成听者的话。一场只留一个要记住的名字。`validate` 对忌语出 warning。「路径」可以留
-- **点名：** `film.langs` 是要出的语言。方法、音色、素材都是可选增强：`film.recipe` / `film.voices` / `film.kit` 点了按点的用。Studio 工作台复制说明；`/f/<id>` 只复盘
-- **要点板：** title / close 的正文是 `points`（2–4 条）。lede 只留一句。对照条写成 `左 || 右`
-- 静帧：`scenes[].still = "asset:still.<id>"`
-- 音色套：克隆源二选一。上传后自动转写「文本」。出片固定 Hi-Fi clone。人在 `/voices` 铸、听、留。`tts` 不改库，不加 `--seed`
-- 工作台必须写产物位置。没点名就让 agent 开始前先问写到 `data/projects/<task>/<recipe>/<id>/` 还是 `data/first-party/<task>/<recipe>/<id>/`。人没另给拷贝位置，不要拷到仓库外
-- `film.publish.dir` 若已有值，`render` 才拷一份出去。工作台不点名仓库外路径
+内置包 DIGEST 由 capabilities 返回。方法条件来自 MethodVersion。项目升级使用 `project apply` 的 rebind 操作。音色参考音频转写、设计试听和收下也可在 Studio 完成。
 
 ```bash
-npx weaver project create my-film --title "演示" --task study-explainer
-npx weaver recipe apply --project my-film --recipe taxonomy-parade --items shot
-npx weaver langs set --project my-film --langs zh
-npx weaver validate my-film
-npx weaver tts --project my-film
-npx weaver render --project my-film
+npx weaver export --project demo --format otio --dest /absolute/empty-otio-dir --json
+npx weaver export --project demo --format jianying --dest /absolute/empty-jianying-dir --json
+npx weaver export verify --dir /absolute/package --json
+npx weaver export install --dir /absolute/jianying-package --json
+npx weaver export --project demo --format bundle --dest /absolute/package.zip --json
+npx weaver import --file /absolute/package.zip --id imported-project --json
 ```
 
-`make films` / `weaver tts|render` 无 `--project` 时跳过 **不可渲** 片子。指定 `--project` 渲染缺 png（讲解片）或缺源视频/旁白（原片解说）会报错。
+OTIO 使用官方库生成与重载。字幕附 SRT、ASS 与 metadata，编辑器的字幕与特效兼容性各异。剪映锁定 macOS 11.7.0、schema 360000、adapter v1。安装创建新草稿并备份索引。
 
-## footage-narration
+画面适配、速度和定格可烘焙。节目母带保留最终混音，独立备选音轨默认静音，并烘焙裁剪、循环、变速、增益与淡变。原始媒体、映射与报告随包保存。bundle 保存精确版本和必要物化依赖，排除活动 DB 与密钥。
 
-- `task: "footage-narration"`
-- 场景形状：一场或多场 `clip`。每场 `source`（`asset:video.*`）、`in` / `out`（秒）、`ost`（`narration` | `original` | `mix`）
-- 源视频登记在 `assets.json`，文件放 `assets/source/`。路径以 catalog 为准，不从 scene id 推导
-- CLI：`project create --source user|first-party`；场次源视频用 `--video asset:video.*`，不要用 `--source`
-- `ost: original` 不配旁白、tts 跳过，成片时长 = `out - in`
-- `ost: narration|mix` 需要 `lines` 和 wav；合成从 `in` 起切 **旁白时长**（`out` 是画面窗，不决定成片秒数）。要画面跟窗走，用 `original` 或把旁白写成窗那么长
-- `create` 必须 `--task footage-narration`。不要写 `study` / `publish.dir`。种子 `cut-01` 是占位：点方法后先加真场，再 `scene rm cut-01`。不能删光最后一场 clip
-- `render` 走 ffmpeg 合成，不走 Remotion
-- 方法卡 `plot-then-match`：先弄清时间轴，再写解说并对齐 in/out。有转写先靠句子；静音场再读描述树。weaver 不跑规划 LLM
-- 方法卡门槛写在 catalog（`needs` / `clipOst` / `clipAlign`），`validate` / `recipe show` / `method list` 都读同一行。不要在任务模块写死 recipe id。Studio `/methods` 改名称和铺场，不改门槛：
-
-| 方法 | needs | clipOst | clipAlign |
-| --- | --- | --- | --- |
-| `clone-from-edited` | `match-report` | `original` | — |
-| `see-then-narrate` | `description` | — | `sequences` |
-| `highlight-mix` | `transcript` | `original` | — |
-| `plot-then-match` / `copy-then-match` | — | — | — |
-
-- 方法卡 `clone-from-edited`：有已剪参考片和原片。不要 `recipe apply` 铺场。`asset add --kind video` 把项目外文件拷进 `assets/source/`，再 `weaver match --edited asset:video.edited`。match 写出 `ost: original` 的 clip（`lines` 留空，对白在匹配报告和 srt），不自动 render、不要 tts。没有匹配报告 `validate` 失败
-- 方法卡 `see-then-narrate`：无对白先 `weaver describe`（长片用 `--from --to`，时间窗裁切描述树，不会把窗外的带子并进来）。describe 先把碎切和同画面场合成可写旁白的 `sequences`（3–18 秒一场）。`same-as-prev` 只跳过 VLM，**仍是独立场**，validate 计数；没有 observation 时按该场时间窗写听者旁白，不要删场、不要把邻场观察当原文。按 `sequences` **一场一 clip**，agent 不要再合并；`clipAlign: sequences` 时多种子 `cut-01` 或并场都会失败。观察不当旁白原文。没有描述树 `validate` 失败。解说场成片时长跟 wav，不是 `out - in`
-- 方法卡 `copy-then-match`：人先过解说，再对画面。原片占比是铺场目标
-- 方法卡 `highlight-mix`：转写抽点，clip `ost: original`，不要 tts。没有转写或出现旁白场 `validate` 失败
-- 诊断：`assets/match/report.json`（分数与候选）、`assets/subtitles/<locale>.srt`（成片时间轴，不烧进 mp4）、`assets/descriptions/<videoId>.json`（场/镜/观察，`summary` 由场观察拼接）。视觉对齐沿上一场源点续搜，不复用已占用的源窗；源段短于 `minPiece` 的碎段丢掉；夹在同集之间短于 `islandMax` 的异源岛丢掉。同源源轴回跳丢掉较短那场。同源连续句按 `sourceCoalesceGap` 并成镜，不要一句一切。换源必须比续搜高出 `sourceSwitchMargin`：9×8 dHash 仍分不出换装，画面分加上 2×2 象限；match 用粘集挡闪切，不在 match 里跑 VLM。描述场 3–18 秒，skip 不把整段并成一场。已剪片对白与原片对不上、文本覆盖不足、或转写失败时 `match` 改走画面。合成读取旋转元数据再转正
-
-- `project show` 的 `paths.matchReport` / `paths.subtitleFiles` / `paths.descriptionFiles` / `paths.sourceFiles`（含未上场的 video 资产）
+## 取消、恢复与维护
 
 ```bash
-npx weaver project create my-cut --title "工地" --task footage-narration --source user
-npx weaver scene add --project my-cut --id beat --kind clip --video asset:video.origin --in 12.4 --out 18.1 --ost narration
-npx weaver scene set --project my-cut --id beat --locale zh --text "这一下她没再退。"
-npx weaver tts --project my-cut
-npx weaver render --project my-cut
+npx weaver run status RUN --json
+npx weaver run cancel RUN --json
+npx weaver run resume RUN --wait --json
+npx weaver run events RUN --after 0 --json
+npx weaver backup --dest /absolute/empty-backup --json
+npx weaver restore --source /absolute/backup --dest /absolute/empty-state --json
+npx weaver gc --json
+npx weaver gc --apply --json
+npx weaver migrate --root /absolute/legacy-workspace --dry-run --json
+npx weaver migrate --root /absolute/legacy-workspace --execute --request-id migration-1 --json
+npx weaver migrate rollback JOURNAL --json
 ```
 
-按已剪片复刻：
+失败与取消保留已完成独立目标及上一份有效交付。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
 
-```bash
-npx weaver project create site-clone --task footage-narration --source user
-npx weaver asset add --project site-clone --kind video --id video.edited --file /abs/edited.mp4
-npx weaver asset add --project site-clone --kind video --id video.ep01 --file /abs/ep01.mp4
-npx weaver match --project site-clone --edited asset:video.edited
-npx weaver validate site-clone
-npx weaver render --project site-clone
-```
-
-无对白先看见：
-
-```bash
-npx weaver project create site-see --task footage-narration --source user
-npx weaver asset add --project site-see --kind video --id video.origin --file /abs/silent.mp4
-npx weaver describe --project site-see --ref asset:video.origin [--from 0 --to 90]
-# agent 按 sequences 一场一 clip，观察只当素材
-npx weaver tts --project site-see
-npx weaver validate site-see
-npx weaver render --project site-see
-```
-
-## 手截
-
-1. 用任务自己的预览面取静帧（视口 1440×1100，设备像素比 2）。要出的语言各一遍。
-2. 写入该项目 `assets.json` 已登记的 `files.<locale>`。
-3. 静帧/wav 留在该片子 `data/.../assets/`。
-
-`weaver capture` 仅当片子配了适配器时，才把截图写进该片子的 `assets/stills/`。
-
-## After changing scenes
-
-```bash
-npx weaver validate <id>
-make remotion
-```
+备份使用 SQLite backup API，并复制快照引用的不可变 blob。restore 写入空目录，GC 默认 dry-run，保护修订、库版本、run、收据、pin 和保留交付。迁移保留旧原件，旧派生结果无完整来源时登记 historical/unverified。rollback 只在迁移后未被修改时执行。

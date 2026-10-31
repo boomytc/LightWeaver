@@ -1,73 +1,28 @@
-# LightWeaver Workspace Instructions
+# LightWeaver
 
-## Scope
+LightWeaver 是后处理视频制作工具。外部 agent 负责创作和语义选择，人可在 Studio 修改同一项目修订。
 
-LightWeaver is the workspace for **post-processed, scene-orchestrated films**.
-Shared objects live in `weaver/`. Products consume that package.
+## 职责
 
-- Treat `weaver/` as the core library before adding a second copy of schema,
-  path rules, or job runners.
-- Treat each `products/<name>/` as a product root. Read its `AGENTS.md`.
+- `weaver/` 是共享核与 CLI。产品只使用公开 `app`、`contracts` 入口。
+- `products/studio/` 是本地编辑与作业界面。修改前读产品 AGENTS.md。
+- `products/study-films/` 只渲染无声卡片。整片由共享媒体链制作。
+- `library/` 是可选插件包与预设的显式导入来源。
+- 运行数据默认在 `data/.weaver/`。旧 `data/projects/`、`data/first-party/` 仅由一次性迁移器读取，原件保留。
 
-## Layout
+源视频和静帧由任务提供。观察是创作证据，旁白由作者另写。方法、音色和素材库均可不选。模型配置是替换边界，预设不限制混合 card、still、clip。
 
-```
-weaver/                         schema, projects, assets, CLI, jobs
-library/                        可选增强：voices / elements / methods
-data/                           任务实例（gitignore）：data/first-party + data/projects
-products/study-films/           Remotion 渲染器
-products/studio/                local WebUI
-skills/                         agent skills
-```
+## 工作入口
 
-Root Makefile orchestrates. Do not put app `src/` at the repository root.
+先读 `docs/conventions.md`。电影制作流程见 `skills/lightweaver-film/SKILL.md`，素材管理见 `skills/lightweaver-assets/SKILL.md`。模型功能确认记录在 `docs/acceptance-v2.md`。
 
-## Where to put work
-
-| Change | Put it here |
-| --- | --- |
-| Film / asset / job model, CLI | `weaver/` |
-| Shared voice / element / method | `library/`（方法在 `library/methods/`） |
-| Task instance | `data/projects/<task>/<recipe>/<id>/` or `data/first-party/<task>/<recipe>/<id>/`（不提交；未点方法时 recipe 为 `none`） |
-| Remotion cards | `products/study-films/` |
-| TTS / ASR / capture scripts | `weaver/scripts/` |
-| Control site | `products/studio/`（`/` `/methods` `/voices` `/library` `/films`） |
-| Agent procedure | `skills/lightweaver*` |
-| 现网存放图 | `docs/conventions.md` |
-
-`study-explainer` is still-card films. `footage-narration` cuts source
-video along `film.json` time ranges (ffmpeg compose). `weaver match`
-writes those clip ranges from an edited reference plus source videos.
-`weaver describe` writes a shot/sequence observation tree; the agent
-writes clip fields. Do not treat observations as narration.
-`weaver asr` / `weaver tts --text` are standalone STT/TTS for any agent
-CLI. They do not require a film. `transcribe --project` / `tts --project`
-still write project assets.
-Do not turn
-`library/` into a generic file cabinet. Method plugins live in
-`library/methods/`, not `skills/`. Do not describe other repositories as
-part of this product. Stills or source video arrive with the task.
-
-## Skills
-
-- `skills/lightweaver` — workspace router
-- `skills/lightweaver-film` — author a film via CLI / project files
-- `skills/lightweaver-assets` — ingest library / project assets
-
-## Validation
-
-本仓采用 `confident-development-conventions`：先保证实现逻辑闭环，完成与改动相称的有限验收后交付。不保留常驻测试套件；临时验证文件放系统临时目录，完成即清理。产品校验、连接诊断与类型检查继续保留。
+本仓采用 `confident-development-conventions`。按改动选择有限验收，临时脚本与合成媒体放系统临时目录，结束后清理。保留产品诊断、schema 校验和类型检查。
 
 ```bash
 make install
 make typecheck
 npm run build -w @lightweaver/studio
-make studio          # http://127.0.0.1:5175/
-make remotion        # Remotion preview
+make studio
 ```
 
-按改动选择必要检查；同一份改动验收通过后不重复运行，未验证的实际服务或渲染路径在交付时说明。
-
-## Cleanup
-
-Remove transient `out/`, `.cache/`, leftover `data/voice-candidates/`, and leftover `data/` task instances.
+只清理本次创建的临时数据。用户原始媒体、旧项目和迁移备份保留。Git 提交、推送和发布需要用户授权。

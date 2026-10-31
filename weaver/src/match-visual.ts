@@ -1,6 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
-import { ffmpegLog, requireBin } from "./probe.ts";
 import { MATCH_SETTINGS } from "./match-settings.ts";
 import { splitRangeByScene, type SceneIndex } from "./match-scene.ts";
 import type { Candidate } from "./match-align.ts";
@@ -133,70 +130,6 @@ export function quadScore(a: QuadMean, b: QuadMean): number {
 
 export function frameScore(a: FrameHash, b: FrameHash): number {
   return hashScore(a.hash, b.hash) * 0.4 + colorScore(a.mean, b.mean) * 0.2 + quadScore(a.quad, b.quad) * 0.4;
-}
-
-type HashCache = {
-  v: number;
-  interval: number;
-  frames: { t: number; hash: string; mean: Rgb; quad: QuadMean }[];
-};
-
-export function extractFrameHashes(
-  file: string,
-  cacheDir: string,
-  interval = MATCH_SETTINGS.frameInterval,
-): FrameHash[] {
-  const cachePath = path.join(cacheDir, "dhash.json");
-  if (fs.existsSync(cachePath)) {
-    const cached = JSON.parse(fs.readFileSync(cachePath, "utf8")) as HashCache;
-    if (cached.v === HASH_CACHE_VERSION && cached.interval === interval && Array.isArray(cached.frames) && cached.frames.every((frame) => frame.quad)) {
-      return cached.frames.map((frame) => ({
-        t: frame.t,
-        hash: hashFromHex(frame.hash),
-        mean: frame.mean,
-        quad: frame.quad,
-      }));
-    }
-  }
-  requireBin("ffmpeg", "视觉对齐需要本机安装 ffmpeg。");
-  fs.mkdirSync(cacheDir, { recursive: true });
-  const rawPath = path.join(cacheDir, "frames.rgb");
-  const top = MATCH_SETTINGS.cropTop;
-  const bottom = MATCH_SETTINGS.cropBottom;
-  const side = MATCH_SETTINGS.cropSide;
-  ffmpegLog([
-    "-hide_banner",
-    "-loglevel",
-    "error",
-    "-y",
-    "-i",
-    file,
-    "-vf",
-    `fps=${1 / interval},crop=iw*(1-${2 * side}):ih*(1-${top + bottom}):iw*${side}:ih*${top},scale=${WIDTH}:${HEIGHT},format=rgb24`,
-    "-f",
-    "rawvideo",
-    rawPath,
-  ]);
-  if (!fs.existsSync(rawPath) || fs.statSync(rawPath).size === 0) throw new Error(`抽帧失败：${file}`);
-  const raw = fs.readFileSync(rawPath);
-  const frames: FrameHash[] = [];
-  for (let offset = 0, index = 0; offset + FRAME_BYTES <= raw.length; offset += FRAME_BYTES, index++) {
-    const pixels = raw.subarray(offset, offset + FRAME_BYTES);
-    frames.push({
-      t: index * interval,
-      hash: dHashFromGray(lumaPlane(pixels)),
-      mean: rgbMean(pixels),
-      quad: quadFromRgb(pixels),
-    });
-  }
-  if (!frames.length) throw new Error(`抽帧为空：${file}`);
-  const cache: HashCache = {
-    v: HASH_CACHE_VERSION,
-    interval,
-    frames: frames.map((frame) => ({ t: frame.t, hash: hashToHex(frame.hash), mean: frame.mean, quad: frame.quad })),
-  };
-  fs.writeFileSync(cachePath, `${JSON.stringify(cache, null, 2)}\n`);
-  return frames;
 }
 
 export function nearestHash(frames: FrameHash[], time: number): FrameHash | undefined {

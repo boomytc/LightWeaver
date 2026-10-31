@@ -1,42 +1,11 @@
-# 场次写法
+# 场景合同
 
-这些不是方法，不能 `recipe apply`。选整片骨架看 catalog。补场才 `scene add`。只用当前任务允许的 kind。
+运行 `weaver schema scene --json` 查询完整 schema。三种场景可以混用。
 
-## 加一场 clip（footage-narration）
+- card 使用注册模板及按 locale 保存的 copy。
+- still 绑定图片版本，选择 contain 或 cover。
+- clip 绑定视频版本和整数微秒 SourceRange，作者选择声音与时长策略。
 
-```bash
-npx weaver scene add --project <id> --id beat --kind clip \
-  --video asset:video.origin --in 12.4 --out 18.1 --ost narration
-```
+静帧与卡片使用固定帧长，或真实语音时长加尾帧。clip 可由源窗计时，或由语音计时。语音超窗默认拒绝，末帧定格与变速需要显式上限。导入语音不要求 TTS 音色，原声场无需旁白。
 
-`ost`：`narration` 铺旁白，`original` 留原声，`mix` 混音。源文件以 `assets.json` 为准。场次不要写 `--source`（那是 `project create` 的 user / first-party）。
-
-解说/混合场：`out` 是画面窗；成片从 `in` 起切旁白 wav 的时长。原声场：成片时长就是 `out - in`。
-
-## 加一场 still
-
-往对照表片加/绑一场：`id` 用模型名；`still = asset:still.<id>`；`fit: contain`；`role: contrast`。文件名跟 `assets.json` 走，不要 `comp-01.png`。
-
-```bash
-npx weaver scene add --project <id> --id floating --kind still \
-  --still asset:still.floating --fit contain --role contrast
-```
-
-## 易混对口播
-
-两场相邻 still 是理念里点名的易混对时，后一场点出「不是上一场那个模型」；close 再汇总，不要只在 close 才第一次出现。不发明新 scene kind。
-
-| 片子 | 对 |
-| --- | --- |
-| dropdown | grouped vs cascader |
-| nav | drawer vs overlay；dropdown vs mega；shrink vs floating |
-| sidebar | collapsible vs offcanvas；multilevel vs wheel |
-| intent | diagonal（rule）vs project（contrast） |
-
-## 片头卡
-
-种子已有 `kind=title`，禁止 `scene add --kind title`。`titleCard.kicker` 跟任务 `brand` 走，默认 `LightWeaver  ·  Film`。tags 默认 `名称, 场景, 规则`。lede 一句画面提示，正文写 `points`（2–4 条）。旁白：标题句 + 一句话问题，不要在 title 场开始阅兵。
-
-## 片尾卡
-
-`kind=close` 钉在末尾。禁止 `scene add --kind close`。`closeCard.headline`：`说清楚` / `Say it this way`。lede 只当小节标题。正文写 `points`：易混对用 `左 || 右`，再补一条「先名称场景规则，再谈外观」。不是 CTA、不是品牌秀。
+字幕可以使用成片时间、源片时间或 scene 的语音时间。人工字幕保存为修订；estimated 只表示估算展示，precise 需要实际对齐能力。

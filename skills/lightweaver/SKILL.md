@@ -1,43 +1,21 @@
 ---
 name: lightweaver
-description: >
-  Route LightWeaver: films, Studio, or standalone STT/TTS CLI
-  (`weaver asr`, `weaver tts --text`). Use for LightWeaver / 讲解片 /
-  原片解说 / 转写 / 配音 / Studio.
-  Slash command: /lightweaver.
+description: Route LightWeaver film production, project editing, library management, or standalone ASR and TTS.
 ---
 
-# LightWeaver workspace router
+# LightWeaver
 
-Read `AGENTS.md` and `docs/conventions.md` first.
+先读仓库 AGENTS.md 和 `docs/conventions.md`，再调用 `npx weaver capabilities --json`、`npx weaver help --json` 发现当前工作流、模型与命令。
 
-| Ask | Go to |
-| --- | --- |
-| Schema, CLI, validate, render/match/describe | `weaver/` |
-| 独立 STT / TTS（不需要片子） | 下面原语；不要 import `weaver/scripts/` |
-| Shared voice / element / method | `library/`（方法在 `library/methods/`） |
-| Task instance | `data/first-party/<task>/<recipe>/<id>/` or `data/projects/<task>/<recipe>/<id>/`（gitignore；未点方法时 recipe 为 `none`） |
-| Remotion cards | `products/study-films/` |
-| Control site（工作台复制说明，片子页复盘） | `products/studio/` `http://127.0.0.1:5175/` |
-| How to author a film | **lightweaver-film** |
-| 制作一部讲解片 / 选配方 / 出片 | **lightweaver-film** |
-| Task type / study-explainer / footage-narration | **lightweaver-film** |
-| How to ingest assets | **lightweaver-assets** |
+- 制作或修改片子，读 `skills/lightweaver-film/SKILL.md`。
+- 导入媒体、音色或方法，读 `skills/lightweaver-assets/SKILL.md`。
+- 开发共享能力进入 `weaver/`，Studio 进入 `products/studio/`，卡片进入 `products/study-films/`。
+
+独立语音操作无需项目：
 
 ```bash
-make install
-make typecheck
-make studio
+npx weaver asr --file /absolute/clip.wav --locale zh --wait --json
+npx weaver tts --text "旁白内容" --voice voice-id --voice-version digest --dest /tmp/line.wav --wait --json
 ```
 
-感知 / 合成原语（任意 agent，不建片子）：
-
-```bash
-npx weaver asr --file clip.wav --json
-npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
-```
-
-片子里的转写/旁白仍走 `transcribe --project` / `tts --project`。不要 import `weaver/scripts/*.py`。
-
-Do not copy schema into a product — import `@lightweaver/weaver`.
-Do not describe other repositories as part of this product.
+模型缺项先查看 `weaver doctor --json`。任务没有授权时，不替用户下载模型或另写创作 LLM。

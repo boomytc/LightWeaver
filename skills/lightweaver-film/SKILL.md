@@ -1,111 +1,29 @@
 ---
 name: lightweaver-film
-description: >
-  Produce a LightWeaver film: study-explainer (stills) or
-  footage-narration (clips). Fill FilmDoc via weaver CLI. Standalone
-  STT/TTS without a film: weaver asr --file / tts --text.
+description: Author and revise LightWeaver films through the shared CLI, inspect analysis and proposals, build, and export deliveries.
 ---
 
-# 制作一部片子
+# 制作和修改片子
 
-先读 `AGENTS.md` 与 `docs/conventions.md`（现网存放图）。方法论细节按需读 `references/`。本仓做后处理出片。上游文案和画面由任务自带，不要去翻、也不要描述别的仓库。`create` 必须带 `--task`。
+外部 agent 负责文案与语义判断，LightWeaver 保存修订并执行分析和制作。素材由任务提供。没有指定方法时直接按任务组织场景。
 
-## 存放图（约定路径）
+1. 调用 `weaver capabilities --json` 选择工作流。已有项目先 `project show <id> --json`，再 `project brief <id>` 取得当前修订与选定版本。
+2. 用 `asset add` 导入任务素材。每次写入带当前 expectedRevision 和独立 requestId，同一请求重试保留 requestId。
+3. 按任务运行 `analyze --with asr,describe --wait`，或导入人工证据。观察记录人物、动作、场景和变化，作者另写旁白。
+4. 查 `weaver schema scene`、`schema ops`。用 `project apply` 保存 card、still、clip 及声音策略。空草稿可以保留，制作前补齐实际内容。
+5. 运行 `build --plan` 查看缺项和缓存，再 `build --wait`。准备步骤获取真实语音和媒体事实，最终时长由 manifest 决定。
+6. 复盘交付与 timingQuality。需要修改时重读当前 revision，再保存局部修改并构建受影响目标。
+7. 用 `export --format otio|jianying|bundle` 写到用户指定的空目录。交接软件和模型质量的验证范围据实说明。
 
-- 用户片理念：`data/projects/<task>/<recipe>/<id>/brief.md`
-- 任务实例：`data/first-party/<task>/<recipe>/<id>/` 或 `data/projects/<task>/<recipe>/<id>/`。未点方法时 recipe 为 `none`。**不提交**
-- 资产：`library/`；`<project>/assets.json` + `assets/stills/<locale>/`（文件名以 `assets.json` 为准）。元素是参考权能，不强制
-- 产物：只在任务实例里。`data/projects/<task>/<recipe>/<id>/assets/outputs/` 或 `data/first-party/<task>/<recipe>/<id>/assets/outputs/`。旁白 `assets/lines/<locale>/*.wav`。**不要**写 `products/study-films/`
-- 工作台说明若写「产物位置：未指定」，**开始前先问人**写到哪棵 data 树。人没另给拷贝位置，不要拷到仓库外
-- 方法 / 音色 / 素材都在 `library/`，都是可选增强。方法是 `library:method.*`（文件在 `library/methods/`）。出片时只 `list` / `show` / `apply`，不要为这一部片子新建方法。库的增删改在 Studio `/methods` 或 `weaver method`
-- 发现：`weaver project show --json` → `paths.stillFiles` / `sourceFiles` / `lineFiles` / `outputFiles` / `matchReport` / `subtitleFiles` / `descriptionFiles` / `brief` 与同级 `renderable`。先读 `film.task`、`film.langs`、`film.voices`、`film.kit`、`film.recipe`
+## 六种任务
 
-## 结合规则
-
-| 判据 | 动作 |
+| 工作流 | 使用方式 |
 | --- | --- |
-| `hasErrors(validate)` | **停全部生成**：不准 tts / render / capture。先修 FilmDoc。门槛以 `recipe show` 的 `needs` / `clipOst` / `clipAlign` 为准，不要猜 |
-| `!hasErrors` 且 `!isRenderable`（讲解片 png 缺，或原片源视频/旁白缺） | 允许 `tts`（原声场除外）。**禁止** `render --project` |
-| `capture.kind` 有适配器且某 `stillFiles` `exists === false` | `weaver capture --project` |
-| `capture.kind === "manual"` 且 png 缺 | **停**。手截到 `assets.json` 已登记路径。**禁止** `weaver capture` |
-| 某 `lineFiles` `exists === false` | `tts --project`（可 `--scene`） |
-| wav 在且本会话未对该 scene `scene set --text` | **复用 wav** |
-| wav 在但本会话刚 `scene set --text` | `tts --project --scene <id>` |
-| `isRenderable` 且 `outputFiles[locale].exists` 且本会话未改旁白 / 未换 still | **不** render。人另给了拷贝位置且目标缺 → 只 `publish` |
-| `isRenderable` 且 output 缺，或本会话刚 tts / 换了 png | `render --project` |
-| `film.recipe` 是 `clone-from-edited` | 登记已剪片+原片后 `weaver match --edited`。**禁止**手写 in/out，**禁止** tts |
-| `film.recipe` 是 `see-then-narrate` | 登记源视频后 `weaver describe`。**禁止**空树写解说。按 sequences 一场一 clip（`same-as-prev` 也要铺，没有 observation 按窗写听者旁白）。合并是 describe 的事。validate 按场计数。观察只当素材。解说场成片时长跟 wav |
-| `film.recipe` 是 `plot-then-match` | 转写后写解说并对 in/out。静音场先 `describe` |
-| `film.recipe` 是 `copy-then-match` | `recipe apply` 清单是文案场，再填 in/out。原片占比是铺场目标 |
-| `film.recipe` 是 `highlight-mix` | `transcribe` 后写 `ost: original` clip。**禁止** tts |
-| 只要转写/合成一句、没有片子 | `weaver asr --file` / `weaver tts --text --voice --dest`。**不要**为此 `project create` |
-| 无 `publish.dir` | 只写 `assets/outputs/`；不要 `publish` |
-| `brief.kind=project-brief` 且 `brief.files.brief.exists === false` | 先写 `brief.md`，再写 lines |
-| `data/` 里已有该 id 且本会话未改旁白 | **不要**重写 lines。只补缺的静帧 / wav / mp4 |
+| study-explainer | 任务静帧、卡片、作者旁白 |
+| footage-narration | 多源转写与观察，作者组织剧情和选段 |
+| observe-narrate | 无对白先观察，再写旁白与显式范围 |
+| script-search | search 返回候选，proposal apply 保存选择 |
+| highlight-mix | 选源窗并保留原声，无需音色 |
+| reference-match | match 返回视觉和文本证据，确认候选后应用 |
 
-## 先判模式
-
-细节在 `references/modes.md`。`template` / `from-study` / `co-create`。未选就停。
-
-## 十条原则
-
-1. 按图存放。理念跟任务走；资产用 `library:` / `asset:`；产物进该片子在 `data/` 下的 `assets/lines` 与 `assets/outputs`。不发明顶层目录，不把产物写进理念目录或 `products/study-films/`，不把上游 idea 拷进片子。工作台没点产物位置就先问。
-2. 脚本即片子。`film.json` 是编排合同。不手写 Remotion TSX。
-3. 方法若是清单一项一场，一项一场。禁止合并。`clone-from-edited` 不 apply 清单，用 `weaver match` 铺场。`see-then-narrate` / `highlight-mix` 不 apply 清单当时间轴。`create` 的 `cut-01` 是占位，先加真场再删。
-4. 讲解片用真静帧，不要手绘假 UI。原片解说登记真实源视频。
-5. 只写 `film.langs` 点名的语言再 TTS。没点英文就不要硬写英文。
-6. 先形状后媒体；能复用就不重生。`validate`  error 未清不得交付；`!isRenderable` 不得 `render`。人在 Studio `/methods` `/voices` `/library` 监管库，在工作台复制说明，在 `/f/<id>` 复盘。`film.kit` 只是参考权能。`tts` 走 Hi-Fi clone，不用 `--seed` 改库。
-7. 先名称 / 场景 / 规则，再谈外观。口播用听者的话。`validate` 对忌语出 warning。title/close 用 `points`。
-8. 不发明 scene kind。只用该任务 `sceneKinds`（讲解片 `title | still | close`，原片解说 `clip`）。复刻用 `weaver match` 铺场，不要手写 in/out。无对白先 `describe`。
-9. 模式未定就停。讲解片缺静帧且无适配器就停。原片解说缺源视频就停。不要空转 `capture`。
-10. 确定性 job。weaver 不跑规划 LLM；STT/TTS/VLM 只当 job。任意 agent 调 `asr` / `tts --text`，不要 import 脚本。
-
-## 何时读哪个文件
-
-| 时机 | 读 |
-| --- | --- |
-| 找齐三层 | 先按存放图；再 `weaver project show --json` |
-| 选卡 | `method list` / `recipe list` / `recipe show` 都看 catalog。要改场次用 `/methods` 或 `method set`，再 `recipe apply` |
-| 场次写法 | `references/scenes.md`（加 still、易混对、片头/片尾）。不是方法，不能 apply |
-| 展开骨架 | `recipe apply`；补场才 `scene add`。`lines[locale] === <sceneId>` 是占位，阶段 3 必须 `scene set` |
-| 手截 | `docs/conventions.md` |
-| QA | `references/qa.md` |
-| 阶段表 | `references/pipeline.md` |
-| 资产入库 | 切到 lightweaver-assets |
-
-## 动词
-
-```bash
-npx weaver project list --json
-npx weaver project show <id> --json
-npx weaver method list
-npx weaver recipe list [--task study-explainer|footage-narration]
-npx weaver recipe show <id>
-npx weaver recipe apply --project <id> --recipe taxonomy-parade --items a,b,c --json
-npx weaver recipe apply --project <id> --recipe problem-then-rule --json
-npx weaver recipe apply --project <id> --recipe plot-then-match --items a,b --json
-npx weaver recipe use --project <id> --recipe taxonomy-parade
-npx weaver project create <id> --task study-explainer|footage-narration [--title] [--source first-party] [--output] [--output-en]
-npx weaver scene add --project <id> --id <scene> --kind still [--still asset:still.x] [--role contrast]
-npx weaver scene add --project <id> --id beat --kind clip --video asset:video.origin --in 12.4 --out 18.1 --ost narration
-npx weaver scene rm --project <id> --id <scene>
-npx weaver scene move --project <id> --id <scene> --after <id>
-npx weaver scene set --project <id> --id <scene> --locale zh --text "..."
-npx weaver card set --project <id> --locale zh --which title --headline "..." --lede "..." --points "要点一;要点二"
-npx weaver voice set --project <id> --ref library:voice.prompt
-npx weaver voice asr --id voice.prompt
-npx weaver voice asr --label 讲解女声
-npx weaver langs set --project <id> --langs zh
-npx weaver kit set --project <id> --refs library:element.mark
-npx weaver validate <id>
-npx weaver asr --file clip.wav --json
-npx weaver tts --text "这一下她没再退。" --voice library:voice.prompt --dest /tmp/line.wav --json
-npx weaver transcribe --project <id> --ref asset:video.origin
-npx weaver describe --project <id> --ref asset:video.origin [--force] [--visual] [--from 0] [--to 90]
-npx weaver match --project <id> --edited asset:video.edited [--sources asset:video.ep01]
-npx weaver tts --project <id>
-npx weaver render --project <id>
-npx weaver publish --project <id>
-```
-
-写操作 `--json` 信封是 `{ ok, project, film, issues, paths }`。不要手改 `film.json` 当日常路径。
+模型名称、能力与方法条件从 CLI 返回值读取。详细合同见 `references/scenes.md`，命令顺序见 `references/pipeline.md`，复盘见 `references/qa.md`。

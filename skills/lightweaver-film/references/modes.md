@@ -1,31 +1,5 @@
-# 何时停、何时跑
+# 创作边界
 
-未选模式 → **停**。三种模式：`template` / `from-study` / `co-create`。点名「按 dropdown / intent 那套」视为已选 `template`。
+任务提供画面、源视频或文字目标。方法、音色、素材库都是可选增强。上下文足够时直接制作；只有缺失信息影响创作意图时才提问。
 
-## 必须停
-
-| 条件 | 问什么 |
-| --- | --- |
-| 没选模式，也没点名 canon 片 | 三种模式 + 推荐一句 |
-| 找不到 `study.json` 且用户片没有 `brief.md` | slug 是否错、是否先写 `brief.md` |
-| `recipe list` 没有 `when` 能对上的 **film** 卡 | 没点方法就自己铺场；要复用就先在 `/methods` 或 `weaver method add` 收下，再 apply |
-| `capture.kind=manual` 且 png 不在 | 手截；**不要** `weaver capture` |
-| `hasErrors(validate)` | 先修形状。停全部生成 |
-| 将要 render 且 `!isRenderable` | 列出缺的 png 或源视频/旁白；禁止 render。校验无 error 仍可 tts |
-| `task=footage-narration` | 不走 from-study / `capture`。缺源视频停。`render` 是 ffmpeg compose |
-| 任务自带输出名清单且与 `locales.*.output` 不一致 | 用手写 `--output` 修正；禁止按 id 猜文件名 |
-| 用户要把 kind 合并成一场 | 拒绝 |
-
-## 直接跑
-
-- `project create`（参数齐）
-- `recipe apply`（结构已定；占位旁白阶段 3 再写）。补场才 `scene add`
-- `scene set` / `card set`（模式允许时）
-- `validate`
-- `tts --project`（仅 `!hasErrors`）
-- `capture`（仅片子配了适配器）
-- `render`（当且仅当 `isRenderable`）
-- `publish`（当且仅当 `publish.dir` 且 `outputFiles[locale].exists`）
-- `describe`（footage-narration 无对白 / 静音场）
-- `transcribe` / `match`（按方法卡）
-- `asr --file` / `tts --text`（不需要片子；不要为此 create）
+长视频先按时间窗分析，再读取按源时间排序的证据。多源剧情、无对白观察、文案检索与参考匹配分别保留来源。模型返回的观察不自动写入旁白。

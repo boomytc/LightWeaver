@@ -1,42 +1,9 @@
-# studio
+# Studio
 
-Local control site for LightWeaver (`http://127.0.0.1:5175/`).
+本地地址 `http://127.0.0.1:5175/`，API 默认端口 5176。`/films` 与 `/films/:id` 编辑和复盘项目；`/methods`、`/voices`、`/library` 管理版本化库项。
 
-Top nav is 工作台 / 片子. Under 工作台 a second nav: 组合 / 方法 / 音色 / 素材.
-组合 (`/`) picks task + optional plugins and copies the brief. Catalogs do not
-persist films. `/films` is trajectory review. Agents generate via weaver.
+HTTP 只适配共享 app 服务。浏览器使用 contracts。保留中文操作标签，让人按名称选择素材、方法和音色。
 
-## Routes
+项目草稿、服务器修订与交付状态分别显示。修改异步交互时同时检查切换项目、请求晚到、未保存修改与冲突后的恢复体验。
 
-| Path | Who | What |
-| --- | --- | --- |
-| `/` 工作台 | human | task + optional plugins (method / voice / material) + langs + output home; copy brief |
-| `/films` `/f/<id>` | human reviews | read-only trajectory: what was used, scenes, mp4 |
-| `/voices` | human | voice plugin payloads: upload or instruct, keep, rename/text/delete |
-| `/library` | human | material plugins: name + file; create / rename / replace / delete |
-| `/methods` | human | method plugins: name + when + expand + scenes; create / edit / delete; go to `/` |
-
-## Rules
-
-- Server talks to `@lightweaver/weaver`. App `src/` only imports
-  `/schema` `/voices` `/method` — never the Node barrel. Do not import
-  the renderer or other repositories.
-- `/api/media` may only serve `library/`, project roots (including
-  gitignored `assets/outputs/`), and `data/voice-candidates/` (mint previews).
-- `<video src>` must use `projectMedia(id, rel)` → `/api/media/project/…`.
-  Never put a disk absolute path in `src`.
-- No generate-narration button, no TTS/render chrome, no lab iframe, no
-  Remotion Player. Do not add scene-authoring as the primary path.
-- `film.kit` is optional `library:element|reference` (reference only).
-- Agent brief lives only on `/`. Film pages do not copy a brief.
-- Method, voice, and material catalogs are library plugins. Picking on
-  `/` constrains the agent; leaving one empty does not. Methods are
-  catalog rows (`kind: method`, name / when / expand / scenes).
-  Studio reads `/api/library` only — do not join `/api/recipes`.
-  `fixed` is an authored expandable-scene list; `list` expands one
-  scene per apply-time item (still or clip, per task). Materials are
-  name + file; id is allocated.
-  Humans do not type method or material ids.
-- Chinese UI labels. Identifiers English.
-- Site density, not a marketing page. Token-first CSS in `src/index.css`.
-- Theme is `data-theme` on `<html>`, persisted as `lightweaver-theme`. GitHub is this repo. ModelBest console: `MODELBEST_URL`.
+`make studio` 同时启动 API、同一作业 worker 和 Vite。结束临时验收时停止启动的服务。

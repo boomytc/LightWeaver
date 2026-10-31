@@ -3,19 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sync": "npm run weaver -w @lightweaver/weaver -- sync",
-    "studio": "npm run sync && remotion studio src/index.ts",
-    "capture": "npm run weaver -w @lightweaver/weaver -- capture",
-    "tts": "npm run weaver -w @lightweaver/weaver -- tts",
-    "render": "npm run weaver -w @lightweaver/weaver -- render",
-    "films": "npm run weaver -w @lightweaver/weaver -- capture && npm run weaver -w @lightweaver/weaver -- tts && npm run weaver -w @lightweaver/weaver -- render",
+    "studio": "remotion studio src/card-entry.tsx",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@lightweaver/weaver": "*",
+    "@remotion/bundler": "4.0.512",
     "@remotion/cli": "4.0.512",
-    "@remotion/media": "4.0.512",
-    "@remotion/media-utils": "4.0.512",
+    "@remotion/renderer": "4.0.512",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "remotion": "4.0.512"
@@ -24,5 +19,8 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19.1.12",
     "typescript": "^5.9.2"
+  },
+  "bin": {
+    "weaver-card": "./bin/weaver-card.mjs"
   }
 }

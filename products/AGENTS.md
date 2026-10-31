@@ -1,16 +1,5 @@
 # Products
 
-Each `products/<name>/` is a standalone product root.
+每个子目录是产品根。Studio 消费共享应用服务，study-films 提供独立 Remotion 卡片进程。读取相应产品的 AGENTS.md。
 
-- Import `@lightweaver/weaver`. Do not import sibling products.
-- Capture may HTTP a local lab if the film says so. Publish only if
-  `film.publish.dir` is already set.
-- Runtime films: `data/first-party/<task>/<recipe>/<id>/` and
-  `data/projects/<task>/<recipe>/<id>/`. Both gitignored. Do not commit task instances.
-
-| Product | Role |
-| --- | --- |
-| `study-films` | Remotion renderer for `study-explainer` |
-| `studio` | Local control site: workbench brief, film review |
-
-`footage-narration` compose lives in `weaver/`, not a product root.
+核心合同、运行存储和最终制作链位于 `weaver/`。运行数据由 `LIGHTWEAVER_DATA_DIR` 选择，默认 `data/.weaver/`。

@@ -1,0 +1,691 @@
+import { z } from "zod";
+
+export { z };
+export const Id = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/);
+export const ProjectId = Id.brand<"ProjectId">();
+export const RevisionId = Id.brand<"RevisionId">();
+export const AssetId = Id.brand<"AssetId">();
+export const LibraryId = Id.brand<"LibraryId">();
+export const RunId = Id.brand<"RunId">();
+export const SceneId = Id.brand<"SceneId">();
+export const Digest = z
+  .string()
+  .regex(/^[a-f0-9]{64}$/)
+  .brand<"Digest">();
+export const Pixels = z.number().int().positive().max(16384).brand<"Pixels">();
+export const Frames = z.number().int().nonnegative().safe().brand<"Frames">();
+export const Microseconds = z
+  .number()
+  .int()
+  .nonnegative()
+  .safe()
+  .brand<"Microseconds">();
+export const Samples = z.number().int().nonnegative().safe().brand<"Samples">();
+export const Fps = z.strictObject({
+  num: z.number().int().positive().max(240000),
+  den: z.number().int().positive().max(10000),
+});
+export const Locale = z.string().regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/);
+export const MediaRef = z.strictObject({ assetId: AssetId, version: Digest });
+export const LibraryRef = z.strictObject({
+  itemId: LibraryId,
+  version: Digest,
+});
+export const SourceRange = z.strictObject({
+  startUs: Microseconds,
+  durationUs: Microseconds.refine((n) => n > 0, "时长必须大于零"),
+});
+export const Framing = z.strictObject({
+  fit: z.enum(["contain", "cover"]).default("contain"),
+  focusX: z.number().min(0).max(1).default(0.5),
+  focusY: z.number().min(0).max(1).default(0.5),
+});
+export const Speech = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("authored"),
+    text: z.record(Locale, z.string().min(1)),
+    voice: z.record(Locale, LibraryRef),
+  }),
+  z.strictObject({
+    kind: z.literal("imported"),
+    audio: z.record(Locale, MediaRef),
+    text: z.record(Locale, z.string()).default({}),
+  }),
+]);
+export const ImageTiming = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("fixed"),
+    frames: Frames.refine((n) => n > 0),
+    speech: Speech.optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("speech"),
+    speech: Speech,
+    tailFrames: Frames,
+  }),
+]);
+export const SpeechAudio = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("narration"),
+    speech: Speech,
+    gainDb: z.number().min(-90).max(24).default(0),
+  }),
+  z.strictObject({
+    kind: z.literal("mix"),
+    speech: Speech,
+    gainDb: z.number().min(-90).max(24).default(0),
+    sourceGainDb: z.number().min(-90).max(24).default(-12),
+    ducking: z.boolean().default(true),
+  }),
+]);
+export const ClipAudio = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("silent") }),
+  z.strictObject({
+    kind: z.literal("original"),
+    gainDb: z.number().min(-90).max(24).default(0),
+  }),
+  ...SpeechAudio.options,
+]);
+export const Overflow = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("reject") }),
+  z.strictObject({ kind: z.literal("freeze"), maxFrames: Frames }),
+  z.strictObject({
+    kind: z.literal("speed"),
+    min: z.number().positive().max(1),
+    max: z.number().min(1).max(8),
+  }),
+]);
+export const ClipPlayback = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("source"), audio: ClipAudio }),
+  z.strictObject({
+    kind: z.literal("speech"),
+    audio: SpeechAudio,
+    tailFrames: Frames,
+    overflow: Overflow,
+  }),
+]);
+export const RegisteredCardSpec = z.strictObject({
+  template: z.enum(["title", "points", "close"]),
+  version: z.literal("2"),
+  copy: z.record(
+    Locale,
+    z.strictObject({
+      kicker: z.string().default(""),
+      headline: z.string(),
+      lede: z.string().default(""),
+      points: z.array(z.string()).default([]),
+      tags: z.array(z.string()).default([]),
+    }),
+  ),
+  brand: z.string().default("LightWeaver"),
+});
+const sceneBase = { id: SceneId, label: z.string().default("") };
+export const Scene = z.discriminatedUnion("kind", [
+  z.strictObject({
+    ...sceneBase,
+    kind: z.literal("card"),
+    cardSpec: RegisteredCardSpec,
+    timing: ImageTiming,
+  }),
+  z.strictObject({
+    ...sceneBase,
+    kind: z.literal("still"),
+    image: MediaRef,
+    framing: Framing,
+    timing: ImageTiming,
+  }),
+  z.strictObject({
+    ...sceneBase,
+    kind: z.literal("clip"),
+    source: MediaRef,
+    sourceRange: SourceRange,
+    framing: Framing,
+    playback: ClipPlayback,
+  }),
+]);
+export const CaptionStyle = z.strictObject({
+  font: z.string().default("Noto Sans CJK SC"),
+  size: z.number().positive().default(48),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default("#FFFFFF"),
+  outline: z.number().min(0).max(12).default(2),
+  marginV: z.number().min(0).max(1000).default(80),
+  maxChars: z.number().int().positive().default(24),
+});
+export const CaptionCue = z.strictObject({
+  id: Id,
+  text: z.string().min(1),
+  timingQuality: z.enum(["native", "aligned", "manual", "estimated"]),
+  provenance: z.string(),
+  time: z.discriminatedUnion("kind", [
+    z.strictObject({
+      kind: z.literal("timeline"),
+      startFrame: Frames,
+      durationFrames: Frames,
+    }),
+    z.strictObject({
+      kind: z.literal("source"),
+      source: MediaRef,
+      range: SourceRange,
+    }),
+    z.strictObject({
+      kind: z.literal("speech"),
+      sceneId: SceneId,
+      range: SourceRange,
+    }),
+  ]),
+});
+export const CaptionTrack = z.strictObject({
+  locale: Locale,
+  fps: Fps.default({ num: 30, den: 1 }),
+  mode: z.enum(["manual", "precise", "estimated", "none"]),
+  style: CaptionStyle,
+  cues: z.array(CaptionCue),
+});
+export const OutputProfile = z.strictObject({
+  id: Id,
+  width: Pixels,
+  height: Pixels,
+  fps: Fps,
+  codec: z.literal("h264"),
+  crf: z.number().int().min(0).max(51).default(18),
+  pixelFormat: z.literal("yuv420p"),
+  color: z.literal("bt709-sdr"),
+  hdr: z.literal("reject"),
+  sampleRate: z.literal(48000),
+  channels: z.literal(2),
+  subtitles: z.enum(["sidecar", "burn", "both", "none"]).default("both"),
+  loudness: z
+    .strictObject({
+      integratedLufs: z.number().min(-36).max(-5),
+      truePeakDb: z.number().min(-9).max(0),
+    })
+    .default({ integratedLufs: -16, truePeakDb: -1 }),
+});
+export const PROFILES = Object.fromEntries(
+  [
+    ["landscape", 1920, 1080],
+    ["portrait", 1080, 1920],
+    ["square", 1080, 1080],
+  ].map(([id, width, height]) => {
+    const p = OutputProfile.parse({
+      id,
+      width,
+      height,
+      fps: { num: 30, den: 1 },
+      codec: "h264",
+      pixelFormat: "yuv420p",
+      color: "bt709-sdr",
+      hdr: "reject",
+      sampleRate: 48000,
+      channels: 2,
+    });
+    return [p.id, p];
+  }),
+);
+export const Bgm = z.strictObject({
+  source: MediaRef,
+  range: SourceRange,
+  loop: z.boolean(),
+  gainDb: z.number().min(-90).max(24),
+  fadeInFrames: Frames,
+  fadeOutFrames: Frames,
+  ducking: z.boolean(),
+});
+export const CardRenderInput = z.strictObject({
+  cardSpec: RegisteredCardSpec,
+  locale: Locale,
+  output: OutputProfile,
+  durationFrames: Frames.refine((n) => n > 0),
+  adapterFingerprint: Digest.optional(),
+});
+export const ProjectDocument = z.strictObject({
+  schemaVersion: z.literal(2),
+  id: ProjectId,
+  title: z.string(),
+  origin: z.enum(["user", "first-party"]),
+  workflow: Id,
+  locales: z.array(Locale).min(1),
+  assets: z.array(MediaRef),
+  bindings: z.array(LibraryRef),
+  method: LibraryRef.optional(),
+  scenes: z.array(Scene),
+  captions: z.array(CaptionTrack),
+  bgm: Bgm.optional(),
+  profiles: z.array(OutputProfile).min(1),
+  masks: z
+    .array(
+      z.strictObject({
+        sceneId: SceneId,
+        x: z.number().min(0).max(1),
+        y: z.number().min(0).max(1),
+        width: z.number().positive().max(1),
+        height: z.number().positive().max(1),
+        color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+      }),
+    )
+    .default([]),
+});
+export const ProjectRevision = z.strictObject({
+  id: RevisionId,
+  projectId: ProjectId,
+  parent: RevisionId.nullable(),
+  document: ProjectDocument,
+  digest: Digest,
+  createdAt: z.string(),
+  requestId: Id,
+});
+export const MediaAssetVersion = z.strictObject({
+  assetId: AssetId,
+  version: Digest,
+  digest: Digest,
+  kind: z.enum(["video", "image", "audio", "subtitle", "document"]),
+  name: z.string(),
+  mime: z.string(),
+  bytes: z.number().int().nonnegative(),
+});
+export const VoiceVersion = z.strictObject({
+  kind: z.literal("voice"),
+  name: z.string(),
+  provider: Id,
+  reference: Digest,
+  referenceText: z.string().min(1),
+  style: z.string().default(""),
+});
+export const MethodVersion = z.strictObject({
+  kind: z.literal("method"),
+  name: z.string(),
+  description: z.string(),
+  workflow: Id.optional(),
+  needs: z
+    .array(z.enum(["transcript", "description", "match-report"]))
+    .default([]),
+  clipAudio: z.enum(["original", "narration", "mix"]).optional(),
+  clipAlignment: z.literal("observed-sequences").optional(),
+  sceneTemplate: z.array(Scene).default([]),
+  outline: z
+    .object({
+      expand: z.enum(["fixed", "list"]),
+      beats: z.array(
+        z.object({
+          id: Id,
+          role: z.string().optional(),
+          fit: z.enum(["contain", "cover"]).optional(),
+        }),
+      ),
+    })
+    .optional(),
+});
+export const LibraryPayload = z.discriminatedUnion("kind", [
+  VoiceVersion,
+  MethodVersion,
+  z.strictObject({
+    kind: z.literal("material"),
+    name: z.string(),
+    digest: Digest,
+    mime: z.string(),
+  }),
+]);
+export const LibraryVersion = z.strictObject({
+  itemId: LibraryId,
+  version: Digest,
+  payload: LibraryPayload,
+  createdAt: z.string(),
+});
+export const Issue = z.strictObject({
+  code: z.string(),
+  severity: z.enum(["error", "warning"]),
+  path: z.string(),
+  message: z.string(),
+  hints: z.array(z.string()).default([]),
+});
+export const ErrorProtocol = z.strictObject({
+  code: z.string(),
+  message: z.string(),
+  retryable: z.boolean(),
+  details: z.unknown().optional(),
+  hints: z.array(z.string()),
+});
+export const ArtifactManifest = z.strictObject({
+  id: Id,
+  operation: z.string(),
+  cacheKey: Digest,
+  generation: Id,
+  digest: Digest,
+  mime: z.string(),
+  dependencies: z.array(Digest),
+  provenance: z.record(z.string(), z.unknown()),
+  verified: z.boolean(),
+  createdAt: z.string(),
+});
+export const ProbeFact = z.strictObject({
+  durationUs: Microseconds,
+  video: z
+    .strictObject({
+      width: Pixels,
+      height: Pixels,
+      fps: Fps,
+      frames: Frames.optional(),
+      rotation: z.number(),
+      sar: z.string(),
+      colorTransfer: z.string(),
+      timeBase: z.string(),
+      startPts: z.number().optional(),
+    })
+    .optional(),
+  audio: z
+    .strictObject({
+      sampleRate: z.number(),
+      channels: z.number(),
+      samples: Samples.optional(),
+    })
+    .optional(),
+});
+export const SpeechFact = z.strictObject({
+  digest: Digest,
+  durationSamples: Samples,
+  cues: z.array(CaptionCue),
+  provider: z.string(),
+});
+export const VerifiedFacts = z.strictObject({
+  media: z.record(z.string(), ProbeFact),
+  speech: z.record(z.string(), SpeechFact),
+  tools: z.record(z.string(), z.string()),
+});
+export const RunSnapshot = z.strictObject({
+  schemaVersion: z.literal(2),
+  projectRevision: ProjectRevision,
+  assets: z.array(MediaAssetVersion),
+  library: z.array(LibraryVersion),
+  locales: z.array(Locale),
+  profiles: z.array(OutputProfile),
+  providers: z.record(z.string(), z.string()),
+  evidenceKinds: z
+    .array(z.enum(["transcript", "description", "match-report"]))
+    .default([]),
+  observations: z
+    .array(
+      z.strictObject({
+        source: MediaRef,
+        range: SourceRange,
+        evidenceDigest: Digest,
+      }),
+    )
+    .default([]),
+  generation: Id,
+});
+const visualBase = {
+  sceneId: SceneId,
+  startFrame: Frames,
+  durationFrames: Frames,
+  sourceEvidence: z.string(),
+};
+export const VisualSegment = z.discriminatedUnion("kind", [
+  z.strictObject({
+    ...visualBase,
+    kind: z.literal("card"),
+    cardSpec: RegisteredCardSpec,
+  }),
+  z.strictObject({
+    ...visualBase,
+    kind: z.literal("still"),
+    image: MediaRef,
+    framing: Framing,
+  }),
+  z.strictObject({
+    ...visualBase,
+    kind: z.literal("clip"),
+    source: MediaRef,
+    sourceRange: SourceRange,
+    speed: z.number().positive(),
+    freezeFrames: Frames,
+    framing: Framing,
+  }),
+]);
+export const AudioSegment = z.strictObject({
+  role: z.enum(["source", "speech", "bgm"]),
+  digest: Digest,
+  startFrame: Frames,
+  durationFrames: Frames,
+  trimUs: Microseconds,
+  sourceDurationUs: Microseconds,
+  speed: z.number().positive(),
+  loop: z.boolean(),
+  gainDb: z.number(),
+  fadeInFrames: Frames,
+  fadeOutFrames: Frames,
+  ducking: z.boolean(),
+  sceneId: SceneId.optional(),
+});
+export const ResolvedCue = z.strictObject({
+  id: Id,
+  text: z.string(),
+  startFrame: Frames,
+  durationFrames: Frames,
+  timingQuality: z.enum(["native", "aligned", "manual", "estimated"]),
+  provenance: z.string(),
+  mapping: CaptionCue.shape.time,
+});
+export const TimelineManifest = z.strictObject({
+  schemaVersion: z.literal(2),
+  locale: Locale,
+  output: OutputProfile,
+  totalFrames: Frames,
+  totalSamples: Samples,
+  visuals: z.array(VisualSegment),
+  audio: z.array(AudioSegment),
+  captions: z.array(ResolvedCue),
+  captionStyle: CaptionStyle,
+  masks: ProjectDocument.shape.masks,
+  tools: z.record(z.string(), z.string()),
+});
+export const RenderSnapshot = z.strictObject({
+  runSnapshotDigest: Digest,
+  timelineDigest: Digest,
+  verifiedArtifactRefs: z.array(Digest),
+  target: z.string(),
+});
+export const Proposal = z.strictObject({
+  id: Id,
+  projectId: ProjectId,
+  revision: RevisionId,
+  kind: z.enum(["script-search", "reference-match"]),
+  query: z.string(),
+  candidates: z.array(
+    z.strictObject({
+      id: Id,
+      source: MediaRef,
+      range: SourceRange,
+      scores: z.strictObject({
+        text: z.number(),
+        visual: z.number(),
+        semantic: z.number(),
+      }),
+      evidence: z.array(z.string()),
+      method: z.string(),
+      limitations: z.array(z.string()),
+    }),
+  ),
+  selections: z.array(Id),
+  warnings: z.array(z.string()),
+});
+export const EditOperation = z.discriminatedUnion("op", [
+  z.strictObject({ op: z.literal("title"), value: z.string() }),
+  z.strictObject({ op: z.literal("scenes"), value: z.array(Scene) }),
+  z.strictObject({ op: z.literal("scene"), value: Scene }),
+  z.strictObject({ op: z.literal("remove-scene"), id: SceneId }),
+  z.strictObject({ op: z.literal("captions"), value: z.array(CaptionTrack) }),
+  z.strictObject({
+    op: z.literal("profiles"),
+    value: z.array(OutputProfile).min(1),
+  }),
+  z.strictObject({ op: z.literal("bgm"), value: Bgm.nullable() }),
+  z.strictObject({ op: z.literal("rebind"), from: LibraryRef, to: LibraryRef }),
+  z.strictObject({ op: z.literal("method"), value: LibraryRef.nullable() }),
+]);
+export const RunState = z.enum([
+  "queued",
+  "running",
+  "cancelling",
+  "succeeded",
+  "failed",
+  "cancelled",
+  "interrupted",
+  "partial",
+]);
+export const RunRecord = z.strictObject({
+  id: RunId,
+  projectId: ProjectId.nullable(),
+  kind: z.string(),
+  state: RunState,
+  snapshotDigest: Digest,
+  cancelRequested: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  error: ErrorProtocol.nullable(),
+});
+export const EventRecord = z.strictObject({
+  seq: z.number().int(),
+  runId: RunId,
+  type: z.string(),
+  data: z.unknown(),
+  createdAt: z.string(),
+});
+export const Delivery = z.strictObject({
+  id: Id,
+  projectId: ProjectId,
+  revisionId: RevisionId,
+  runId: RunId,
+  target: z.string(),
+  generation: z.number().int(),
+  fingerprint: Digest,
+  timelineDigest: Digest,
+  runSnapshotDigest: Digest,
+  artifacts: z.record(z.string(), Digest),
+  createdAt: z.string(),
+});
+export const AnalysisEntry = z.strictObject({
+  id: Id,
+  projectId: ProjectId,
+  source: MediaRef,
+  sourceDigest: Digest,
+  range: SourceRange,
+  kind: z.enum(["asr", "describe", "manual"]),
+  text: z.string(),
+  evidenceDigest: Digest,
+  model: z.string(),
+  timingQuality: z.enum(["native", "aligned", "manual", "estimated"]),
+  vector: z.array(z.number()).optional(),
+  embeddingBinding: z.string().optional(),
+});
+export const JIAN_YING_PROFILE = z
+  .strictObject({
+    bundleId: z.literal("com.lemon.lvpro"),
+    appVersion: z.literal("11.7.0"),
+    schemaVersion: z.literal(360000),
+    adapterVersion: z.literal("lightweaver-jianying-mac-v1"),
+    draftFile: z.literal("draft_info.json"),
+  })
+  .parse({
+    bundleId: "com.lemon.lvpro",
+    appVersion: "11.7.0",
+    schemaVersion: 360000,
+    adapterVersion: "lightweaver-jianying-mac-v1",
+    draftFile: "draft_info.json",
+  });
+export const WORKFLOWS = [
+  {
+    id: "study-explainer",
+    name: "静帧讲解",
+    inputs: ["image"],
+    analysis: [],
+    guidance: "编写卡片或静帧场景与旁白",
+  },
+  {
+    id: "footage-narration",
+    name: "多源剧情解说",
+    inputs: ["video"],
+    analysis: ["asr", "describe"],
+    guidance: "先读证据，再写剧情、旁白和选段",
+  },
+  {
+    id: "observe-narrate",
+    name: "观察后配旁白",
+    inputs: ["video"],
+    analysis: ["describe"],
+    guidance: "观察与旁白分开；按镜头证据创作",
+  },
+  {
+    id: "script-search",
+    name: "已有文案找镜头",
+    inputs: ["video"],
+    analysis: ["asr", "describe"],
+    guidance: "检索候选，人工或 agent 选择，再应用修订",
+  },
+  {
+    id: "highlight-mix",
+    name: "原声高光混剪",
+    inputs: ["video"],
+    analysis: ["asr"],
+    guidance: "选源窗并保留原声，无需音色",
+  },
+  {
+    id: "reference-match",
+    name: "参考片反向匹配",
+    inputs: ["video"],
+    analysis: ["match"],
+    guidance: "参考成片与多源候选分别登记，保留候选报告",
+  },
+];
+export function refKey(ref: z.infer<typeof MediaRef>): string {
+  return `${ref.assetId}@${ref.version}`;
+}
+export function speechOf(
+  scene: z.infer<typeof Scene>,
+): z.infer<typeof Speech> | undefined {
+  if (scene.kind !== "clip") return scene.timing.speech;
+  const a = scene.playback.audio;
+  return a.kind === "narration" || a.kind === "mix" ? a.speech : undefined;
+}
+export type ProjectDocument = z.infer<typeof ProjectDocument>;
+export type ProjectRevision = z.infer<typeof ProjectRevision>;
+export type MediaAssetVersion = z.infer<typeof MediaAssetVersion>;
+export type LibraryVersion = z.infer<typeof LibraryVersion>;
+export type Scene = z.infer<typeof Scene>;
+export type Speech = z.infer<typeof Speech>;
+export type OutputProfile = z.infer<typeof OutputProfile>;
+export type CaptionTrack = z.infer<typeof CaptionTrack>;
+export type CaptionCue = z.infer<typeof CaptionCue>;
+export type ArtifactManifest = z.infer<typeof ArtifactManifest>;
+export type RunSnapshot = z.infer<typeof RunSnapshot>;
+export type VerifiedFacts = z.infer<typeof VerifiedFacts>;
+export type TimelineManifest = z.infer<typeof TimelineManifest>;
+export type Proposal = z.infer<typeof Proposal>;
+export type Issue = z.infer<typeof Issue>;
+
+export const VlmProvider = z.enum(["modelbest-vlm", "deepseek-vlm"]);
+
+export const ProviderDescriptor = z.object({
+  id: z.string(),
+  name: z.string(),
+  capabilities: z.array(
+    z.enum([
+      "tts",
+      "voice-design",
+      "describe",
+      "asr",
+      "alignment",
+      "embedding",
+    ]),
+  ),
+  model: z.string(),
+  version: z.string(),
+  endpoint: z.string(),
+  ready: z.boolean(),
+  remote: z.boolean(),
+  idempotency: z.boolean(),
+  cancellation: z.string(),
+  hint: z.string(),
+});

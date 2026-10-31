@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import { DESCRIBE_SETTINGS } from "./describe-settings.ts";
 import { sequenceRatio } from "./match-align.ts";
 import { frameScore, nearestHash, type FrameHash } from "./match-visual.ts";
@@ -247,17 +246,6 @@ export function buildSequences(
 export function descriptionIsReady(doc: DescriptionDoc | null | undefined): boolean {
   if (!doc || !Array.isArray(doc.sequences) || !doc.sequences.length) return false;
   return doc.sequences.every((sequence) => sequence.out > sequence.in && sequence.shots.length > 0);
-}
-
-export function readDescription(abs: string): DescriptionDoc | null {
-  if (!fs.existsSync(abs)) return null;
-  try {
-    const raw = JSON.parse(fs.readFileSync(abs, "utf8")) as DescriptionDoc;
-    if (!raw || !Array.isArray(raw.sequences)) return null;
-    return raw;
-  } catch {
-    return null;
-  }
 }
 
 export function isSameAsPrevObservation(text: string | undefined): boolean {

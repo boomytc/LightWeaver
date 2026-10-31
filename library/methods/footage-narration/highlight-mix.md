@@ -1,5 +1,5 @@
 # 混剪抽点
 
-已有对白时间轴，从句子里抽情节点，几乎全原声。不要 recipe apply 用人给的清单当场次；转写后写 ost: original 的 clip。不要 tts。
+从源片转写中选择情节点，用 source-led clip 保留原声。方法条件要求 transcript，库版本描述 clipAudio=original。
 
-铺场：清单一项一场
+方法包通过显式导入形成运行库版本，日常编辑使用 Studio 或 library 命令。

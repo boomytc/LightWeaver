@@ -1,12 +1,21 @@
-# Copy to config.local.yaml (gitignored). Do not commit real keys or machine paths.
+# Copy to config.local.yaml (gitignored). Environment variables override these scalars.
 modelbest_base_url: 'https://api.modelbest.cn/v1'
 modelbest_api_key: ''
+deepseek_base_url: 'https://api.deepseek.com'
+deepseek_api_key: ''
 
-# Optional ASR. Default is Qwen3-ASR-0.6B GGUF + sibling ../LightASR.
-# Point these at this machine. 1.7B: change asr_model to Qwen3-ASR-1.7B-Q8_0.gguf.
-# asr_model: '/absolute/path/to/qwen3-asr-0.6b-Q8_0.gguf'
-# asr_library: '/absolute/path/to/libtranscribe.dylib'
-# asr_bindings: '/absolute/path/to/transcribe.cpp/bindings/python/src'
+vlm_provider: 'modelbest-vlm'  # or deepseek-vlm; CLI analyze --provider overrides this choice
+vlm_model: 'MiniCPM-V-4.7-35B-A3B'
+deepseek_model: 'deepseek-flash'
+tts_model: 'VoxCPM2'
 
-# Optional VLM for weaver describe. Default MiniCPM-V-4.6 on ModelBest (same key as TTS).
-# vlm_model: MiniCPM-V-4.6
+# Explicit local runtime. No implicit sibling checkout discovery or automatic model download.
+# asr_model: '/absolute/runtime/qwen3-asr-0.6b-Q8_0.gguf'
+# asr_library: '/absolute/runtime/libtranscribe.dylib'
+# asr_bindings: '/absolute/runtime/transcribe.cpp/bindings/python/src'
+# vad_library: '/absolute/runtime/ten_vad.framework/Versions/A/ten_vad'
+
+# Optional capabilities. Missing configuration fails explicitly in precise / semantic modes.
+# alignment_model: '/absolute/models/language-matched-wav2vec2'
+# embedding_model: '/absolute/models/text-embedding'
+# embedding_revision: 'fixed-revision'

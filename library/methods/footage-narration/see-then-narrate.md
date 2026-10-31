@@ -1,5 +1,5 @@
 # 先看见再写解说
 
-无对白或对白很少。不要 recipe apply 铺时间轴；登记视频后跑 weaver describe，按 sequences 一场一 clip。碎切和同画面由 describe 合并，agent 不要再并。same-as-prev 只跳 VLM，仍要铺场；没有 observation 按时间窗写听者旁白。validate 按场计数。观察只当素材，不当旁白原文。没有描述树禁止写解说。解说场成片时长跟旁白 wav，不是画面窗。
+无对白或对白很少时，先运行 `weaver analyze --with describe`。根据镜头与 sequence 观察编写旁白，保留区间证据。观察和旁白分别保存，超出选定源窗时需要显式策略。绑定 observed-sequences 约束时，选段必须位于已有观察区间。
 
-铺场：清单一项一场
+方法包通过显式导入形成运行库版本，日常编辑使用 Studio 或 library 命令。

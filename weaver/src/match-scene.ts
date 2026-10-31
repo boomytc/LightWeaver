@@ -1,4 +1,3 @@
-import { ffmpegLog, probeDuration, requireBin } from "./probe.ts";
 import { MATCH_SETTINGS } from "./match-settings.ts";
 
 export type SceneBoundary = { time: number; score: number };
@@ -30,29 +29,6 @@ export function parseSceneLog(output: string, minGap = MATCH_SETTINGS.sceneMinGa
     }
   }
   return boundaries;
-}
-
-export function detectScenes(file: string, duration?: number, threshold = MATCH_SETTINGS.sceneThreshold): SceneIndex {
-  let total = duration && duration > 0 ? duration : 0;
-  try {
-    if (!(total > 0)) total = probeDuration(file);
-    requireBin("ffmpeg");
-    const log = ffmpegLog([
-      "-hide_banner",
-      "-nostats",
-      "-i",
-      file,
-      "-vf",
-      `select='gt(scene,${threshold})',metadata=print`,
-      "-an",
-      "-f",
-      "null",
-      "-",
-    ]);
-    return { duration: total, boundaries: parseSceneLog(log) };
-  } catch {
-    return { duration: total, boundaries: [] };
-  }
 }
 
 export function snapToSceneBoundary(

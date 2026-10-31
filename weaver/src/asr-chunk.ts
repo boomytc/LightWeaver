@@ -1,6 +1,6 @@
 import { sequenceRatio } from "./match-align.ts";
 import { ASR_SETTINGS } from "./asr-settings.ts";
-import type { AsrResult, AsrSentence, AsrWord } from "./asr.ts";
+import type { AsrResult, AsrSentence, AsrWord } from "./adapters/providers.ts";
 
 export type AsrWindow = { start: number; end: number };
 
@@ -31,30 +31,44 @@ export function windowsFor(
   return windows;
 }
 
-export function isTruncated(result: TruncationHint, duration: number, sparse = true): boolean {
+export function isTruncated(
+  result: TruncationHint,
+  duration: number,
+  sparse = true,
+): boolean {
   if (result.truncated) return true;
   if (result.log && /OutputTruncated/i.test(result.log)) return true;
   if (!sparse) return false;
   const text = result.text.trim();
-  if (duration >= ASR_SETTINGS.chunkSeconds / 2 && text.length < duration * ASR_SETTINGS.minCharsPerSecond) {
+  if (
+    duration >= ASR_SETTINGS.chunkSeconds / 2 &&
+    text.length < duration * ASR_SETTINGS.minCharsPerSecond
+  ) {
     return true;
   }
   return false;
 }
 
-export function stripOverlap(prev: string, next: string, minRatio = ASR_SETTINGS.overlapRatio): string {
+export function stripOverlap(
+  prev: string,
+  next: string,
+  minRatio = ASR_SETTINGS.overlapRatio,
+): string {
   const a = prev.trim();
   const b = next.trim();
   if (!a || !b) return b;
   const max = Math.min(a.length, b.length, 80);
   for (let n = max; n >= 2; n--) {
-    if (sequenceRatio(a.slice(-n), b.slice(0, n)) >= minRatio) return b.slice(n).trim();
+    if (sequenceRatio(a.slice(-n), b.slice(0, n)) >= minRatio)
+      return b.slice(n).trim();
   }
   return b;
 }
 
 export function stitchAsrResults(chunks: AsrWindowResult[]): AsrResult {
-  const ordered = [...chunks].sort((a, b) => a.start - b.start || a.end - b.end);
+  const ordered = [...chunks].sort(
+    (a, b) => a.start - b.start || a.end - b.end,
+  );
   let text = "";
   let language = "";
   const sentences: AsrSentence[] = [];
@@ -74,12 +88,31 @@ export function stitchAsrResults(chunks: AsrWindowResult[]): AsrResult {
     text: text.trim(),
     language,
     seconds: last?.end ?? 0,
+    timingQuality: ordered.every((c) => c.result.timingQuality === "native")
+      ? "native"
+      : "estimated",
+    ...(ordered[0]?.result.vad
+      ? {
+          vad: {
+            backend: ordered[0].result.vad.backend,
+            version: ordered[0].result.vad.version,
+            ranges: ordered.flatMap(
+              (c) =>
+                c.result.vad?.ranges.map((r) => ({
+                  start: r.start + c.start,
+                  end: r.end + c.start,
+                })) || [],
+            ),
+          },
+        }
+      : {}),
     ...(sentences.length ? { sentences } : {}),
   };
 }
 
 function offsetResult(result: AsrResult, start: number): AsrResult {
   return {
+    ...result,
     text: result.text.trim(),
     language: result.language,
     seconds: result.seconds,
@@ -87,13 +120,19 @@ function offsetResult(result: AsrResult, start: number): AsrResult {
       text: sentence.text,
       start: sentence.start + start,
       end: sentence.end + start,
-      ...(sentence.words?.length ? { words: sentence.words.map((word) => offsetWord(word, start)) } : {}),
+      ...(sentence.words?.length
+        ? { words: sentence.words.map((word) => offsetWord(word, start)) }
+        : {}),
     })),
   };
 }
 
 function offsetWord(word: AsrWord, start: number): AsrWord {
-  return { token: word.token, start: word.start + start, end: word.end + start };
+  return {
+    token: word.token,
+    start: word.start + start,
+    end: word.end + start,
+  };
 }
 
 function joinTexts(a: string, b: string): string {

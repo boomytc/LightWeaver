@@ -1,62 +1,26 @@
-# Makefile
-.PHONY: help install studio remotion typecheck weaver films films-capture films-tts films-render films-clean sync clean
-
 .DEFAULT_GOAL := help
+.PHONY: help install studio remotion typecheck weaver films clean
 
-LIGHTUI_ROOT ?= $(abspath ../LightUI)
-LAB_URL ?= http://127.0.0.1:5173
-PROJECT ?=
-
-help: ## 显示帮助信息
-	@echo "LightWeaver workspace commands"
-	@echo ""
-	@echo "LIGHTUI_ROOT=$(LIGHTUI_ROOT)"
-	@echo "LAB_URL=$(LAB_URL)"
-	@echo ""
-	@echo "Available commands:"
+help: ## 显示工作区命令
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: ## 安装全部 workspace 依赖并同步 Remotion 目录
-	npm install
-	npm run weaver -- sync
+install: ## 按 lockfile 安装 Node 依赖
+	npm ci
 
-studio: ## 启动 Studio WebUI（127.0.0.1:5175）
-	npm run weaver -- sync
+studio: ## 启动同一 API、worker 与 Studio（127.0.0.1:5175）
 	npm run dev -w @lightweaver/studio
 
-remotion: ## Remotion 预览 compositions
+remotion: ## 预览独立无声卡片组件
 	npm run studio -w @lightweaver/study-films
 
-weaver: ## 运行 weaver CLI（例：make weaver ARGS='project list --json'）
-	npm run weaver -- $(ARGS)
+weaver: ## 调用共享应用 CLI（ARGS='doctor --json'）
+	./weaver/bin/weaver.mjs $(ARGS)
 
-typecheck: ## 类型检查
+typecheck: ## 检查公开模块边界与 TypeScript
 	npm run typecheck
 
-sync: ## 刷新 Remotion public/projects 与 catalog
-	npm run weaver -- sync
+films: ## 制作已保存项目（PROJECT=稳定项目ID）
+	./weaver/bin/weaver.mjs build --project "$(PROJECT)" --wait --json
 
-films-capture: ## 从 LightUI lab 截取 stills（只对讲解片适配器；可选 PROJECT=slug）
-	LAB_URL="$(LAB_URL)" LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- capture $(if $(PROJECT),--project $(PROJECT),)
-
-films-tts: ## 合成旁白（可选 PROJECT=；无参跳过校验未过的片子，缺 png/wav 仍会 tts）
-	npm run weaver -- tts $(if $(PROJECT),--project $(PROJECT),)
-
-films-render: ## 渲染（可选 PROJECT=；无参跳过不可渲片）
-	LIGHTUI_ROOT="$(LIGHTUI_ROOT)" npm run weaver -- render $(if $(PROJECT),--project $(PROJECT),)
-
-films: ## 截图 + 旁白 + 渲染
-	$(MAKE) films-capture PROJECT="$(PROJECT)"
-	$(MAKE) films-tts PROJECT="$(PROJECT)"
-	$(MAKE) films-render PROJECT="$(PROJECT)"
-
-films-clean: ## 清掉成片（data/<树>/<task>/<recipe>/<id>/assets/outputs 与渲染器残留）。旁白 wav 保留
-	@find data/first-party data/projects -type d -path '*/assets/outputs' -prune -exec rm -rf {} + 2>/dev/null || true
-	@rm -rf products/study-films/out products/study-films/projects
-	@find data -name '.raw-*' -delete
-	@echo "Film outputs removed."
-
-clean: ## 清理构建缓存
-	@rm -rf products/study-films/out products/study-films/projects products/study-films/.cache products/studio/dist
-	@find . -name '.DS_Store' -delete
-	@echo "Cleaning completed."
+clean: ## 仅清理可重建构建缓存，不删除项目或原始媒体
+	rm -rf products/studio/dist products/study-films/.cache products/study-films/out

@@ -1,0 +1,4 @@
+# Optional local alignment / embedding backends. Install in the selected Python environment.
+whisperx==3.8.4
+transformers>=4.57,<6
+torch>=2.6

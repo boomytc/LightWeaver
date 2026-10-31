@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 const host = process.env.LIGHTWEAVER_STUDIO_HOST ?? "127.0.0.1";
 const port = Number(process.env.LIGHTWEAVER_STUDIO_PORT ?? 5175);
-const api = Number(process.env.LIGHTWEAVER_API_PORT ?? 8788);
+const api = Number(process.env.LIGHTWEAVER_API_PORT ?? 5176);
 
 export default defineConfig({
   plugins: [react()],
