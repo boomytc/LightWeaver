@@ -9,6 +9,8 @@ const compiled = spawnSync(process.execPath, [require.resolve("typescript/bin/ts
   stdio: "inherit",
 });
 if (compiled.status) process.exit(compiled.status);
+const bundled = spawnSync(process.execPath, [path.join(root, "scripts/bundle-preload.mjs")], { stdio: "inherit" });
+if (bundled.status) process.exit(bundled.status);
 const electron = require("electron");
 const child = spawn(electron, ["."], {
   cwd: root,

@@ -92,6 +92,7 @@ fs.rmSync(staging, { recursive: true, force: true });
 fs.mkdirSync(staging, { recursive: true });
 
 run(process.execPath, [require.resolve("typescript/bin/tsc"), "-p", desktopRoot, "--pretty", "false"]);
+run(process.execPath, [path.join(desktopRoot, "scripts/bundle-preload.mjs")]);
 run(process.execPath, [path.join(repoRoot, "node_modules", "vite", "bin", "vite.js"), "build"], {
   cwd: path.join(repoRoot, "products", "studio"),
   env: { ...process.env },
