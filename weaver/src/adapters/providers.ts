@@ -133,7 +133,7 @@ export class Providers {
         name: "本地 TEN VAD + Qwen3-ASR",
         capabilities: ["asr"],
         model: path.basename(cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model")),
-        version: "ten-vad-qwen-gguf-v2",
+        version: "ten-vad-qwen-context-v3",
         endpoint: "local-process",
         ready: [
           cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),

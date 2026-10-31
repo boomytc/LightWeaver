@@ -5,7 +5,6 @@ import argparse
 import array
 import ctypes as ct
 import json
-import math
 import os
 from pathlib import Path
 import subprocess
@@ -13,6 +12,7 @@ import sys
 
 RATE = 16000
 HOP = 256
+CONTEXT_SAMPLES = 40 * RATE
 
 
 def load_pcm(audio: str) -> array.array:
@@ -70,13 +70,32 @@ def speech_ranges(pcm: array.array, library: str) -> tuple[list[tuple[int, int]]
             merged[-1] = (merged[-1][0], end)
         else:
             merged.append((start, end))
-    # Bound each inference independently of long-file analysis windows.
-    ranges = []
-    for start, end in merged:
-        count = math.ceil((end - start) / (20 * RATE))
-        for index in range(count):
-            ranges.append((start + (end - start) * index // count, start + (end - start) * (index + 1) // count))
-    return ranges, lib.ten_vad_get_version().decode("utf-8", "replace")
+    return merged, lib.ten_vad_get_version().decode("utf-8", "replace")
+
+
+def context_windows(sample_count: int, speech: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    windows = []
+    start, voice = 0, 0
+    while start < sample_count:
+        while voice < len(speech) and speech[voice][1] <= start:
+            voice += 1
+        end = min(sample_count, start + CONTEXT_SAMPLES)
+        for index in range(voice, len(speech)):
+            voice_start, voice_end = speech[index]
+            if voice_start >= end:
+                break
+            if voice_start < end < voice_end:
+                if index > voice:
+                    end = max(start + 1, (speech[index - 1][1] + voice_start) // 2)
+                else:
+                    span = voice_end - start
+                    parts = (span + CONTEXT_SAMPLES - 1) // CONTEXT_SAMPLES
+                    end = start + (span + parts - 1) // parts
+                break
+        if voice < len(speech) and speech[voice][0] < end:
+            windows.append((start, end))
+        start = end
+    return windows
 
 
 def main() -> None:
@@ -98,7 +117,7 @@ def main() -> None:
     if ranges:
         with transcribe_cpp.Model(job["model"], backend=job.get("backend", "auto")) as native:
             with native.session() as session:
-                for start, end in ranges:
+                for start, end in context_windows(len(pcm), ranges):
                     samples = array.array("f", (value / 32768.0 for value in pcm[start:end]))
                     result = session.run(samples, language=language, timestamps="none")
                     text = str(result.text or "").strip()

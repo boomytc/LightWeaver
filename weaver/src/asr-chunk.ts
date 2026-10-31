@@ -1,35 +1,11 @@
-import { sequenceRatio } from "./match-align.ts";
 import { ASR_SETTINGS } from "./asr-settings.ts";
 import type { AsrResult, AsrSentence, AsrWord } from "./adapters/providers.ts";
-
-export type AsrWindow = { start: number; end: number };
-
-export type AsrWindowResult = AsrWindow & { result: AsrResult };
 
 export type TruncationHint = {
   text: string;
   truncated?: boolean;
   log?: string;
 };
-
-export function windowsFor(
-  duration: number,
-  chunk = ASR_SETTINGS.chunkSeconds,
-  overlap = ASR_SETTINGS.overlapSeconds,
-): AsrWindow[] {
-  if (!(duration > 0)) return [];
-  if (duration <= chunk) return [{ start: 0, end: duration }];
-  const step = Math.max(0.5, chunk - overlap);
-  const windows: AsrWindow[] = [];
-  let start = 0;
-  while (start < duration - 1e-6) {
-    const end = Math.min(duration, start + chunk);
-    windows.push({ start, end });
-    if (end >= duration - 1e-9) break;
-    start += step;
-  }
-  return windows;
-}
 
 export function isTruncated(
   result: TruncationHint,
@@ -49,54 +25,38 @@ export function isTruncated(
   return false;
 }
 
-export function stripOverlap(
-  prev: string,
-  next: string,
-  minRatio = ASR_SETTINGS.overlapRatio,
-): string {
-  const a = prev.trim();
-  const b = next.trim();
-  if (!a || !b) return b;
-  const max = Math.min(a.length, b.length, 80);
-  for (let n = max; n >= 2; n--) {
-    if (sequenceRatio(a.slice(-n), b.slice(0, n)) >= minRatio)
-      return b.slice(n).trim();
-  }
-  return b;
-}
-
-export function stitchAsrResults(chunks: AsrWindowResult[]): AsrResult {
-  const ordered = [...chunks].sort(
-    (a, b) => a.start - b.start || a.end - b.end,
-  );
+export function stitchAsrResults(input: {
+  left: AsrResult;
+  right: AsrResult;
+  splitUs: number;
+  durationUs: number;
+}): AsrResult {
+  const chunks = [
+    { start: 0, result: input.left },
+    { start: input.splitUs / 1e6, result: input.right },
+  ];
   let text = "";
   let language = "";
   const sentences: AsrSentence[] = [];
-  for (const chunk of ordered) {
+  for (const chunk of chunks) {
     const piece = offsetResult(chunk.result, chunk.start);
     language = language || piece.language;
-    const nextText = stripOverlap(text, piece.text);
-    text = joinTexts(text, nextText);
-    const uniqueFrom = sentences.at(-1)?.end ?? chunk.start;
-    for (const sentence of piece.sentences ?? []) {
-      if (sentence.end <= uniqueFrom + 0.05 && sentences.length) continue;
-      sentences.push(sentence);
-    }
+    text = joinTexts(text, piece.text);
+    sentences.push(...(piece.sentences ?? []));
   }
-  const last = ordered.at(-1);
   return {
     text: text.trim(),
     language,
-    seconds: last?.end ?? 0,
-    timingQuality: ordered.every((c) => c.result.timingQuality === "native")
+    seconds: input.durationUs / 1e6,
+    timingQuality: chunks.every((c) => c.result.timingQuality === "native")
       ? "native"
       : "estimated",
-    ...(ordered[0]?.result.vad
+    ...(input.left.vad
       ? {
           vad: {
-            backend: ordered[0].result.vad.backend,
-            version: ordered[0].result.vad.version,
-            ranges: ordered.flatMap(
+            backend: input.left.vad.backend,
+            version: input.left.vad.version,
+            ranges: chunks.flatMap(
               (c) =>
                 c.result.vad?.ranges.map((r) => ({
                   start: r.start + c.start,

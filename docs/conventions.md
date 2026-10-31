@@ -84,7 +84,9 @@ npx weaver captions import --project demo --file /absolute/subtitles.srt --local
 
 precise 使用 Qwen3-ForcedAligner-0.6B。zh、yue、en、de、es、fr、it、pt、ru、ko、ja 可用，区域标签取主语种，拒绝 auto。单场景语音最多 180 秒，音频转为 16kHz 单声道；字幕用作者原文分句，通过实际词/字时间得到句界。空结果、原文覆盖不完整和无效时码会失败，不伪造 aligned 字幕。
 
-源片 `analyze --with asr --align` 保留 ASR 原文和实际词时间，再按当前修订采用为源片字幕。跨窗采用只去重同一来源、相同说话人且文字一致的重叠证据；不同文字保留供作者核对，不按时间重叠丢弃整句。字幕 cue 可在 Studio 编辑文字、时间、来源和临时说话人标签；人工修改清除已失效词时间。Studio 字幕支持正文、原始转写和说话人检索，每页显示 25 条。重叠筛选只比较同一时间钟，修改与移除按 cue 标识作用于完整字幕轨。离页时备份未提交草稿到当前浏览器，重新打开后显式恢复；恢复保留原修订基线，过期修订仍进入冲突处理。备份可手动清除。
+源片与独立 ASR 先对完整选择做 VAD，再规划最长 40 秒的上下文，优先在停顿中切分，无停顿时有界均分。声学活动不逐段当作句子转写，外层不再固定重叠切窗。ASR 上下文仍为 estimated；`analyze --with asr --align` 按各上下文的实际文字和音频逐窗对齐，保留原文和词时间，再按当前修订采用为源片字幕。模型仍可能返回无效句界，此时明确失败。
+
+跨窗采用只去重同一来源、相同说话人且文字一致的重叠证据；不同文字保留供作者核对，不按时间重叠丢弃整句。字幕 cue 可在 Studio 编辑文字、时间、来源和临时说话人标签；人工修改清除已失效词时间。Studio 字幕支持正文、原始转写和说话人检索，每页显示 25 条。重叠筛选只比较同一时间钟，修改与移除按 cue 标识作用于完整字幕轨。离页时备份未提交草稿到当前浏览器，重新打开后显式恢复；恢复保留原修订基线，过期修订仍进入冲突处理。备份可手动清除。
 
 视频和静帧遮罩按所选输出规格预览，位置保存在项目修订中；卡片遮罩使用坐标示意，并通过制作预览核对实际画面。
 
@@ -123,7 +125,7 @@ npx weaver voice-design --provider local-voxcpm2 --text "试听内容" --style "
 
 本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。
 
-`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)、[能力落地验收](acceptance-coverage.md)与[连续影视素材验收](acceptance-long-form.md)。
+`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)、[能力落地验收](acceptance-coverage.md)、[连续影视素材验收](acceptance-long-form.md)与[全片精确对齐根因与验收](acceptance-alignment-root-cause.md)。
 
 ## 库与交接
 

@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import {
   Providers,
   AsrResult,
+  type AsrSentence,
   AlignmentResult,
   ALIGNMENT_PROVIDER,
   EMBEDDING_PROVIDER,
@@ -33,7 +34,8 @@ import { Artifacts } from "../artifacts/index.ts";
 import { probe } from "../media/probe.ts";
 import { processRun } from "../media/process.ts";
 import { visualFacts } from "../media/visual.ts";
-import { windowsFor, stitchAsrResults } from "../asr-chunk.ts";
+import { stitchAsrResults } from "../asr-chunk.ts";
+import { ASR_SETTINGS } from "../asr-settings.ts";
 import {
   buildSequences,
   sequenceNeedsVision,
@@ -113,6 +115,54 @@ const AnalyzeSnapshot = z.object({
 const AnalyzeNodeResult = z.object({
   entries: z.array(AnalysisEntry),
 });
+
+type AsrContextWindow = {
+  text: string;
+  startUs: number;
+  endUs: number;
+  words?: AsrSentence["words"];
+};
+
+function asrContextWindows(input: {
+  result: z.infer<typeof AsrResult>;
+  durationUs: number;
+}): AsrContextWindow[] {
+  const maxWindowUs = ASR_SETTINGS.chunkSeconds * 1e6,
+    sentences = input.result.sentences ?? [],
+    text = input.result.text.trim(),
+    raw: AsrSentence[] = sentences.length
+      ? sentences
+      : text
+        ? [{ text, start: 0, end: input.durationUs / 1e6 }]
+        : [];
+  if (!sentences.length && raw.length && input.durationUs > maxWindowUs)
+    throw new WeaverError(
+      "PROVIDER_FORMAT",
+      `ASR 未返回上下文窗口，拒绝把超过 ${ASR_SETTINGS.chunkSeconds} 秒的整段文本当作单窗`,
+    );
+  return raw.map((sentence) => {
+    const windowText = sentence.text.trim(),
+      startUs = Math.round(sentence.start * 1e6),
+      endUs = Math.round(sentence.end * 1e6);
+    if (
+      !windowText ||
+      startUs < 0 ||
+      endUs <= startUs ||
+      endUs > input.durationUs ||
+      endUs - startUs > maxWindowUs
+    )
+      throw new WeaverError(
+        "PROVIDER_FORMAT",
+        `ASR 返回了无效或超过 ${ASR_SETTINGS.chunkSeconds} 秒的上下文窗口`,
+      );
+    return {
+      text: windowText,
+      startUs,
+      endUs,
+      ...(sentence.words?.length ? { words: sentence.words } : {}),
+    };
+  });
+}
 
 function absoluteWords(input: {
   words: { text: string; start: number; end: number }[];
@@ -373,7 +423,7 @@ export class Analysis {
   ): Promise<z.infer<typeof AsrResult>> {
     const key = this.artifacts.key("asr-window-v4", {
         ...input,
-        algorithm: "qwen-overlap-stitch-v2",
+        algorithm: "qwen-context-packing-v3",
       }),
       cached = this.artifacts.lookup(key, input.generation);
     if (cached) return this.store.jsonBlob(cached.digest, AsrResult);
@@ -443,10 +493,7 @@ export class Analysis {
           depth + 1,
         );
       result = AsrResult.parse(
-        stitchAsrResults([
-          { start: 0, end: half / 1e6, result: left },
-          { start: half / 1e6, end: input.durationUs / 1e6, result: right },
-        ]),
+        stitchAsrResults({ left, right, splitUs: half, durationUs: input.durationUs }),
       );
     }
     this.artifacts.record({
@@ -473,6 +520,7 @@ export class Analysis {
       binding: string;
       startUs: number;
       endUs: number;
+      asrResultDigest: z.infer<typeof Digest>;
       generation: string;
     },
     c: NodeContext,
@@ -487,6 +535,7 @@ export class Analysis {
         locale: input.locale,
         startUs: input.startUs,
         durationUs,
+        asrResultDigest: input.asrResultDigest,
         binding: input.binding,
       }),
       cached = this.artifacts.lookup(key, input.generation);
@@ -525,6 +574,7 @@ export class Analysis {
     c.event("provider-request", {
       provider: ALIGNMENT_PROVIDER,
       sourceDigest: input.digest,
+      asrResultDigest: input.asrResultDigest,
       startUs: input.startUs,
       durationUs,
       binding: input.binding,
@@ -545,12 +595,13 @@ export class Analysis {
       generation: input.generation,
       digest: alignedDigest,
       mime: "application/json",
-      dependencies: [input.digest],
+      dependencies: [input.digest, input.asrResultDigest],
       provenance: {
         runId: c.runId,
         sourceRange: { startUs: input.startUs, durationUs },
         locale: input.locale,
         text: input.text,
+        asrResultDigest: input.asrResultDigest,
         binding: input.binding,
       },
       verified: true,
@@ -578,158 +629,67 @@ export class Analysis {
           "CAPABILITY_UNAVAILABLE",
           "源字幕对齐绑定缺失，请重新提交分析",
         );
-      for (const w of windowsFor((end - i.fromUs) / 1e6)) {
+      const durationUs = end - i.fromUs,
+        result = await this.transcribe(
+          {
+            digest: a.digest,
+            locale: i.locale,
+            binding: i.binding["qwen3-asr"],
+            startUs: i.fromUs,
+            durationUs,
+            generation: i.generation,
+          },
+          c,
+        ),
+        resultDigest = this.store.putJson(result),
+        contexts = asrContextWindows({ result, durationUs });
+      for (const context of contexts) {
         c.signal.throwIfAborted();
-        const startUs = i.fromUs + Math.round(w.start * 1e6),
-          endUs = i.fromUs + Math.round(w.end * 1e6),
-          durationUs = endUs - startUs;
-        const result = await this.transcribe(
-            {
-              digest: a.digest,
-              locale: i.locale,
-              binding: i.binding["qwen3-asr"],
-              startUs,
-              durationUs,
-              generation: i.generation,
-            },
-            c,
-          ),
-          resultDigest = this.store.putJson(result);
-        const sentences = result.sentences?.length
-          ? result.sentences
-          : result.text
-            ? [{ text: result.text, start: 0, end: durationUs / 1e6 }]
-            : [];
+        const startUs = i.fromUs + context.startUs,
+          endUs = i.fromUs + context.endUs,
+          contextDurationUs = context.endUs - context.startUs;
         if (alignmentBinding) {
-          const text =
-            result.text.trim() ||
-            sentences.map((sentence) => sentence.text).join(" ");
-          if (text) {
-            const aligned = await this.alignSourceWindow(
-                {
-                  digest: a.digest,
-                  text,
-                  locale: i.locale,
-                  binding: alignmentBinding,
-                  startUs,
-                  endUs,
-                  generation: i.generation,
-                },
-                c,
-              ),
-              spans = alignedSourceSpans({
-                text,
-                alignment: aligned.alignment,
+          const aligned = await this.alignSourceWindow(
+              {
+                digest: a.digest,
+                text: context.text,
+                locale: i.locale,
+                binding: alignmentBinding,
                 startUs,
                 endUs,
-              });
-            for (const [index, span] of spans.entries()) {
-              const evidenceDigest = this.store.putJson({
-                  source,
-                  sourceDigest: a.digest,
-                  locale: i.locale,
-                  asrResultDigest: resultDigest,
-                  asrBinding: i.binding["qwen3-asr"],
-                  alignment: {
-                    binding: alignmentBinding,
-                    digest: aligned.digest,
-                  },
-                  window: {
-                    startUs,
-                    durationUs,
-                    text,
-                  },
-                  segment: {
-                    index,
-                    text: span.text,
-                    startUs: span.range.startUs,
-                    endUs: span.range.startUs + span.range.durationUs,
-                  },
-                }),
-                entry = AnalysisEntry.parse({
-                  id: `analysis-${digest({
-                    projectId: i.revision.projectId,
-                    source,
-                    kind: "asr",
-                    locale: i.locale,
-                    text: span.text,
-                    range: span.range,
-                    binding: i.binding["qwen3-asr"],
-                    alignmentBinding,
-                    alignmentDigest: aligned.digest,
-                    evidenceDigest,
-                  })}`,
-                  projectId: i.revision.projectId,
-                  source,
-                  sourceDigest: a.digest,
-                  range: span.range,
-                  kind: "asr",
-                  locale: i.locale,
-                  text: span.text,
-                  sourceText: span.text,
-                  ...(span.words.length ? { words: span.words } : {}),
-                  evidenceDigest,
-                  model: i.binding["qwen3-asr"],
-                  timingQuality: "aligned",
-                });
-              entries.push(entry);
-              transcripts.push({
-                text: span.text,
-                start: span.range.startUs / 1e6,
-                end:
-                  (span.range.startUs + span.range.durationUs) /
-                  1e6,
-              });
-            }
-          }
-        } else {
-          for (const sentence of sentences) {
-            const sentenceStartUs = Math.max(
-                startUs,
-                Math.min(
-                  endUs,
-                  startUs + Math.round(sentence.start * 1e6),
-                ),
-              ),
-              sentenceEndUs = Math.min(
-                endUs,
-                Math.max(
-                  sentenceStartUs,
-                  startUs + Math.round(sentence.end * 1e6),
-                ),
-              );
-            if (
-              sentenceEndUs <= sentenceStartUs ||
-              entries.some(
-                (entry) =>
-                  entry.range.startUs <= sentenceStartUs &&
-                  entry.range.startUs + entry.range.durationUs >=
-                    sentenceEndUs,
-              )
-            )
-              continue;
-            const words = absoluteWords({
-                words:
-                  sentence.words?.map((word) => ({
-                    text: word.token,
-                    start: word.start,
-                    end: word.end,
-                  })) ?? [],
-                offsetUs: startUs,
-                boundStartUs: sentenceStartUs,
-                boundEndUs: sentenceEndUs,
-              }),
-              evidenceDigest = this.store.putJson({
+                asrResultDigest: resultDigest,
+                generation: i.generation,
+              },
+              c,
+            ),
+            spans = alignedSourceSpans({
+              text: context.text,
+              alignment: aligned.alignment,
+              startUs,
+              endUs,
+            });
+          for (const [index, span] of spans.entries()) {
+            const evidenceDigest = this.store.putJson({
                 source,
                 sourceDigest: a.digest,
                 locale: i.locale,
-                resultDigest,
-                sentence: {
-                  text: sentence.text,
-                  startUs: sentenceStartUs,
-                  endUs: sentenceEndUs,
-                },
+                asrResultDigest: resultDigest,
                 asrBinding: i.binding["qwen3-asr"],
+                alignment: {
+                  binding: alignmentBinding,
+                  digest: aligned.digest,
+                },
+                window: {
+                  startUs,
+                  durationUs: contextDurationUs,
+                  text: context.text,
+                },
+                segment: {
+                  index,
+                  text: span.text,
+                  startUs: span.range.startUs,
+                  endUs: span.range.startUs + span.range.durationUs,
+                },
               }),
               entry = AnalysisEntry.parse({
                 id: `analysis-${digest({
@@ -737,40 +697,98 @@ export class Analysis {
                   source,
                   kind: "asr",
                   locale: i.locale,
-                  start: sentenceStartUs,
-                  stop: sentenceEndUs,
+                  text: span.text,
+                  range: span.range,
                   binding: i.binding["qwen3-asr"],
+                  alignmentBinding,
+                  alignmentDigest: aligned.digest,
                   evidenceDigest,
                 })}`,
                 projectId: i.revision.projectId,
                 source,
                 sourceDigest: a.digest,
-                range: {
-                  startUs: sentenceStartUs,
-                  durationUs: sentenceEndUs - sentenceStartUs,
-                },
+                range: span.range,
                 kind: "asr",
                 locale: i.locale,
-                text: sentence.text,
-                sourceText: sentence.text,
-                ...(words.length ? { words } : {}),
+                text: span.text,
+                sourceText: span.text,
+                ...(span.words.length ? { words: span.words } : {}),
                 evidenceDigest,
                 model: i.binding["qwen3-asr"],
-                timingQuality: result.timingQuality,
+                timingQuality: "aligned",
               });
             entries.push(entry);
             transcripts.push({
-              text: sentence.text,
-              start: sentenceStartUs / 1e6,
-              end: sentenceEndUs / 1e6,
+              text: span.text,
+              start: span.range.startUs / 1e6,
+              end:
+                (span.range.startUs + span.range.durationUs) /
+                1e6,
             });
           }
+        } else {
+          const words = absoluteWords({
+              words:
+                context.words?.map((word) => ({
+                  text: word.token,
+                  start: word.start,
+                  end: word.end,
+                })) ?? [],
+              offsetUs: i.fromUs,
+              boundStartUs: startUs,
+              boundEndUs: endUs,
+            }),
+            evidenceDigest = this.store.putJson({
+              source,
+              sourceDigest: a.digest,
+              locale: i.locale,
+              resultDigest,
+              sentence: {
+                text: context.text,
+                startUs,
+                endUs,
+              },
+              asrBinding: i.binding["qwen3-asr"],
+            }),
+            entry = AnalysisEntry.parse({
+              id: `analysis-${digest({
+                projectId: i.revision.projectId,
+                source,
+                kind: "asr",
+                locale: i.locale,
+                start: startUs,
+                stop: endUs,
+                binding: i.binding["qwen3-asr"],
+                evidenceDigest,
+              })}`,
+              projectId: i.revision.projectId,
+              source,
+              sourceDigest: a.digest,
+              range: {
+                startUs,
+                durationUs: contextDurationUs,
+              },
+              kind: "asr",
+              locale: i.locale,
+              text: context.text,
+              sourceText: context.text,
+              ...(words.length ? { words } : {}),
+              evidenceDigest,
+              model: i.binding["qwen3-asr"],
+              timingQuality: result.timingQuality,
+            });
+          entries.push(entry);
+          transcripts.push({
+            text: context.text,
+            start: startUs / 1e6,
+            end: endUs / 1e6,
+          });
         }
         c.event("analysis-window", {
           source,
           kind: "asr",
           startUs,
-          durationUs,
+          durationUs: contextDurationUs,
           entries: entries.length,
         });
       }
@@ -1812,23 +1830,17 @@ export class Analysis {
         .parse(c.input),
       f = await probe(this.store.blobPath(i.sourceDigest), c.signal);
     if (!f.audio) throw new WeaverError("INVALID_MEDIA", "媒体没有音轨");
-    const parts = [];
-    for (const w of windowsFor(f.durationUs / 1e6))
-      parts.push({
-        ...w,
-        result: await this.transcribe(
-          {
-            digest: i.sourceDigest,
-            locale: i.locale || "",
-            binding: i.binding,
-            startUs: Math.round(w.start * 1e6),
-            durationUs: Math.round((w.end - w.start) * 1e6),
-            generation: "default",
-          },
-          c,
-        ),
-      });
-    return AsrResult.parse(stitchAsrResults(parts));
+    return this.transcribe(
+      {
+        digest: i.sourceDigest,
+        locale: i.locale || "",
+        binding: i.binding,
+        startUs: 0,
+        durationUs: f.durationUs,
+        generation: "default",
+      },
+      c,
+    );
   }
   private async mint(c: NodeContext) {
     const i = z
