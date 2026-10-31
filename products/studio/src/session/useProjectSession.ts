@@ -20,6 +20,7 @@ import { Context, type Context as ProjectContext } from "../domain/context";
 import { RunDetail } from "../domain/run";
 import { saveFate } from "../domain/save";
 import { useRunStream } from "../jobs/useRunStream";
+import type { ToastItem } from "../ui/ToastStack";
 import { currentRoute, routeUrl } from "./route";
 
 type LeaveChoice = "save" | "keep" | "discard" | "cancel";
@@ -35,8 +36,19 @@ export function useProjectSession(client: ClientStore) {
   const [dirty, setDirty] = useState(false);
   const [planDraft, setPlanDraft] = useState<CreativePlanValue | null>(null);
   const [planDirty, setPlanDirty] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [error, setErrorState] = useState("");
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const pushToast = (message: string, tone: ToastItem["tone"]) => {
+    const text = message.trim();
+    if (!text) return;
+    setToasts((items) => [{ id: crypto.randomUUID(), message: text, tone }, ...items].slice(0, 4));
+  };
+  const setError = (message: string) => {
+    setErrorState(message);
+    if (message.trim()) pushToast(message, "danger");
+  };
+  const setNotice = (message: string) => pushToast(message, "ok");
+  const dismissToast = (id: string) => setToasts((items) => items.filter((item) => item.id !== id));
   const [conflict, setConflict] = useState<z.infer<typeof ProjectRevision> | null>(null);
   const [busy, setBusy] = useState(false);
   const [locale, setLocale] = useState("zh");
@@ -680,6 +692,17 @@ export function useProjectSession(client: ClientStore) {
     return bridge.onPrepareQuit(() => quitRef.current());
   }, []);
 
+  const seenClientError = useRef("");
+  useEffect(() => {
+    if (!client.error) {
+      seenClientError.current = "";
+      return;
+    }
+    if (client.error === seenClientError.current) return;
+    seenClientError.current = client.error;
+    pushToast(client.error, "danger");
+  }, [client.error]);
+
   const storedDraft = client.drafts.find((item) => item.projectId === route.projectId && item.projectId);
 
   return {
@@ -696,7 +719,8 @@ export function useProjectSession(client: ClientStore) {
     planDraft,
     planDirty,
     error: error || client.error,
-    notice,
+    toasts,
+    dismissToast,
     conflict,
     busy,
     locale,
@@ -720,7 +744,6 @@ export function useProjectSession(client: ClientStore) {
       setError("");
       client.clearError();
     },
-    clearNotice: () => setNotice(""),
     setNotice,
     setError,
     refreshLists,

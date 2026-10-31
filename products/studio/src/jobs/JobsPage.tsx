@@ -27,8 +27,6 @@ export function JobsPage() {
   });
   return (
     <main className="min-h-0 flex-1 overflow-auto p-4">
-      <h1 className="m-0 text-xl">任务</h1>
-      <p className="hint">制作和模型下载都在这里。进度来自事件流，离开或结束后会关闭连接。</p>
       {runs.length === 0 && <p>还没有作业。</p>}
       {runs.map((run) => (
         <article key={run.id} className="my-3 rounded-md border border-line bg-panel p-3">

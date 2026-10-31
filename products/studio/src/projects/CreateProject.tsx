@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ProjectRevision, WORKFLOWS, z } from "@lightweaver/weaver/contracts";
 import { api, requestId } from "../api";
 import { Field } from "../ui/Field";
+import { Hint } from "../ui/Hint";
 import { SoftPillButton } from "../ui/SoftPillButton";
 
 export function CreateProject({
@@ -15,8 +16,7 @@ export function CreateProject({
     [workflow, setWorkflow] = useState("study-explainer");
   return (
     <section className="mx-auto mt-8 max-w-xl rounded-[22px] border border-line bg-panel p-8 shadow-[var(--lw-shadow)]">
-      <h1 className="m-0">开始一部片子</h1>
-      <p>素材、观察、创作与制作结果保存在同一个项目里。</p>
+      <h1 className="m-0">新项目</h1>
       <Field label="片名">
         <input
           value={title}
@@ -24,16 +24,17 @@ export function CreateProject({
           placeholder="输入片名"
         />
       </Field>
-      <Field label="工作流预设">
-        <select value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
-          {WORKFLOWS.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name}
-            </option>
-          ))}
-        </select>
+      <Field label="工作流">
+        <Hint label={WORKFLOWS.find((item) => item.id === workflow)?.guidance || "选择工作流"}>
+          <select value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
+            {WORKFLOWS.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </Hint>
       </Field>
-      <p>{WORKFLOWS.find((w) => w.id === workflow)?.guidance}</p>
       <SoftPillButton
         className="mt-2"
         onClick={() =>

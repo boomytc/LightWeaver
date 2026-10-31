@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { useSession } from "../session/context";
 import { HintProvider } from "../ui/Hint";
+import { ToastStack } from "../ui/ToastStack";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { InsetButton } from "../ui/InsetButton";
 import { SearchInput } from "../ui/SearchInput";
@@ -63,23 +64,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </aside>
         <div className="app-stage">
-          {session.error && (
-            <div role="alert" className="app-banner flex items-start justify-between gap-3 bg-danger-bg px-3 py-2 text-danger">
-              <span>操作未完成：{session.error}</span>
-              <button type="button" onClick={session.clearError}>关闭</button>
-            </div>
-          )}
-          {session.notice && (
-            <button type="button" className="app-banner bg-ok-bg text-left text-ok" onClick={session.clearNotice}>
-              {session.notice}
-            </button>
-          )}
           <div className="app-sheet">{children}</div>
         </div>
+        <ToastStack items={session.toasts} onDismiss={session.dismissToast} />
         <ConfirmDialog
           open={session.leaveOpen}
           title="有未保存的修改"
-          description="可以先保存，保留可恢复草稿，放弃这些修改，或取消并留在这里。"
+          description="修改还没写入项目。"
           onOpenChange={(open) => {
             if (!open) session.answerLeave("cancel");
           }}
@@ -92,7 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ConfirmDialog
           open={session.jobsOpen}
           title="还有未结束的作业"
-          description="可以留在应用里，或停止作业后退出。没有托盘。"
+          description="没有后台托盘，退出会停掉这些作业。"
           onOpenChange={(open) => {
             if (!open) session.answerJobs(false);
           }}
