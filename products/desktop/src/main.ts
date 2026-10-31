@@ -95,18 +95,29 @@ function assertSender(event: IpcMainInvokeEvent | IpcMainEvent): void {
     throw new Error("拒绝未授权的窗口消息");
 }
 
+function canonical(file: string): string | null {
+  try {
+    return fs.realpathSync(file);
+  } catch {
+    return null;
+  }
+}
+
 function remember(file: string): void {
-  if (file) allowedReveal.add(path.resolve(file));
+  const canonicalPath = canonical(file) || (file ? path.resolve(file) : "");
+  if (canonicalPath) allowedReveal.add(canonicalPath);
 }
 
 function canReveal(file: string): boolean {
-  const real = fs.realpathSync(file);
+  const real = canonical(file);
+  if (!real) return false;
   const prefs = preferences();
   const paths = runtimePaths(prefs);
   const roots = [paths.dataDir, paths.modelDir, paths.logDir, userDataDir(), ...allowedReveal];
   return roots.some((root) => {
-    const resolved = path.resolve(root);
-    return real === resolved || real.startsWith(resolved + path.sep);
+    const resolved = canonical(root) || path.resolve(root);
+    const prefix = resolved.endsWith(path.sep) ? resolved : resolved + path.sep;
+    return real === resolved || real.startsWith(prefix);
   });
 }
 
@@ -230,10 +241,17 @@ function createWindow(): BrowserWindow {
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
-    const next = new URL(url);
-    const allowed = service?.origin;
-    if (next.protocol === "file:") return;
-    if (!allowed || next.origin !== allowed) event.preventDefault();
+    let next: URL;
+    try {
+      next = new URL(url);
+    } catch {
+      event.preventDefault();
+      return;
+    }
+    const pageOrigin = dev
+      ? `http://127.0.0.1:${process.env.LIGHTWEAVER_STUDIO_PORT || 5175}`
+      : service?.origin;
+    if (!pageOrigin || next.origin !== pageOrigin) event.preventDefault();
   });
   win.webContents.on("render-process-gone", (_event, details) => {
     if (quitting || details.reason === "clean-exit") return;
