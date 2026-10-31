@@ -7,6 +7,7 @@ import { localConfigValue } from "../config.ts";
 import { processRun } from "../media/process.ts";
 import { probe } from "../media/probe.ts";
 import { digest } from "../store/index.ts";
+import { defaultModelPython, resolveExecutable } from "./executable.ts";
 import { fileDigest, localModelDigest } from "./toolchain.ts";
 
 export const SPEAKER_PROVIDER = "moss-speakers";
@@ -115,28 +116,6 @@ export class SpeakerModels {
     return value ? path.resolve(this.root, value) : "";
   }
 
-  private executable(value: string): string {
-    if (!value) return "";
-    const candidates = value.includes(path.sep)
-      ? [this.localPath(value)]
-      : (process.env.PATH || "")
-          .split(path.delimiter)
-          .filter(Boolean)
-          .map((directory) => path.join(directory, value));
-    return (
-      candidates.find((candidate) => {
-        try {
-          return (
-            fs.statSync(candidate).isFile() &&
-            (fs.accessSync(candidate, fs.constants.X_OK), true)
-          );
-        } catch {
-          return false;
-        }
-      }) || ""
-    );
-  }
-
   private isGguf(file: string): boolean {
     try {
       const header = Buffer.alloc(4);
@@ -160,12 +139,13 @@ export class SpeakerModels {
           "diarization_model",
         ),
       ),
-      python: this.executable(
+      python: resolveExecutable(
         this.value(
           "LIGHTWEAVER_MODEL_PYTHON",
           "model_python",
-          "weaver/.venv/bin/python",
+          defaultModelPython(),
         ),
+        this.root,
       ),
       library: this.localPath(
         this.value("TRANSCRIBE_LIBRARY", "asr_library"),
@@ -179,7 +159,7 @@ export class SpeakerModels {
       vadLibrary: this.localPath(
         this.value("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
       ),
-      ffmpeg: this.executable("ffmpeg"),
+      ffmpeg: resolveExecutable("ffmpeg", this.root),
       script: path.join(this.root, "weaver/scripts/speakers.py"),
       backend: SpeakerBackend.parse(
         this.value(

@@ -824,7 +824,7 @@ export class Builds {
       let aligned: z.infer<typeof AlignmentResult>;
       if (cached) aligned = this.store.jsonBlob(cached.digest, AlignmentResult);
       else {
-        this.providers.require(
+        await this.providers.require(
           ALIGNMENT_PROVIDER,
           snap.providers[ALIGNMENT_PROVIDER],
         );

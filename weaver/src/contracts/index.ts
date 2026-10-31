@@ -732,3 +732,178 @@ export const ProviderDescriptor = z.object({
   cancellation: z.string(),
   hint: z.string(),
 });
+
+export const ModelSettingSource = z.enum([
+  "environment",
+  "file",
+  "default",
+  "unset",
+]);
+export const ModelSettingsField = z.strictObject({
+  value: z.string(),
+  source: ModelSettingSource,
+});
+export const ModelSettingsView = z.strictObject({
+  configPath: z.string(),
+  revision: Digest,
+  downloadRoot: ModelSettingsField,
+  values: z.record(z.string(), ModelSettingsField),
+  apiKeys: z.record(
+    z.string(),
+    z.strictObject({
+      configured: z.boolean(),
+      source: ModelSettingSource,
+    }),
+  ),
+});
+export const ModelReleaseFile = z.strictObject({
+  path: z.string().min(1),
+  size: z.number().int().nonnegative().safe(),
+  sha256: Digest,
+  executable: z.boolean().default(false),
+});
+export const ModelBinding = z.discriminatedUnion("target", [
+  z.strictObject({
+    setting: z.string().min(1),
+    target: z.literal("file"),
+    file: z.string().min(1),
+  }),
+  z.strictObject({
+    setting: z.string().min(1),
+    target: z.literal("directory"),
+  }),
+  z.strictObject({
+    setting: z.string().min(1),
+    target: z.literal("literal"),
+    value: z.string(),
+  }),
+]);
+export const ModelRuntimeRequirement = z.strictObject({
+  setting: z.string().min(1),
+  label: z.string().min(1),
+  kind: z.enum(["file", "directory", "executable"]),
+  documentationUrl: z.string().url().optional(),
+});
+export const LocalModelCatalogItem = z
+  .strictObject({
+    id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+    name: z.string().min(1),
+    capability: z.enum(["asr", "vad", "alignment", "embedding"]),
+    version: z.string().min(1),
+    repository: z.string().min(1),
+    revision: z.string().min(1),
+    platform: z.string().min(1),
+    available: z.boolean(),
+    unavailableReason: z.string().optional(),
+    license: z.string().min(1).optional(),
+    files: z.array(ModelReleaseFile),
+    bindings: z.array(ModelBinding).min(1),
+    runtimeRequirements: z.array(ModelRuntimeRequirement),
+  })
+  .refine(
+    (value) => !value.available || value.files.length > 0,
+    "可下载模型必须声明文件",
+  );
+export const ModelProviderCatalog = z.strictObject({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  baseUrl: z.string().url(),
+  apiKeyEnv: z.string().min(1),
+  apiKeyConfigured: z.boolean(),
+  keyUrl: z.string().url(),
+  docsUrl: z.string().url(),
+  models: z.array(
+    z.strictObject({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      capabilities: z.array(z.string()).min(1),
+    }),
+  ),
+});
+export const ModelCatalog = z.strictObject({
+  schemaVersion: z.literal(1),
+  providers: z.array(ModelProviderCatalog),
+  localModels: z.array(LocalModelCatalogItem),
+});
+export const ModelFileState = z.strictObject({
+  path: z.string(),
+  expectedSize: z.number().int().nonnegative().safe(),
+  actualSize: z.number().int().nonnegative().safe().optional(),
+  expectedSha256: Digest,
+  actualSha256: Digest.optional(),
+  state: z.enum(["missing", "invalid", "verified"]),
+  reason: z.string().optional(),
+});
+export const VerifyResult = z.strictObject({
+  id: z.string(),
+  root: z.string(),
+  state: z.enum(["missing", "invalid", "verified"]),
+  files: z.array(ModelFileState).min(1),
+  verifiedAt: z.string(),
+});
+export const ModelStatus = z.strictObject({
+  id: z.string(),
+  root: z.string(),
+  directory: z.string(),
+  state: z.enum(["missing", "invalid", "unchecked"]),
+  files: z.array(
+    z.strictObject({
+      path: z.string(),
+      expectedSize: z.number().int().nonnegative().safe(),
+      actualSize: z.number().int().nonnegative().safe().optional(),
+      state: z.enum(["missing", "invalid", "metadata-match"]),
+    }),
+  ),
+});
+export const ModelsView = z.strictObject({
+  catalog: ModelCatalog,
+  settings: ModelSettingsView,
+  local: z.array(
+    z.strictObject({
+      id: z.string(),
+      status: ModelStatus,
+      activeBindings: z.array(ModelSettingsField.extend({ setting: z.string() })),
+      runtime: z.array(
+        z.strictObject({
+          setting: z.string(),
+          label: z.string(),
+          ready: z.boolean(),
+          documentationUrl: z.string().url().optional(),
+        }),
+      ),
+    }),
+  ),
+  downloads: z.array(z.lazy(() => RunRecord)),
+});
+export const DownloadInput = z.strictObject({
+  id: z.string().min(1),
+  root: z.string().min(1),
+  requestId: Id,
+});
+export const ModelSettingsPatch = z
+  .strictObject({
+    expectedRevision: Digest,
+    modelbestApiKey: z.string().optional(),
+    clearModelbestApiKey: z.boolean().optional(),
+    vlmProvider: z.enum(["modelbest-vlm", "deepseek-vlm"]).optional(),
+    vlmModel: z.string().optional(),
+    ttsModel: z.string().optional(),
+    downloadRoot: z.string().optional(),
+    modelPython: z.string().optional(),
+    llamaServer: z.string().optional(),
+    asrModel: z.string().optional(),
+    asrLibrary: z.string().optional(),
+    asrBindings: z.string().optional(),
+    vadLibrary: z.string().optional(),
+    visualModel: z.string().optional(),
+    visualMmproj: z.string().optional(),
+    visualServer: z.string().optional(),
+    alignmentModel: z.string().optional(),
+    alignmentBackend: z.enum(["torch", "mlx"]).optional(),
+    alignmentDevice: z.string().optional(),
+  })
+  .refine(
+    (value) =>
+      !(value.modelbestApiKey !== undefined && value.clearModelbestApiKey),
+    "API key 设置与清除不能同时进行",
+  );

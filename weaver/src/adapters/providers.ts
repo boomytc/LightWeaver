@@ -13,24 +13,30 @@ import { Store } from "../store/index.ts";
 import { localModelDigest } from "./toolchain.ts";
 import { readSpeechWav } from "./speech.ts";
 import { SpeechModels, LOCAL_TTS_PROVIDER, TRANSLATION_PROVIDER } from "./speech-models.ts";
-import { VisualModels, VISUAL_PROVIDER } from "./visual-models.ts";
+import {
+  VisualModels,
+  VISUAL_PROVIDER,
+  TEXT_EMBEDDING_PROVIDER,
+} from "./visual-models.ts";
 import { SpeakerModels, SPEAKER_PROVIDER } from "./speaker-models.ts";
+import {
+  MODELBEST_TTS_MODEL,
+  MODELBEST_VLM_MODEL,
+} from "../models/catalog.ts";
 import {
   LocalModels,
   ALIGNMENT_PROVIDER,
-  EMBEDDING_PROVIDER,
   RERANK_PROVIDER,
   AlignmentResult,
   EmbeddingResult,
   RerankResult,
   EmbeddingInput,
-  RETRIEVAL_INSTRUCTION,
   alignmentLanguage,
 } from "./local-models.ts";
+export const EMBEDDING_PROVIDER = TEXT_EMBEDDING_PROVIDER;
 export {
   AlignmentResult,
   ALIGNMENT_PROVIDER,
-  EMBEDDING_PROVIDER,
   RERANK_PROVIDER,
 } from "./local-models.ts";
 
@@ -90,7 +96,8 @@ export class Providers {
         id: "modelbest-voxcpm2",
         name: "ModelBest 语音协议",
         capabilities: ["tts", "voice-design"],
-        model: cfg("LIGHTWEAVER_TTS_MODEL", "tts_model") || "VoxCPM2",
+        model:
+          cfg("LIGHTWEAVER_TTS_MODEL", "tts_model") || MODELBEST_TTS_MODEL,
         version: "speech-sse-wav-v2",
         endpoint: modelbest.base,
         ready: !!modelbest.key,
@@ -104,7 +111,7 @@ export class Providers {
         name: "ModelBest 画面观察",
         capabilities: ["describe"],
         model:
-          cfg("LIGHTWEAVER_VLM_MODEL", "vlm_model") || "MiniCPM-V-4.7-35B-A3B",
+          cfg("LIGHTWEAVER_VLM_MODEL", "vlm_model") || MODELBEST_VLM_MODEL,
         version: "chat-no-thinking-v2",
         endpoint: modelbest.base,
         ready: !!modelbest.key,
@@ -140,11 +147,12 @@ export class Providers {
           cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
           cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
           cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+          this.local.settings().python,
         ].every((v) => v && fs.existsSync(v)),
         remote: false,
         idempotency: true,
         cancellation: "process-tree",
-        hint: "配置 LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS、LIGHTWEAVER_VAD_LIBRARY",
+        hint: "配置 model_python、asr_model、asr_library、asr_bindings 与 vad_library",
       },
       ...this.local.descriptors(),
       ...this.speech.descriptors(),
@@ -176,7 +184,11 @@ export class Providers {
     const result: Record<string, string> = {};
     for (const id of [...new Set(ids)]) {
       if (id === VISUAL_PROVIDER) {
-        result[id] = await this.visual.freeze();
+        result[id] = await this.visual.freeze(VISUAL_PROVIDER);
+        continue;
+      }
+      if (id === EMBEDDING_PROVIDER) {
+        result[id] = await this.visual.freeze(EMBEDDING_PROVIDER);
         continue;
       }
       if (id === SPEAKER_PROVIDER) {
@@ -203,6 +215,7 @@ export class Providers {
               cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
               cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
               cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+              this.local.settings().python,
               path.join(scripts, "asr.py"),
             ]
           : [base.model, ...adapter.files(id)];
@@ -220,7 +233,7 @@ export class Providers {
     }
     return result;
   }
-  require(id: string, binding?: string): void {
+  async require(id: string, binding?: string): Promise<void> {
     const p = this.descriptors().find((p) => p.id === id);
     if (!p?.ready)
       throw new WeaverError(
@@ -229,6 +242,14 @@ export class Providers {
         { provider: id },
         [p?.hint || "检查 provider 配置"],
       );
+    if (!binding) return;
+    if ([VISUAL_PROVIDER, EMBEDDING_PROVIDER].includes(id)) {
+      await this.visual.require(
+        binding,
+        id === VISUAL_PROVIDER ? VISUAL_PROVIDER : EMBEDDING_PROVIDER,
+      );
+      return;
+    }
     if (binding) {
       const old = z
         .object({
@@ -319,7 +340,7 @@ export class Providers {
     const provider = input.provider || "modelbest-voxcpm2";
     if (!["modelbest-voxcpm2", LOCAL_TTS_PROVIDER].includes(provider))
       throw new WeaverError("CAPABILITY_UNAVAILABLE", "音色协议没有对应 TTS 适配器");
-    this.require(provider, input.binding);
+    await this.require(provider, input.binding);
     let ref: string | undefined;
     if (input.reference) {
       ref = path.join(input.workDir, "voice-reference.wav");
@@ -380,7 +401,7 @@ export class Providers {
     workDir: string;
     signal: AbortSignal;
   }): Promise<z.infer<typeof AsrResult>> {
-    this.require("qwen3-asr", input.binding);
+    await this.require("qwen3-asr", input.binding);
     if (
       input.binding &&
       (await this.freeze(["qwen3-asr"]))["qwen3-asr"] !== input.binding
@@ -404,7 +425,7 @@ export class Providers {
       }),
     );
     const out = await processRun(
-      "python3",
+      this.local.settings().python,
       [path.join(scripts, "asr.py"), "--job", jobFile],
       { signal: input.signal, env: { ...process.env, PYTHONHOME: undefined,
         PYTHONPATH: "", PYTHONNOUSERSITE: "1", PYTHONDONTWRITEBYTECODE: "1" } },
@@ -420,7 +441,7 @@ export class Providers {
     binding?: string;
     signal: AbortSignal;
   }): Promise<{ observation: string }> {
-    this.require(input.provider, input.binding);
+    await this.require(input.provider, input.binding);
     const model = this.descriptors().find(
       (p) => p.id === input.provider,
     )?.model;
@@ -463,7 +484,8 @@ export class Providers {
     return { observation: out.choices[0].message.content };
   }
   private async checkLocalBinding(id: string, binding?: string) {
-    this.require(id, binding);
+    await this.require(id, binding);
+    if ([VISUAL_PROVIDER, EMBEDDING_PROVIDER].includes(id)) return;
     if (binding && (await this.freeze([id]))[id] !== binding)
       throw new WeaverError(
         "PROVIDER_CHANGED",
@@ -480,7 +502,7 @@ export class Providers {
   }
   async requireAlignment(locales: string[]) {
     for (const locale of locales) alignmentLanguage(locale);
-    this.require(ALIGNMENT_PROVIDER);
+    await this.require(ALIGNMENT_PROVIDER);
     const runtime = z
       .object({ available: z.boolean(), missing: z.array(z.string()) })
       .parse(await this.local.versions(ALIGNMENT_PROVIDER));
@@ -545,18 +567,12 @@ export class Providers {
   ): Promise<z.infer<typeof EmbeddingResult>> {
     const parsed = z.array(EmbeddingInput).parse(inputs);
     await this.checkLocalBinding(EMBEDDING_PROVIDER, binding);
-    const s = this.local.settings();
     const result = EmbeddingResult.parse(
-      await this.local.run({
-        kind: "embed",
-        job: {
-          inputs: parsed,
-          instruction: RETRIEVAL_INSTRUCTION,
-          model: s.embeddingModel,
-          server: s.server,
-        },
+      await this.visual.embedText({
+        inputs: parsed,
         workDir,
         signal,
+        binding: binding || (await this.visual.freeze(EMBEDDING_PROVIDER)),
       }),
     );
     await this.checkLocalBinding(EMBEDDING_PROVIDER, binding);

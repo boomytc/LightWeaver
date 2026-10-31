@@ -44,34 +44,65 @@ npx weaver tts --text "要合成的内容" --voice voice-id --voice-version dige
 
 ## 配置模型
 
-复制 `config.local.yaml.example` 为忽略的 `config.local.yaml`，或在启动进程的环境中设置变量。密钥使用 `MODELBEST_API_KEY` 和 `DEEPSEEK_API_KEY`。对应端点变量是 `MODELBEST_BASE_URL` 和 `DEEPSEEK_BASE_URL`。
+复制 `config.local.yaml.example` 为忽略的 `config.local.yaml`，或在启动进程的环境中设置变量。Studio 的“模型”页提供同一套设置；密钥写入本地配置，页面不回显已保存值。
 
-当前功能确认使用 ModelBest VoxCPM2、DeepSeek `deepseek-flash`、ModelBest `MiniCPM-V-4.7-35B-A3B`，以及本地 TEN VAD 与 Qwen3-ASR GGUF。VLM 按作业选择：
+第一个供应商预设是 ModelBest。默认端点为 `https://api.modelbest.cn/v1`，固定提供 `MiniCPM-V-4.7-35B-A3B` 画面观察和 `VoxCPM2` 语音合成。可从 [ModelBest 平台](https://platform.modelbest.cn/) 获取 Key，并查看 [接口文档](https://platform.modelbest.cn/console/docs)。环境变量 `MODELBEST_API_KEY` 优先于 `config.local.yaml`。旧的 DeepSeek 适配仍可按作业显式选择。
 
 ```bash
 npx weaver analyze --project demo --with describe --provider deepseek-vlm --wait --json
 npx weaver analyze --project demo --with describe --provider modelbest-vlm --wait --json
 ```
 
-本地 ASR 的模型、动态库、Python 绑定和 TEN VAD 库均需显式配置。开发时可以指向本机已验证的运行文件；分发时准备独立运行目录。LightWeaver 不自动发现相邻仓库或下载权重。
+本地模型使用声明式目录。查询、校验、下载和采用分开执行：
 
-精确字幕使用 Qwen3-ForcedAligner-0.6B；语义检索使用 Qwen3-Embedding GGUF，可选 Qwen3-Reranker 重排。模型脚本在本仓，依赖安装在独立环境，运行时不导入 LightASR、AutoModel 或其它产品：
+```bash
+npx weaver models list --json
+npx weaver models settings get --json
+npx weaver models download qwen3-forced-aligner --wait --json
+npx weaver models verify qwen3-forced-aligner --json
+npx weaver models use qwen3-forced-aligner --path /absolute/Qwen3-ForcedAligner-0.6B --json
+npx weaver models use qwen3-asr --path /absolute/Qwen3-ASR-Q8_0.gguf --json
+npx weaver models use-provider modelbest --json
+```
+
+下载根目录可由 `LIGHTWEAVER_MODEL_DOWNLOAD_ROOT` 或 `model_download_root` 指定。相对路径按仓库根解析。下载作业沿用现有取消、恢复和事件链，复用已通过校验的完整文件。文件先写入该作业独立暂存区，大小和固定 revision 的 SHA-256 都通过后才发布；目标存在不同内容时报告冲突并保留原件，可另选目录。下载完成不会自动修改配置；`models use` 或 Studio 的“校验后采用路径”才会绑定。Qwen ASR GGUF 和 TEN VAD 是单文件模型，可以直接采用任意文件名的既有文件；ForcedAligner 和 EmbeddingGemma 采用完整目录。
+
+保存 ModelBest Key 不等于选择预设。`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model` 和 `tts_model`。页面显示三项的有效值和来源，环境变量仍优先。
+
+`models settings set` 从文件读取白名单更新，避免把密钥放进命令参数：
+
+```bash
+npx weaver models settings set --file /absolute/model-settings.json --json
+npx weaver schema model-settings --json
+```
+
+本地 ASR 使用 Qwen3-ASR GGUF、TEN VAD、`transcribe` native library、Python bindings 和 `model_python`。`model_python` 是实际启动 ASR 进程的解释器。权重、native library、bindings、VAD 和 Python 环境分别检查；权重存在不等于运行时就绪。LightWeaver 不自动发现相邻仓库或自动编译运行库。
+
+精确字幕默认使用官方 Qwen3-ForcedAligner-0.6B 权重和 Torch 后端，跨平台默认为 CPU。MLX 仍是显式高级兼容路径：
+
+```bash
+uv pip install --python weaver/.venv/bin/python -r weaver/requirements.models.mlx.txt
+```
+
+模型脚本在本仓，依赖安装在独立环境，运行时不导入 LightASR、AutoModel 或其它产品：
 
 ```bash
 uv venv --python 3.12 weaver/.venv
 uv pip install --python weaver/.venv/bin/python -r weaver/requirements.models.txt
 ```
 
-按配置示例设置模型路径和 `llama_server` 可执行文件。模型可放在忽略的 `weaver/models/`，或显式指向自己的权重目录；运行时不会下载权重。Apple Silicon 默认 MLX，其他平台默认 Torch。Mac 上选择 Torch 时使用单独的 Python 环境安装 `qwen-asr==0.0.6`，再设置 `model_python` 与 `alignment_backend: 'torch'`。
+Windows 安装依赖时将上述 Python 路径换成 `weaver/.venv/Scripts/python.exe`。未显式设置 `model_python` 时会按平台选择该环境。
 
-对齐支持 zh、yue、en、de、es、fr、it、pt、ru、ko、ja，单场景语音上限 180 秒。字幕保留作者原文，使用真实词/字时间生成句界；VAD 和估算字幕不会标为精确对齐。语义检索召回字幕及画面观察文本，查询使用任务指令，素材使用原文；视觉模式使用 EmbeddingGemma 2 对视频窗口中点抽帧，直接检索画面。它只代表采样帧的相似度，仍需预览完整候选窗。
+按配置示例设置模型路径和运行库。模型可放在忽略的 `weaver/models/`，或显式指向自己的权重目录；推理不会下载权重。
+
+对齐支持 zh、yue、en、de、es、fr、it、pt、ru、ko、ja，单场景语音上限 180 秒。字幕保留作者原文，使用真实词/字时间生成句界；VAD 和估算字幕不会标为精确对齐。文本语义检索和画面检索共用 EmbeddingGemma 2 主干、mmproj、llama-server 与模型 Python。文本查询和文档使用各自的 EmbeddingGemma 前缀，执行 mean pooling 和 L2 归一化；视觉模式对视频窗口中点抽帧。缓存键包含文本适配器、前缀、文件字节和运行时，旧 Qwen3 向量不会被复用。
 
 ```bash
-npx weaver search --project demo --query "宠物在户外休息" --mode semantic --rerank --wait --json
+npx weaver search --project demo --query "宠物在户外休息" --mode semantic --wait --json
 npx weaver search --project demo --query "正在打羽毛球的人" --mode visual --wait --json
 ```
 
-`--rerank` 需配置重排权重，未启用时只做向量召回。GGUF 服务由每个作业启动并回收，取消会终止整个进程组。人工 SRT 和文本检索仍可独立使用。详见 [运行约定](docs/conventions.md) 与 [对齐和检索验收](docs/acceptance-alignment-search.md)。
+独立重排和说话人分段不在当前 Studio 默认入口和预设中。已配置的显式重排能力仍可由 CLI 使用。GGUF 服务由每个作业启动并回收，取消会终止整个进程组。人工 SRT 和文本检索仍可独立使用。详见 [运行约定](docs/conventions.md) 与 [对齐和检索验收](docs/acceptance-alignment-search.md)。
 
 本地 VoxCPM2、Hy-MT2 字幕翻译和 MOSS 临时说话人分段也使用本仓适配脚本。VoxCPM2 单独安装，避免与 MLX 对齐依赖冲突：
 

@@ -1,5 +1,7 @@
 # 2026-10-31 强制对齐与检索验收
 
+> 后续模型调整：文本语义检索已改为与视觉检索共用 EmbeddingGemma 2 主干和 mmproj，旧 Qwen3 Embedding 默认路径已移除。本文中的 Qwen3 Embedding 结果保留为当时验收记录，不能代表当前缓存或运行绑定。当前范围见[模型预设与本地安装验收](acceptance-model-setup.md)。
+
 本次接入 Qwen3 强制对齐、文本向量检索和可选候选重排。参考 LightASR 的语种、原文与真实时间戳处理，以及 AutoModel 的 GGUF pooling、查询指令和重排调用方式。适配代码、Python 环境和作业生命周期由 LightWeaver 管理，运行时不导入相邻项目。权重和 `llama-server` 使用显式配置路径。
 
 ## 实测环境

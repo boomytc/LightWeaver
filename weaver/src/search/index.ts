@@ -1560,7 +1560,7 @@ export class Analysis {
       EMBEDDING_PROVIDER,
       ...(request.rerank ? [RERANK_PROVIDER] : []),
     ];
-    for (const id of ids) this.providers.require(id);
+    for (const id of ids) await this.providers.require(id);
     const bindings = await this.providers.freeze(ids);
     const frozen = {
       ...request,
@@ -1604,7 +1604,7 @@ export class Analysis {
       model: z.string(),
     });
     const keys = inputs.map((input) =>
-      this.artifacts.key("embedding-text-v2", { input, binding: i.binding }),
+      this.artifacts.key("embedding-text-v3", { input, binding: i.binding }),
     );
     const values = keys.map((key) => {
       const cached = this.artifacts.lookup(key);
@@ -1633,7 +1633,7 @@ export class Analysis {
         });
         values[index] = value;
         this.artifacts.record({
-          operation: "embedding-text-v2",
+          operation: "embedding-text-v3",
           cacheKey: keys[index],
           generation: "default",
           digest: this.store.putJson(value),
@@ -1666,7 +1666,7 @@ export class Analysis {
             semantic: vector.reduce((sum, x, j) => sum + x * query[j], 0),
           },
           evidence: [e.text, e.evidenceDigest, i.binding],
-          method: "qwen3-embedding",
+          method: "embeddinggemma-2-text",
           limitations: [
             "检索依据是字幕和画面观察文本，候选需确认",
             ...(e.timingQuality === "estimated" ? ["证据时间为估算"] : []),
@@ -1720,7 +1720,7 @@ export class Analysis {
           ...v,
           scores: { ...v.scores, rerank: result.scores[index] },
           evidence: [...v.evidence, rerankerBinding],
-          method: "qwen3-embedding-rerank",
+          method: "embeddinggemma-2-text-rerank",
         }))
         .sort(
           (a, b) =>

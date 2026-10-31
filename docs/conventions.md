@@ -55,9 +55,9 @@ npx weaver match --project demo --edited edited-asset-id --sources source-asset-
 npx weaver proposal apply --project demo --proposal PROPOSAL --select CANDIDATE --expected-revision REV --json
 ```
 
-ASR、描述按源版本与窗口保存。describe 的观察和镜头树供作者判断，核心不代写旁白。文本模式按已存证据检索，semantic 模式用 Qwen3 Embedding 召回同一份字幕与观察文本，可显式使用 Qwen3 Reranker 重排前 50 个候选，默认返回前 20 个。文本和语义模式都遵守素材和完整证据时间窗过滤。视觉模式使用 EmbeddingGemma 2 和 mmproj，按五秒窗口的中点帧召回视频；不会读取 ASR 文本，也不会把单帧分数当作整窗内容判断。素材、时间过滤在抽帧前生效。语义分数是归一化向量的余弦相似度，重排分数单列保存；它们不是内容正确率。未配置请求的能力时明确失败，不回退到其它模型。
+ASR、描述按源版本与窗口保存。describe 的观察和镜头树供作者判断，核心不代写旁白。文本模式按已存证据检索，semantic 模式用 EmbeddingGemma 2 召回同一份字幕与观察文本，可显式使用旧 Qwen3 Reranker 适配重排前 50 个候选，默认返回前 20 个。文本和语义模式都遵守素材和完整证据时间窗过滤。视觉模式使用同一 EmbeddingGemma 2 主干和 mmproj，按五秒窗口的中点帧召回视频；不会读取 ASR 文本，也不会把单帧分数当作整窗内容判断。素材、时间过滤在抽帧前生效。语义分数是归一化向量的余弦相似度，重排分数单列保存；它们不是内容正确率。未配置请求的能力时明确失败，不回退到其它模型。
 
-查询以 `Instruct` / `Query` 格式编码，素材用原文，使用 last-token pooling 和 L2 归一化。角色、指令、模型字节和实际运行时进入缓存绑定，重排另按查询与候选文本缓存。检索不改写源证据；候选绑定提交时修订，作业成功后才在事务中发布。单条向量输入最多 8192 tokens；重排的查询与单条候选合计最多 7680 tokens，为模型模板预留空间。超限拒绝，不静默截断。
+文本语义检索和画面检索共用 EmbeddingGemma 2 GGUF、mmproj、llama-server 和模型 Python。文本查询使用 `task: search result | query:` 前缀，证据文本使用 `title: none | text:` 前缀；两者执行 mean pooling 和 L2 归一化。文本适配器、前缀、主干与 mmproj 字节、服务二进制和 Python 都进入缓存绑定，文本缓存使用 `embedding-text-v3`，不会复用旧 Qwen3 向量。重排另按查询与候选文本缓存。检索不改写源证据；候选绑定提交时修订，作业成功后才在事务中发布。单条向量输入最多 8192 tokens；重排的查询与单条候选合计最多 7680 tokens，为模型模板预留空间。超限拒绝，不静默截断。
 
 人工证据文件是 `[{sourceId,startUs,durationUs,text}]`，通过 `analyze --import /absolute/evidence.json --expected-revision REV --wait` 导入。外部候选使用 `schema proposal`，经 `proposal import --file /absolute/proposal.json --expected-revision REV --wait` 校验后保存。应用选择生成新修订，并保留选择记录。`proposal apply --ranges /absolute/ranges.json` 可传 `{候选ID:{startUs,durationUs}}`，裁剪必须完全包含在所选候选窗内。Studio 提供同样的预览和裁剪。
 
@@ -106,24 +106,45 @@ npx weaver voice-design --provider local-voxcpm2 --text "试听内容" --style "
 
 ## 模型边界
 
+Studio 的“模型”页和 `weaver models` 共用公开 `app`、`contracts` 入口。ModelBest 是第一个供应商预设，固定提供 `MiniCPM-V-4.7-35B-A3B` 与 `VoxCPM2`；获取 Key 的入口是 `https://platform.modelbest.cn/`，接口文档是 `https://platform.modelbest.cn/console/docs`。
+
+```bash
+npx weaver models list --json
+npx weaver models settings get --json
+npx weaver models settings set --file /absolute/model-settings.json --json
+npx weaver schema model-settings --json
+npx weaver models download qwen3-asr --wait --json
+npx weaver models verify qwen3-asr --json
+npx weaver models use qwen3-asr --path /absolute/qwen3-asr --json
+npx weaver models use ten-vad-darwin-arm64 --path /absolute/ten_vad --json
+npx weaver models use-provider modelbest --json
+```
+
+本地目录由 TypeScript 声明式 catalog 提供。每条发布固定 repository、revision、文件路径、大小和 SHA-256；不接受任意下载 URL。下载输入只接受 catalog 模型 ID 和根目录，路径拒绝绝对文件项、`..` 与控制字符。下载作业沿用现有 Jobs 取消、恢复、重试和事件，模型下载单独使用六小时时限。
+
+下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页只检查目录元数据；`verify`、成功下载和采用已有路径才读取并哈希完整文件。Qwen ASR GGUF 与 TEN VAD 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 的目录绑定要求完整模型目录。下载不会复制到 CAS，也不会隐式写入配置。
+
+模型根目录、采用路径和 CLI 相对路径都按仓库根解析。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，环境变量覆盖保持可见。
+
+`config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置以同目录临时文件同步后原子替换，权限为 `0600`。密钥空输入保持现值，清除必须显式请求；环境变量优先，SettingsView 只暴露是否配置和来源。
+
 | 能力 | 当前适配 | 配置 |
 | --- | --- | --- |
 | TTS、音色设计 | ModelBest VoxCPM2 SSE 音频事件 | MODELBEST_API_KEY、LIGHTWEAVER_TTS_MODEL |
 | VLM | ModelBest MiniCPM-V 或 DeepSeek flash | MODELBEST_API_KEY、DEEPSEEK_API_KEY，analyze --provider |
-| VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | LIGHTWEAVER_VAD_LIBRARY、LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS |
-| 精确对齐 | Qwen3 ForcedAligner，显式 MLX / Torch | LIGHTWEAVER_ALIGNMENT_MODEL、LIGHTWEAVER_ALIGNMENT_BACKEND、LIGHTWEAVER_ALIGNMENT_DEVICE |
-| 向量 | Qwen3 Embedding GGUF，last-token pooling | LIGHTWEAVER_EMBEDDING_MODEL |
+| VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | LIGHTWEAVER_MODEL_PYTHON、LIGHTWEAVER_VAD_LIBRARY、LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS |
+| 精确对齐 | Qwen3 ForcedAligner，Torch 默认，MLX 显式兼容 | LIGHTWEAVER_ALIGNMENT_MODEL、LIGHTWEAVER_ALIGNMENT_BACKEND、LIGHTWEAVER_ALIGNMENT_DEVICE |
+| 文本和视觉向量 | EmbeddingGemma 2 GGUF 与 mmproj，mean pooling | LIGHTWEAVER_VISUAL_MODEL、LIGHTWEAVER_VISUAL_MMPROJ、LIGHTWEAVER_VISUAL_SERVER |
 | 重排 | Qwen3 Reranker GGUF，rank pooling | LIGHTWEAVER_RERANKER_MODEL，search --rerank |
-| 视觉检索 | EmbeddingGemma 2 GGUF 与 mmproj，mean pooling | LIGHTWEAVER_VISUAL_MODEL、LIGHTWEAVER_VISUAL_MMPROJ、LIGHTWEAVER_VISUAL_SERVER |
 | 本地语音 | VoxCPM2 Torch | LIGHTWEAVER_LOCAL_TTS_MODEL、LIGHTWEAVER_SPEECH_PYTHON |
 | 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL、LIGHTWEAVER_TRANSLATION_SERVER |
 | 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
-本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，默认 `weaver/.venv/bin/python`。GGUF 使用 `LIGHTWEAVER_LLAMA_SERVER` / `llama_server` 指定的二进制，默认从 PATH 查找 `llama-server`。相对配置路径以仓库根解析，不读取相邻仓库配置或 Python 环境。依赖安装见 README；Torch 和新版 MLX 的 Transformers 版本不同，切换时使用各自独立环境。权重路径需要显式设置，不自动下载。
+本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认在 Windows 使用 `weaver/.venv/Scripts/python.exe`，其他平台使用 `weaver/.venv/bin/python`。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径以仓库根解析，不读取相邻仓库配置或 Python 环境。默认 `requirements.models.txt` 在所有平台安装 `qwen-asr`；MLX 只在显式安装 `requirements.models.mlx.txt` 后可用。权重路径需要显式设置，不自动下载。
 
 每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。模型 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 
-本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。
+本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。本轮模型预设与安装的验收证据和限制见[模型预设与本地安装验收](acceptance-model-setup.md)。
 
 `weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)、[能力落地验收](acceptance-coverage.md)、[连续影视素材验收](acceptance-long-form.md)与[全片精确对齐根因与验收](acceptance-alignment-root-cause.md)。
 

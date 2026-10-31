@@ -33,7 +33,7 @@ export class CaptionAssistance {
       throw new WeaverError("REVISION_CONFLICT", "字幕已修改，请重新提交", {current: revision});
     const track = revision.document.captions.find((t) => t.locale === input.locale);
     if (!track?.cues.length) throw new WeaverError("INVALID_INPUT", "当前语言没有可翻译字幕");
-    this.providers.require("hy-mt2");
+    await this.providers.require("hy-mt2");
     const binding = (await this.providers.freeze(["hy-mt2"]))["hy-mt2"];
     const frozen = {...input, track, binding};
     return this.jobs.submit({projectId: input.projectId, kind: "caption-translate", requestId: input.requestId,

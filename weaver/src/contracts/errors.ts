@@ -52,7 +52,12 @@ export function exitCode(code: string): number {
         : 1;
 }
 export function httpStatus(code: string): number {
-  return code === "REVISION_CONFLICT" || code === "REQUEST_ID_REUSED"
+  return [
+    "REVISION_CONFLICT",
+    "REQUEST_ID_REUSED",
+    "CONFIG_CONFLICT",
+    "CONFIG_LOCKED",
+  ].includes(code)
     ? 409
     : code === "NOT_FOUND"
       ? 404

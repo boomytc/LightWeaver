@@ -16,6 +16,7 @@ import {
   CreativePlan,
   SourceRange,
   ErrorProtocol,
+  ModelSettingsPatch,
 } from "./contracts/index.ts";
 import { WeaverError, errorProtocol, exitCode } from "./contracts/errors.ts";
 import { newId } from "./store/index.ts";
@@ -67,7 +68,13 @@ try {
         "--expected-revision <rev> / --expected-version <version> 和 --request-id <stable-id>；未给 request-id 时本次生成",
       commands: [
         "doctor --json",
-        "schema [project|revision|scene|speech|profile|captions|library|ops|proposal|timeline|error]",
+        "models list | models settings get",
+        "models settings set --file /abs/model-settings.json",
+        "models download <model-id> [--root /abs/download-root --wait]",
+        "models verify <model-id> [--root /abs/download-root]",
+        "models use <model-id> --path /abs/existing-model-or-file",
+        "models use-provider modelbest",
+        "schema [project|revision|scene|speech|profile|captions|library|ops|proposal|timeline|model-settings|error]",
         "project create <id> [--title text] [--workflow study-explainer]",
         "project list|show [id]",
         "project apply --project id --ops /abs/edit-ops.json --expected-revision rev",
@@ -119,7 +126,37 @@ try {
     for (const event of events)
       process.stdout.write(JSON.stringify(event) + "\n");
   } else if (command === "doctor") result = await app.providers.doctor();
-  else if (command === "schema") {
+  else if (command === "models") {
+    if (action === "settings") {
+      if (arg === "get") result = app.models.settings();
+      else if (arg === "set")
+        result = app.models.save(jsonFile("file"));
+      else throw new WeaverError("INVALID_INPUT", "未知 models settings 操作");
+    } else if (action === "list") result = app.models.view();
+    else if (action === "download") {
+      if (!arg) throw new WeaverError("INVALID_INPUT", "缺少 model-id");
+      const run = app.models.download({
+        id: arg,
+        root: str("root", true) || app.models.settings().downloadRoot.value,
+        requestId,
+      });
+      result = options.wait
+        ? { run: await app.jobs.wait(run.id), nodes: app.jobs.nodes(run.id) }
+        : run;
+    } else if (action === "verify") {
+      if (!arg) throw new WeaverError("INVALID_INPUT", "缺少 model-id");
+      result = await app.models.verify(
+        arg,
+        str("root", true) || app.models.settings().downloadRoot.value,
+      );
+    } else if (action === "use") {
+      if (!arg) throw new WeaverError("INVALID_INPUT", "缺少 model-id");
+      result = await app.models.adopt(arg, str("path"));
+    } else if (action === "use-provider") {
+      if (!arg) throw new WeaverError("INVALID_INPUT", "缺少 provider-id");
+      result = app.models.adoptProvider(arg, app.models.settings().revision);
+    } else throw new WeaverError("INVALID_INPUT", "未知 models 操作");
+  } else if (command === "schema") {
     const schemas = {
       project: ProjectDocument,
       revision: ProjectRevision,
@@ -132,6 +169,7 @@ try {
       ops: z.array(EditOperation),
       proposal: Proposal,
       timeline: TimelineManifest,
+      "model-settings": ModelSettingsPatch,
       error: ErrorProtocol,
     };
     const schema = Object.entries(schemas).find(

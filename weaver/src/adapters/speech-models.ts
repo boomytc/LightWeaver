@@ -4,6 +4,7 @@ import { z, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { localConfigValue } from "../config.ts";
 import { processRun } from "../media/process.ts";
+import { defaultSpeechPython, resolveExecutable } from "./executable.ts";
 import { localModelDigest } from "./toolchain.ts";
 
 export const LOCAL_TTS_PROVIDER = "local-voxcpm2";
@@ -99,28 +100,6 @@ export class SpeechModels {
     return value ? path.resolve(this.root, value) : "";
   }
 
-  private executable(value: string) {
-    if (!value) return "";
-    const candidates = value.includes(path.sep)
-      ? [this.localPath(value)]
-      : (process.env.PATH || "")
-          .split(path.delimiter)
-          .filter(Boolean)
-          .map((entry) => path.join(entry, value));
-    return (
-      candidates.find((candidate) => {
-        try {
-          return (
-            fs.statSync(candidate).isFile() &&
-            (fs.accessSync(candidate, fs.constants.X_OK), true)
-          );
-        } catch {
-          return false;
-        }
-      }) || ""
-    );
-  }
-
   private script(name: "speech_models.py" | "subtitle_models.py") {
     return path.join(this.root, "weaver/scripts", name);
   }
@@ -188,24 +167,26 @@ export class SpeechModels {
       localTtsModel: this.localPath(
         this.value("LIGHTWEAVER_LOCAL_TTS_MODEL", "local_tts_model"),
       ),
-      speechPython: this.executable(
+      speechPython: resolveExecutable(
         this.value(
           "LIGHTWEAVER_SPEECH_PYTHON",
           "speech_python",
-          "weaver/.speech-venv/bin/python",
+          defaultSpeechPython(),
         ),
+        this.root,
       ),
       translationModel: this.localPath(
         this.value("LIGHTWEAVER_TRANSLATION_MODEL", "translation_model"),
       ),
-      translationServer: this.executable(
+      translationServer: resolveExecutable(
         this.value(
           "LIGHTWEAVER_TRANSLATION_SERVER",
           "translation_server",
           "llama-server",
         ),
+        this.root,
       ),
-      python3: this.executable("python3"),
+      python3: resolveExecutable("python3", this.root),
     };
   }
 
@@ -387,7 +368,7 @@ export class SpeechModels {
       provider === LOCAL_TTS_PROVIDER
         ? [
             "创建独立环境：uv venv --python 3.12 weaver/.speech-venv",
-            "安装语音依赖：uv pip install --python weaver/.speech-venv/bin/python -r weaver/requirements.speech.txt",
+            `安装语音依赖：uv pip install --python ${defaultSpeechPython()} -r weaver/requirements.speech.txt`,
             "配置 local_tts_model 与 speech_python",
           ]
         : [

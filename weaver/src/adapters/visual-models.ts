@@ -5,10 +5,15 @@ import { z, Digest, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { localConfigValue } from "../config.ts";
 import { processRun } from "../media/process.ts";
+import { defaultModelPython, resolveExecutable } from "./executable.ts";
 import { fileDigest } from "./toolchain.ts";
 
 export const VISUAL_PROVIDER = "embeddinggemma-visual";
+export const TEXT_EMBEDDING_PROVIDER = "embeddinggemma-text";
 const VISUAL_ADAPTER = "embeddinggemma-visual-v1";
+const TEXT_ADAPTER = "embeddinggemma-text-v1";
+export const TEXT_QUERY_PREFIX = "task: search result | query: ";
+export const TEXT_DOCUMENT_PREFIX = "title: none | text: ";
 
 export const VisualInput = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -39,7 +44,8 @@ const VisualRuntime = z.strictObject({
   warmup: z.literal(false),
 });
 
-const VisualBinding = z.strictObject({
+const VisualBinding = z.discriminatedUnion("id", [
+  z.strictObject({
   id: z.literal(VISUAL_PROVIDER),
   model: z.string().min(1),
   mmproj: z.string().min(1),
@@ -53,7 +59,27 @@ const VisualBinding = z.strictObject({
     python: Digest,
   }),
   runtime: VisualRuntime,
-});
+  }),
+  z.strictObject({
+    id: z.literal(TEXT_EMBEDDING_PROVIDER),
+    model: z.string().min(1),
+    mmproj: z.string().min(1),
+    version: z.literal(TEXT_ADAPTER),
+    endpoint: z.literal("local-process"),
+    files: z.strictObject({
+      model: Digest,
+      mmproj: Digest,
+      script: Digest,
+      server: Digest,
+      python: Digest,
+    }),
+    runtime: VisualRuntime,
+    prefixes: z.strictObject({
+      query: z.literal(TEXT_QUERY_PREFIX),
+      document: z.literal(TEXT_DOCUMENT_PREFIX),
+    }),
+  }),
+]);
 
 type Result = z.infer<typeof VisualResult>;
 type Binding = z.infer<typeof VisualBinding>;
@@ -73,24 +99,6 @@ export class VisualModels {
     return value ? path.resolve(this.root, value) : "";
   }
 
-  private executable(value: string): string {
-    const candidates = value.includes(path.sep)
-      ? [this.localPath(value)]
-      : (process.env.PATH || "")
-          .split(path.delimiter)
-          .map((directory) => path.join(directory, value));
-    return (
-      candidates.find((candidate) => {
-        try {
-          fs.accessSync(candidate, fs.constants.X_OK);
-          return fs.statSync(candidate).isFile();
-        } catch {
-          return false;
-        }
-      }) || ""
-    );
-  }
-
   settings() {
     return {
       model: this.localPath(
@@ -99,15 +107,17 @@ export class VisualModels {
       mmproj: this.localPath(
         this.value("LIGHTWEAVER_VISUAL_MMPROJ", "visual_mmproj"),
       ),
-      server: this.executable(
+      server: resolveExecutable(
         this.value("LIGHTWEAVER_VISUAL_SERVER", "visual_server"),
+        this.root,
       ),
-      python: this.executable(
+      python: resolveExecutable(
         this.value(
           "LIGHTWEAVER_MODEL_PYTHON",
           "model_python",
-          "weaver/.venv/bin/python",
+          defaultModelPython(),
         ),
+        this.root,
       ),
       script: path.join(this.root, "weaver/scripts/visual_models.py"),
     };
@@ -122,12 +132,28 @@ export class VisualModels {
         return false;
       }
     };
+    const common = {
+      capabilities: ["embedding"],
+      model: [settings.model, settings.mmproj].filter(Boolean).join(" + "),
+      endpoint: "local-process",
+      ready: [
+        settings.python,
+        settings.server,
+        settings.script,
+        settings.model,
+        settings.mmproj,
+      ].every(exists),
+      remote: false,
+      idempotency: true,
+      cancellation: "process-tree",
+      hint:
+        "配置 visual_model、visual_mmproj、visual_server；模型 Python 使用 model_python",
+    };
     return z.array(ProviderDescriptor).parse([
       {
         id: VISUAL_PROVIDER,
         name: "EmbeddingGemma 2 视觉检索",
-        capabilities: ["embedding"],
-        model: [settings.model, settings.mmproj].filter(Boolean).join(" + "),
+        ...common,
         version: JSON.stringify({
           adapter: VISUAL_ADAPTER,
           pooling: "mean",
@@ -136,32 +162,34 @@ export class VisualModels {
           python: settings.python,
           server: settings.server,
         }),
-        endpoint: "local-process",
-        ready: [
-          settings.python,
-          settings.server,
-          settings.script,
-          settings.model,
-          settings.mmproj,
-        ].every(exists),
-        remote: false,
-        idempotency: true,
-        cancellation: "process-tree",
-        hint:
-          "配置 visual_model、visual_mmproj、visual_server；模型 Python 使用 model_python",
+      },
+      {
+        id: TEXT_EMBEDDING_PROVIDER,
+        name: "EmbeddingGemma 2 文本语义检索",
+        ...common,
+        version: JSON.stringify({
+          adapter: TEXT_ADAPTER,
+          pooling: "mean",
+          queryPrefix: TEXT_QUERY_PREFIX,
+          documentPrefix: TEXT_DOCUMENT_PREFIX,
+          protocol: "openai-embeddings-v1",
+          script: settings.script,
+          python: settings.python,
+          server: settings.server,
+        }),
       },
     ]);
   }
 
-  private checkReady(): void {
+  private checkReady(provider: typeof VISUAL_PROVIDER | typeof TEXT_EMBEDDING_PROVIDER): void {
     const descriptor = this.descriptors().find(
-      (provider) => provider.id === VISUAL_PROVIDER,
+      (candidate) => candidate.id === provider,
     );
     if (!descriptor?.ready)
       throw new WeaverError(
         "CONFIG_MISSING",
         "EmbeddingGemma 视觉检索尚未配置",
-        { provider: VISUAL_PROVIDER },
+        { provider },
         [
           descriptor?.hint ||
             "配置 visual_model、visual_mmproj、visual_server 和 model_python",
@@ -245,8 +273,10 @@ export class VisualModels {
     return value;
   }
 
-  private async currentBinding(): Promise<Binding> {
-    this.checkReady();
+  private async currentBinding(
+    provider: typeof VISUAL_PROVIDER | typeof TEXT_EMBEDDING_PROVIDER,
+  ): Promise<Binding> {
+    this.checkReady(provider);
     const settings = this.settings();
     const [model, mmproj, script, server, python, runtime] =
       await Promise.all([
@@ -257,23 +287,41 @@ export class VisualModels {
         fileDigest(settings.python),
         this.invoke("inspect"),
       ]);
-    return VisualBinding.parse({
-      id: VISUAL_PROVIDER,
+    const common = {
       model: settings.model,
       mmproj: settings.mmproj,
-      version: VISUAL_ADAPTER,
       endpoint: "local-process",
       files: { model, mmproj, script, server, python },
       runtime,
-    });
+    };
+    return VisualBinding.parse(
+      provider === VISUAL_PROVIDER
+        ? { ...common, id: VISUAL_PROVIDER, version: VISUAL_ADAPTER }
+        : {
+            ...common,
+            id: TEXT_EMBEDDING_PROVIDER,
+            version: TEXT_ADAPTER,
+            prefixes: {
+              query: TEXT_QUERY_PREFIX,
+              document: TEXT_DOCUMENT_PREFIX,
+            },
+          },
+    );
   }
 
-  async freeze(): Promise<string> {
-    return JSON.stringify(await this.currentBinding());
+  async freeze(
+    provider: typeof VISUAL_PROVIDER | typeof TEXT_EMBEDDING_PROVIDER =
+      VISUAL_PROVIDER,
+  ): Promise<string> {
+    return JSON.stringify(await this.currentBinding(provider));
   }
 
-  async require(binding?: string): Promise<void> {
-    const current = await this.currentBinding();
+  async require(
+    binding?: string,
+    provider: typeof VISUAL_PROVIDER | typeof TEXT_EMBEDDING_PROVIDER =
+      VISUAL_PROVIDER,
+  ): Promise<void> {
+    const current = await this.currentBinding(provider);
     if (!binding) return;
     let frozen: Binding;
     try {
@@ -282,14 +330,14 @@ export class VisualModels {
       throw new WeaverError(
         "PROVIDER_CHANGED",
         "视觉模型绑定无效或版本不兼容，请重新提交作业",
-        { provider: VISUAL_PROVIDER },
+        { provider },
       );
     }
     if (!isDeepStrictEqual(frozen, current))
       throw new WeaverError(
         "PROVIDER_CHANGED",
         "视觉模型、运行时或服务二进制已改变，请重新提交作业",
-        { provider: VISUAL_PROVIDER },
+        { provider },
       );
   }
 
@@ -298,7 +346,9 @@ export class VisualModels {
     workDir: string;
     signal: AbortSignal;
     binding: string;
+    provider?: typeof VISUAL_PROVIDER | typeof TEXT_EMBEDDING_PROVIDER;
   }): Promise<Result> {
+    const provider = input.provider || VISUAL_PROVIDER;
     const inputs = z.array(VisualInput).min(1).parse(input.inputs).map(
       (item): VisualInputValue => {
         if (item.kind === "text") return item;
@@ -316,7 +366,7 @@ export class VisualModels {
         return { kind: "image", file };
       },
     );
-    await this.require(input.binding);
+    await this.require(input.binding, provider);
     const settings = this.settings();
     const result = VisualResult.parse(
       await this.invoke(
@@ -330,7 +380,7 @@ export class VisualModels {
         { workDir: input.workDir, signal: input.signal },
       ),
     );
-    await this.require(input.binding);
+    await this.require(input.binding, provider);
     if (result.model !== settings.model)
       throw new WeaverError(
         "PROVIDER_FORMAT",
@@ -354,5 +404,27 @@ export class VisualModels {
         "视觉 embedding 数量、维度或归一化错误",
       );
     return result;
+  }
+
+  async embedText(input: {
+    inputs: { role: "query" | "document"; text: string }[];
+    workDir: string;
+    signal: AbortSignal;
+    binding: string;
+  }): Promise<Result> {
+    const inputs = input.inputs.map<VisualInputValue>((item) => ({
+      kind: "text",
+      text:
+        item.role === "query"
+          ? `${TEXT_QUERY_PREFIX}${item.text}`
+          : `${TEXT_DOCUMENT_PREFIX}${item.text}`,
+    }));
+    return this.embed({
+      inputs,
+      workDir: input.workDir,
+      signal: input.signal,
+      binding: input.binding,
+      provider: TEXT_EMBEDDING_PROVIDER,
+    });
   }
 }

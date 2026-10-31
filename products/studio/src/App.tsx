@@ -21,13 +21,13 @@ import {
   type Speech,
 } from "@lightweaver/weaver/contracts";
 import { api, ApiError, mediaUrl, requestId } from "./api";
+import { ModelPanel } from "./ModelPanel";
 import {
   CaptionAssistPanel,
   CaptionTrackEditor,
   CreativePlanEditor,
   MaskEditor,
   RunDetail,
-  SpeakerAssistPanel,
   SourceWindowPlayer,
   type SourceWindow,
   type SceneMask,
@@ -139,7 +139,6 @@ export function App() {
     [analysisSource, setAnalysisSource] = useState("");
   const [query, setQuery] = useState(""),
     [mode, setMode] = useState("text"),
-    [rerank, setRerank] = useState(false),
     [candidateRanges, setCandidateRanges] = useState<
       Record<string, SourceWindow>
     >({}),
@@ -469,34 +468,6 @@ export function App() {
       )
         setNotice("译文字幕已显式采用到原字幕轨");
     });
-  const applySpeakerAssist = (runId: string) =>
-    act(async () => {
-      if (!draft || dirtyRef.current)
-        throw new Error("先保存当前项目草稿，再采用说话人分段");
-      const generation = epoch.current,
-        id = projectRef.current,
-        draftSequence = draftSeq.current,
-        revision = await api(
-          `/projects/${id}/speakers/apply`,
-          ProjectRevision,
-          {
-            method: "POST",
-            body: {
-              runId,
-              expectedRevision: base,
-              requestId: requestId(),
-            },
-          },
-        );
-      if (
-        await acceptProjectRevision(revision, {
-          id,
-          generation,
-          draftSequence,
-        })
-      )
-        setNotice("临时说话人分段已显式采用；可在每个 cue 中手动改名");
-    });
   const adoptAnalysisCaptions = (
     input: { sourceId?: string; runId?: string; locale?: string } = {},
   ) =>
@@ -674,12 +645,6 @@ export function App() {
     (provider) =>
       provider.capabilities.includes("alignment") && provider.ready,
   );
-  const speakerReady = providers.some(
-    (provider) =>
-      provider.id === "moss-speakers" &&
-      provider.capabilities.includes("diarization") &&
-      provider.ready,
-  );
   return (
     <div className="app">
       <header>
@@ -691,6 +656,7 @@ export function App() {
             ["methods", "方法"],
             ["voices", "音色"],
             ["library", "素材"],
+            ["models", "模型"],
           ].map(([page, label]) => (
             <button
               className={route.page === page ? "selected" : ""}
@@ -757,7 +723,9 @@ export function App() {
           </button>
         </details>
       )}
-      {route.page !== "films" ? (
+      {route.page === "models" ? (
+        <ModelPanel fail={fail} />
+      ) : route.page !== "films" ? (
         <LibraryPanel
           key={route.page}
           kind={
@@ -1257,31 +1225,12 @@ export function App() {
                       />
                       <select
                         value={mode}
-                        onChange={(e) => {
-                          setMode(e.target.value);
-                          if (e.target.value !== "semantic") setRerank(false);
-                        }}
+                        onChange={(e) => setMode(e.target.value)}
                       >
                         <option value="text">文本检索</option>
                         <option value="semantic">语义检索（字幕与观察）</option>
                         <option value="visual">画面检索</option>
                       </select>
-                      {mode === "semantic" && (
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={rerank}
-                            disabled={
-                              !providers.some(
-                                (p) =>
-                                  p.capabilities.includes("rerank") && p.ready,
-                              )
-                            }
-                            onChange={(e) => setRerank(e.target.checked)}
-                          />
-                          候选重排
-                        </label>
-                      )}
                       <button
                         onClick={() =>
                           act(async () => {
@@ -1294,7 +1243,6 @@ export function App() {
                                 body: {
                                   query,
                                   mode,
-                                  rerank: mode === "semantic" && rerank,
                                   requestId: requestId(),
                                 },
                               },
@@ -1527,21 +1475,6 @@ export function App() {
                         从转写采用为{localeName(locale)}
                       </button>
                     </div>
-                    <SpeakerAssistPanel
-                      projectId={draft.id}
-                      sourceId={
-                        draft.assets.find(
-                          (asset) => refKey(asset) === captionSource,
-                        )?.assetId || ""
-                      }
-                      locale={locale}
-                      expectedRevision={base}
-                      ready={speakerReady}
-                      disabled={busy || dirty}
-                      fail={fail}
-                      onApply={applySpeakerAssist}
-                      onRunChange={() => void reload().catch(fail)}
-                    />
                     {draft.locales.map((l) => {
                       const track = draft.captions.find((t) => t.locale === l);
                       const updateTrack = (

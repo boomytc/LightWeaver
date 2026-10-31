@@ -1,0 +1,3 @@
+# Optional compatibility environment for explicitly selecting alignment_backend: mlx.
+-r requirements.models.txt
+mlx-audio==0.6.3

@@ -52,6 +52,36 @@ const route = (
 const Write = z.object({ expectedRevision: z.string(), requestId: z.string() });
 route("get", "/api/capabilities", () => app.capabilities());
 route("get", "/api/doctor", () => app.providers.doctor());
+route("get", "/api/models", (req) =>
+  app.models.view(z.string().min(1).optional().parse(req.query.root)),
+);
+route("put", "/api/models/settings", (req) => app.models.save(req.body));
+route("post", "/api/models/providers/:id/adopt", (req) =>
+  app.models.adoptProvider(
+    z.string().parse(req.params.id),
+    z.object({ expectedRevision: z.string() }).parse(req.body).expectedRevision,
+  ),
+);
+route("post", "/api/models/:id/download", (req) =>
+  app.models.download({
+    id: z.string().parse(req.params.id),
+    ...z
+      .object({ root: z.string(), requestId: z.string() })
+      .parse(req.body),
+  }),
+);
+route("post", "/api/models/:id/verify", (req) =>
+  app.models.verify(
+    z.string().parse(req.params.id),
+    z.object({ root: z.string() }).parse(req.body).root,
+  ),
+);
+route("post", "/api/models/:id/adopt", (req) =>
+  app.models.adopt(
+    z.string().parse(req.params.id),
+    z.object({ path: z.string() }).parse(req.body).path,
+  ),
+);
 route("get", "/api/projects", () => app.projects.list());
 route("post", "/api/projects", (req) =>
   app.projects.create(

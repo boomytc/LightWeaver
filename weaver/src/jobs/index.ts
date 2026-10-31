@@ -446,9 +446,13 @@ export class Jobs {
           )
           .get(n.id, n.retry_base),
       );
+    const limitMs =
+      n.spec.operation === "model-download"
+        ? 6 * 60 * 60 * 1000
+        : 30 * 60 * 1000;
     const remainingMs = Math.max(
       1,
-      30 * 60 * 1000 - (Date.now() - Date.parse(first.started_at)),
+      limitMs - (Date.now() - Date.parse(first.started_at)),
     );
     const deadline = setTimeout(
       () =>

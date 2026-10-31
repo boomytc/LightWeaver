@@ -29,6 +29,7 @@ import { Authoring } from "../authoring/service.ts";
 import { CaptionAssistance } from "../captions/assistance.ts";
 import { VisualSearch } from "../search/visual.ts";
 import { SpeakerAssistance } from "../captions/speakers.ts";
+import { Models } from "../models/service.ts";
 export { errorProtocol, httpStatus } from "../contracts/errors.ts";
 
 export class Application {
@@ -36,6 +37,7 @@ export class Application {
   readonly projects: Projects;
   readonly library: Library;
   readonly jobs: Jobs;
+  readonly models: Models;
   readonly providers: Providers;
   readonly builds: Builds;
   readonly analysis: Analysis;
@@ -50,6 +52,7 @@ export class Application {
     this.projects = new Projects(this.store);
     this.library = new Library(this.store);
     this.jobs = new Jobs(this.store);
+    this.models = new Models(workspaceRoot, this.jobs);
     this.providers = new Providers(this.store);
     this.builds = new Builds(
       this.store,

@@ -9,7 +9,11 @@ vlm_model: 'MiniCPM-V-4.7-35B-A3B'
 deepseek_model: 'deepseek-flash'
 tts_model: 'VoxCPM2'
 
-# Explicit local runtime. No implicit sibling checkout discovery or automatic model download.
+# Model files are downloaded only by an explicit `weaver models download`.
+# The Studio model page or `weaver models use --path` binds an existing directory.
+# model_download_root: '/absolute/lightweaver-models'
+
+# Explicit local runtime. No implicit sibling checkout discovery or automatic download.
 # asr_model: '/absolute/runtime/qwen3-asr-0.6b-Q8_0.gguf'
 # asr_library: '/absolute/runtime/libtranscribe.dylib'
 # asr_bindings: '/absolute/runtime/transcribe.cpp/bindings/python/src'
@@ -18,24 +22,22 @@ tts_model: 'VoxCPM2'
 # Optional local capabilities. Paths are relative to this repository or absolute.
 # Install: uv venv --python 3.12 weaver/.venv
 #          uv pip install --python weaver/.venv/bin/python -r weaver/requirements.models.txt
-model_python: 'weaver/.venv/bin/python'
-# Apple Silicon: mlx; other platforms: torch. No fallback between runtimes.
-# alignment_backend: 'mlx'
-# alignment_model: 'weaver/models/Qwen3-ForcedAligner-0.6B-8bit'
+# Python defaults to weaver/.venv/Scripts/python.exe on Windows, bin/python elsewhere.
+# model_python: '/absolute/model-environment/python'
+# Official Torch weights are the cross-platform default. MLX remains explicit opt-in.
+# alignment_backend: 'torch'
+# alignment_model: 'weaver/models/qwen3-forced-aligner/<revision>'
 # alignment_device: 'cpu'  # torch only: cpu or cuda[:index]
 # GGUF weights are loaded by a job-owned llama-server; no persistent service is needed.
 llama_server: 'llama-server'
-# embedding_model: 'weaver/models/Qwen3-Embedding-0.6B-Q8_0.gguf'
-# reranker_model: 'weaver/models/Qwen3-Reranker-0.6B-fixed-Q8_0.gguf'
 
-# Visual retrieval requires an EmbeddingGemma 2 capable llama-server build.
-# visual_model: 'weaver/models/embeddinggemma-2-Q8_0.gguf'
-# visual_mmproj: 'weaver/models/mmproj-F16.gguf'
+# Text and visual retrieval share EmbeddingGemma 2, mmproj and this llama-server build.
+# visual_model: 'weaver/models/embeddinggemma-2/<revision>/embeddinggemma-2-Q8_0.gguf'
+# visual_mmproj: 'weaver/models/embeddinggemma-2/<revision>/mmproj-F16.gguf'
 # visual_server: 'weaver/runtime/visual/llama-server'
 
-# Local VoxCPM2 uses its own Python environment, separate from MLX alignment.
-speech_python: 'weaver/.speech-venv/bin/python'
+# Optional local TTS has its own environment; ModelBest VoxCPM2 needs no local TTS model.
+# speech_python: '/absolute/speech-environment/python'
 # local_tts_model: 'weaver/models/VoxCPM2'
 # translation_model: 'weaver/models/Hy-MT2-1.8B-Q4_K_M.gguf'
 # translation_server: 'llama-server'
-# diarization_model: 'weaver/models/MOSS-Transcribe-Diarize-Q8_0.gguf'

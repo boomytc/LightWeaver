@@ -4,9 +4,9 @@ import { z, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { localConfigValue } from "../config.ts";
 import { processRun } from "../media/process.ts";
+import { defaultModelPython, resolveExecutable } from "./executable.ts";
 
 export const ALIGNMENT_PROVIDER = "qwen3-forced-aligner";
-export const EMBEDDING_PROVIDER = "qwen3-embedding";
 export const RERANK_PROVIDER = "qwen3-reranker";
 const alignmentLanguages: Record<string, string> = {
   zh: "Chinese",
@@ -30,8 +30,6 @@ export function alignmentLanguage(locale: string) {
     );
   return language;
 }
-export const RETRIEVAL_INSTRUCTION =
-  "Given a description of a video scene, retrieve matching transcript or visual observation passages";
 export const EmbeddingInput = z.object({
   role: z.enum(["query", "document"]),
   text: z.string().trim().min(1),
@@ -84,45 +82,28 @@ export class LocalModels {
   private localPath(value: string) {
     return value ? path.resolve(this.root, value) : "";
   }
-  private executable(value: string) {
-    const candidates = value.includes(path.sep)
-      ? [this.localPath(value)]
-      : (process.env.PATH || "")
-          .split(path.delimiter)
-          .map((p) => path.join(p, value));
-    return (
-      candidates.find((p) => {
-        try {
-          fs.accessSync(p, fs.constants.X_OK);
-          return fs.statSync(p).isFile();
-        } catch {
-          return false;
-        }
-      }) || ""
-    );
-  }
   settings() {
     return {
-      python: this.executable(
+      python: resolveExecutable(
         this.value(
           "LIGHTWEAVER_MODEL_PYTHON",
           "model_python",
-          "weaver/.venv/bin/python",
+          defaultModelPython(),
         ),
+        this.root,
       ),
-      server: this.executable(
+      server: resolveExecutable(
         this.value("LIGHTWEAVER_LLAMA_SERVER", "llama_server", "llama-server"),
+        this.root,
       ),
-      ffmpeg: this.executable("ffmpeg"),
+      ffmpeg: resolveExecutable("ffmpeg", this.root),
       alignmentBackend: z
         .enum(["mlx", "torch"])
         .parse(
           this.value(
             "LIGHTWEAVER_ALIGNMENT_BACKEND",
             "alignment_backend",
-            process.platform === "darwin" && process.arch === "arm64"
-              ? "mlx"
-              : "torch",
+            "torch",
           ),
         ),
       alignmentDevice: z
@@ -133,9 +114,6 @@ export class LocalModels {
         ),
       alignmentModel: this.localPath(
         this.value("LIGHTWEAVER_ALIGNMENT_MODEL", "alignment_model"),
-      ),
-      embeddingModel: this.localPath(
-        this.value("LIGHTWEAVER_EMBEDDING_MODEL", "embedding_model"),
       ),
       rerankerModel: this.localPath(
         this.value("LIGHTWEAVER_RERANKER_MODEL", "reranker_model"),
@@ -171,21 +149,6 @@ export class LocalModels {
           hint: "配置 model_python、alignment_model 与 alignment_backend（mlx 或 torch），安装 weaver 的模型依赖",
         },
         {
-          id: EMBEDDING_PROVIDER,
-          name: "Qwen3 文本语义检索",
-          capabilities: ["embedding"],
-          model: s.embeddingModel,
-          version: JSON.stringify({
-            adapter: "qwen3-embedding-v1",
-            pooling: "last-l2",
-            instruction: RETRIEVAL_INSTRUCTION,
-            server: s.server,
-            python: s.python,
-          }),
-          ready: !!s.python && !!s.server && exists(s.embeddingModel, false),
-          hint: "配置 model_python、embedding_model（Qwen3 Embedding GGUF）和 llama_server",
-        },
-        {
           id: RERANK_PROVIDER,
           name: "Qwen3 候选重排",
           capabilities: ["rerank"],
@@ -210,7 +173,7 @@ export class LocalModels {
   }
   files(id: string) {
     const s = this.settings();
-    if (![ALIGNMENT_PROVIDER, EMBEDDING_PROVIDER, RERANK_PROVIDER].includes(id))
+    if (![ALIGNMENT_PROVIDER, RERANK_PROVIDER].includes(id))
       return [];
     return [
       path.join(this.root, "weaver/scripts/models.py"),
