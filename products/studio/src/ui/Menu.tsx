@@ -14,7 +14,7 @@ export function Menu({
         {label}
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className="z-50 min-w-44 rounded-md border border-line bg-panel p-1 text-ink shadow-lg">
+        <DropdownMenu.Content className="z-50 min-w-44 rounded-2xl border border-line bg-panel p-1.5 text-ink shadow-[var(--lw-shadow-menu)]">
           {children}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

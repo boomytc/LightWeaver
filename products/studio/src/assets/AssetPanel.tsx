@@ -123,7 +123,7 @@ export function AssetPanel({
             <li key={asset.version}>
               <button
                 type="button"
-                className={`my-1 w-full text-left ${selectedKey === key ? "border-accent" : ""}`}
+                className={`row-item my-0.5 w-full text-left ${selectedKey === key ? "is-on" : ""}`}
                 onClick={() => onSelect(key)}
               >
                 <b>{asset.name}</b>

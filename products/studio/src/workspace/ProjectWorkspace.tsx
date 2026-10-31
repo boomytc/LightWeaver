@@ -96,13 +96,13 @@ export function ProjectWorkspace() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-panel px-3 py-2">
-        <label className="min-w-40 flex-1">
+      <header className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+        <label className="min-w-48 flex-1">
           <span className="sr-only">项目名</span>
-          <input value={draft.title} aria-label="项目名" onChange={(event) => session.edit({ ...draft, title: event.target.value })} />
+          <input className="border-0 bg-transparent px-0 text-base font-semibold shadow-none" value={draft.title} aria-label="项目名" onChange={(event) => session.edit({ ...draft, title: event.target.value })} />
         </label>
-        <small>
-          修订 {session.base.slice(0, 16) || "未加载"}
+        <small className="text-muted">
+          修订 {session.base.slice(0, 12) || "未加载"}
           {ctx.revision.id !== session.base ? " · 服务器有新修订" : ""}
           {session.dirty || session.planDirty ? " · 未保存草稿" : " · 已保存"}
         </small>
@@ -132,7 +132,7 @@ export function ProjectWorkspace() {
             检查制作计划
           </MenuItem>
         </Menu>
-        <div className="flex flex-wrap gap-1">
+        <div className="seg" role="tablist" aria-label="工作区">
           {(
             [
               ["edit", "画面"],
@@ -142,7 +142,7 @@ export function ProjectWorkspace() {
               ["delivery", "交付"],
             ] as const
           ).map(([key, label]) => (
-            <button key={key} type="button" className={focus === key ? "border-accent" : ""} onClick={() => setFocus(key)}>
+            <button key={key} type="button" role="tab" aria-selected={focus === key} className={focus === key ? "is-on" : ""} onClick={() => setFocus(key)}>
               {label}
             </button>
           ))}
@@ -173,7 +173,7 @@ export function ProjectWorkspace() {
         </div>
       )}
       <div className="flex min-h-0 flex-1">
-        <aside className="flex min-h-0 shrink-0 flex-col border-r border-line bg-panel" style={{ width: collapsed.left ? 44 : layout.left }}>
+        <aside className="flex min-h-0 shrink-0 flex-col border-r border-line" style={{ width: collapsed.left ? 52 : layout.left }}>
           <button
             type="button"
             aria-label={collapsed.left ? "展开左侧栏" : "折叠左侧栏"}
@@ -183,15 +183,15 @@ export function ProjectWorkspace() {
           </button>
           {!collapsed.left && (
             <div className="min-h-0 flex-1 overflow-auto p-2">
-              <div className="mb-2 flex gap-1">
+              <div className="seg mb-3 w-full">
                 {(
                   [
                     ["assets", "素材"],
                     ["evidence", "证据"],
-                    ["scenes", "场景序列"],
+                    ["scenes", "场景"],
                   ] as const
                 ).map(([key, label]) => (
-                  <button key={key} type="button" className={leftMode === key ? "border-accent" : ""} onClick={() => setLeftMode(key)}>
+                  <button key={key} type="button" className={`min-w-0 flex-1 ${leftMode === key ? "is-on" : ""}`} onClick={() => setLeftMode(key)}>
                     {label}
                   </button>
                 ))}
@@ -211,7 +211,7 @@ export function ProjectWorkspace() {
                     <button
                       key={item.id}
                       type="button"
-                      className={`my-1 w-full text-left ${item.id === sceneId ? "border-accent" : ""}`}
+                      className={`row-item my-0.5 w-full text-left ${item.id === sceneId ? "is-on" : ""}`}
                       onClick={() => setSceneId(item.id)}
                     >
                       {index + 1}. {labels[item.kind]} {item.label || ""}
@@ -223,7 +223,7 @@ export function ProjectWorkspace() {
           )}
         </aside>
         <button type="button" aria-label="调整左侧宽度" className="w-1 cursor-col-resize border-0 bg-line p-0" onPointerDown={drag("left")} />
-        <main className="min-w-0 flex-1 overflow-auto bg-canvas p-3">
+        <main className="min-w-0 flex-1 overflow-auto bg-[color:color-mix(in_srgb,var(--lw-canvas)_65%,white)] p-4">
           {focus === "edit" && scene?.kind === "clip" && (
             <SourceWindowPlayer sourceUrl={assetUrl(ctx.assets, refKey(scene.source))} sourceKey={refKey(scene.source)} range={scene.sourceRange} label="当前片段" />
           )}
@@ -231,7 +231,7 @@ export function ProjectWorkspace() {
             <img className="scene-still" alt="当前静帧" src={assetUrl(ctx.assets, refKey(scene.image)) || ""} />
           )}
           {focus === "edit" && scene?.kind === "card" && (
-            <div className="scene-preview card">
+            <div className="scene-preview card stage-well">
               <b>{scene.cardSpec.copy[session.locale]?.headline || "卡片"}</b>
             </div>
           )}

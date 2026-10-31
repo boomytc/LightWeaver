@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ProjectRevision, WORKFLOWS, z } from "@lightweaver/weaver/contracts";
 import { api, requestId } from "../api";
 import { Field } from "../ui/Field";
+import { SoftPillButton } from "../ui/SoftPillButton";
 
 export function CreateProject({
   onCreated,
@@ -13,8 +14,8 @@ export function CreateProject({
   const [title, setTitle] = useState(""),
     [workflow, setWorkflow] = useState("study-explainer");
   return (
-    <section className="empty">
-      <h1>开始一部片子</h1>
+    <section className="mx-auto mt-8 max-w-xl rounded-[22px] border border-line bg-panel p-8 shadow-[var(--lw-shadow)]">
+      <h1 className="m-0">开始一部片子</h1>
       <p>素材、观察、创作与制作结果保存在同一个项目里。</p>
       <Field label="片名">
         <input
@@ -33,8 +34,8 @@ export function CreateProject({
         </select>
       </Field>
       <p>{WORKFLOWS.find((w) => w.id === workflow)?.guidance}</p>
-      <button
-        className="primary"
+      <SoftPillButton
+        className="mt-2"
         onClick={() =>
           api("/projects", ProjectRevision, {
             method: "POST",
@@ -45,7 +46,7 @@ export function CreateProject({
         }
       >
         创建草稿
-      </button>
+      </SoftPillButton>
     </section>
   );
 }

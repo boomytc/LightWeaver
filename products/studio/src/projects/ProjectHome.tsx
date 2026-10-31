@@ -10,23 +10,23 @@ export function ProjectHome() {
     return leftRecent - rightRecent;
   });
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="overflow-auto border-r border-line p-3">
-        <h2 className="m-0 text-base">项目</h2>
+    <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)]">
+      <aside className="overflow-auto border-r border-line p-4">
+        <h2 className="m-0 mb-3 text-sm font-medium text-muted">最近项目</h2>
         {ordered.map((project) => (
           <button
             key={project.projectId}
             type="button"
-            className="my-2 w-full text-left"
+            className="row-item my-1 w-full px-3 py-3 text-left"
             onClick={() => void session.navigate("projects", project.projectId)}
           >
-            <b>{project.document.title || "未命名项目"}</b>
-            <small>{project.projectId}</small>
+            <b className="block">{project.document.title || "未命名项目"}</b>
+            <small className="text-muted">{project.projectId}</small>
           </button>
         ))}
         {ordered.length === 0 && <p className="hint">还没有项目。</p>}
       </aside>
-      <section className="overflow-auto p-6">
+      <section className="overflow-auto p-8">
         <CreateProject
           onCreated={async (project) => {
             await session.refreshLists();

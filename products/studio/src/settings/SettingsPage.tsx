@@ -52,9 +52,9 @@ export function SettingsPage() {
     <main className="min-h-0 flex-1 overflow-auto p-4">
       <h1 className="m-0 text-xl">设置</h1>
       <Tabs.Root value={section} onValueChange={(value) => void session.navigate("settings", "", value)}>
-        <Tabs.List className="my-3 flex flex-wrap gap-1" aria-label="设置分区">
+        <Tabs.List className="seg my-4" aria-label="设置分区">
           {sections.map(([value, label]) => (
-            <Tabs.Trigger key={value} value={value} className="data-[state=active]:border-accent">
+            <Tabs.Trigger key={value} value={value}>
               {label}
             </Tabs.Trigger>
           ))}
