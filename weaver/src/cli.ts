@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { Application } from "./app/index.ts";
-import { developmentRuntime, type RuntimeContext } from "./runtime.ts";
+import { currentRuntime, type RuntimeContext } from "./runtime.ts";
 import path from "node:path";
 import {
   z,
@@ -57,7 +57,7 @@ const requestId =
     ? options["request-id"]
     : newId("request");
 function cliRuntime(): RuntimeContext {
-  const runtime = developmentRuntime();
+  const runtime = currentRuntime();
   const configFile = str("config-file", true);
   const configBase = str("config-base", true);
   if (!configFile && !configBase) return runtime;

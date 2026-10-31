@@ -3,6 +3,7 @@ import {
   CaptionTrack,
   CreativePlan,
   LibraryVersion,
+  MediaAssetVersion,
   ProjectDocument,
   ProjectRevision,
   Proposal,
@@ -25,6 +26,22 @@ import { currentRoute, routeUrl } from "./route";
 
 type LeaveChoice = "save" | "keep" | "discard" | "cancel";
 type CreativePlanValue = z.infer<typeof CreativePlan>;
+type AssetEditSession = {
+  projectId: string;
+  generation: number;
+  draftSequence: number;
+  assets: ProjectDocument["assets"];
+};
+
+const Capabilities = z.object({
+  providers: z.array(ProviderDescriptor),
+  defaultVlm: z.string(),
+});
+
+export const AssetImportResult = z.object({
+  asset: MediaAssetVersion,
+  revision: ProjectRevision,
+});
 
 export function useProjectSession(client: ClientStore) {
   const [route, setRoute] = useState(currentRoute);
@@ -71,6 +88,7 @@ export function useProjectSession(client: ClientStore) {
   const draftSeq = useRef(0);
   const planSeq = useRef(0);
   const listSeq = useRef(0);
+  const capabilitiesSeq = useRef(0);
   const refreshSeq = useRef(0);
   const epoch = useRef(0);
   const dirtyRef = useRef(false);
@@ -83,6 +101,8 @@ export function useProjectSession(client: ClientStore) {
   const leaveWait = useRef<((choice: LeaveChoice) => void) | null>(null);
   const jobsWait = useRef<((stop: boolean) => void) | null>(null);
   const urlRef = useRef(routeUrl(route));
+  const recoveryDraft = useRef<DraftBackup | null>(null);
+  const recoveryClock = useRef(0);
 
   const fail = (reason: unknown) => {
     setError(reason instanceof Error ? reason.message : String(reason));
@@ -106,17 +126,80 @@ export function useProjectSession(client: ClientStore) {
     setLibrary(nextLibrary);
   };
 
-  const snapshot = (): DraftBackup | null => {
+  const refreshCapabilities = async () => {
+    const seq = ++capabilitiesSeq.current;
+    try {
+      const capabilities = await api("/capabilities", Capabilities);
+      if (seq !== capabilitiesSeq.current) return;
+      setProviders(capabilities.providers);
+      setDefaultVlm(capabilities.defaultVlm);
+    } catch (reason) {
+      if (seq === capabilitiesSeq.current) fail(reason);
+    }
+  };
+
+  const nextRecoveryUpdatedAt = () => {
+    const known = clientRef.current.drafts.reduce((latest, draft) => {
+      const parsed = Date.parse(draft.updatedAt);
+      return Number.isFinite(parsed) ? Math.max(latest, parsed) : latest;
+    }, 0);
+    const millis = Math.max(Date.now(), recoveryClock.current + 1, known + 1);
+    recoveryClock.current = millis;
+    return new Date(millis).toISOString();
+  };
+
+  const persistRecoveryDraft = () => {
     const projectId = projectRef.current;
     const savedBase = baseRef.current;
     if (!projectId || !savedBase || (!dirtyRef.current && !planDirtyRef.current)) return null;
-    return {
+    const draft: DraftBackup = {
       projectId,
       base: savedBase,
       ...(dirtyRef.current && draftRef.current ? { document: draftRef.current } : {}),
-      ...(planDirtyRef.current && planDraftRef.current ? { creativePlanDraft: planDraftRef.current } : {}),
-      updatedAt: new Date().toISOString(),
+      ...(planDirtyRef.current ? { creativePlanDraft: planDraftRef.current } : {}),
+      updatedAt: nextRecoveryUpdatedAt(),
     };
+    recoveryDraft.current = draft;
+    void desktop()?.saveRecoveryDraft?.(draft).catch(fail);
+    return draft;
+  };
+
+  const snapshot = (): DraftBackup | null => {
+    const current = recoveryDraft.current;
+    if (
+      current &&
+      current.projectId === projectRef.current &&
+      (dirtyRef.current || planDirtyRef.current)
+    )
+      return current;
+    return persistRecoveryDraft();
+  };
+
+  const clearNativeRecoveryThrough = async (projectId: string, throughUpdatedAt: string) => {
+    if (!projectId || !throughUpdatedAt) return true;
+    let cleared = true;
+    try {
+      await desktop()?.clearRecoveryDraft?.({ projectId, throughUpdatedAt });
+    } catch (reason) {
+      cleared = false;
+      fail(reason);
+    }
+    const current = recoveryDraft.current;
+    if (
+      cleared &&
+      current?.projectId === projectId &&
+      current.updatedAt <= throughUpdatedAt
+    )
+      recoveryDraft.current = null;
+    return cleared;
+  };
+
+  const clearDraftThrough = async (projectId: string, throughUpdatedAt: string) => {
+    if (!(await clientRef.current.clearProjectDraft(projectId, throughUpdatedAt))) {
+      setError("草稿备份未能清除，原备份仍保留，请恢复连接后重试");
+      return false;
+    }
+    return clearNativeRecoveryThrough(projectId, throughUpdatedAt);
   };
 
   const reload = async (id = projectRef.current) => {
@@ -160,6 +243,7 @@ export function useProjectSession(client: ClientStore) {
     setDraft(document);
     setDirty(true);
     setPlan(null);
+    persistRecoveryDraft();
   };
 
   const acceptDraftRevision = (revision: z.infer<typeof ProjectRevision>) => {
@@ -188,7 +272,11 @@ export function useProjectSession(client: ClientStore) {
     if (guard.id !== projectRef.current || fate === "ignore") return false;
     const planAccepted = guard.planSequence === undefined || guard.planSequence === planSeq.current;
     if (fate === "accept") acceptDraftRevision(revision);
-    else setConflict(revision);
+    else {
+      setCtx((current) => (current ? { ...current, revision } : current));
+      setConflict(revision);
+      persistRecoveryDraft();
+    }
     if (guard.planSequence !== undefined && planAccepted) {
       planDirtyRef.current = false;
       setPlanDirty(false);
@@ -201,22 +289,93 @@ export function useProjectSession(client: ClientStore) {
     return fate === "accept" && planAccepted;
   };
 
+  const beginAssetEditSession = (): AssetEditSession | null => {
+    const document = draftRef.current;
+    if (!document) return null;
+    return {
+      projectId: document.id,
+      generation: epoch.current,
+      draftSequence: draftSeq.current,
+      assets: document.assets,
+    };
+  };
+
+  const acceptAssetImport = (
+    result: z.infer<typeof AssetImportResult>,
+    editSession: AssetEditSession,
+    expectedRevision: string,
+  ): "applied" | "stale" | "assets-changed" => {
+    const { revision, asset } = result;
+    if (
+      revision.projectId !== editSession.projectId ||
+      revision.document.id !== editSession.projectId ||
+      revision.document.assets.every((item) => item.assetId !== asset.assetId)
+    )
+      throw new Error("素材导入返回了其他项目或不一致的修订");
+    if (
+      editSession.generation !== epoch.current ||
+      editSession.projectId !== projectRef.current
+    )
+      return "stale";
+    if (baseRef.current !== expectedRevision)
+      throw new Error("素材导入期间项目修订已变化，请重新确认后导入");
+
+    setCtx((current) =>
+      current
+        ? {
+            ...current,
+            revision,
+            assets: current.assets.some((item) => refKey(item) === refKey(asset))
+              ? current.assets
+              : [...current.assets, asset],
+          }
+        : current,
+    );
+    const live = draftRef.current;
+    if (!live) return "stale";
+    const assetsUnchanged =
+      live.assets.length === editSession.assets.length &&
+      live.assets.every(
+        (item, index) => refKey(item) === refKey(editSession.assets[index]!),
+      );
+    if (!assetsUnchanged) {
+      setConflict(revision);
+      setError("素材已导入，但素材导入期间本地素材列表也被编辑；当前草稿未被覆盖");
+      if (dirtyRef.current) persistRecoveryDraft();
+      return "assets-changed";
+    }
+    setBase(revision.id);
+    baseRef.current = revision.id;
+    const noNewEdits =
+      editSession.draftSequence === draftSeq.current && !dirtyRef.current;
+    const nextDocument = noNewEdits
+      ? revision.document
+      : { ...live, assets: revision.document.assets };
+    draftRef.current = nextDocument;
+    setDraft(nextDocument);
+    if (dirtyRef.current) persistRecoveryDraft();
+    return "applied";
+  };
+
   const editCreativePlan = (next: CreativePlanValue) => {
     planSeq.current += 1;
     planDirtyRef.current = true;
     planDraftRef.current = next;
     setPlanDirty(true);
     setPlanDraft(next);
+    persistRecoveryDraft();
   };
 
   const save = () => {
     const document = draftRef.current;
-    if (!document) return Promise.resolve();
+    if (!document) return Promise.resolve(false);
     const seq = draftSeq.current;
     const generation = epoch.current;
     const id = document.id;
     const expectedRevision = baseRef.current;
-    return act(async () => {
+    const recoveryAtSave = snapshot();
+    let accepted = false;
+    const operation = act(async () => {
       const revision = await api(`/projects/${id}`, ProjectRevision, {
         method: "PUT",
         body: {
@@ -235,16 +394,23 @@ export function useProjectSession(client: ClientStore) {
       });
       if (fate === "ignore") return;
       if (fate === "accept") {
+        accepted = true;
         acceptDraftRevision(revision);
         setNotice("修订已保存");
-        await clientRef.current.clearProjectDraft(id);
       } else {
+        setCtx((current) => (current ? { ...current, revision } : current));
+        setBase(revision.id);
+        baseRef.current = revision.id;
         setConflict(revision);
+        persistRecoveryDraft();
         setNotice("保存已写入服务器，但保存期间的新编辑仍保留为草稿");
       }
+      if (fate === "accept" && planDirtyRef.current) persistRecoveryDraft();
+      if (recoveryAtSave) await clearDraftThrough(id, recoveryAtSave.updatedAt);
       await reload(id);
       await refreshLists();
     });
+    return operation.then(() => accepted);
   };
 
   const saveCreativePlan = (candidate: CreativePlanValue) => {
@@ -253,6 +419,7 @@ export function useProjectSession(client: ClientStore) {
     const draftSequence = draftSeq.current;
     const planSequence = planSeq.current;
     const expectedRevision = baseRef.current;
+    const recoveryAtSave = snapshot();
     return act(async () => {
       if (!draftRef.current) return;
       if (dirtyRef.current) throw new Error("先保存当前项目草稿，再保存创作方案");
@@ -260,6 +427,7 @@ export function useProjectSession(client: ClientStore) {
         method: "PUT",
         body: { plan: CreativePlan.parse(candidate), expectedRevision, requestId: requestId() },
       });
+      if (recoveryAtSave) await clearDraftThrough(id, recoveryAtSave.updatedAt);
       if (await acceptProjectRevision(revision, { id, generation, draftSequence, planSequence }))
         setNotice("创作方案已保存为项目蓝图");
     });
@@ -387,19 +555,21 @@ export function useProjectSession(client: ClientStore) {
     });
     if (choice === "cancel") return "stay" as const;
     if (choice === "discard") {
+      const recovery = snapshot();
+      if (recovery && !(await clearDraftThrough(recovery.projectId, recovery.updatedAt)))
+        return "stay" as const;
       dirtyRef.current = false;
       planDirtyRef.current = false;
       setDirty(false);
       setPlanDirty(false);
-      await clientRef.current.clearProjectDraft(projectRef.current);
       return "proceed" as const;
     }
     if (choice === "keep") {
       const snap = snapshot();
-      if (snap) await clientRef.current.upsertDraft(snap);
+      if (snap && !(await clientRef.current.upsertDraft(snap))) return "stay" as const;
       return "proceed" as const;
     }
-    if (dirtyRef.current) await save();
+    if (dirtyRef.current && !(await save())) return "stay" as const;
     if (dirtyRef.current) return "stay" as const;
     if (planDirtyRef.current && planDraftRef.current) await saveCreativePlan(planDraftRef.current);
     if (planDirtyRef.current || dirtyRef.current) return "stay" as const;
@@ -421,27 +591,37 @@ export function useProjectSession(client: ClientStore) {
       if (!ctx || saved.projectId !== projectRef.current) throw new Error("请先打开备份所属项目再恢复");
       const document = saved.document === undefined ? undefined : ProjectDocument.parse(saved.document);
       if (document && document.id !== saved.projectId) throw new Error("草稿不属于当前项目");
+      const nextPlan = saved.creativePlanDraft === undefined
+        ? undefined
+        : saved.creativePlanDraft === null ? null : CreativePlan.parse(saved.creativePlanDraft);
+      setBase(saved.base);
+      baseRef.current = saved.base;
+      if (saved.base !== ctx.revision.id) setConflict(ctx.revision);
       if (document) {
-        setBase(saved.base);
-        baseRef.current = saved.base;
         edit(document);
-        if (saved.base !== ctx.revision.id) setConflict(ctx.revision);
       }
-      if (saved.creativePlanDraft !== undefined) {
-        const nextPlan = saved.creativePlanDraft === null ? null : CreativePlan.parse(saved.creativePlanDraft);
+      if (nextPlan !== undefined) {
         planSeq.current += 1;
         planDirtyRef.current = true;
         planDraftRef.current = nextPlan;
         setPlanDraft(nextPlan);
         setPlanDirty(true);
+        persistRecoveryDraft();
       }
       setNotice("已恢复为未保存草稿，请核对后保存修订");
     });
 
-  const loadServerKeepingDraft = () => {
+  const loadServerKeepingDraft = async () => {
     if (!conflict) return;
     const snap = snapshot();
-    if (snap) void clientRef.current.upsertDraft(snap);
+    if (snap) {
+      const stored = await clientRef.current.upsertDraft(snap);
+      if (!stored) {
+        setError("草稿备份保存失败，暂不加载服务器修订");
+        return;
+      }
+      await clearNativeRecoveryThrough(snap.projectId, snap.updatedAt);
+    }
     acceptDraftRevision(conflict);
     planDirtyRef.current = false;
     setPlanDirty(false);
@@ -527,7 +707,7 @@ export function useProjectSession(client: ClientStore) {
     edit({ ...current, scenes: [...current.scenes, Scene.parse(raw)] });
   };
 
-  useRunStream({
+  const activeStream = useRunStream({
     runId: activeRun,
     enabled: Boolean(activeRun && route.projectId),
     projectId: route.projectId,
@@ -550,6 +730,7 @@ export function useProjectSession(client: ClientStore) {
     const confirm = (event: BeforeUnloadEvent) => {
       if (!dirtyRef.current && !planDirtyRef.current) return;
       retain();
+      if (desktop()) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -562,13 +743,10 @@ export function useProjectSession(client: ClientStore) {
   }, []);
 
   useEffect(() => {
-    api("/capabilities", z.object({ providers: z.array(ProviderDescriptor), defaultVlm: z.string() }))
-      .then((capabilities) => {
-        setProviders(capabilities.providers);
-        setDefaultVlm(capabilities.defaultVlm);
-      })
-      .catch(fail);
+    void refreshCapabilities();
     void refreshLists().catch(fail);
+    const refresh = () => void refreshCapabilities();
+    window.addEventListener("lightweaver-capabilities-changed", refresh);
     const pop = () => {
       const next = currentRoute();
       const previous = urlRef.current;
@@ -583,7 +761,10 @@ export function useProjectSession(client: ClientStore) {
       })();
     };
     addEventListener("popstate", pop);
-    return () => removeEventListener("popstate", pop);
+    return () => {
+      window.removeEventListener("lightweaver-capabilities-changed", refresh);
+      removeEventListener("popstate", pop);
+    };
   }, []);
 
   const commandRef = useRef({
@@ -630,6 +811,7 @@ export function useProjectSession(client: ClientStore) {
     planSeq.current += 1;
     dirtyRef.current = false;
     planDirtyRef.current = false;
+    recoveryDraft.current = null;
     setPlanDraft(null);
     setPlanDirty(false);
     setCtx(null);
@@ -692,6 +874,15 @@ export function useProjectSession(client: ClientStore) {
     return bridge.onPrepareQuit(() => quitRef.current());
   }, []);
 
+  const recoveryFlushRef = useRef<() => Promise<void>>(async () => {});
+  recoveryFlushRef.current = async () => {
+    const draft = snapshot();
+    if (draft) await desktop()?.saveRecoveryDraft?.(draft);
+  };
+  useEffect(() => {
+    return desktop()?.onPrepareRecoveryFlush?.(() => recoveryFlushRef.current());
+  }, []);
+
   const seenClientError = useRef("");
   useEffect(() => {
     if (!client.error) {
@@ -728,6 +919,8 @@ export function useProjectSession(client: ClientStore) {
     plan,
     activeRun,
     setActiveRun,
+    activeRunError: activeStream.error,
+    retryActiveRun: activeStream.retry,
     runDetail,
     events,
     leaveOpen,
@@ -747,6 +940,7 @@ export function useProjectSession(client: ClientStore) {
     setNotice,
     setError,
     refreshLists,
+    refreshCapabilities,
     reload,
     act,
     edit,
@@ -763,10 +957,15 @@ export function useProjectSession(client: ClientStore) {
     copyBrief,
     importCaption,
     addScene,
+    beginAssetEditSession,
+    acceptAssetImport,
     restoreDraft,
     loadServerKeepingDraft,
     currentBase: () => baseRef.current,
-    clearStoredDraft: () => void client.clearProjectDraft(route.projectId),
+    clearStoredDraft: async () => {
+      if (!storedDraft) return;
+      await clearDraftThrough(storedDraft.projectId, storedDraft.updatedAt);
+    },
     storedDraft: !dirty && !planDirty ? storedDraft : undefined,
     client,
   };

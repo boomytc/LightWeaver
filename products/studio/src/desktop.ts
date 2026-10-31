@@ -22,6 +22,14 @@ export type QuitDecision = {
   stopJobs: boolean;
 };
 
+export type RecoveryDraft = {
+  projectId: string;
+  base: string;
+  document?: unknown;
+  creativePlanDraft?: unknown;
+  updatedAt: string;
+};
+
 export type StudioCommand = "save" | "import" | "settings" | "find";
 
 export type DesktopBridge = {
@@ -36,10 +44,17 @@ export type DesktopBridge = {
   setPreferences?: (patch: Partial<DesktopPreferences>) => Promise<DesktopPreferences>;
   onCommand?: (handler: (command: StudioCommand) => void) => () => void;
   onPrepareQuit?: (handler: () => Promise<QuitDecision>) => () => void;
+  onPrepareRecoveryFlush?: (handler: () => Promise<void>) => () => void;
   themeSync?: () => ThemePreference;
   restartRuntime?: () => Promise<void>;
   retry?: () => Promise<void>;
   openLogs?: () => Promise<void>;
+  getRecoveryDrafts?: () => Promise<RecoveryDraft[]>;
+  saveRecoveryDraft?: (draft: RecoveryDraft) => Promise<void>;
+  clearRecoveryDraft?: (input: {
+    projectId: string;
+    throughUpdatedAt: string;
+  }) => Promise<void>;
 };
 
 declare global {

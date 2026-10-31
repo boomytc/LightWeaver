@@ -57,6 +57,7 @@ export function httpStatus(code: string): number {
     "REQUEST_ID_REUSED",
     "CONFIG_CONFLICT",
     "CONFIG_LOCKED",
+    "CLIENT_STATE_CONFLICT",
   ].includes(code)
     ? 409
     : code === "NOT_FOUND"

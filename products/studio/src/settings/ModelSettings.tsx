@@ -63,9 +63,11 @@ function ProgressEvent({ event }: { event: unknown }) {
 export function ModelSettings({
   fail,
   onOpenRuntime,
+  onOpenJobs,
 }: {
   fail: (error: unknown) => void;
   onOpenRuntime: () => void;
+  onOpenJobs: () => void;
 }) {
   const [view, setView] = useState<z.infer<typeof ModelsView> | null>(null),
     [root, setRoot] = useState(""),
@@ -184,6 +186,7 @@ export function ModelSettings({
       setVerify({});
     }
     await refreshModels(false);
+    window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
   };
 
   const act = async (label: string, fn: () => Promise<void>) => {
@@ -256,6 +259,7 @@ export function ModelSettings({
                 },
               );
               await refreshModels(false);
+              window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
             })
           }
         >
@@ -367,7 +371,7 @@ export function ModelSettings({
                       <button type="button" onClick={onOpenRuntime}>打开运行时设置</button>
                     )}
                   </small>
-                  <small>调用：尚未成功调用。下载完成不等于可以推理。</small>
+                  <small>推理结果以实际作业为准，文件校验不会调用模型。<button type="button" onClick={onOpenJobs}>查看作业记录</button></small>
                 </div>
               </div>
               <small>{model.repository}@{model.revision.slice(0, 12)}</small>
@@ -530,6 +534,7 @@ export function ModelSettings({
                       },
                     );
                     await refreshModels(false);
+                    window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
                   })
                 }
               >

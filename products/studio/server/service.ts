@@ -141,6 +141,7 @@ export async function startStudioService(
   };
 
   route("get", "/api/runtime", () => ({
+    platform: process.platform,
     mode: options.mode,
     dataDir: runtime.dataDir,
     configFile: runtime.configFile,
@@ -148,6 +149,13 @@ export async function startStudioService(
     modelDir: runtime.modelDir,
     logDir: runtime.logDir,
     resourcesDir: runtime.resourcesDir,
+    requirements: ["requirements.txt", "requirements.models.txt", "requirements.models.mlx.txt", "requirements.speech.txt"]
+      .map((name) => ({ name, file: path.join(runtime.resourcesDir, "weaver", name) }))
+      .filter((item) => fs.existsSync(item.file)),
+    interchangePython: runtime.tools.python,
+    cli: options.mode === "production"
+      ? { node: runtime.tools.node, entry: path.join(path.dirname(runtime.resourcesDir), "service", "cli.mjs") }
+      : null,
     tools: {
       node: fs.existsSync(runtime.tools.node),
       ffmpeg: runtime.tools.ffmpeg ? fs.existsSync(runtime.tools.ffmpeg) : false,
@@ -160,6 +168,14 @@ export async function startStudioService(
       python: runtime.tools.python ? fs.existsSync(runtime.tools.python) : false,
     },
   }));
+  server.get("/api/runtime/requirements/:name", (req, res, next) => {
+    try {
+      const name = z.enum(["requirements.txt", "requirements.models.txt", "requirements.models.mlx.txt", "requirements.speech.txt"]).parse(req.params.name);
+      res.download(path.join(runtime.resourcesDir, "weaver", name), name, (error) => {
+        if (error && !res.headersSent) next(error);
+      });
+    } catch (error) { next(error); }
+  });
   route("get", "/api/client/state", () => clientState.read());
   route("put", "/api/client/state", (req) => clientState.write(req.body));
   route("get", "/api/capabilities", () => app.capabilities());
@@ -167,6 +183,7 @@ export async function startStudioService(
   route("get", "/api/models", (req) =>
     app.models.view(z.string().min(1).optional().parse(req.query.root)),
   );
+  route("get", "/api/models/settings", () => app.models.settings());
   route("put", "/api/models/settings", (req) => app.models.save(req.body));
   route("post", "/api/models/providers/:id/adopt", (req) =>
     app.models.adoptProvider(
@@ -193,6 +210,19 @@ export async function startStudioService(
     ),
   );
   route("get", "/api/projects", () => app.projects.list());
+  route("post", "/api/projects/import-bundle", async (req) => {
+    const input = z.object({ file: z.string().min(1), requestId: z.string(), projectId: z.string().optional() }).strict().parse(req.body);
+    if (!path.isAbsolute(input.file) || input.file.includes("\0")) throw new Error("项目包需要绝对路径");
+    return app.interchange.importBundle(input.file, input.requestId, input.projectId);
+  });
+  server.post("/api/projects/import-bundle/upload", upload.single("file"), async (req, res, next) => {
+    try {
+      if (!req.file) throw new Error("先选择项目包");
+      const input = z.object({ requestId: z.string(), projectId: z.string().optional() }).parse(req.body);
+      res.json({ ok: true, result: await app.interchange.importBundle(req.file.path, input.requestId, input.projectId) });
+    } catch (error) { next(error); }
+    finally { if (req.file) await fsp.rm(req.file.path, { force: true }); }
+  });
   route("post", "/api/projects", (req) =>
     app.projects.create(
       z

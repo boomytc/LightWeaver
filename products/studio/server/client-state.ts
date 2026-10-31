@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "@lightweaver/weaver/contracts";
+import { WeaverError } from "@lightweaver/weaver/app";
 
 const DraftBackup = z
   .object({
@@ -65,8 +66,10 @@ export class ClientStateStore {
     try {
       const parsed = Body.parse(JSON.parse(fs.readFileSync(this.file, "utf8")));
       return { ...parsed, revision: revisionOf(parsed) };
-    } catch {
-      return emptyClientState();
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT")
+        return emptyClientState();
+      throw new WeaverError("CLIENT_STATE_INVALID", "客户端状态无法读取，原文件已保留", { file: this.file });
     }
   }
 
@@ -83,9 +86,7 @@ export class ClientStateStore {
       .strict()
       .parse(input);
     if (patch.expectedRevision !== current.revision) {
-      const error = new Error("客户端状态已被其他操作修改");
-      error.name = "CLIENT_STATE_CONFLICT";
-      throw error;
+      throw new WeaverError("CLIENT_STATE_CONFLICT", "客户端状态已被其他操作修改", { current }, [], true);
     }
     const next = Body.parse({
       theme: patch.theme ?? current.theme,

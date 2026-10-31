@@ -3,6 +3,7 @@ import { z, refKey } from "@lightweaver/weaver/contracts";
 import { api, mediaUrl, requestId } from "../api";
 import { desktop, pathForFile } from "../desktop";
 import { useSession } from "../session/context";
+import { AssetImportResult } from "../session/useProjectSession";
 import { Field } from "../ui/Field";
 
 export function AssetPanel({
@@ -16,48 +17,91 @@ export function AssetPanel({
   const draft = session.draft;
   const ctx = session.ctx;
   const [dragging, setDragging] = useState(false);
-  const importPaths = async (paths: string[]) => {
-    if (!draft) return;
+  const importBatch = async (
+    projectId: string,
+    senders: Array<
+      (expectedRevision: string, request: string) => Promise<z.infer<typeof AssetImportResult>>
+    >,
+  ) => {
+    if (session.dirty) {
+      if (!(await session.save())) {
+        session.setError("素材导入前未能保存当前草稿，批量导入未开始");
+        return;
+      }
+    }
     await session.act(async () => {
-      for (const file of paths) {
-        await api(`/projects/${draft.id}/assets/path`, z.unknown(), {
-          method: "POST",
-          body: {
-            file,
-            expectedRevision: session.currentBase(),
-            requestId: requestId(),
-          },
-        });
-        await session.reload();
+      const initialSession = session.beginAssetEditSession();
+      if (!initialSession || initialSession.projectId !== projectId)
+        throw new Error("素材导入目标项目已变化，请重新选择文件");
+      let expectedRevision = session.currentBase();
+      let completed = 0;
+      try {
+        for (const send of senders) {
+          const current = session.beginAssetEditSession();
+          const editSession = current?.generation === initialSession.generation
+            ? current : initialSession;
+          const result = await send(expectedRevision, requestId());
+          completed += 1;
+          const outcome = session.acceptAssetImport(result, editSession, expectedRevision);
+          expectedRevision = result.revision.id;
+          if (outcome === "assets-changed")
+            throw new Error("本地素材列表也发生编辑，请核对后重新选择剩余文件");
+        }
+        await session.reload(projectId);
+        session.setNotice(`已导入 ${completed}/${senders.length} 个素材到项目 ${projectId}`);
+      } catch (reason) {
+        session.setError(`项目 ${projectId} 已导入 ${completed}/${senders.length} 个素材：${reason instanceof Error ? reason.message : String(reason)}`);
       }
     });
   };
-
-  const importFiles = async (files: File[]) => {
-    if (!draft) return;
-    await session.act(async () => {
-      for (const file of files) {
-        const disk = pathForFile(file);
-        if (disk) {
-          await api(`/projects/${draft.id}/assets/path`, z.unknown(), {
+  const importPaths = async (paths: string[]) => {
+    if (!draft || session.busy || paths.length === 0) return;
+    const projectId = draft.id;
+    await importBatch(
+      projectId,
+      paths.map(
+        (file) => (expectedRevision, request) =>
+          api(`/projects/${projectId}/assets/path`, AssetImportResult, {
             method: "POST",
             body: {
-              file: disk,
-              name: file.name,
-              expectedRevision: session.currentBase(),
-              requestId: requestId(),
+              file,
+              expectedRevision,
+              requestId: request,
             },
-          });
-        } else {
+          }),
+      ),
+    );
+  };
+
+  const importFiles = async (files: File[]) => {
+    if (!draft || session.busy || files.length === 0) return;
+    const projectId = draft.id;
+    await importBatch(
+      projectId,
+      files.map(
+        (file) => (expectedRevision, request) => {
+          const disk = pathForFile(file);
+          if (disk)
+            return api(`/projects/${projectId}/assets/path`, AssetImportResult, {
+              method: "POST",
+              body: {
+                file: disk,
+                name: file.name,
+                expectedRevision,
+                requestId: request,
+              },
+            });
           const form = new FormData();
           form.append("file", file);
-          form.append("expectedRevision", session.currentBase());
-          form.append("requestId", requestId());
-          await api(`/projects/${draft.id}/assets`, z.unknown(), { method: "POST", body: form });
-        }
-        await session.reload();
-      }
-    });
+          form.append("expectedRevision", expectedRevision);
+          form.append("requestId", request);
+          return api(`/projects/${projectId}/assets`, AssetImportResult, {
+            method: "POST",
+            body: form,
+          });
+        },
+      ),
+    );
   };
 
   useEffect(() => {
@@ -94,6 +138,7 @@ export function AssetPanel({
         <b>素材</b>
         <button
           type="button"
+          disabled={session.busy}
           onClick={() =>
             void desktop()?.pickMedia?.().then((paths) => {
               if (paths?.length) return importPaths(paths);
@@ -108,6 +153,7 @@ export function AssetPanel({
           aria-label="上传项目素材"
           type="file"
           multiple
+          disabled={session.busy}
           onChange={(event) => {
             const files = [...(event.target.files || [])];
             event.target.value = "";
@@ -161,7 +207,7 @@ export function AssetPanel({
         <select
           defaultValue=""
           aria-label="从素材库采用"
-          disabled={session.dirty}
+          disabled={session.dirty || session.busy}
           onChange={(event) => {
             const version = session.library.find((item) => item.itemId === event.target.value);
             event.target.value = "";

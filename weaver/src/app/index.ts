@@ -36,7 +36,7 @@ import { CaptionAssistance } from "../captions/assistance.ts";
 import { VisualSearch } from "../search/visual.ts";
 import { SpeakerAssistance } from "../captions/speakers.ts";
 import { Models } from "../models/service.ts";
-export { errorProtocol, httpStatus } from "../contracts/errors.ts";
+export { WeaverError, errorProtocol, httpStatus } from "../contracts/errors.ts";
 export {
   RuntimeContext,
   currentRuntime,

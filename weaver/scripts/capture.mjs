@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
+const require = createRequire(process.env.LIGHTWEAVER_PACKAGED === '1'
+  ? new URL('../../../service/package.json', import.meta.url)
+  : import.meta.url);
+const { chromium } = require('playwright');
 const job=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 const url=new URL(job.url);
 if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw new Error('截图需要明确的 HTTP(S) 地址');

@@ -1,8 +1,11 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const GRACE_MS = 3000;
 const POLL_MS = 25;
 const POST_KILL_MS = 250;
+const WINDOWS_STARTED = "LIGHTWEAVER_JOB_STARTED";
 
 let target;
 let targetGroup;
@@ -14,6 +17,7 @@ let killedAt;
 let escalationTimer;
 let pollTimer;
 let finished = false;
+let windowsStarted = false;
 
 function isRecord(value) {
   return typeof value === "object" && value !== null;
@@ -32,16 +36,14 @@ function parseStart(value) {
 }
 
 const windows = process.platform === "win32";
+const windowsHelper = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "windows-job-supervisor.ps1",
+);
 
 function groupExists() {
-  if (windows) {
-    if (!target?.pid) return false;
-    const listed = spawnSync("tasklist", ["/FI", `PID eq ${target.pid}`, "/NH"], {
-      encoding: "utf8",
-      windowsHide: true,
-    });
-    return listed.stdout.includes(String(target.pid));
-  }
+  if (windows)
+    return !!target && target.exitCode === null && target.signalCode === null;
   if (!targetGroup) return false;
   try {
     process.kill(-targetGroup, 0);
@@ -53,10 +55,14 @@ function groupExists() {
 
 function signalTree(signal) {
   if (windows) {
-    if (!target?.pid) return;
-    const args = ["/PID", String(target.pid), "/T"];
-    if (signal === "SIGKILL") args.push("/F");
-    spawnSync("taskkill", args, { stdio: "ignore", windowsHide: true });
+    if (!target) return;
+    if (signal === "SIGKILL" || !target.stdin || target.stdin.destroyed) {
+      target.kill("SIGKILL");
+      return;
+    }
+    target.stdin.write("stop\n", (error) => {
+      if (error) target.kill("SIGKILL");
+    });
     return;
   }
   if (!targetGroup) return;
@@ -119,23 +125,83 @@ function requestTermination() {
 }
 
 function start(command, args) {
-  target = spawn(command, args, {
-    detached: !windows,
-    shell: false,
-    windowsHide: true,
-    stdio: ["ignore", "inherit", "inherit"],
-  });
-  targetGroup = windows ? undefined : target.pid;
-  if (stopRequested) requestTermination();
+  if (windows) {
+    target = spawn(
+      "powershell.exe",
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-OutputFormat",
+        "Text",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        windowsHelper,
+      ],
+      {
+        shell: false,
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "inherit"],
+      },
+    );
+    targetGroup = undefined;
+  } else {
+    target = spawn(command, args, {
+      detached: true,
+      shell: false,
+      windowsHide: true,
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+    targetGroup = target.pid;
+  }
   target.once("error", (error) => {
     spawnFailure = error.message;
     finish();
   });
   target.once("close", (code, signal) => {
+    if (windows && !windowsStarted)
+      spawnFailure ??= `Windows 媒体进程未能启动（${code ?? signal ?? "未知原因"}）`;
     targetResult = { code, signal };
     if (stopRequested || groupExists()) requestTermination();
     settleIfFinished();
   });
+  if (windows) {
+    let handshake = Buffer.alloc(0);
+    target.stdout.on("data", (chunk) => {
+      if (windowsStarted) {
+        process.stdout.write(chunk);
+        return;
+      }
+      handshake = Buffer.concat([handshake, chunk]);
+      const newline = handshake.indexOf(10);
+      if (newline < 0 && handshake.length <= 1024) return;
+      if (newline < 0 || handshake.subarray(0, newline).toString("utf8").trim() !== WINDOWS_STARTED) {
+        spawnFailure = "Windows 媒体监督进程握手无效";
+        requestTermination();
+        return;
+      }
+      windowsStarted = true;
+      process.stdout.write(handshake.subarray(newline + 1));
+      handshake = Buffer.alloc(0);
+    });
+    target.stdin?.on("error", (error) => {
+      if (terminationStarted) return;
+      spawnFailure = error.message;
+      finish();
+    });
+    target.stdin?.write(
+      `${JSON.stringify({ type: "start", command, args })}\n`,
+      (error) => {
+        if (terminationStarted) return;
+        if (error) {
+          spawnFailure = error.message;
+          finish();
+        }
+      },
+    );
+  }
+  if (stopRequested) requestTermination();
 }
 
 process.stdin.resume();

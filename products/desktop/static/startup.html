@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
     <title>LightWeaver</title>
     <style>
       body { margin: 0; font: 15px/1.5 "PingFang SC", "Noto Sans SC", sans-serif; background: #10141a; color: #e7edf5; display: grid; min-height: 100vh; place-items: center; }
@@ -21,11 +22,26 @@
     <script>
       const params = new URLSearchParams(location.search);
       const error = params.get("error");
+      const status = document.getElementById("status");
+      const actions = document.getElementById("actions");
+      const retry = document.getElementById("retry");
       if (error) {
-        document.getElementById("status").textContent = error;
-        document.getElementById("actions").hidden = false;
+        status.textContent = error;
+        actions.hidden = false;
       }
-      document.getElementById("retry").addEventListener("click", () => window.lightweaver && window.lightweaver.retry());
+      retry.addEventListener("click", async () => {
+        if (!window.lightweaver) return;
+        retry.disabled = true;
+        status.textContent = "正在重新启动本地服务…";
+        try {
+          await window.lightweaver.retry();
+        } catch (reason) {
+          status.textContent = reason instanceof Error ? reason.message : String(reason);
+          actions.hidden = false;
+        } finally {
+          retry.disabled = false;
+        }
+      });
       document.getElementById("logs").addEventListener("click", () => window.lightweaver && window.lightweaver.openLogs());
     </script>
   </body>

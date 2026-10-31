@@ -322,12 +322,18 @@ export function ProjectWorkspace() {
         </button>
         {!collapsed.bottom && (
           <div className="flex gap-2 overflow-auto px-2 pb-2">
+            {session.activeRun &&
+              session.activeRunError &&
+              session.runDetail?.run.id !== session.activeRun && (
+                <p className="error">{session.activeRunError}</p>
+              )}
             {session.activeRun && session.runDetail?.run.id === session.activeRun && (
               <div>
                 <b>
                   {session.runDetail.run.kind} · {runLabel(session.runDetail.run.state)}
                 </b>
                 {session.runDetail.run.error && <p className="error">{session.runDetail.run.error.message}</p>}
+                {session.activeRunError && <p className="error">{session.activeRunError}</p>}
                 <div className="actions">
                   <button
                     type="button"
@@ -348,8 +354,12 @@ export function ProjectWorkspace() {
                       void session.act(async () => {
                         const runId = session.runDetail?.run.id;
                         if (!runId) return;
-                        await api(`/runs/${runId}/resume`, RunRecord, { method: "POST", body: {} });
-                        session.setActiveRun(runId);
+                        const resumed = await api(`/runs/${runId}/resume`, RunRecord, {
+                          method: "POST",
+                          body: {},
+                        });
+                        session.setActiveRun(resumed.id);
+                        session.retryActiveRun();
                         await session.reload();
                       })
                     }

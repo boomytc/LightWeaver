@@ -85,7 +85,9 @@ export async function processRun(
     const supervisorLaunchSpec = supervisorLaunch();
     const supervisor = spawn(supervisorLaunchSpec.command, supervisorLaunchSpec.args, {
       cwd: options.cwd,
-      env: options.env ?? process.env,
+      env: currentRuntime().mode === "production"
+        ? { ...(options.env ?? process.env), PYTHONDONTWRITEBYTECODE: "1" }
+        : options.env ?? process.env,
       detached: true,
       shell: false,
       stdio: ["pipe", "pipe", "pipe", "ipc"],

@@ -22,6 +22,18 @@ export type QuitDecision = {
   stopJobs: boolean;
 };
 
+export type RecoveryDraft = {
+  projectId: string;
+  base: string;
+  document?: unknown;
+  creativePlanDraft?: unknown;
+  updatedAt: string;
+};
+
+export type RecoveryFlushResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
 export type CommandName = "save" | "import" | "settings" | "find";
 
 export const ipcChannels = {
@@ -37,6 +49,11 @@ export const ipcChannels = {
   quitResponse: "quit-response",
   retryService: "retry-service",
   openLogs: "open-logs",
+  getRecoveryDrafts: "get-recovery-drafts",
+  saveRecoveryDraft: "save-recovery-draft",
+  clearRecoveryDraft: "clear-recovery-draft",
   command: "command",
   prepareQuit: "prepare-quit",
+  prepareRecoveryFlush: "prepare-recovery-flush",
+  recoveryFlushResult: "recovery-flush-result",
 } as const;

@@ -1,239 +1,677 @@
-import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import {
+  FFMPEG_VERSION,
+  NODE_ABI,
+  NODE_VERSION,
+  PYTHON_RELEASE,
+  PYTHON_VERSION,
+  parsePackageTarget,
+} from "./platforms.mjs";
+import {
+  copyDirectoryContents,
+  copyTree,
+  completeCache,
+  downloadVerified,
+  extractArchive,
+  finalizeCache,
+  makeExecutable,
+  run,
+  sha256File,
+  walkTree,
+} from "./runtime-utils.mjs";
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(desktopRoot, "../..");
 const require = createRequire(path.join(desktopRoot, "package.json"));
 const electronVersion = require("electron/package.json").version;
-if (!/^\d+\.\d+\.\d+/.test(electronVersion)) {
+if (!/^\d+\.\d+\.\d+/.test(electronVersion))
   throw new Error(`Electron 版本必须是已安装的固定号，当前是 ${electronVersion}`);
-}
-const staging = path.join(desktopRoot, "staging", "lightweaver");
-const distFlag = process.argv.includes("--dist");
-const platform = process.platform;
-const arch = process.arch;
-if (platform !== "darwin" || arch !== "arm64") {
-  process.stderr.write(`当前打包脚本在这台机器上只准备 ${platform}/${arch} 的运行时；electron-builder 配置仍包含其他平台目标。\n`);
-}
 
-const pins = {
-  node: {
-    version: "22.23.4",
-    url: "https://nodejs.org/dist/v22.23.4/node-v22.23.4-darwin-arm64.tar.gz",
-    sha256: "",
-  },
-  ffmpeg: {
-    version: "9.0.2",
-    url: "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffmpeg.zip",
-  },
-  ffprobe: {
-    version: "9.0.2",
-    url: "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffprobe.zip",
-  },
-  chrome: {
-    version: "149.0.7790.0",
-    url: "https://storage.googleapis.com/chrome-for-testing-public/149.0.7790.0/mac-arm64/chrome-headless-shell-mac-arm64.zip",
-    sha256: "17ef152eba8ffcfebc42e25ab295eb040d8e62455cff7dfcc735b652456d6899",
-  },
-};
+const args = process.argv.slice(2);
+const knownFlags = new Set(["--dist", "--prepare"]);
+for (const arg of args) {
+  if (!knownFlags.has(arg) && !/^--(?:target|platform|arch)=/.test(arg))
+    throw new Error(`未知参数 ${arg}`);
+}
+const dist = args.includes("--dist");
+const prepareOnly = args.includes("--prepare");
+if (dist && prepareOnly) throw new Error("--dist 与 --prepare 不能同时使用");
+const target = parsePackageTarget(args);
+const targetName = `${target.platform}-${target.arch}`;
+const stagingRoot = path.join(desktopRoot, "staging");
+const staging = path.join(stagingRoot, "lightweaver");
+const cache = path.join(stagingRoot, "cache");
+const targetCache = path.join(cache, targetName);
+const work = path.join(targetCache, "work");
 
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { stdio: "inherit", ...options });
-  if (result.status) throw new Error(`${command} ${args.join(" ")} 退出 ${result.status}`);
+function sourceRequirements() {
+  return {
+    main: path.join(repoRoot, "weaver", "requirements.txt"),
+    models: path.join(repoRoot, "weaver", "requirements.models.txt"),
+    modelsMlx: path.join(repoRoot, "weaver", "requirements.models.mlx.txt"),
+    speech: path.join(repoRoot, "weaver", "requirements.speech.txt"),
+  };
 }
 
-function sha256(file) {
-  const hash = createHash("sha256");
-  hash.update(fs.readFileSync(file));
-  return hash.digest("hex");
+for (const [name, file] of Object.entries(sourceRequirements())) {
+  if (!fs.existsSync(file)) throw new Error(`缺少 Python 产品依赖清单 ${name}: ${file}`);
 }
 
-async function download(url, dest) {
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  if (fs.existsSync(dest) && fs.statSync(dest).size > 0) return dest;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`下载失败 ${response.status} ${url}`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  fs.writeFileSync(dest, bytes);
-  return dest;
+const requirements = sourceRequirements();
+const requirementsSha256 = Object.fromEntries(
+  Object.entries(requirements).map(([name, file]) => [name, sha256File(file)]),
+);
+const sidecarSource = path.join(desktopRoot, "packaging", "sidecar");
+const sidecarPackage = path.join(sidecarSource, "package.json");
+const sidecarLock = path.join(sidecarSource, "package-lock.json");
+if (!fs.existsSync(sidecarPackage) || !fs.existsSync(sidecarLock))
+  throw new Error("sidecar package.json 或 package-lock.json 缺失");
+const sidecarLockSha256 = sha256File(sidecarLock);
+const pythonVerification = [
+  "import importlib.metadata as m, opentimelineio, pyJianYingDraft",
+  "assert m.version('opentimelineio') == '0.18.1'",
+  "assert m.version('pyJianYingDraft') == '0.3.1'",
+].join("\n");
+
+function archivePath(name) {
+  return path.join(targetCache, name);
 }
 
-function extractTar(archive, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  run("tar", ["-xzf", archive, "-C", dest]);
+function legacy(name) {
+  return path.join(cache, name);
 }
 
-function extractZip(archive, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  run("ditto", ["-x", "-k", archive, dest]);
-}
-
-function copyTree(from, to, filter = () => true) {
-  fs.mkdirSync(to, { recursive: true });
-  for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
-    if (!filter(entry.name)) continue;
-    const source = path.join(from, entry.name);
-    const target = path.join(to, entry.name);
-    if (entry.isDirectory()) copyTree(source, target, filter);
-    else if (entry.isFile()) fs.copyFileSync(source, target);
-  }
-}
-
-function executable(file) {
-  fs.chmodSync(file, 0o755);
-}
-
-const cache = path.join(desktopRoot, "staging", "cache");
-fs.rmSync(staging, { recursive: true, force: true });
-fs.mkdirSync(staging, { recursive: true });
-
-run(process.execPath, [require.resolve("typescript/bin/tsc"), "-p", desktopRoot, "--pretty", "false"]);
-run(process.execPath, [path.join(desktopRoot, "scripts/bundle-preload.mjs")]);
-run(process.execPath, [path.join(repoRoot, "node_modules", "vite", "bin", "vite.js"), "build"], {
-  cwd: path.join(repoRoot, "products", "studio"),
-  env: { ...process.env },
-});
-fs.cpSync(path.join(repoRoot, "products", "studio", "dist"), path.join(staging, "ui"), { recursive: true });
-
-const esbuildBin = require.resolve("esbuild/bin/esbuild");
-fs.mkdirSync(path.join(staging, "service"), { recursive: true });
-run(esbuildBin, [
-  path.join(repoRoot, "products", "studio", "server", "listen.ts"),
-  "--bundle",
-  "--platform=node",
-  "--format=esm",
-  "--outfile=" + path.join(staging, "service", "server.mjs"),
-  "--external:better-sqlite3",
-  "--banner:js=import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
-]);
-run(esbuildBin, [
-  path.join(repoRoot, "products", "study-films", "src", "render-card.ts"),
-  "--bundle",
-  "--platform=node",
-  "--format=esm",
-  "--outfile=" + path.join(staging, "service", "render.mjs"),
-  "--external:react",
-  "--external:react-dom",
-  "--external:remotion",
-  "--external:@remotion/bundler",
-  "--external:@remotion/renderer",
-]);
-
-const nodeArchive = await download(pins.node.url, path.join(cache, "node.tar.gz"));
-const sums = await (await fetch("https://nodejs.org/dist/v22.23.4/SHASUMS256.txt")).text();
-const nodeSum = sums.split("\n").find((line) => line.endsWith("node-v22.23.4-darwin-arm64.tar.gz"))?.split(/\s+/)[0];
-if (!nodeSum || sha256(nodeArchive) !== nodeSum) throw new Error("Node 校验失败");
-extractTar(nodeArchive, path.join(cache, "node"));
-fs.cpSync(path.join(cache, "node", "node-v22.23.4-darwin-arm64"), path.join(staging, "node"), { recursive: true });
-executable(path.join(staging, "node", "bin", "node"));
-
-const servicePkg = {
-  name: "lightweaver-service",
-  private: true,
-  type: "module",
-  dependencies: {
-    "better-sqlite3": "12.6.2",
-    react: "19.1.1",
-    "react-dom": "19.1.1",
-    remotion: "4.0.512",
-    "@remotion/bundler": "4.0.512",
-    "@remotion/renderer": "4.0.512",
-  },
-};
-fs.writeFileSync(path.join(staging, "service", "package.json"), JSON.stringify(servicePkg, null, 2));
-const cachedDeps = path.join(desktopRoot, "staging", "cache", "service-deps", "node_modules");
-if (fs.existsSync(path.join(cachedDeps, "better-sqlite3", "build", "Release", "better_sqlite3.node"))) {
-  fs.cpSync(cachedDeps, path.join(staging, "service", "node_modules"), { recursive: true });
-} else {
-  const sidecarNpm = path.join(staging, "node", "bin", "npm");
-  const sidecarNode = path.join(staging, "node", "bin", "node");
-  run(sidecarNode, [sidecarNpm, "install", "--omit=dev", "--no-audit", "--no-fund"], {
-    cwd: path.join(staging, "service"),
-    env: { ...process.env, npm_config_update_notifier: "false" },
+async function obtainArchive(name, pin, legacyNames = []) {
+  return downloadVerified({
+    url: pin.url,
+    sha256: pin.sha256,
+    destination: archivePath(name),
+    legacy: legacyNames.map(legacy),
   });
 }
 
-for (const name of ["ffmpeg", "ffprobe"]) {
-  const archive = await download(pins[name].url, path.join(cache, `${name}.zip`));
-  const sidecar = await download(`${pins[name].url}.sha256`, path.join(cache, `${name}.sha256`));
-  const expected = fs.readFileSync(sidecar, "utf8").trim().split(/\s+/)[0];
-  if (expected && sha256(archive) !== expected) throw new Error(`${name} 校验失败`);
-  const extracted = path.join(cache, name);
-  fs.rmSync(extracted, { recursive: true, force: true });
-  extractZip(archive, extracted);
-  const binary = fs.readdirSync(extracted).map((file) => path.join(extracted, file)).find((file) => fs.statSync(file).isFile());
-  if (!binary) throw new Error(`${name} 压缩包里没有可执行文件`);
-  const target = path.join(staging, "tools", name);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.copyFileSync(binary, target);
-  executable(target);
+function extractNamed(archive, name) {
+  const destination = path.join(work, name);
+  extractArchive(archive, destination, target);
+  return destination;
 }
 
-const chromeArchive = await download(pins.chrome.url, path.join(cache, "chrome.zip"));
-if (sha256(chromeArchive) !== pins.chrome.sha256) throw new Error("卡片浏览器校验失败");
-const chromeDir = path.join(cache, "chrome");
-fs.rmSync(chromeDir, { recursive: true, force: true });
-extractZip(chromeArchive, chromeDir);
-const chromeBin = path.join(chromeDir, "chrome-headless-shell-mac-arm64", "chrome-headless-shell");
-if (!fs.existsSync(chromeBin)) throw new Error("没有找到卡片浏览器可执行文件");
-fs.mkdirSync(path.join(staging, "card", "browser"), { recursive: true });
-fs.cpSync(path.join(chromeDir, "chrome-headless-shell-mac-arm64"), path.join(staging, "card", "browser"), { recursive: true });
-executable(path.join(staging, "card", "browser", "chrome-headless-shell"));
+function copyLaunchers() {
+  fs.mkdirSync(path.join(staging, "bin"), { recursive: true });
+  const source = path.join(desktopRoot, "packaging", "launch");
+  if (target.platform === "win32") {
+    fs.copyFileSync(
+      path.join(source, "weaver.cmd"),
+      path.join(staging, target.cliLauncher),
+    );
+  } else {
+    fs.copyFileSync(
+      path.join(source, "weaver"),
+      path.join(staging, target.cliLauncher),
+    );
+    makeExecutable(path.join(staging, target.cliLauncher));
+  }
+}
 
-run(process.execPath, ["--import", "tsx", path.join(desktopRoot, "scripts", "bundle-card.mjs"), path.join(staging, "card", "site")], {
-  cwd: repoRoot,
-});
-const info = JSON.parse(spawnSync(process.execPath, ["--import", "tsx", path.join(repoRoot, "products", "study-films", "src", "render-card.ts"), "--describe"], {
-  cwd: repoRoot,
-  env: { ...process.env, LIGHTWEAVER_CHROME: path.join(staging, "card", "browser", "chrome-headless-shell") },
-  encoding: "utf8",
-}).stdout);
-fs.writeFileSync(path.join(staging, "card", "info.json"), JSON.stringify(info));
-
-const resources = path.join(staging, "resources");
-copyTree(path.join(repoRoot, "library"), path.join(resources, "library"));
-copyTree(path.join(repoRoot, "weaver", "scripts"), path.join(resources, "weaver", "scripts"), (name) => name !== "__pycache__" && !name.endsWith(".pyc"));
-fs.mkdirSync(path.join(resources, "weaver", "src", "adapters"), { recursive: true });
-for (const file of ["local-models.ts", "speech-models.ts"])
-  fs.copyFileSync(
-    path.join(repoRoot, "weaver", "src", "adapters", file),
-    path.join(resources, "weaver", "src", "adapters", file),
+function verifySqlite(root, node) {
+  const stagePackage = path.join(root, "package.json");
+  const script = [
+    `const p=require(${JSON.stringify(stagePackage)});`,
+    "if(p.name!=='lightweaver-desktop-sidecar')throw new Error('sidecar 身份不符');",
+    "const D=require('better-sqlite3');",
+    "const d=new D(':memory:');",
+    "const row=d.prepare('select 42 as value').get();",
+    "if(row.value!==42)throw new Error('SQLite 查询结果不符');",
+    "d.close();",
+    "if(!require('playwright/package.json').version)throw new Error('Playwright 不可用');",
+  ].join("");
+  run(node, ["-e", script], {
+    cwd: root,
+    env: { ...process.env, NODE_PATH: path.join(root, "node_modules") },
+    stdio: "pipe",
+  });
+  const compositor = path.join(root, "node_modules", target.remotionCompositor);
+  const remotion = path.join(
+    compositor,
+    target.platform === "win32" ? "remotion.exe" : "remotion",
   );
-fs.copyFileSync(path.join(repoRoot, "weaver", "requirements.speech.txt"), path.join(resources, "weaver", "requirements.speech.txt"));
-fs.copyFileSync(path.join(desktopRoot, "packaging", "NOTICES.md"), path.join(staging, "NOTICES.md"));
+  if (!fs.existsSync(remotion))
+    throw new Error(`sidecar 缺少 Remotion compositor：${target.remotionCompositor}`);
+}
+
+function npmCliPath(nodeRoot) {
+  const candidates =
+    target.platform === "win32"
+      ? [
+          path.join(nodeRoot, "node_modules", "npm", "bin", "npm-cli.js"),
+          path.join(nodeRoot, "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+        ]
+      : [
+          path.join(nodeRoot, "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+          path.join(nodeRoot, "node_modules", "npm", "bin", "npm-cli.js"),
+        ];
+  const npm = candidates.find(fs.existsSync);
+  if (!npm) throw new Error(`随包 Node 中缺少 npm CLI：${nodeRoot}`);
+  return npm;
+}
+
+function installSidecar(nodeRoot, node) {
+  fs.mkdirSync(path.join(staging, "service"), { recursive: true });
+  const cacheKey = [
+    targetName,
+    `node${NODE_VERSION}`,
+    `abi${NODE_ABI}`,
+    sidecarLockSha256.slice(0, 20),
+  ].join("-");
+  const sidecarCacheRoot = path.join(cache, "sidecar");
+  const destination = path.join(sidecarCacheRoot, cacheKey);
+  const marker = {
+    cacheKey,
+    platform: target.platform,
+    arch: target.arch,
+    node: NODE_VERSION,
+    abi: NODE_ABI,
+    lockSha256: sidecarLockSha256,
+  };
+  fs.mkdirSync(sidecarCacheRoot, { recursive: true });
+  const valid = completeCache({
+    root: destination,
+    marker,
+    verify: (root) => {
+      verifySqlite(root, node);
+      return true;
+    },
+  });
+  if (!valid) {
+    fs.rmSync(destination, { recursive: true, force: true });
+    const building = path.join(
+      sidecarCacheRoot,
+      `.build-${cacheKey}-${process.pid}-${Date.now()}`,
+    );
+    fs.rmSync(building, { recursive: true, force: true });
+    try {
+      fs.mkdirSync(building, { recursive: true });
+      fs.copyFileSync(sidecarPackage, path.join(building, "package.json"));
+      fs.copyFileSync(sidecarLock, path.join(building, "package-lock.json"));
+      run(
+        node,
+        [
+          npmCliPath(nodeRoot),
+          "ci",
+          "--omit=dev",
+          "--no-audit",
+          "--no-fund",
+        ],
+        {
+          cwd: building,
+          env: {
+            ...process.env,
+            PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH || ""}`,
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1",
+            npm_config_update_notifier: "false",
+          },
+          stdio: "inherit",
+        },
+      );
+      verifySqlite(building, node);
+      finalizeCache({ staging: building, destination, marker });
+    } finally {
+      fs.rmSync(building, { recursive: true, force: true });
+    }
+  }
+  copyTree(destination, path.join(staging, "service"), (name) =>
+    name !== ".complete.json" && name !== ".gitkeep",
+  );
+}
+
+function installPython(pythonExtraction) {
+  const pythonCacheRoot = path.join(cache, "python-env");
+  const cacheKey = [
+    targetName,
+    `python${PYTHON_VERSION}`,
+    target.python.sha256.slice(0, 16),
+    requirementsSha256.main.slice(0, 16),
+  ].join("-");
+  const destination = path.join(pythonCacheRoot, cacheKey);
+  const marker = {
+    cacheKey,
+    platform: target.platform,
+    arch: target.arch,
+    python: PYTHON_VERSION,
+    pythonRelease: PYTHON_RELEASE,
+    archiveSha256: target.python.sha256,
+    requirementsMainSha256: requirementsSha256.main,
+  };
+  fs.mkdirSync(pythonCacheRoot, { recursive: true });
+  const pythonFile = path.join(destination, target.tools.python);
+  const valid = completeCache({
+    root: destination,
+    marker,
+    verify: () => run(pythonFile, ["-c", pythonVerification], {
+      env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+      stdio: "pipe",
+    }) === "",
+  });
+  if (!valid) {
+    fs.rmSync(destination, { recursive: true, force: true });
+    const building = path.join(
+      pythonCacheRoot,
+      `.build-${cacheKey}-${process.pid}-${Date.now()}`,
+    );
+    fs.rmSync(building, { recursive: true, force: true });
+    try {
+      fs.mkdirSync(building, { recursive: true });
+      const prefix = path.join(building, "python");
+      copyDirectoryContents(pythonExtraction, prefix);
+      const prefixRelative = target.tools.python.replace(/^python[\\/]/, "");
+      const sourcePython = path.join(pythonExtraction, prefixRelative);
+      run(
+        sourcePython,
+        [
+          "-c",
+          "import pathlib,sys; assert pathlib.Path(sys.prefix).resolve() == pathlib.Path(__import__('os').environ['PYTHONHOME']).resolve()",
+        ],
+        {
+          env: { ...process.env, PYTHONHOME: prefix },
+          stdio: "pipe",
+        },
+      );
+      run(
+        sourcePython,
+        [
+          "-m",
+          "pip",
+          "install",
+          "--no-cache-dir",
+          "--disable-pip-version-check",
+          "--requirement",
+          requirements.main,
+        ],
+        {
+          env: {
+            ...process.env,
+            PIP_DISABLE_PIP_VERSION_CHECK: "1",
+            PYTHONDONTWRITEBYTECODE: "1",
+            PYTHONHOME: prefix,
+          },
+          stdio: "inherit",
+        },
+      );
+      run(sourcePython, ["-c", pythonVerification], {
+        env: {
+          ...process.env,
+          PYTHONDONTWRITEBYTECODE: "1",
+          PYTHONHOME: prefix,
+        },
+        stdio: "pipe",
+      });
+      finalizeCache({ staging: building, destination, marker });
+    } finally {
+      fs.rmSync(building, { recursive: true, force: true });
+    }
+  }
+  copyTree(destination, staging, (name) =>
+    name !== ".complete.json" && name !== "__pycache__" && !name.endsWith(".pyc"),
+  );
+  if (target.platform === "win32") {
+    fs.rmSync(path.join(staging, "python", "Scripts"), { recursive: true, force: true });
+  } else {
+    const bin = path.join(staging, "python", "bin");
+    for (const entry of fs.readdirSync(bin)) {
+      if (!["python", "python3", "python3.12"].includes(entry))
+        fs.rmSync(path.join(bin, entry), { recursive: true, force: true });
+    }
+  }
+  run(path.join(staging, target.tools.python), ["-c", pythonVerification], {
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+    stdio: "pipe",
+  });
+}
+
+function copyResources() {
+  const resources = path.join(staging, "resources");
+  copyTree(path.join(repoRoot, "library"), path.join(resources, "library"));
+  copyTree(
+    path.join(repoRoot, "weaver", "scripts"),
+    path.join(resources, "weaver", "scripts"),
+    (name) => name !== "__pycache__" && !name.endsWith(".pyc"),
+  );
+  fs.mkdirSync(path.join(resources, "weaver", "src", "adapters"), {
+    recursive: true,
+  });
+  for (const file of ["local-models.ts", "speech-models.ts"]) {
+    fs.copyFileSync(
+      path.join(repoRoot, "weaver", "src", "adapters", file),
+      path.join(resources, "weaver", "src", "adapters", file),
+    );
+  }
+  for (const [name, file] of Object.entries(requirements)) {
+    const packagedName =
+      name === "main"
+        ? "requirements.txt"
+        : name === "modelsMlx"
+          ? "requirements.models.mlx.txt"
+          : name === "models"
+            ? "requirements.models.txt"
+            : "requirements.speech.txt";
+    fs.copyFileSync(file, path.join(resources, "weaver", packagedName));
+  }
+  fs.copyFileSync(
+    path.join(desktopRoot, "packaging", "NOTICES.md"),
+    path.join(staging, "NOTICES.md"),
+  );
+  const icon = path.join(desktopRoot, "packaging", "icon.png");
+  if (fs.existsSync(icon)) fs.copyFileSync(icon, path.join(staging, "icon.png"));
+}
+
+function writeRuntimeContract() {
+  fs.writeFileSync(
+    path.join(staging, "runtime-tools.json"),
+    JSON.stringify(target.tools, null, 2) + "\n",
+  );
+}
+
+function createManifest() {
+  const files = walkTree(staging).map(({ absolute, relative, entry }) => {
+    if (entry.isSymbolicLink()) {
+      return {
+        path: relative,
+        type: "symlink",
+        target: fs.readlinkSync(absolute).split(path.sep).join("/"),
+      };
+    }
+    const stat = fs.statSync(absolute);
+    return {
+      path: relative,
+      sha256: sha256File(absolute),
+      ...(target.platform !== "win32" && (stat.mode & 0o111) !== 0
+        ? { executable: true }
+        : {}),
+    };
+  });
+  const remotionRelative = `service/node_modules/${target.remotionCompositor}/remotion${target.platform === "win32" ? ".exe" : ""}`;
+  const native = [
+    target.tools.node,
+    target.tools.ffmpeg,
+    target.tools.ffprobe,
+    target.tools.cardBrowser,
+    target.tools.python,
+    "service/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+    remotionRelative,
+  ].map((nativePath) => ({ path: nativePath }));
+  const manifest = {
+    schemaVersion: 1,
+    platform: target.platform,
+    arch: target.arch,
+    runtime: {
+      node: { version: NODE_VERSION, abi: NODE_ABI },
+      python: { version: PYTHON_VERSION, release: PYTHON_RELEASE },
+      ffmpeg: FFMPEG_VERSION,
+      chrome: target.chrome.version,
+    },
+    tools: target.tools,
+    sidecar: {
+      lockSha256: sidecarLockSha256,
+      remotionCompositor: target.remotionCompositor,
+    },
+    native,
+    files,
+  };
+  fs.writeFileSync(
+    path.join(staging, "manifest.json"),
+    JSON.stringify(manifest, null, 2) + "\n",
+  );
+}
+
+function checkResources(root, mode) {
+  run(
+    process.execPath,
+    [
+      path.join(desktopRoot, "scripts", "check-resources.mjs"),
+      root,
+      `--expect=${targetName}`,
+    ],
+    { stdio: "inherit" },
+  );
+  process.stdout.write(`${mode}资源核验通过：${root}\n`);
+}
+
+function verifyRuntime(root, label) {
+  const node = path.join(root, target.tools.node);
+  const sqlite = path.join(root, "service", "node_modules", "better-sqlite3");
+  const script = [
+    `const D=require(${JSON.stringify(sqlite)});`,
+    "const d=new D(':memory:');",
+    "const value=d.prepare('select 42 as value').get().value;",
+    "d.close();",
+    "if(value!==42)throw new Error('SQLite 内存查询失败');",
+  ].join("");
+  run(node, ["-e", script], { cwd: root, stdio: "pipe" });
+  run(path.join(root, target.tools.python), ["-c", pythonVerification], {
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+    stdio: "pipe",
+  });
+  process.stdout.write(`${label}运行时查询通过\n`);
+}
+
+function packagedResourceRoot() {
+  const release = path.join(desktopRoot, "release");
+  if (target.platform === "darwin") {
+    const directory = target.arch === "arm64" ? "mac-arm64" : "mac";
+    return path.join(
+      release,
+      directory,
+      "LightWeaver.app",
+      "Contents",
+      "Resources",
+      "lightweaver",
+    );
+  }
+  if (target.platform === "win32")
+    return path.join(release, "win-unpacked", "resources", "lightweaver");
+  return path.join(release, "linux-unpacked", "resources", "lightweaver");
+}
+
+async function prepare() {
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(staging, { recursive: true });
+  fs.mkdirSync(targetCache, { recursive: true });
+  fs.mkdirSync(work, { recursive: true });
+
+  const nodeArchive = await obtainArchive(
+    `node-${NODE_VERSION}.${target.platform === "win32" ? "zip" : "tar.gz"}`,
+    target.node,
+    targetName === "darwin-arm64" ? ["node.tar.gz"] : [],
+  );
+  const nodeExtraction = extractNamed(nodeArchive, "node");
+  const nodeSource = path.join(nodeExtraction, target.node.root);
+  if (!fs.existsSync(nodeSource)) throw new Error("Node 归档目录不正确");
+  copyDirectoryContents(nodeSource, path.join(staging, "node"));
+  const nodeRoot = path.join(staging, "node");
+  const node = path.join(staging, target.tools.node);
+  if (!fs.existsSync(node)) throw new Error(`Node 可执行文件位置不正确：${target.tools.node}`);
+  makeExecutable(node);
+  const nodeVersions = JSON.parse(
+    run(node, [
+      "-p",
+      "JSON.stringify({version:process.versions.node,abi:process.versions.modules})",
+    ], { stdio: "pipe" }),
+  );
+  if (nodeVersions.version !== NODE_VERSION || nodeVersions.abi !== NODE_ABI)
+    throw new Error(
+      `Node 运行时不符：${nodeVersions.version}/ABI ${nodeVersions.abi}`,
+    );
+
+  run(
+    process.execPath,
+    [
+      require.resolve("typescript/bin/tsc"),
+      "-p",
+      desktopRoot,
+      "--pretty",
+      "false",
+    ],
+    { stdio: "inherit" },
+  );
+  run(
+    process.execPath,
+    [path.join(desktopRoot, "scripts", "bundle-preload.mjs")],
+    { stdio: "inherit" },
+  );
+  run(
+    process.execPath,
+    [path.join(repoRoot, "node_modules", "vite", "bin", "vite.js"), "build"],
+    { cwd: path.join(repoRoot, "products", "studio"), stdio: "inherit" },
+  );
+  fs.cpSync(
+    path.join(repoRoot, "products", "studio", "dist"),
+    path.join(staging, "ui"),
+    { recursive: true },
+  );
+
+  const esbuild = require.resolve("esbuild/bin/esbuild");
+  fs.mkdirSync(path.join(staging, "service"), { recursive: true });
+  const esmBanner =
+    "--banner:js=import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);";
+  run(
+    esbuild,
+    [
+      path.join(repoRoot, "products", "studio", "server", "listen.ts"),
+      "--bundle",
+      "--platform=node",
+      "--format=esm",
+      `--outfile=${path.join(staging, "service", "server.mjs")}`,
+      "--external:better-sqlite3",
+      esmBanner,
+    ],
+    { stdio: "inherit" },
+  );
+  run(
+    esbuild,
+    [
+      path.join(repoRoot, "weaver", "src", "desktop-cli.ts"),
+      "--bundle",
+      "--platform=node",
+      "--format=esm",
+      `--outfile=${path.join(staging, "service", "cli.mjs")}`,
+      "--external:better-sqlite3",
+      esmBanner,
+    ],
+    { stdio: "inherit" },
+  );
+  run(
+    esbuild,
+    [
+      path.join(repoRoot, "products", "study-films", "src", "render-card.ts"),
+      "--bundle",
+      "--platform=node",
+      "--format=esm",
+      `--outfile=${path.join(staging, "service", "render.mjs")}`,
+      "--external:react",
+      "--external:react-dom",
+      "--external:remotion",
+      "--external:@remotion/bundler",
+      "--external:@remotion/renderer",
+    ],
+    { stdio: "inherit" },
+  );
+
+  installSidecar(nodeRoot, node);
+  copyLaunchers();
+
+  const mediaExtractions = new Map();
+  for (const [name, pin] of Object.entries(target.mediaArchives)) {
+    const archive = await obtainArchive(
+      `${name}-${FFMPEG_VERSION}.zip`,
+      pin,
+      targetName === "darwin-arm64" ? [`${name}.zip`] : [],
+    );
+    mediaExtractions.set(name, extractNamed(archive, `media-${name}`));
+  }
+  fs.mkdirSync(path.join(staging, "tools"), { recursive: true });
+  for (const name of ["ffmpeg", "ffprobe"]) {
+    const artifact = target.mediaArtifacts[name];
+    const source = path.join(mediaExtractions.get(artifact.archive), artifact.path);
+    if (!fs.existsSync(source)) throw new Error(`${name} 的归档内文件名不正确：${artifact.path}`);
+    const destination = path.join(staging, target.tools[name]);
+    fs.copyFileSync(source, destination);
+    makeExecutable(destination);
+  }
+
+  const chromeArchive = await obtainArchive(
+    `chrome-${target.chrome.version}.zip`,
+    target.chrome,
+    targetName === "darwin-arm64" ? ["chrome.zip"] : [],
+  );
+  const chromeExtraction = extractNamed(chromeArchive, "chrome");
+  const chromeSource = path.join(chromeExtraction, target.chrome.root);
+  if (!fs.existsSync(chromeSource)) throw new Error("Chrome 归档目录不正确");
+  const browserRoot = path.join(staging, "card", "browser");
+  copyDirectoryContents(chromeSource, browserRoot);
+  makeExecutable(path.join(staging, target.tools.cardBrowser));
+
+  run(
+    node,
+    [
+      "--import",
+      "tsx",
+      path.join(desktopRoot, "scripts", "bundle-card.mjs"),
+      path.join(staging, "card", "site"),
+    ],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
+  const describe = run(
+    node,
+    [
+      "--import",
+      "tsx",
+      path.join(repoRoot, "products", "study-films", "src", "render-card.ts"),
+      "--describe",
+    ],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        LIGHTWEAVER_CHROME: path.join(staging, target.tools.cardBrowser),
+      },
+      stdio: "pipe",
+    },
+  );
+  fs.writeFileSync(
+    path.join(staging, "card", "info.json"),
+    JSON.stringify(JSON.parse(describe)),
+  );
+
+  const pythonArchive = await obtainArchive("python.tar.gz", target.python);
+  const pythonExtraction = extractNamed(pythonArchive, "python");
+  const pythonSource = path.join(pythonExtraction, target.python.root);
+  if (!fs.existsSync(pythonSource)) throw new Error("Python 归档目录不正确");
+  installPython(pythonSource);
+  copyResources();
+  writeRuntimeContract();
+  createManifest();
+  checkResources(staging, "staging ");
+  verifyRuntime(staging, "staging ");
+}
+
+await prepare();
+if (prepareOnly) {
+  process.stdout.write(`已准备 ${targetName} staging，未调用 electron-builder\n`);
+  process.exit(0);
+}
+
+const output = path.join(desktopRoot, "release");
+const staleOutput =
+  target.platform === "darwin"
+    ? path.join(output, target.arch === "arm64" ? "mac-arm64" : "mac")
+    : target.platform === "win32"
+      ? path.join(output, "win-unpacked")
+      : path.join(output, "linux-unpacked");
+fs.rmSync(staleOutput, { recursive: true, force: true });
 const icon = path.join(desktopRoot, "packaging", "icon.png");
-if (fs.existsSync(icon)) fs.copyFileSync(icon, path.join(staging, "icon.png"));
-
-const manifest = {
-  platform,
-  arch,
-  node: pins.node.version,
-  ffmpeg: pins.ffmpeg.version,
-  chrome: pins.chrome.version,
-  files: [
-    ["node/bin/node", true],
-    ["service/server.mjs", false],
-    ["service/render.mjs", false],
-    ["service/node_modules/better-sqlite3/package.json", false],
-    ["tools/ffmpeg", true],
-    ["tools/ffprobe", true],
-    ["card/browser/chrome-headless-shell", true],
-    ["card/site/index.html", false],
-    ["card/info.json", false],
-    ["resources/weaver/scripts/process-supervisor.mjs", false],
-    ["resources/weaver/scripts/models.py", false],
-    ["resources/library/assets.json", false],
-    ["ui/index.html", false],
-    ["NOTICES.md", false],
-  ],
-};
-fs.writeFileSync(path.join(staging, "manifest.json"), JSON.stringify(manifest, null, 2));
-run(process.execPath, [path.join(desktopRoot, "scripts", "check-resources.mjs"), staging]);
-
 const builder = require("electron-builder");
 await builder.build({
   config: {
@@ -241,20 +679,25 @@ await builder.build({
     electronVersion,
     productName: "LightWeaver",
     executableName: "LightWeaver",
-    directories: { output: path.join(desktopRoot, "release"), app: desktopRoot },
+    directories: { output, app: desktopRoot },
     files: ["dist/**", "static/**", "package.json"],
     extraResources: [{ from: staging, to: "lightweaver" }],
     icon: fs.existsSync(icon) ? icon : undefined,
     asar: true,
     npmRebuild: false,
     mac: {
-      target: distFlag ? ["dir", "dmg", "zip"] : ["dir"],
+      target: dist ? ["dir", "dmg", "zip"] : ["dir"],
       identity: null,
       notarize: false,
       category: "public.app-category.video",
     },
-    win: { target: ["nsis"] },
-    linux: { target: ["AppImage"] },
+    win: { target: dist ? ["dir", "nsis"] : ["dir"] },
+    linux: { target: dist ? ["dir", "AppImage"] : ["dir"] },
   },
 });
-process.stdout.write(`已生成 ${path.join(desktopRoot, "release")}\n`);
+const finalResources = packagedResourceRoot();
+if (!fs.existsSync(finalResources))
+  throw new Error(`最终包 Resources 未找到：${finalResources}`);
+checkResources(finalResources, "最终包");
+verifyRuntime(finalResources, "最终包");
+process.stdout.write(`已生成 ${output}\n`);

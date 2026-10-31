@@ -86,7 +86,7 @@ precise 使用 Qwen3-ForcedAligner-0.6B。zh、yue、en、de、es、fr、it、pt
 
 源片与独立 ASR 先对完整选择做 VAD，再规划最长 40 秒的上下文，优先在停顿中切分，无停顿时有界均分。声学活动不逐段当作句子转写，外层不再固定重叠切窗。ASR 上下文仍为 estimated；`analyze --with asr --align` 按各上下文的实际文字和音频逐窗对齐，保留原文和词时间，再按当前修订采用为源片字幕。模型仍可能返回无效句界，此时明确失败。
 
-跨窗采用只去重同一来源、相同说话人且文字一致的重叠证据；不同文字保留供作者核对，不按时间重叠丢弃整句。字幕 cue 可在 Studio 编辑文字、时间、来源和临时说话人标签；人工修改清除已失效词时间。Studio 字幕支持正文、原始转写和说话人检索，每页显示 25 条。重叠筛选只比较同一时间钟，修改与移除按 cue 标识作用于完整字幕轨。离页时备份未提交草稿到当前浏览器，重新打开后显式恢复；恢复保留原修订基线，过期修订仍进入冲突处理。备份可手动清除。
+跨窗采用只去重同一来源、相同说话人且文字一致的重叠证据；不同文字保留供作者核对，不按时间重叠丢弃整句。字幕 cue 可在 Studio 编辑文字、时间、来源和临时说话人标签；人工修改清除已失效词时间。Studio 字幕支持正文、原始转写和说话人检索，每页显示 25 条。重叠筛选只比较同一时间钟，修改与移除按 cue 标识作用于完整字幕轨。未提交草稿备份到当前数据目录的客户端状态，桌面另写独立恢复 journal，重新打开后显式恢复；恢复保留原修订基线，过期修订仍进入冲突处理。备份可手动清除。
 
 视频和静帧遮罩按所选输出规格预览，位置保存在项目修订中；卡片遮罩使用坐标示意，并通过制作预览核对实际画面。
 
@@ -190,7 +190,7 @@ npx weaver migrate --root /absolute/legacy-workspace --execute --request-id migr
 npx weaver migrate rollback JOURNAL --json
 ```
 
-失败与取消保留已完成独立目标及上一份有效交付。作业总时限返回 `DEADLINE_EXCEEDED`，用户取消与 worker 停止分别登记 cancelled 与 interrupted。工具探测接收节点取消信号。媒体监督进程通过父进程管道与 IPC 断连感知 worker 退出。POSIX 终止目标进程组；Windows 用 `taskkill /T` 终止进程树，三秒后强制回收未退出后代。界面上的“取消”只表示请求已提交，进程回收以监督结果为准。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
+失败与取消保留已完成独立目标及上一份有效交付。作业总时限返回 `DEADLINE_EXCEEDED`，用户取消与 worker 停止分别登记 cancelled 与 interrupted。工具探测接收节点取消信号。媒体监督进程通过父进程管道与 IPC 断连感知 worker 退出。POSIX 终止目标进程组；Windows 用 PowerShell 宿主中的 Job Object 拥有进程树，目标先挂起、加入 Job 后才运行，停止或宿主退出会回收后代。三秒宽限后仍未退出的监督宿主会被强制停止。界面上的“取消”只表示请求已提交，进程回收以监督结果为准。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
 
 ## 桌面客户端
 
@@ -200,6 +200,12 @@ make desktop-package  # 本机未签名可运行包
 make desktop-dist     # 未签名安装分发包
 ```
 
-`make studio` 继续使用仓库 `data/.weaver` 与 Vite。桌面开发包和正式包默认把数据库写到各自的用户目录，不写安装目录或仓库数据。CLI 仍可用 `--data-dir`、`--config-file`、`--config-base` 指向同一位置。正式包内的服务由随包 Node 启动。签名和公证不在这些命令里。Windows 与 Linux 目标写在 electron-builder 配置中，需在对应系统上执行打包脚本后才有安装包。
+`make studio` 继续使用仓库 `data/.weaver` 与 Vite。桌面开发包和正式包默认把数据库写到用户目录，不写安装目录或仓库数据。`LIGHTWEAVER_USER_DATA` 可隔离整个桌面配置。正式服务和 CLI 使用随包 Node；bundle 内的 `bin/weaver`（Windows 为 `bin/weaver.cmd`）默认读取同一桌面偏好，也可用 `--data-dir`、`--config-file`、`--config-base` 显式覆盖。
+
+打包支持 `darwin-arm64`、`darwin-x64`、`linux-x64`、`win32-x64`，需在对应宿主执行 `npm run package -w @lightweaver/desktop -- --target=目标`。普通 package 生成可运行目录，`--dist` 再生成安装分发包；不支持的目标或跨宿主构建在修改 staging 前失败。Node、FFmpeg、Chrome、交接 Python 和 sidecar 依赖随包固定，最终 Resources 按 SHA-256 与原生架构核验。签名和公证不在这些命令里。
+
+交接 Python 自带 OTIO 与剪映导出依赖。模型 Python 仍由用户单独安装并指定，设置页提供包内 requirements、创建环境命令和 native library/bindings 路径字段。首次启动不会安装模型依赖或下载权重。项目首页可导入 bundle ZIP 或目录；模型完整性检查与真实推理作业结果分别展示。
+
+客户端状态先加载再重放待保存操作；冲突时按最新状态重放，备份清除需服务端确认。桌面每次编辑同时写入当前数据目录的独立恢复 journal，重启前等待写盘。草稿恢复保留原修订基线，转换操作期间的新编辑不会绕过修订冲突。桌面退出确认由主进程协调，浏览器仍使用离站提示。验收证据与平台限制见 [桌面客户端验收](acceptance-desktop.md)。
 
 备份使用 SQLite backup API，并复制快照引用的不可变 blob。restore 写入空目录，GC 默认 dry-run，保护修订、库版本、run、收据、pin 和保留交付。迁移保留旧原件，旧派生结果无完整来源时登记 historical/unverified。rollback 只在迁移后未被修改时执行。

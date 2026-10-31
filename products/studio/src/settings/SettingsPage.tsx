@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
+import { ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
 import { api } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
@@ -8,6 +8,7 @@ import { UiSelect } from "../ui/UiSelect";
 import { ModelSettings } from "./ModelSettings";
 
 const RuntimeView = z.object({
+  platform: z.string(),
   mode: z.string().optional(),
   dataDir: z.string(),
   configFile: z.string(),
@@ -15,6 +16,9 @@ const RuntimeView = z.object({
   modelDir: z.string(),
   logDir: z.string(),
   resourcesDir: z.string().optional(),
+  interchangePython: z.string(),
+  cli: z.object({ node: z.string(), entry: z.string() }).nullable(),
+  requirements: z.array(z.object({ name: z.string(), file: z.string() })),
   tools: z.object({
     node: z.boolean(),
     ffmpeg: z.boolean(),
@@ -63,6 +67,7 @@ export function SettingsPage() {
           <ModelSettings
             fail={(reason) => session.setError(reason instanceof Error ? reason.message : String(reason))}
             onOpenRuntime={() => void session.navigate("settings", "", "runtime")}
+            onOpenJobs={() => void session.navigate("jobs")}
           />
         </Tabs.Content>
         <Tabs.Content value="runtime">
@@ -100,10 +105,37 @@ export function SettingsPage() {
 function RuntimePanel() {
   const session = useSession();
   const [runtime, setRuntime] = useState<z.infer<typeof RuntimeView> | null>(null);
+  const [settings, setSettings] = useState<z.infer<typeof ModelSettingsView> | null>(null);
+  const [fields, setFields] = useState<Partial<Record<RuntimeField, string>>>({});
+  const [environment, setEnvironment] = useState("");
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
-    api("/runtime", RuntimeView).then(setRuntime).catch((reason) => session.setError(String(reason)));
+    const controller = new AbortController();
+    Promise.all([
+      api("/runtime", RuntimeView, { signal: controller.signal }),
+      api("/models/settings", ModelSettingsView, { signal: controller.signal }),
+    ]).then(([nextRuntime, nextSettings]) => {
+      if (controller.signal.aborted) return;
+      setRuntime(nextRuntime);
+      setSettings(nextSettings);
+      setEnvironment(`${nextRuntime.modelDir.replace(/[/\\]+$/, "")}/python-env`);
+      setFields(runtimeFieldValues(nextSettings));
+    }).catch((reason) => { if (!controller.signal.aborted) session.setError(String(reason)); });
+    return () => controller.abort();
   }, []);
-  if (!runtime) return <p>加载运行时…</p>;
+  if (!runtime || !settings) return <p>加载运行时…</p>;
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body = ModelSettingsPatch.parse({ expectedRevision: settings.revision, ...fields });
+      const next = await api("/models/settings", ModelSettingsView, { method: "PUT", body });
+      setSettings(next);
+      setFields(runtimeFieldValues(next));
+      window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
+      session.setNotice("运行时路径已保存，环境变量覆盖仍优先");
+    } catch (reason) { session.setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setSaving(false); }
+  };
   const rows = [
     ["数据目录", runtime.dataDir],
     ["配置文件", runtime.configFile],
@@ -116,6 +148,35 @@ function RuntimePanel() {
       <h2>运行时与路径</h2>
       <p>Python 模型环境是可选的，启动时不会自动安装。相对路径按配置基准目录解析。</p>
       <p>绑定已有配置时，原文件保留，相对路径仍按该文件所在目录解析，重启后生效。</p>
+      <div className="grid gap-3 md:grid-cols-2">
+        {runtimeFields.map(({ key, label, directory }) => (
+          <label className="field" key={key}>
+            <span>{label}</span>
+            <input aria-label={label} value={fields[key] || ""} disabled={saving} onChange={(event) => setFields((current) => ({ ...current, [key]: event.target.value }))} />
+            <small>当前来源：{settings.values[key]?.source || "unset"}</small>
+            {desktop() && <button type="button" disabled={saving} onClick={() => void (async () => {
+              try {
+                const bridge = desktop();
+                const picked = directory ? await bridge?.pickDirectory?.() : await bridge?.pickModelFile?.();
+                if (picked) setFields((current) => ({ ...current, [key]: picked }));
+              } catch (reason) { session.setError(String(reason)); }
+            })()}>选择{directory ? "目录" : "文件"}</button>}
+          </label>
+        ))}
+      </div>
+      <label className="field">
+        <span>对齐设备</span>
+        <input value={fields.alignmentDevice || "cpu"} placeholder="cpu 或 cuda:0" disabled={saving} onChange={(event) => setFields((current) => ({ ...current, alignmentDevice: event.target.value }))} />
+      </label>
+      <button className="primary" type="button" disabled={saving} onClick={() => void save()}>{saving ? "保存中…" : "保存运行时路径"}</button>
+      <details className="my-4">
+        <summary>安装可选模型 Python 环境</summary>
+        <p>在应用目录外创建独立环境，安装后把上方“模型 Python”指定为该环境的解释器。ASR 的 transcribe native library 和 bindings 仍需单独获取并选择。</p>
+        <label className="field"><span>模型环境目标目录</span><input value={environment} onChange={(event) => setEnvironment(event.target.value)} /></label>
+        <pre>{modelEnvironmentCommands(runtime, environment).join("\n")}</pre>
+        <p>交接使用的 Python：{runtime.interchangePython || "由启动环境指定"}。它与可选模型环境分开。</p>
+        {runtime.requirements.map((item) => <div key={item.name}><a download href={`/api/runtime/requirements/${encodeURIComponent(item.name)}`}>下载 {item.name}</a><small>{item.file}</small></div>)}
+      </details>
       {desktop()?.pickModelFile && desktop()?.setPreferences && desktop()?.restartRuntime && (
         <button
           type="button"
@@ -125,7 +186,7 @@ function RuntimePanel() {
               if (!file || !bridge?.setPreferences || !bridge.restartRuntime) return;
               await bridge.setPreferences({ configFile: file, configBase: parentDir(file) });
               await bridge.restartRuntime();
-            });
+            }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)));
           }}
         >
           绑定已有配置并重启
@@ -146,8 +207,39 @@ function RuntimePanel() {
           </li>
         ))}
       </ul>
+      {runtime.cli && <details><summary>外部 agent 与命令行</summary><p>此入口使用包内 Node，默认读取同一桌面数据和配置。可用 --data-dir、--config-file 和 --config-base 显式覆盖。</p><pre>{`${runtime.platform === "win32" ? "& " : ""}'${runtime.cli.node.replaceAll("'", runtime.platform === "win32" ? "''" : "'\\''")}' '${runtime.cli.entry.replaceAll("'", runtime.platform === "win32" ? "''" : "'\\''")}' capabilities --json`}</pre></details>}
     </section>
   );
+}
+
+type RuntimeField = "modelPython" | "asrLibrary" | "asrBindings" | "visualServer" | "alignmentDevice";
+const runtimeFields: { key: Exclude<RuntimeField, "alignmentDevice">; label: string; directory?: boolean }[] = [
+  { key: "modelPython", label: "模型 Python" },
+  { key: "asrLibrary", label: "ASR transcribe native library" },
+  { key: "asrBindings", label: "ASR transcribe Python bindings", directory: true },
+  { key: "visualServer", label: "EmbeddingGemma llama-server" },
+];
+
+function runtimeFieldValues(settings: z.infer<typeof ModelSettingsView>) {
+  return {
+    ...Object.fromEntries(runtimeFields.map(({ key }) => [key, settings.values[key]?.value || ""])),
+    alignmentDevice: settings.values.alignmentDevice?.value || "cpu",
+  };
+}
+
+function modelEnvironmentCommands(runtime: z.infer<typeof RuntimeView>, directory: string) {
+  if (!directory.trim()) return ["先选择模型环境目标目录"];
+  const windows = runtime.platform === "win32";
+  const quote = (value: string) => windows ? `'${value.replaceAll("'", "''")}'` : `'${value.replaceAll("'", "'\\''")}'`;
+  const prefix = windows ? "& " : "";
+  const python = `${directory.replace(/[/\\]+$/, "")}/${windows ? "Scripts/python.exe" : "bin/python"}`;
+  const requirements = runtime.requirements.find((item) => item.name === "requirements.models.txt");
+  if (!requirements) return ["安装资源缺少 requirements.models.txt，请重新安装应用"];
+  return [
+    `${prefix}${quote(runtime.interchangePython || (windows ? "python" : "python3"))} -B -m venv ${quote(directory)}`,
+    `${prefix}${quote(python)} -m pip install -r ${quote(requirements.file)}`,
+    `模型 Python 路径：${python}`,
+  ];
 }
 
 function parentDir(file: string) {
@@ -177,7 +269,7 @@ function StoragePanel() {
               if (!picked || !bridge.setPreferences || !bridge.restartRuntime) return;
               await bridge.setPreferences({ dataDir: picked });
               await bridge.restartRuntime();
-            })
+            }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)))
           }
         >
           选择数据目录并重启

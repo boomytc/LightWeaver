@@ -15,6 +15,7 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: `http://${host}:${api}`,
+        changeOrigin: true,
         timeout: 180000,
         configure: (proxy) => {
           proxy.on("proxyReq", (proxyReq) => {
@@ -32,6 +33,7 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: `http://${host}:${api}`,
+        changeOrigin: true,
         timeout: 180000,
         configure: (proxy) => {
           proxy.on("proxyReq", (proxyReq) => {

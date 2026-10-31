@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { ipcChannels, type CommandName, type DesktopPreferences, type QuitDecision } from "./protocol";
+import {
+  ipcChannels,
+  type CommandName,
+  type DesktopPreferences,
+  type QuitDecision,
+  type RecoveryDraft,
+  type RecoveryFlushResult,
+} from "./protocol";
 
 contextBridge.exposeInMainWorld("lightweaver", {
   pickMedia: () => ipcRenderer.invoke(ipcChannels.pickMedia) as Promise<string[]>,
@@ -16,6 +23,15 @@ contextBridge.exposeInMainWorld("lightweaver", {
   restartRuntime: () => ipcRenderer.invoke(ipcChannels.restartRuntime) as Promise<void>,
   retry: () => ipcRenderer.invoke(ipcChannels.retryService) as Promise<void>,
   openLogs: () => ipcRenderer.invoke(ipcChannels.openLogs) as Promise<void>,
+  getRecoveryDrafts: () =>
+    ipcRenderer.invoke(ipcChannels.getRecoveryDrafts) as Promise<RecoveryDraft[]>,
+  saveRecoveryDraft: (draft: RecoveryDraft) =>
+    ipcRenderer.invoke(ipcChannels.saveRecoveryDraft, draft) as Promise<void>,
+  clearRecoveryDraft: (draft: {
+    projectId: string;
+    throughUpdatedAt: string;
+  }) =>
+    ipcRenderer.invoke(ipcChannels.clearRecoveryDraft, draft) as Promise<void>,
   themeSync: () => ipcRenderer.sendSync("theme-sync") as DesktopPreferences["theme"],
   onCommand: (handler: (command: CommandName) => void) => {
     const listener = (_event: unknown, command: CommandName) => handler(command);
@@ -29,5 +45,26 @@ contextBridge.exposeInMainWorld("lightweaver", {
     };
     ipcRenderer.on(ipcChannels.prepareQuit, listener);
     return () => ipcRenderer.removeListener(ipcChannels.prepareQuit, listener);
+  },
+  onPrepareRecoveryFlush: (
+    handler: () => Promise<void> | void,
+  ) => {
+    const listener = async () => {
+      let result: RecoveryFlushResult;
+      try {
+        await handler();
+        result = { ok: true };
+      } catch (error) {
+        result = {
+          ok: false,
+          message:
+            error instanceof Error ? error.message : String(error),
+        };
+      }
+      ipcRenderer.send(ipcChannels.recoveryFlushResult, result);
+    };
+    ipcRenderer.on(ipcChannels.prepareRecoveryFlush, listener);
+    return () =>
+      ipcRenderer.removeListener(ipcChannels.prepareRecoveryFlush, listener);
   },
 });

@@ -1,7 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "@lightweaver/weaver/contracts";
-import { api } from "../api";
-import { applyTheme, desktop, type LayoutPreference, type ThemePreference } from "../desktop";
+import { api, ApiError } from "../api";
+import {
+  applyTheme,
+  desktop,
+  type LayoutPreference,
+  type RecoveryDraft,
+  type ThemePreference,
+} from "../desktop";
+import {
+  applyClientOperations,
+  compareUpdatedAt,
+  mergeClientDrafts,
+  type ClientBody,
+  type ClientOperation,
+} from "./stateOperations";
 
 const Layout = z.object({
   left: z.number().int().min(160).max(640),
@@ -49,65 +62,106 @@ function fallbackState(): ClientState {
   };
 }
 
-type Desired = Omit<ClientState, "revision">;
+function bodyOf(state: ClientState): ClientBody {
+  return {
+    theme: state.theme,
+    recentProjectIds: state.recentProjectIds,
+    layout: state.layout,
+    drafts: state.drafts,
+  };
+}
 
 export function useClientState() {
   const [state, setState] = useState<ClientState>(fallbackState);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
-  const desired = useRef<Desired>(fallbackState());
+  const visible = useRef<ClientState>(fallbackState());
+  const acknowledged = useRef<ClientBody | null>(null);
   const revision = useRef("");
+  const pending = useRef<ClientOperation[]>([]);
+  const hydrated = useRef(false);
   const chain = useRef<Promise<void>>(Promise.resolve());
+  const legacyMigration = useRef(false);
 
-  const publish = (next: ClientState) => {
-    revision.current = next.revision;
-    desired.current = {
-      theme: next.theme,
-      recentProjectIds: next.recentProjectIds,
-      layout: next.layout,
-      drafts: next.drafts,
-    };
+  const reportError = (reason: unknown) => {
+    setError(reason instanceof Error ? reason.message : String(reason));
+  };
+
+  const renderVisible = () => {
+    const base = acknowledged.current || bodyOf(visible.current);
+    const body = applyClientOperations(base, pending.current.filter((operation) => operation.kind !== "clear-draft"));
+    const next = { ...body, revision: revision.current };
+    visible.current = next;
     setState(next);
     applyTheme(next.theme);
   };
 
-  const flush = () => {
-    const run = chain.current.then(async () => {
-      let guard = 0;
-      while (guard < 3) {
-        guard += 1;
-        const sent = {
-          theme: desired.current.theme,
-          recentProjectIds: desired.current.recentProjectIds,
-          layout: desired.current.layout,
-          drafts: desired.current.drafts,
-        };
-        try {
-          const next = await api("/client/state", ClientState, {
-            method: "PUT",
-            body: { expectedRevision: revision.current, ...sent },
-          });
-          const changed =
-            desired.current.theme !== sent.theme ||
-            desired.current.recentProjectIds !== sent.recentProjectIds ||
-            desired.current.layout !== sent.layout ||
-            desired.current.drafts !== sent.drafts;
-          revision.current = next.revision;
-          if (!changed) {
-            publish(next);
-            return;
+  const enqueue = (operation: ClientOperation) => {
+    pending.current.push(operation);
+    renderVisible();
+  };
+
+  const flush = (): Promise<boolean> => {
+    const run = chain.current
+      .then(async () => {
+        if (!hydrated.current || !acknowledged.current) return false;
+        let conflicts = 0;
+        while (pending.current.length > 0) {
+          const batch = pending.current.slice();
+          const body = applyClientOperations(acknowledged.current, batch);
+          try {
+            const next = await api("/client/state", ClientState, {
+              method: "PUT",
+              body: { expectedRevision: revision.current, ...body },
+            });
+            acknowledged.current = bodyOf(next);
+            revision.current = next.revision;
+            pending.current = pending.current.slice(batch.length);
+            renderVisible();
+            if (legacyMigration.current && typeof localStorage !== "undefined") {
+              localStorage.removeItem("lightweaver-draft-backup");
+              legacyMigration.current = false;
+            }
+            conflicts = 0;
+          } catch (reason) {
+            const code = reason instanceof ApiError ? reason.protocol.code : "";
+            if (
+              code !== "CLIENT_STATE_CONFLICT" &&
+              code !== "CONFIG_CONFLICT"
+            ) {
+              reportError(reason);
+              return false;
+            }
+            if (conflicts >= 2) {
+              reportError(new Error("客户端状态连续冲突，待保存操作已保留"));
+              return false;
+            }
+            try {
+              const details =
+                reason instanceof ApiError && reason.protocol.details;
+              const current =
+                details && typeof details === "object" && "current" in details
+                  ? ClientState.safeParse(details.current)
+                  : null;
+              const fresh = current?.success
+                ? current.data
+                : await api("/client/state", ClientState);
+              acknowledged.current = bodyOf(fresh);
+              revision.current = fresh.revision;
+              renderVisible();
+              conflicts += 1;
+            } catch (refreshError) {
+              reportError(refreshError);
+              return false;
+            }
           }
-        } catch (reason) {
-          const message = reason instanceof Error ? reason.message : String(reason);
-          if (!message.includes("客户端状态") || guard >= 3) {
-            setError(message);
-            return;
-          }
-          const fresh = await api("/client/state", ClientState);
-          revision.current = fresh.revision;
         }
-      }
-    });
+        return true;
+      })
+      .catch((reason) => {
+        reportError(reason);
+        return false;
+      });
     chain.current = run.then(
       () => undefined,
       () => undefined,
@@ -115,44 +169,83 @@ export function useClientState() {
     return run;
   };
 
-  const update = (patch: Partial<Desired>) => {
-    desired.current = { ...desired.current, ...patch };
-    setState((current) => ({ ...current, ...patch }));
-    if (patch.theme) applyTheme(patch.theme);
+  const update = (operation: ClientOperation) => {
+    enqueue(operation);
+    if (operation.kind === "theme") applyTheme(operation.value);
     const bridge = desktop();
-    if (bridge?.setPreferences && (patch.theme || patch.layout)) {
+    if (
+      bridge?.setPreferences &&
+      (operation.kind === "theme" || operation.kind === "layout")
+    ) {
       void bridge
-        .setPreferences({
-          ...(patch.theme ? { theme: patch.theme } : {}),
-          ...(patch.layout ? { layout: patch.layout } : {}),
-        })
-        .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
+        .setPreferences(
+          operation.kind === "theme"
+            ? { theme: operation.value }
+            : { layout: operation.value },
+        )
+        .catch(reportError);
     }
     return flush();
   };
 
   useEffect(() => {
-    const controller = new AbortController();
-    api("/client/state", ClientState, { signal: controller.signal })
-      .then((next) => {
-        publish(next);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const bridge = desktop();
+        const nativePromise: Promise<RecoveryDraft[]> = bridge?.getRecoveryDrafts
+          ? bridge.getRecoveryDrafts().catch((reason) => {
+              if (!cancelled) reportError(reason);
+              return [];
+            })
+          : Promise.resolve([]);
+        const [server, rawNative] = await Promise.all([
+          api("/client/state", ClientState),
+          nativePromise,
+        ]);
+        if (cancelled) return;
+        let native: DraftBackup[] = [];
+        try {
+          native = z.array(DraftBackup).parse(rawNative);
+        } catch (reason) {
+          reportError(reason);
+        }
+        acknowledged.current = bodyOf(server);
+        revision.current = server.revision;
+        hydrated.current = true;
+
+        for (const draft of native) {
+          const existing = server.drafts.find((item) => item.projectId === draft.projectId);
+          if (!existing || compareUpdatedAt(draft.updatedAt, existing.updatedAt) > 0)
+            pending.current.push({ kind: "upsert-draft", draft });
+        }
+        renderVisible();
         setReady(true);
+
         try {
           const legacy = localStorage.getItem("lightweaver-draft-backup");
-          if (!legacy || next.drafts.length > 0) return;
-          const parsed = DraftBackup.parse(JSON.parse(legacy));
-          desired.current = { ...desired.current, drafts: [parsed] };
-          setState((current) => ({ ...current, drafts: [parsed] }));
-          void flush().then(() => localStorage.removeItem("lightweaver-draft-backup"));
+          if (legacy) {
+            const parsed = DraftBackup.parse(JSON.parse(legacy));
+            const existing = mergeClientDrafts(server.drafts, native).find(
+              (item) => item.projectId === parsed.projectId,
+            );
+            if (!existing || compareUpdatedAt(parsed.updatedAt, existing.updatedAt) > 0) {
+              legacyMigration.current = true;
+              pending.current.push({ kind: "upsert-draft", draft: parsed });
+              renderVisible();
+            }
+          }
         } catch {
           setError("浏览器里有一份旧草稿备份，但无法迁入客户端状态");
         }
-      })
-      .catch((reason) => {
-        if (!controller.signal.aborted)
-          setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    return () => controller.abort();
+        await flush();
+      } catch (reason) {
+        if (!cancelled) reportError(reason);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -171,35 +264,24 @@ export function useClientState() {
     layout: state.layout,
     recentProjectIds: state.recentProjectIds,
     drafts: state.drafts,
-    setTheme: (theme: ThemePreference) => update({ theme }),
-    setLayout: (layout: LayoutPreference) => update({ layout: Layout.parse(layout) }),
-    rememberProject: (projectId: string) => {
-      const recentProjectIds = [
-        projectId,
-        ...desired.current.recentProjectIds.filter((id) => id !== projectId),
-      ].slice(0, 12);
-      return update({ recentProjectIds });
-    },
-    upsertDraft: (draft: DraftBackup) => {
-      const drafts = [
-        DraftBackup.parse(draft),
-        ...desired.current.drafts.filter((item) => item.projectId !== draft.projectId),
-      ];
-      return update({ drafts });
-    },
-    clearProjectDraft: (projectId: string) =>
-      update({ drafts: desired.current.drafts.filter((item) => item.projectId !== projectId) }),
+    setTheme: (theme: ThemePreference) => update({ kind: "theme", value: theme }),
+    setLayout: (layout: LayoutPreference) =>
+      update({ kind: "layout", value: Layout.parse(layout) }),
+    rememberProject: (projectId: string) =>
+      update({ kind: "remember-project", projectId }),
+    upsertDraft: (draft: DraftBackup) =>
+      update({ kind: "upsert-draft", draft: DraftBackup.parse(draft) }),
+    clearProjectDraft: (projectId: string, throughUpdatedAt?: string) =>
+      update({ kind: "clear-draft", projectId, throughUpdatedAt }),
     keepalive: () => {
-      if (!revision.current) return;
+      if (!hydrated.current || !acknowledged.current) return;
+      const body = applyClientOperations(acknowledged.current, pending.current);
       void fetch("/api/client/state", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           expectedRevision: revision.current,
-          theme: desired.current.theme,
-          recentProjectIds: desired.current.recentProjectIds,
-          layout: desired.current.layout,
-          drafts: desired.current.drafts,
+          ...body,
         }),
         keepalive: true,
       });
