@@ -48,11 +48,14 @@ npx weaver analyze --project demo --with asr,describe --provider modelbest-vlm -
 npx weaver analyze --project demo --with describe --provider deepseek-vlm --from-us 0 --duration-us 10000000 --wait --json
 npx weaver search --project demo --query "需要的画面" --mode text --json
 npx weaver search --project demo --query "需要的画面" --mode semantic --wait --json
+npx weaver search --project demo --query "需要的情节" --mode semantic --rerank --sources source-id --from-us 0 --to-us 10000000 --wait --json
 npx weaver match --project demo --edited edited-asset-id --sources source-asset-id --wait --json
 npx weaver proposal apply --project demo --proposal PROPOSAL --select CANDIDATE --expected-revision REV --json
 ```
 
-ASR、描述按源版本与窗口保存。describe 的观察和镜头树供作者判断，核心不代写旁白。文本模式按已存证据检索，semantic 模式调用配置的向量后端。未配置时显式失败。
+ASR、描述按源版本与窗口保存。describe 的观察和镜头树供作者判断，核心不代写旁白。文本模式按已存证据检索，semantic 模式用 Qwen3 Embedding 召回同一份字幕与观察文本，可显式使用 Qwen3 Reranker 重排前 50 个候选，默认返回前 20 个。两种模式都遵守素材和完整证据时间窗过滤。语义分数是归一化向量的余弦相似度，重排分数单列保存；它们不是内容正确率。未配置请求的能力时明确失败，不回退到其它模型。
+
+查询以 `Instruct` / `Query` 格式编码，素材用原文，使用 last-token pooling 和 L2 归一化。角色、指令、模型字节和实际运行时进入缓存绑定，重排另按查询与候选文本缓存。检索不改写源证据；候选绑定提交时修订，作业成功后才在事务中发布。单条向量输入最多 8192 tokens；重排的查询与单条候选合计最多 7680 tokens，为模型模板预留空间。超限拒绝，不静默截断。
 
 人工证据文件是 `[{sourceId,startUs,durationUs,text}]`，通过 `analyze --import /absolute/evidence.json --expected-revision REV --wait` 导入。外部候选使用 `schema proposal`，经 `proposal import --file /absolute/proposal.json --expected-revision REV --wait` 校验后保存。应用选择生成新修订，并保留选择记录。
 
@@ -65,6 +68,8 @@ npx weaver captions import --project demo --file /absolute/subtitles.srt --local
 
 字幕支持人工 SRT、VTT，时间可映射到成片、源片或场景语音。manual、native、aligned、estimated 分别记录。precise 模式缺对齐能力时报错；estimated 需要显式选择。SRT、ASS、烧录和交接使用同一 cue。
 
+precise 使用 Qwen3-ForcedAligner-0.6B。zh、yue、en、de、es、fr、it、pt、ru、ko、ja 可用，区域标签取主语种，拒绝 auto。单场景语音最多 180 秒，音频转为 16kHz 单声道；字幕用作者原文分句，通过实际词/字时间得到句界。空结果、原文覆盖不完整和无效时码会失败，不伪造 aligned 字幕。
+
 声音计划包含原声、语音、BGM、增益、裁剪、循环、淡变、旁白驱动 ducking 和最终 LUFS、true peak 目标。默认 -16 LUFS、-1 dBTP。静音节目不填写虚构测量值。正式视频验证帧数、规格和解码音频采样数，AAC 允许最多 2048 个额外样本。
 
 ## 模型边界
@@ -74,12 +79,17 @@ npx weaver captions import --project demo --file /absolute/subtitles.srt --local
 | TTS、音色设计 | ModelBest VoxCPM2 SSE 音频事件 | MODELBEST_API_KEY、LIGHTWEAVER_TTS_MODEL |
 | VLM | ModelBest MiniCPM-V 或 DeepSeek flash | MODELBEST_API_KEY、DEEPSEEK_API_KEY，analyze --provider |
 | VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | LIGHTWEAVER_VAD_LIBRARY、LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS |
-| 精确对齐 | WhisperX | LIGHTWEAVER_ALIGNMENT_MODEL |
-| 向量 | Transformers masked mean pooling | LIGHTWEAVER_EMBEDDING_MODEL、LIGHTWEAVER_EMBEDDING_REVISION |
+| 精确对齐 | Qwen3 ForcedAligner，显式 MLX / Torch | LIGHTWEAVER_ALIGNMENT_MODEL、LIGHTWEAVER_ALIGNMENT_BACKEND、LIGHTWEAVER_ALIGNMENT_DEVICE |
+| 向量 | Qwen3 Embedding GGUF，last-token pooling | LIGHTWEAVER_EMBEDDING_MODEL |
+| 重排 | Qwen3 Reranker GGUF，rank pooling | LIGHTWEAVER_RERANKER_MODEL，search --rerank |
+
+本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，默认 `weaver/.venv/bin/python`。GGUF 使用 `LIGHTWEAVER_LLAMA_SERVER` / `llama_server` 指定的二进制，默认从 PATH 查找 `llama-server`。相对配置路径以仓库根解析，不读取相邻仓库配置或 Python 环境。依赖安装见 README；Torch 和新版 MLX 的 Transformers 版本不同，切换时使用各自独立环境。权重路径需要显式设置，不自动下载。
+
+每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。模型 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 
 本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。
 
-`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认记录在 acceptance-v2.md。
+`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)与[强制对齐和检索验收](acceptance-alignment-search.md)。
 
 ## 库与交接
 

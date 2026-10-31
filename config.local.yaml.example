@@ -15,7 +15,15 @@ tts_model: 'VoxCPM2'
 # asr_bindings: '/absolute/runtime/transcribe.cpp/bindings/python/src'
 # vad_library: '/absolute/runtime/ten_vad.framework/Versions/A/ten_vad'
 
-# Optional capabilities. Missing configuration fails explicitly in precise / semantic modes.
-# alignment_model: '/absolute/models/language-matched-wav2vec2'
-# embedding_model: '/absolute/models/text-embedding'
-# embedding_revision: 'fixed-revision'
+# Optional local capabilities. Paths are relative to this repository or absolute.
+# Install: uv venv --python 3.12 weaver/.venv
+#          uv pip install --python weaver/.venv/bin/python -r weaver/requirements.models.txt
+model_python: 'weaver/.venv/bin/python'
+# Apple Silicon: mlx; other platforms: torch. No fallback between runtimes.
+# alignment_backend: 'mlx'
+# alignment_model: 'weaver/models/Qwen3-ForcedAligner-0.6B-8bit'
+# alignment_device: 'cpu'  # torch only: cpu or cuda[:index]
+# GGUF weights are loaded by a job-owned llama-server; no persistent service is needed.
+llama_server: 'llama-server'
+# embedding_model: 'weaver/models/Qwen3-Embedding-0.6B-Q8_0.gguf'
+# reranker_model: 'weaver/models/Qwen3-Reranker-0.6B-fixed-Q8_0.gguf'

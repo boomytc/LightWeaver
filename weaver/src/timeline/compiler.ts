@@ -326,7 +326,7 @@ export function compileTimeline(
             )
           )
             problem("ALIGNMENT_REQUIRED", p, "精确字幕缺少对齐结果", [
-              "配置 WhisperX 或导入人工 SRT",
+              "配置 Qwen3 强制对齐或导入人工 SRT",
             ]);
         }
         if (track.mode === "estimated") {

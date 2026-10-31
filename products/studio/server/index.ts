@@ -265,7 +265,12 @@ route("post", "/api/projects/:id/search", (req) => {
       query: z.string(),
       requestId: z.string(),
       mode: z.enum(["text", "semantic"]),
+      rerank: z.boolean().optional(),
     })
+    .refine(
+      (i) => !i.rerank || i.mode === "semantic",
+      "候选重排只适用于语义检索",
+    )
     .parse(req.body);
   return i.mode === "semantic"
     ? app.analysis.submitSemantic({

@@ -30,15 +30,22 @@ export async function localModelDigest(
     throw new WeaverError("CONFIG_MISSING", "本地模型或绑定文件不存在");
   if (fs.statSync(file).isFile()) return fileDigest(file);
   const files: [string, z.infer<typeof Digest>][] = [];
+  const parents = new Set<string>();
   const visit = async (dir: string): Promise<void> => {
+    const real = fs.realpathSync(dir);
+    if (parents.has(real))
+      throw new WeaverError("INVALID_INPUT", "本地模型目录存在循环软链");
+    parents.add(real);
     for (const e of fs
       .readdirSync(dir, { withFileTypes: true })
       .sort((a, b) => a.name.localeCompare(b.name))) {
       const p = path.join(dir, e.name);
-      if (e.isDirectory()) await visit(p);
-      else if (e.isFile() && !/\.pyc$/.test(e.name))
+      const stat = e.isSymbolicLink() ? fs.statSync(p) : e;
+      if (stat.isDirectory()) await visit(p);
+      else if (stat.isFile() && !/\.pyc$/.test(e.name))
         files.push([path.relative(file, p), await fileDigest(p)]);
     }
+    parents.delete(real);
   };
   await visit(file);
   return digest(files);

@@ -2,6 +2,8 @@
 
 本轮按用户调整后的范围确认 LightWeaver 的职责和功能。模型名称与端点可替换，本记录不作模型排名或生产质量承诺。基线为 430b226；架构升级与审查修复作为一个完整单元提交，不推送或发布。
 
+后续 Qwen3 强制对齐、语义检索和重排已接入，见[专项验收记录](acceptance-alignment-search.md)。本文保留架构升级当时的结果，文中的 WhisperX 与 Transformers embedding 随后被替换。
+
 ## 环境和检查
 
 Node 22.23.3、Python 3.12.2、FFmpeg 与 ffprobe 8.0.1、better-sqlite3 12.6.2、SQLite 3.51.2、Remotion 4.0.512。剪映实际版本为 macOS 11.7.0，草稿 schema 360000。

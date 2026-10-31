@@ -12,6 +12,24 @@ import { processRun } from "../media/process.ts";
 import { Store } from "../store/index.ts";
 import { localModelDigest } from "./toolchain.ts";
 import { readSpeechWav } from "./speech.ts";
+import {
+  LocalModels,
+  ALIGNMENT_PROVIDER,
+  EMBEDDING_PROVIDER,
+  RERANK_PROVIDER,
+  AlignmentResult,
+  EmbeddingResult,
+  RerankResult,
+  EmbeddingInput,
+  RETRIEVAL_INSTRUCTION,
+  alignmentLanguage,
+} from "./local-models.ts";
+export {
+  AlignmentResult,
+  ALIGNMENT_PROVIDER,
+  EMBEDDING_PROVIDER,
+  RERANK_PROVIDER,
+} from "./local-models.ts";
 
 export const workspaceRoot = fileURLToPath(
   new URL("../../../", import.meta.url),
@@ -51,25 +69,8 @@ export const AsrResult = z.object({
     )
     .optional(),
 });
-export const AlignmentResult = z.object({
-  backend: z.literal("whisperx"),
-  version: z.string(),
-  model: z.string(),
-  segments: z.array(
-    z.object({
-      text: z.string(),
-      start: z.number().nonnegative(),
-      end: z.number().nonnegative(),
-    }),
-  ),
-});
-export const EmbeddingResult = z.object({
-  model: z.string(),
-  revision: z.string(),
-  vectors: z.array(z.array(z.number().finite()).min(1)),
-});
-
 export class Providers {
+  readonly local = new LocalModels(workspaceRoot);
   constructor(private readonly store: Store) {}
   descriptors() {
     const modelbest = modelbestBackend(workspaceRoot),
@@ -135,34 +136,7 @@ export class Providers {
         cancellation: "process-tree",
         hint: "配置 LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS、LIGHTWEAVER_VAD_LIBRARY",
       },
-      {
-        id: "whisperx",
-        name: "WhisperX 强制对齐",
-        capabilities: ["alignment"],
-        model: cfg("LIGHTWEAVER_ALIGNMENT_MODEL", "alignment_model"),
-        version: "whisperx-3.8.4-adapter-1",
-        endpoint: "local-process",
-        ready: !!cfg("LIGHTWEAVER_ALIGNMENT_MODEL", "alignment_model"),
-        remote: false,
-        idempotency: true,
-        cancellation: "process-tree",
-        hint: "安装模型依赖，配置 LIGHTWEAVER_ALIGNMENT_MODEL 为语言匹配的 wav2vec2 模型路径或 ID",
-      },
-      {
-        id: "transformers-embedding",
-        name: "本地文本向量",
-        capabilities: ["embedding"],
-        model: cfg("LIGHTWEAVER_EMBEDDING_MODEL", "embedding_model"),
-        version:
-          cfg("LIGHTWEAVER_EMBEDDING_REVISION", "embedding_revision") ||
-          "local",
-        endpoint: "local-process",
-        ready: !!cfg("LIGHTWEAVER_EMBEDDING_MODEL", "embedding_model"),
-        remote: false,
-        idempotency: true,
-        cancellation: "process-tree",
-        hint: "配置 LIGHTWEAVER_EMBEDDING_MODEL 及固定 LIGHTWEAVER_EMBEDDING_REVISION",
-      },
+      ...this.local.descriptors(),
     ]);
   }
   selectedVlm(value?: string) {
@@ -205,12 +179,18 @@ export class Providers {
               cfg("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
               path.join(scripts, "asr.py"),
             ]
-          : [base.model];
+          : [base.model, ...this.local.files(id)];
       const files: string[] = [];
       for (const file of local)
         if (file && fs.existsSync(file))
           files.push(await localModelDigest(file));
-      result[id] = JSON.stringify({ ...base, files });
+      result[id] = JSON.stringify({
+        ...base,
+        files,
+        ...(this.local.files(id).length
+          ? { runtime: await this.local.versions(id) }
+          : {}),
+      });
     }
     return result;
   }
@@ -444,6 +424,28 @@ export class Providers {
       .parse(await response.json());
     return { observation: out.choices[0].message.content };
   }
+  private async checkLocalBinding(id: string, binding?: string) {
+    this.require(id, binding);
+    if (binding && (await this.freeze([id]))[id] !== binding)
+      throw new WeaverError(
+        "PROVIDER_CHANGED",
+        "本地模型、参数或运行时已改变，请重新提交作业",
+      );
+  }
+  async requireAlignment(locales: string[]) {
+    for (const locale of locales) alignmentLanguage(locale);
+    this.require(ALIGNMENT_PROVIDER);
+    const runtime = z
+      .object({ available: z.boolean(), missing: z.array(z.string()) })
+      .parse(await this.local.versions(ALIGNMENT_PROVIDER));
+    if (!runtime.available)
+      throw new WeaverError(
+        "CONFIG_MISSING",
+        "强制对齐依赖尚未安装",
+        { missing: runtime.missing },
+        ["在 model_python 对应环境安装 weaver/requirements.models.txt"],
+      );
+  }
   async align(input: {
     audio: string;
     text: string;
@@ -453,78 +455,109 @@ export class Providers {
     workDir: string;
     signal: AbortSignal;
   }): Promise<z.infer<typeof AlignmentResult>> {
-    this.require("whisperx", input.binding);
-    if (
-      input.binding &&
-      (await this.freeze(["whisperx"])).whisperx !== input.binding
-    )
-      throw new WeaverError("PROVIDER_CHANGED", "对齐模型字节已改变");
-    return AlignmentResult.parse(
-      await this.python(
-        "align",
-        {
+    const language = alignmentLanguage(input.locale);
+    if (!(input.duration > 0 && input.duration <= 180))
+      throw new WeaverError(
+        "INVALID_INPUT",
+        "精确字幕的单场景语音必须在 180 秒以内",
+      );
+    await this.checkLocalBinding(ALIGNMENT_PROVIDER, input.binding);
+    const s = this.local.settings();
+    const result = AlignmentResult.parse(
+      await this.local.run({
+        kind: "align",
+        job: {
           audio: input.audio,
           text: input.text,
-          locale: input.locale.split("-")[0],
+          language,
           duration: input.duration,
-          model: cfg("LIGHTWEAVER_ALIGNMENT_MODEL", "alignment_model"),
+          model: s.alignmentModel,
+          backend: s.alignmentBackend,
+          device: s.alignmentDevice,
+          ffmpeg: s.ffmpeg,
         },
-        input.workDir,
-        input.signal,
-      ),
+        workDir: input.workDir,
+        signal: input.signal,
+      }),
     );
+    await this.checkLocalBinding(ALIGNMENT_PROVIDER, input.binding);
+    if (
+      result.segments.some(
+        (v, i) =>
+          v.end > input.duration + 0.001 ||
+          (i > 0 && v.start < result.segments[i - 1].end),
+      )
+    )
+      throw new WeaverError("PROVIDER_FORMAT", "对齐字幕越界或重叠");
+    return result;
   }
   async embed(
-    texts: string[],
+    inputs: z.infer<typeof EmbeddingInput>[],
     workDir: string,
     signal: AbortSignal,
     binding?: string,
   ): Promise<z.infer<typeof EmbeddingResult>> {
-    this.require("transformers-embedding", binding);
-    if (
-      binding &&
-      (await this.freeze(["transformers-embedding"]))[
-        "transformers-embedding"
-      ] !== binding
-    )
-      throw new WeaverError("PROVIDER_CHANGED", "向量模型字节已改变");
+    const parsed = z.array(EmbeddingInput).parse(inputs);
+    await this.checkLocalBinding(EMBEDDING_PROVIDER, binding);
+    const s = this.local.settings();
     const result = EmbeddingResult.parse(
-      await this.python(
-        "embed",
-        {
-          texts,
-          model: cfg("LIGHTWEAVER_EMBEDDING_MODEL", "embedding_model"),
-          revision:
-            cfg("LIGHTWEAVER_EMBEDDING_REVISION", "embedding_revision") || null,
+      await this.local.run({
+        kind: "embed",
+        job: {
+          inputs: parsed,
+          instruction: RETRIEVAL_INSTRUCTION,
+          model: s.embeddingModel,
+          server: s.server,
         },
         workDir,
         signal,
-      ),
+      }),
     );
+    await this.checkLocalBinding(EMBEDDING_PROVIDER, binding);
     if (
-      result.vectors.length !== texts.length ||
-      result.vectors.some((v) => v.length !== result.vectors[0]?.length)
+      result.vectors.length !== inputs.length ||
+      result.vectors.some(
+        (v) =>
+          v.length !== result.vectors[0]?.length ||
+          Math.abs(v.reduce((sum, x) => sum + x * x, 0) - 1) > 0.001,
+      )
     )
-      throw new WeaverError("PROVIDER_FORMAT", "embedding 维度或数量错误");
+      throw new WeaverError(
+        "PROVIDER_FORMAT",
+        "embedding 数量、维度或归一化错误",
+      );
     return result;
   }
-  private async python(
-    kind: string,
-    job: unknown,
-    workDir: string,
-    signal: AbortSignal,
-  ): Promise<unknown> {
-    const file = path.join(workDir, `${kind}-job.json`);
-    fs.writeFileSync(file, JSON.stringify(job));
-    return parseLastJson(
-      (
-        await processRun(
-          "python3",
-          [path.join(scripts, "models.py"), kind, file],
-          { signal },
-        )
-      ).stdout,
+  async rerank(input: {
+    query: string;
+    documents: string[];
+    workDir: string;
+    signal: AbortSignal;
+    binding: string;
+  }): Promise<z.infer<typeof RerankResult>> {
+    z.object({
+      query: z.string().trim().min(1),
+      documents: z.array(z.string().trim().min(1)).min(1).max(50),
+    }).parse(input);
+    await this.checkLocalBinding(RERANK_PROVIDER, input.binding);
+    const s = this.local.settings();
+    const result = RerankResult.parse(
+      await this.local.run({
+        kind: "rerank",
+        job: {
+          query: input.query,
+          documents: input.documents,
+          model: s.rerankerModel,
+          server: s.server,
+        },
+        workDir: input.workDir,
+        signal: input.signal,
+      }),
     );
+    await this.checkLocalBinding(RERANK_PROVIDER, input.binding);
+    if (result.scores.length !== input.documents.length)
+      throw new WeaverError("PROVIDER_FORMAT", "重排响应数量错误");
+    return result;
   }
   async doctor() {
     const checks = await Promise.all(
@@ -552,7 +585,7 @@ export class Providers {
                 "python3",
                 [
                   "-c",
-                  "import importlib.util,json;print(json.dumps({x:bool(importlib.util.find_spec(x)) for x in ['whisperx','torch','transformers','opentimelineio']}))",
+                  "import importlib.util,json;print(json.dumps({x:bool(importlib.util.find_spec(x)) for x in ['opentimelineio']}))",
                 ],
                 { timeoutMs: 5000 },
               )
@@ -579,6 +612,11 @@ export class Providers {
     } catch {
       /* 目标应用缺失 */
     }
+    const alignmentRuntime = z
+      .object({ available: z.boolean(), missing: z.array(z.string()) })
+      .safeParse(
+        await this.local.versions(ALIGNMENT_PROVIDER).catch(() => null),
+      );
     return {
       node: process.version,
       sqlite: z
@@ -591,13 +629,14 @@ export class Providers {
         ...p,
         ready:
           p.ready &&
-          (p.id === "whisperx"
-            ? !!modules.whisperx
-            : p.id === "transformers-embedding"
-              ? !!modules.torch && !!modules.transformers
-              : true),
+          (p.id === ALIGNMENT_PROVIDER
+            ? alignmentRuntime.success && alignmentRuntime.data.available
+            : true),
       })),
       modules,
+      alignmentRuntime: alignmentRuntime.success
+        ? alignmentRuntime.data
+        : { available: false },
       jianying,
     };
   }

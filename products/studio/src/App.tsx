@@ -114,6 +114,7 @@ export function App() {
     [captionSource, setCaptionSource] = useState("");
   const [query, setQuery] = useState(""),
     [mode, setMode] = useState("text"),
+    [rerank, setRerank] = useState(false),
     [plan, setPlan] = useState<unknown>(null),
     [busy, setBusy] = useState(false),
     [locale, setLocale] = useState("zh");
@@ -801,10 +802,24 @@ export function App() {
                         onChange={(e) => setMode(e.target.value)}
                       >
                         <option value="text">文本检索</option>
-                        <option value="semantic">
-                          语义检索（需配置向量模型）
-                        </option>
+                        <option value="semantic">语义检索（字幕与观察）</option>
                       </select>
+                      {mode === "semantic" && (
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={rerank}
+                            disabled={
+                              !providers.some(
+                                (p) =>
+                                  p.capabilities.includes("rerank") && p.ready,
+                              )
+                            }
+                            onChange={(e) => setRerank(e.target.checked)}
+                          />
+                          候选重排
+                        </label>
+                      )}
                       <button
                         onClick={() =>
                           act(async () => {
@@ -814,7 +829,12 @@ export function App() {
                               z.union([Proposal, RunRecord]),
                               {
                                 method: "POST",
-                                body: { query, mode, requestId: requestId() },
+                                body: {
+                                  query,
+                                  mode,
+                                  rerank: mode === "semantic" && rerank,
+                                  requestId: requestId(),
+                                },
                               },
                             );
                             if (generation !== epoch.current) return;
@@ -866,6 +886,8 @@ export function App() {
                               {c.scores.text.toFixed(2)} / 画面{" "}
                               {c.scores.visual.toFixed(2)} / 语义{" "}
                               {c.scores.semantic.toFixed(2)}
+                              {c.scores.rerank !== undefined &&
+                                ` / 重排 ${c.scores.rerank.toFixed(2)}`}
                             </small>
                             <p>{c.limitations.join("；")}</p>
                             <button

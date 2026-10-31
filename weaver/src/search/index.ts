@@ -16,7 +16,13 @@ import { Store, digest, newId, canonical } from "../store/index.ts";
 import { Projects } from "../project/service.ts";
 import { Jobs, type NodeContext } from "../jobs/index.ts";
 import { fileURLToPath } from "node:url";
-import { Providers, AsrResult } from "../adapters/providers.ts";
+import {
+  Providers,
+  AsrResult,
+  EMBEDDING_PROVIDER,
+  RERANK_PROVIDER,
+} from "../adapters/providers.ts";
+import { EmbeddingInput, RerankResult } from "../adapters/local-models.ts";
 import { Artifacts } from "../artifacts/index.ts";
 import { probe } from "../media/probe.ts";
 import { processRun } from "../media/process.ts";
@@ -99,27 +105,34 @@ export class Analysis {
     this.artifacts = new Artifacts(store);
     jobs.register("analyze", (c) => this.analyzeNode(c));
     jobs.register("reference-match", (c) => this.matchNode(c));
-    jobs.register("semantic-search", (c) => this.semanticNode(c));
+    jobs.register(
+      "semantic-search",
+      (c) => this.semanticNode(c),
+      (_c, result) => {
+        this.saveProposal(Proposal.parse(result));
+      },
+    );
     jobs.register("standalone-asr", (c) => this.standaloneAsr(c));
     jobs.register("voice-mint", (c) => this.mint(c));
     jobs.register("import-proposal", (c) => this.importProposalNode(c));
     jobs.register("capture", (c) => this.captureNode(c));
     jobs.register("import-analysis", (c) => this.importAnalysisNode(c));
   }
+  private evidence(projectId: string) {
+    return this.store.listJson(
+      "SELECT json FROM analysis WHERE project_id=? ORDER BY source_key,start_us",
+      [projectId],
+      AnalysisEntry,
+    );
+  }
   list(projectId: string) {
     const p = this.projects.read(projectId);
-    return this.store
-      .listJson(
-        "SELECT json FROM analysis WHERE project_id=? ORDER BY source_key,start_us",
-        [projectId],
-        AnalysisEntry,
-      )
-      .map((e) => ({
-        ...e,
-        state: p.document.assets.some((r) => refKey(r) === refKey(e.source))
-          ? "current"
-          : "historical",
-      }));
+    return this.evidence(projectId).map((e) => ({
+      ...e,
+      state: p.document.assets.some((r) => refKey(r) === refKey(e.source))
+        ? "current"
+        : "historical",
+    }));
   }
   async submit(input: {
     projectId: string;
@@ -891,31 +904,70 @@ export class Analysis {
     projectId: string;
     query: string;
     requestId: string;
+    rerank?: boolean;
+    sourceIds?: string[];
+    fromUs?: number;
+    toUs?: number;
+    limit?: number;
   }) {
+    const request = z
+      .object({
+        projectId: z.string().min(1),
+        query: z.string().trim().min(1),
+        requestId: z.string().min(1),
+        rerank: z.boolean().default(false),
+        sourceIds: z.array(z.string().min(1)).optional(),
+        fromUs: z.number().int().nonnegative().safe().optional(),
+        toUs: z.number().int().positive().safe().optional(),
+        limit: z.number().int().min(1).max(50).default(20),
+      })
+      .refine(
+        (v) =>
+          v.fromUs === undefined || v.toUs === undefined || v.toUs > v.fromUs,
+        "检索结束时间必须晚于开始时间",
+      )
+      .parse(input);
     const prior = this.jobs.prior(
       "semantic-search",
-      input.requestId,
-      input,
-      input.projectId,
+      request.requestId,
+      request,
+      request.projectId,
     );
     if (prior) return prior;
+    const revision = this.projects.read(request.projectId);
+    const sources = new Set(revision.document.assets.map(refKey));
+    const entries = this.evidence(request.projectId).filter(
+      (e) =>
+        sources.has(refKey(e.source)) &&
+        e.text.trim() &&
+        (!request.sourceIds?.length ||
+          request.sourceIds.includes(e.source.assetId)) &&
+        (request.fromUs === undefined || e.range.startUs >= request.fromUs) &&
+        (request.toUs === undefined ||
+          e.range.startUs + e.range.durationUs <= request.toUs),
+    );
+    const ids = [
+      EMBEDDING_PROVIDER,
+      ...(request.rerank ? [RERANK_PROVIDER] : []),
+    ];
+    for (const id of ids) this.providers.require(id);
+    const bindings = await this.providers.freeze(ids);
     const frozen = {
-      ...input,
-      revision: this.projects.read(input.projectId),
-      entries: this.list(input.projectId).filter((e) => e.state === "current"),
-      binding: (await this.providers.freeze(["transformers-embedding"]))[
-        "transformers-embedding"
-      ],
+      ...request,
+      revision,
+      entries,
+      binding: bindings[EMBEDDING_PROVIDER],
+      rerankerBinding: request.rerank ? bindings[RERANK_PROVIDER] : undefined,
     };
     return this.jobs.submit({
-      requestInput: input,
-      projectId: input.projectId,
+      requestInput: request,
+      projectId: request.projectId,
       kind: "semantic-search",
       snapshot: frozen,
       nodes: [
         { key: "semantic-search", operation: "semantic-search", input: frozen },
       ],
-      requestId: input.requestId,
+      requestId: request.requestId,
     });
   }
   private async semanticNode(c: NodeContext) {
@@ -926,42 +978,52 @@ export class Analysis {
         revision: ProjectRevision,
         entries: z.array(AnalysisEntry),
         binding: z.string(),
+        rerankerBinding: z.string().optional(),
+        limit: z.number().int().positive().max(50),
       })
       .parse(c.input);
-    const texts = [i.query, ...i.entries.map((e) => e.text)];
+    const inputs: z.infer<typeof EmbeddingInput>[] = [
+      { role: "query", text: i.query },
+      ...i.entries.map<z.infer<typeof EmbeddingInput>>((e) => ({
+        role: "document",
+        text: e.text.trim(),
+      })),
+    ];
     const Vector = z.object({
       vector: z.array(z.number().finite()).min(1),
       model: z.string(),
-      revision: z.string(),
     });
-    const keys = texts.map((text) =>
-      this.artifacts.key("embedding-text-v1", {
-        text,
-        binding: i.binding,
-        pooling: "masked-mean-l2-v1",
-      }),
+    const keys = inputs.map((input) =>
+      this.artifacts.key("embedding-text-v2", { input, binding: i.binding }),
     );
     const values = keys.map((key) => {
       const cached = this.artifacts.lookup(key);
       return cached ? this.store.jsonBlob(cached.digest, Vector) : undefined;
     });
-    const missing = values.flatMap((value, index) => (value ? [] : [index]));
-    if (missing.length) {
+    const missing = i.entries.length
+      ? values.flatMap((v, index) => (v ? [] : [index]))
+      : [];
+    for (let offset = 0; offset < missing.length; offset += 128) {
+      const batch = missing.slice(offset, offset + 128);
+      c.event("provider-request", {
+        provider: EMBEDDING_PROVIDER,
+        count: batch.length,
+      });
       const result = await this.providers.embed(
-        missing.map((index) => texts[index]),
+        batch.map((index) => inputs[index]),
         c.workDir,
         c.signal,
         i.binding,
       );
-      for (const [offset, index] of missing.entries()) {
+      c.signal.throwIfAborted();
+      for (const [position, index] of batch.entries()) {
         const value = Vector.parse({
-          vector: result.vectors[offset],
+          vector: result.vectors[position],
           model: result.model,
-          revision: result.revision,
         });
         values[index] = value;
         this.artifacts.record({
-          operation: "embedding-text-v1",
+          operation: "embedding-text-v2",
           cacheKey: keys[index],
           generation: "default",
           digest: this.store.putJson(value),
@@ -969,35 +1031,21 @@ export class Analysis {
           dependencies: [],
           provenance: {
             binding: i.binding,
+            role: inputs[index].role,
             model: result.model,
-            revision: result.revision,
           },
           verified: true,
         });
       }
     }
-    const vectors = values.map((value, index) => {
-      if (!value) throw new WeaverError("PROVIDER_FORMAT", "向量响应缺项");
-      if (index > 0)
-        this.index(
-          AnalysisEntry.parse({
-            ...i.entries[index - 1],
-            vector: value.vector,
-            embeddingBinding: i.binding,
-          }),
-        );
-      return value.vector;
-    });
-    const query = vectors[0];
-    if (vectors.some((v) => v.length !== query.length))
-      throw new WeaverError(
-        "PROVIDER_FORMAT",
-        "向量维度改变，请重新选择模型版本",
-      );
-    const candidates = i.entries
+    const query = values[0]?.vector;
+    if (i.entries.length && !query)
+      throw new WeaverError("PROVIDER_FORMAT", "查询向量缺失");
+    let candidates: z.infer<typeof Proposal>["candidates"] = i.entries
       .map((e, index) => {
-        const v = vectors[index + 1],
-          semantic = v.reduce((sum, x, j) => sum + x * query[j], 0);
+        const vector = values[index + 1]?.vector;
+        if (!query || !vector || vector.length !== query.length)
+          throw new WeaverError("PROVIDER_FORMAT", "向量缺失或维度不一致");
         return {
           id: e.id,
           source: e.source,
@@ -1005,27 +1053,83 @@ export class Analysis {
           scores: {
             text: sequenceRatio(coreText(i.query), coreText(e.text)),
             visual: 0,
-            semantic,
+            semantic: vector.reduce((sum, x, j) => sum + x * query[j], 0),
           },
           evidence: [e.text, e.evidenceDigest, i.binding],
-          method: "embedding",
-          limitations: ["向量相似度需要人工确认"],
+          method: "qwen3-embedding",
+          limitations: [
+            "检索依据是字幕和画面观察文本，候选需确认",
+            ...(e.timingQuality === "estimated" ? ["证据时间为估算"] : []),
+          ],
         };
       })
-      .sort((a, b) => b.scores.semantic - a.scores.semantic)
-      .slice(0, 20);
-    const p = Proposal.parse({
+      .sort(
+        (a, b) =>
+          b.scores.semantic - a.scores.semantic || a.id.localeCompare(b.id),
+      )
+      .slice(0, 50);
+    if (i.rerankerBinding && candidates.length) {
+      const rerankerBinding = i.rerankerBinding;
+      const documents = candidates.map((v) => v.evidence[0]);
+      const key = this.artifacts.key("rerank-text-v1", {
+        query: i.query,
+        documents,
+        binding: i.rerankerBinding,
+      });
+      const cached = this.artifacts.lookup(key);
+      let result: z.infer<typeof RerankResult>;
+      if (cached) result = this.store.jsonBlob(cached.digest, RerankResult);
+      else {
+        c.event("provider-request", {
+          provider: RERANK_PROVIDER,
+          count: documents.length,
+        });
+        result = await this.providers.rerank({
+          query: i.query,
+          documents,
+          workDir: c.workDir,
+          signal: c.signal,
+          binding: i.rerankerBinding,
+        });
+        c.signal.throwIfAborted();
+        this.artifacts.record({
+          operation: "rerank-text-v1",
+          cacheKey: key,
+          generation: "default",
+          digest: this.store.putJson(result),
+          mime: "application/json",
+          dependencies: [],
+          provenance: { binding: i.rerankerBinding },
+          verified: true,
+        });
+      }
+      if (result.scores.length !== candidates.length)
+        throw new WeaverError("PROVIDER_FORMAT", "重排响应数量错误");
+      candidates = candidates
+        .map((v, index) => ({
+          ...v,
+          scores: { ...v.scores, rerank: result.scores[index] },
+          evidence: [...v.evidence, rerankerBinding],
+          method: "qwen3-embedding-rerank",
+        }))
+        .sort(
+          (a, b) =>
+            (b.scores.rerank ?? 0) - (a.scores.rerank ?? 0) ||
+            b.scores.semantic - a.scores.semantic,
+        );
+    }
+    c.signal.throwIfAborted();
+    const proposal = Proposal.parse({
       id: newId("proposal"),
       projectId: i.projectId,
       revision: i.revision.id,
       kind: "script-search",
       query: i.query,
-      candidates,
+      candidates: candidates.slice(0, i.limit),
       selections: [],
-      warnings: candidates.length ? [] : ["无候选"],
+      warnings: candidates.length ? [] : ["无候选，请先分析素材或导入证据"],
     });
-    this.saveProposal(p);
-    return p;
+    return proposal;
   }
   async standalone(input: {
     kind: "asr" | "tts" | "voice-design";

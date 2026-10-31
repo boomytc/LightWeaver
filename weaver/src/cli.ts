@@ -86,7 +86,7 @@ try {
         "library import-builtin --package-version digest",
         "analyze --project id --with asr,describe [--provider modelbest-vlm|deepseek-vlm] [--source-id id --from-us n --duration-us n] [--wait]",
         "analyze --project id --import /abs/evidence.json --expected-revision rev --wait",
-        "search --project id --query text [--mode text|semantic] [--sources id,id --from-us n --to-us n] [--wait]",
+        "search --project id --query text [--mode text|semantic] [--rerank] [--sources id,id --from-us n --to-us n] [--wait]",
         "match --project id --edited asset-id [--sources id,id] --wait",
         "proposal import --project id --file /abs/proposal.json --expected-revision rev --wait",
         "proposal apply --project id --proposal proposal-id --select candidate-id,candidate-id --expected-revision rev [--allow-reuse]",
@@ -310,11 +310,17 @@ try {
     if (options.wait && options.dest)
       await app.saveRunOutput(run.id, str("dest"));
   } else if (command === "search") {
+    if (options.rerank && str("mode", true) !== "semantic")
+      throw new WeaverError("INVALID_INPUT", "候选重排只适用于语义检索");
     if (str("mode", true) === "semantic") {
       const run = await app.analysis.submitSemantic({
         projectId: str("project"),
         query: str("query"),
         requestId,
+        rerank: !!options.rerank,
+        sourceIds: csv("sources"),
+        fromUs: options["from-us"] ? Number(str("from-us")) : undefined,
+        toUs: options["to-us"] ? Number(str("to-us")) : undefined,
       });
       result = options.wait
         ? { run: await app.jobs.wait(run.id), nodes: app.jobs.nodes(run.id) }

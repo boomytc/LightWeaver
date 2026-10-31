@@ -45,6 +45,8 @@ export function exitCode(code: string): number {
             "NOT_FOUND",
             "REQUEST_ID_REUSED",
             "BUILD_ISSUES",
+            "ALIGNMENT_LANGUAGE_UNSUPPORTED",
+            "INPUT_TOO_LONG",
           ].includes(code)
         ? 2
         : 1;
@@ -54,7 +56,12 @@ export function httpStatus(code: string): number {
     ? 409
     : code === "NOT_FOUND"
       ? 404
-      : ["INVALID_INPUT", "BUILD_ISSUES"].includes(code)
+      : [
+            "INVALID_INPUT",
+            "BUILD_ISSUES",
+            "ALIGNMENT_LANGUAGE_UNSUPPORTED",
+            "INPUT_TOO_LONG",
+          ].includes(code)
         ? 400
         : code === "CONFIG_MISSING" || code === "CAPABILITY_UNAVAILABLE"
           ? 422

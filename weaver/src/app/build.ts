@@ -37,6 +37,7 @@ import {
   workspaceRoot,
   parseLastJson,
   AlignmentResult,
+  ALIGNMENT_PROVIDER,
 } from "../adapters/providers.ts";
 import { probe } from "../media/probe.ts";
 import { processRun } from "../media/process.ts";
@@ -101,6 +102,26 @@ function localeScene(scene: Scene, locale: string): unknown {
   };
   return visit(scene);
 }
+function needsAlignment(
+  doc: ProjectDocument,
+  locale: string,
+  sceneId?: string,
+): boolean {
+  const track = doc.captions.find(
+    (c) => c.locale === locale && c.mode === "precise",
+  );
+  return (
+    !!track &&
+    doc.scenes.some(
+      (scene) =>
+        (!sceneId || scene.id === sceneId) &&
+        !!speechOf(scene) &&
+        !track.cues.some(
+          (cue) => cue.time.kind === "speech" && cue.time.sceneId === scene.id,
+        ),
+    )
+  );
+}
 export function targetFingerprint(
   doc: ProjectDocument,
   locale: string,
@@ -121,10 +142,8 @@ export function targetFingerprint(
       tts: doc.scenes.some((s) => speechOf(s)?.kind === "authored")
         ? providers?.["modelbest-voxcpm2"]
         : undefined,
-      alignment: doc.captions.some(
-        (c) => c.locale === locale && c.mode === "precise",
-      )
-        ? providers?.whisperx
+      alignment: needsAlignment(doc, locale)
+        ? providers?.[ALIGNMENT_PROVIDER]
         : undefined,
     },
     scenes: doc.scenes.map((s) => localeScene(s, locale)),
@@ -232,7 +251,13 @@ export class Builds {
           if (v?.payload.kind === "voice") ids.push(v.payload.provider);
         }
     }
-    if (doc.captions.some((c) => c.mode === "precise")) ids.push("whisperx");
+    const alignmentLocales = locales.filter((locale) =>
+      needsAlignment(doc, locale),
+    );
+    if (alignmentLocales.length) {
+      await this.providers.requireAlignment(alignmentLocales);
+      ids.push(ALIGNMENT_PROVIDER);
+    }
     const providers = await this.providers.freeze(ids);
     Object.assign(providers, await this.toolsFor(doc));
     const sourceKeys = new Set(doc.assets.map(refKey)),
@@ -371,15 +396,7 @@ export class Builds {
             snapshotDigest: digest(snapshot),
             scene: scene.id,
             locale,
-            precise: doc.captions.some(
-              (t) =>
-                t.locale === locale &&
-                t.mode === "precise" &&
-                !t.cues.some(
-                  (c) =>
-                    c.time.kind === "speech" && c.time.sceneId === scene.id,
-                ),
-            ),
+            precise: needsAlignment(doc, locale, scene.id),
           },
           dependencies: probes,
         });
@@ -613,8 +630,18 @@ export class Builds {
         (s) => s.id === input.scene,
       );
     if (!scene) throw new WeaverError("INVALID_INPUT", "找不到冻结场景");
+    if (input.precise && !snap.providers[ALIGNMENT_PROVIDER])
+      throw new WeaverError(
+        "PROVIDER_CHANGED",
+        "精确对齐协议已升级，请重新构建",
+      );
     const speech = speechOf(scene);
     if (!speech) throw new WeaverError("INVALID_INPUT", "场景没有旁白");
+    if (input.precise && !speech.text[input.locale]?.trim())
+      throw new WeaverError(
+        "ALIGNMENT_REQUIRED",
+        "精确对齐需要实际语音对应的原文",
+      );
     let audioDigest: ReturnType<typeof digest>,
       provider = "imported",
       text = "";
@@ -774,20 +801,24 @@ export class Builds {
         audioDigest,
         text,
         locale: input.locale,
-        binding: snap.providers.whisperx,
+        binding: snap.providers[ALIGNMENT_PROVIDER],
       });
       const cached = this.artifacts.lookup(key);
       let aligned: z.infer<typeof AlignmentResult>;
       if (cached) aligned = this.store.jsonBlob(cached.digest, AlignmentResult);
       else {
-        this.providers.require("whisperx", snap.providers.whisperx);
+        this.providers.require(
+          ALIGNMENT_PROVIDER,
+          snap.providers[ALIGNMENT_PROVIDER],
+        );
         if (
-          (await this.providers.freeze(["whisperx"])).whisperx !==
-          snap.providers.whisperx
+          (await this.providers.freeze([ALIGNMENT_PROVIDER]))[
+            ALIGNMENT_PROVIDER
+          ] !== snap.providers[ALIGNMENT_PROVIDER]
         )
           throw new WeaverError("PROVIDER_CHANGED", "对齐模型字节已改变");
         aligned = await this.providers.align({
-          binding: snap.providers.whisperx,
+          binding: snap.providers[ALIGNMENT_PROVIDER],
           audio: this.store.blobPath(audioDigest),
           text,
           locale: input.locale,
@@ -1011,7 +1042,7 @@ export class Builds {
         "FENCED",
         "作者内容或有效 provider 已改变，本次结果不能提升 current",
       );
-    for (const id of ["modelbest-voxcpm2", "whisperx"])
+    for (const id of ["modelbest-voxcpm2", ALIGNMENT_PROVIDER])
       if (r.providerBindings[id]) {
         const old = z
           .object({
@@ -1066,8 +1097,8 @@ export class Builds {
     doc = this.projects.read(projectId).document,
   ) {
     const providers = await this.providers.freeze(
-      doc.captions.some((c) => c.mode === "precise")
-        ? ["modelbest-voxcpm2", "whisperx"]
+      doc.locales.some((locale) => needsAlignment(doc, locale))
+        ? ["modelbest-voxcpm2", ALIGNMENT_PROVIDER]
         : ["modelbest-voxcpm2"],
     );
     Object.assign(providers, await this.toolsFor(doc));

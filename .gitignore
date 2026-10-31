@@ -13,6 +13,7 @@ out/
 *.local.yml
 __pycache__/
 .venv/
+weaver/models/
 .pytest_cache/
 .ruff_cache/
 .idea/

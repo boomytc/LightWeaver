@@ -55,7 +55,22 @@ npx weaver analyze --project demo --with describe --provider modelbest-vlm --wai
 
 本地 ASR 的模型、动态库、Python 绑定和 TEN VAD 库均需显式配置。开发时可以指向本机已验证的运行文件；分发时准备独立运行目录。LightWeaver 不自动发现相邻仓库或下载权重。
 
-精确字幕和语义检索是可选能力，需要另装 `weaver/requirements.models.txt`，配置实际对齐模型和向量模型。人工 SRT 和文本检索可离线使用。VAD 区间与估算字幕不会标为 forced alignment。
+精确字幕使用 Qwen3-ForcedAligner-0.6B；语义检索使用 Qwen3-Embedding GGUF，可选 Qwen3-Reranker 重排。模型脚本在本仓，依赖安装在独立环境，运行时不导入 LightASR、AutoModel 或其它产品：
+
+```bash
+uv venv --python 3.12 weaver/.venv
+uv pip install --python weaver/.venv/bin/python -r weaver/requirements.models.txt
+```
+
+按配置示例设置模型路径和 `llama_server` 可执行文件。模型可放在忽略的 `weaver/models/`，或显式指向自己的权重目录；运行时不会下载权重。Apple Silicon 默认 MLX，其他平台默认 Torch。Mac 上选择 Torch 时使用单独的 Python 环境安装 `qwen-asr==0.0.6`，再设置 `model_python` 与 `alignment_backend: 'torch'`。
+
+对齐支持 zh、yue、en、de、es、fr、it、pt、ru、ko、ja，单场景语音上限 180 秒。字幕保留作者原文，使用真实词/字时间生成句界；VAD 和估算字幕不会标为精确对齐。语义检索召回字幕及画面观察文本，查询使用任务指令，素材使用原文；直接跨模态搜画面尚未接入。
+
+```bash
+npx weaver search --project demo --query "宠物在户外休息" --mode semantic --rerank --wait --json
+```
+
+`--rerank` 需配置重排权重，未启用时只做向量召回。GGUF 服务由每个作业启动并回收，取消会终止整个进程组。人工 SRT 和文本检索仍可独立使用。详见 [运行约定](docs/conventions.md) 与 [对齐和检索验收](docs/acceptance-alignment-search.md)。
 
 ## 数据与交接
 
