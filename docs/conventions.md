@@ -84,7 +84,9 @@ npx weaver captions import --project demo --file /absolute/subtitles.srt --local
 
 precise 使用 Qwen3-ForcedAligner-0.6B。zh、yue、en、de、es、fr、it、pt、ru、ko、ja 可用，区域标签取主语种，拒绝 auto。单场景语音最多 180 秒，音频转为 16kHz 单声道；字幕用作者原文分句，通过实际词/字时间得到句界。空结果、原文覆盖不完整和无效时码会失败，不伪造 aligned 字幕。
 
-源片 `analyze --with asr --align` 保留 ASR 原文和实际词时间，再按当前修订采用为源片字幕。字幕 cue 可在 Studio 编辑文字、时间、来源和临时说话人标签；人工修改清除已失效词时间。视频和静帧遮罩按所选输出规格预览，位置保存在项目修订中；卡片遮罩使用坐标示意，并通过制作预览核对实际画面。
+源片 `analyze --with asr --align` 保留 ASR 原文和实际词时间，再按当前修订采用为源片字幕。跨窗采用只去重同一来源、相同说话人且文字一致的重叠证据；不同文字保留供作者核对，不按时间重叠丢弃整句。字幕 cue 可在 Studio 编辑文字、时间、来源和临时说话人标签；人工修改清除已失效词时间。Studio 字幕支持正文、原始转写和说话人检索，每页显示 25 条。重叠筛选只比较同一时间钟，修改与移除按 cue 标识作用于完整字幕轨。离页时备份未提交草稿到当前浏览器，重新打开后显式恢复；恢复保留原修订基线，过期修订仍进入冲突处理。备份可手动清除。
+
+视频和静帧遮罩按所选输出规格预览，位置保存在项目修订中；卡片遮罩使用坐标示意，并通过制作预览核对实际画面。
 
 ```bash
 npx weaver captions translate --project demo --locale zh --target-locale en --expected-revision REV --wait --json
@@ -121,7 +123,7 @@ npx weaver voice-design --provider local-voxcpm2 --text "试听内容" --style "
 
 本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。
 
-`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)与[能力落地验收](acceptance-coverage.md)。
+`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)、[能力落地验收](acceptance-coverage.md)与[连续影视素材验收](acceptance-long-form.md)。
 
 ## 库与交接
 
@@ -145,7 +147,7 @@ npx weaver export --project demo --format bundle --dest /absolute/package.zip --
 npx weaver import --file /absolute/package.zip --id imported-project --json
 ```
 
-OTIO 使用官方库生成与重载。字幕附 SRT、ASS 与 metadata，编辑器的字幕与特效兼容性各异。剪映锁定 macOS 11.7.0、schema 360000、adapter v1。安装创建新草稿并备份索引。
+OTIO 使用官方库生成与重载。字幕附 SRT、ASS 与 metadata，编辑器的字幕与特效兼容性各异。剪映锁定 macOS 11.7.0、schema 360000、adapter v1。重叠字幕分配独立文本轨，保留原始文字与时间，作者可在编辑器继续核对。安装创建新草稿并备份索引。
 
 画面适配、速度和定格可烘焙。节目母带保留最终混音，独立备选音轨默认静音，并烘焙裁剪、循环、变速、增益与淡变。原始媒体、映射与报告随包保存。bundle 保存精确版本和必要物化依赖，排除活动 DB 与密钥。
 
@@ -165,6 +167,6 @@ npx weaver migrate --root /absolute/legacy-workspace --execute --request-id migr
 npx weaver migrate rollback JOURNAL --json
 ```
 
-失败与取消保留已完成独立目标及上一份有效交付。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
+失败与取消保留已完成独立目标及上一份有效交付。作业总时限返回 `DEADLINE_EXCEEDED`，用户取消与 worker 停止分别登记 cancelled 与 interrupted。工具探测接收节点取消信号。媒体监督进程通过父进程管道与 IPC 断连感知 worker 退出，终止目标进程组，三秒后强制回收未退出后代。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
 
 备份使用 SQLite backup API，并复制快照引用的不可变 blob。restore 写入空目录，GC 默认 dry-run，保护修订、库版本、run、收据、pin 和保留交付。迁移保留旧原件，旧派生结果无完整来源时登记 historical/unverified。rollback 只在迁移后未被修改时执行。

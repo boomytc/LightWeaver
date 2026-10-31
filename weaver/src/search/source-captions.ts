@@ -21,6 +21,10 @@ const qualityRank: Record<Entry["timingQuality"], number> = {
   estimated: 3,
 };
 
+function captionText(text: string): string {
+  return text.normalize("NFC").trim().replace(/\s+/gu, " ");
+}
+
 function overlaps(a: Entry["range"], b: Entry["range"]): boolean {
   return (
     Math.max(a.startUs, b.startUs) <
@@ -53,7 +57,10 @@ export function selectSourceEntries(input: {
       !selected.some(
         (chosen) =>
           refKey(chosen.source) === refKey(entry.source) &&
-          overlaps(chosen.range, entry.range),
+          overlaps(chosen.range, entry.range) &&
+          chosen.speakerId === entry.speakerId &&
+          captionText(chosen.sourceText ?? chosen.text) ===
+            captionText(entry.sourceText ?? entry.text),
       )
     )
       selected.push(entry);

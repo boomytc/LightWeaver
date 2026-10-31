@@ -16,7 +16,7 @@ import { frameUs, frameSamples } from "../timeline/clock.ts";
 import { toSrt, toAss } from "../timeline/captions.ts";
 import { workspaceRoot } from "../adapters/providers.ts";
 
-export const RENDER_ALGORITHM = "unified-ffmpeg-v5-bt709";
+export const RENDER_ALGORITHM = "unified-ffmpeg-v6-caption-timing";
 
 const seconds = (frames: number, manifest: TimelineManifest) =>
   (frames * manifest.output.fps.den) / manifest.output.fps.num;
@@ -500,7 +500,7 @@ export async function renderTimeline(input: {
   const receipt = {
     schemaVersion: 2,
     deliverable: true,
-    estimatedTiming: false,
+    estimatedTiming: m.captions.some((cue) => cue.timingQuality === "estimated"),
     timingQualities: [...new Set(m.captions.map((c) => c.timingQuality))],
     totalFrames: m.totalFrames,
     totalSamples: m.totalSamples,

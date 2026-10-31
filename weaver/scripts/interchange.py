@@ -67,10 +67,19 @@ def jianying_export(root, handoff):
         # 单独可编辑原声已抽为音频；动态处理由母带保真。
         script.add_segment(draft.AudioSegment(str(root / item["file"]), draft.Timerange(micros(a["startFrame"]), micros(a["startFrame"] + a["durationFrames"]) - micros(a["startFrame"])), source_timerange=draft.Timerange(a["trimUs"], a["sourceDurationUs"]), speed=a["speed"], volume=10 ** (a["gainDb"] / 20)), track)
     if m["captions"]:
-        text_track = script.append_track(draft.TrackSpec(draft.TrackType.text, "字幕"))
+        text_tracks = []
         style = m["captionStyle"]
         color = tuple(int(style["color"][i:i + 2], 16) / 255 for i in (1, 3, 5))
-        for cue in m["captions"]:
+        for cue in sorted(m["captions"], key=lambda cue: cue["startFrame"]):
+            start = cue["startFrame"]
+            end = start + cue["durationFrames"]
+            lane = next((index for index, (_, previous_end) in enumerate(text_tracks)
+                         if previous_end <= start), len(text_tracks))
+            if lane == len(text_tracks):
+                name = "字幕" if not lane else f"字幕 {lane + 1}（重叠核对）"
+                text_tracks.append((script.append_track(draft.TrackSpec(draft.TrackType.text, name)), end))
+            text_track, _ = text_tracks[lane]
+            text_tracks[lane] = (text_track, end)
             script.add_segment(draft.TextSegment(cue["text"], draft.Timerange(micros(cue["startFrame"]), micros(cue["startFrame"] + cue["durationFrames"]) - micros(cue["startFrame"])), style=draft.TextStyle(size=style["size"] / 6, color=color, align=1, auto_wrapping=True), border=draft.TextBorder(width=style["outline"] * 10), clip_settings=draft.ClipSettings(transform_y=-.8 + style["marginV"] / m["output"]["height"])), text_track)
     profile = handoff["jianyingProfile"]
     content = json.loads(script.dumps())

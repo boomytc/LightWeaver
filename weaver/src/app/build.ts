@@ -184,10 +184,11 @@ export class Builds {
   }
   private async toolsFor(
     doc: ProjectDocument,
+    signal?: AbortSignal,
   ): Promise<Record<string, string>> {
     const tools: Record<string, string> = {
-      "tool:ffmpeg": await toolVersion("ffmpeg"),
-      "tool:ffprobe": await toolVersion("ffprobe"),
+      "tool:ffmpeg": await toolVersion("ffmpeg", signal),
+      "tool:ffprobe": await toolVersion("ffprobe", signal),
       "tool:renderer": RENDER_ALGORITHM,
       "tool:build": BUILD_ALGORITHM,
     };
@@ -199,6 +200,7 @@ export class Builds {
               process.env.LIGHTWEAVER_CARD_RENDERER ||
                 path.join(workspaceRoot, "node_modules/.bin/weaver-card"),
               ["--describe"],
+              { signal },
             )
           ).stdout,
         ),
@@ -207,16 +209,21 @@ export class Builds {
       tools[`tool:font:${locale}`] = "system-fontconfig";
       try {
         const file = (
-          await processRun("fc-match", [
-            "-f",
-            "%{file}",
-            doc.captions.find((t) => t.locale === locale)?.style.font ||
-              "Noto Sans CJK SC",
-          ])
+          await processRun(
+            "fc-match",
+            [
+              "-f",
+              "%{file}",
+              doc.captions.find((t) => t.locale === locale)?.style.font ||
+                "Noto Sans CJK SC",
+            ],
+            { signal },
+          )
         ).stdout.trim();
         tools[`tool:font:${locale}`] =
           `${path.basename(file)}:${await fileDigest(file)}`;
-      } catch {
+      } catch (error) {
+        if (signal?.aborted) throw error;
         /* Fontconfig is optional; renderer records the system fallback. */
       }
     }
@@ -613,7 +620,7 @@ export class Builds {
         digest: input.digest,
         version: input.toolVersion,
       });
-    if ((await toolVersion("ffprobe")) !== input.toolVersion)
+    if ((await toolVersion("ffprobe", c.signal)) !== input.toolVersion)
       throw new WeaverError("TOOL_CHANGED", "ffprobe 版本已改变，请重新构建");
     const cached = this.artifacts.lookup(key);
     const fact = cached
@@ -886,7 +893,7 @@ export class Builds {
       const s = SpeechResult.safeParse(value);
       if (s.success) speech[s.data.ref] = s.data.fact;
     }
-    const ffmpeg = await toolVersion("ffmpeg");
+    const ffmpeg = await toolVersion("ffmpeg", c.signal);
     if (snapshot.providers["tool:ffmpeg"] !== ffmpeg)
       throw new WeaverError("TOOL_CHANGED", "FFmpeg 版本已改变，请重新构建");
     const font =
@@ -941,7 +948,7 @@ export class Builds {
       compiled = CompileResult.parse(Object.values(c.dependencies)[0]);
     const m = this.store.jsonBlob(compiled.manifestDigest, TimelineManifest);
     for (const [key, value] of Object.entries(
-      await this.toolsFor(snapshot.projectRevision.document),
+      await this.toolsFor(snapshot.projectRevision.document, c.signal),
     ))
       if (snapshot.providers[key] !== value)
         throw new WeaverError(

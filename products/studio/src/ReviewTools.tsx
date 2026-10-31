@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   z,
   AnalysisEntry,
@@ -47,6 +47,8 @@ const SpeakerAssistResult = z.object({
 });
 export type SceneMask = ProjectDocument["masks"][number];
 type CaptionCueValue = z.infer<typeof CaptionCue>;
+type CaptionTrackValue = z.infer<typeof CaptionTrack>;
+type RunStateValue = z.infer<typeof RunRecord>["state"];
 type CreativePlanValue = z.infer<typeof CreativePlan>;
 type ReviewAnalysisEntry = z.infer<typeof ReviewAnalysis>;
 type OutputProfileValue = ProjectDocument["profiles"][number];
@@ -68,6 +70,18 @@ export type SourceWindow = {
 };
 
 const MICROS_PER_SECOND = 1e6;
+const CAPTION_PAGE_SIZE = 25;
+const ACTIVE_RUN_STATES: ReadonlySet<RunStateValue> = new Set([
+  "queued",
+  "running",
+  "cancelling",
+]);
+const RESUMABLE_RUN_STATES: ReadonlySet<RunStateValue> = new Set([
+  "failed",
+  "partial",
+  "cancelled",
+  "interrupted",
+]);
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -665,13 +679,15 @@ export function CaptionCueEditor({
   onChange: (cue: CaptionCueValue) => void;
 }) {
   const [localError, setLocalError] = useState("");
+  const [textInput, setTextInput] = useState(cue.text);
+  const [emptyTextError, setEmptyTextError] = useState("");
   const fps = track.fps.num / track.fps.den;
   const time = cue.time;
   const commit = (raw: unknown) => {
     const parsed = CaptionCue.safeParse(raw);
     if (!parsed.success) {
       setLocalError(parsed.error.issues[0]?.message || "字幕字段无效");
-      return;
+      return false;
     }
     const parsedTime = parsed.data.time;
     if (parsedTime.kind === "speech") {
@@ -680,7 +696,7 @@ export function CaptionCueEditor({
       );
       if (!scene || !speechOf(scene)) {
         setLocalError("场景语音只能引用带实际语音的场景");
-        return;
+        return false;
       }
       const speechTime = parsedTime.range;
       if (
@@ -691,12 +707,16 @@ export function CaptionCueEditor({
           scene.sourceRange.durationUs
       ) {
         setLocalError("该字幕超过可验证源窗；拒绝溢出的场景无法容纳此时间");
-        return;
+        return false;
       }
     }
     setLocalError("");
     onChange(parsed.data);
+    return true;
   };
+  useEffect(() => {
+    setTextInput(cue.text);
+  }, [cue.id, cue.text]);
   const commitTiming = (time: unknown) =>
     commit({
       ...cueWithoutWords(cue),
@@ -731,16 +751,29 @@ export function CaptionCueEditor({
         }
       >
         <textarea
-          value={cue.text}
-          onChange={(event) =>
-            commit({
+          value={textInput}
+          onChange={(event) => {
+            const nextText = event.target.value;
+            setTextInput(nextText);
+            setEmptyTextError("");
+            if (!nextText.length) return;
+            const committed = commit({
               ...cueWithoutWords(cue),
-              text: event.target.value,
+              text: nextText,
               timingQuality: "manual",
-            })
-          }
+            });
+            if (!committed) setTextInput(cue.text);
+          }}
+          onBlur={() => {
+            if (textInput.length) return;
+            setTextInput(cue.text);
+            setEmptyTextError(
+              "字幕文本不能为空。要删除整条字幕，请使用“移除此条字幕”。",
+            );
+          }}
         />
       </ReviewField>
+      {emptyTextError && <p className="error">{emptyTextError}</p>}
       <ReviewField label="说话人标识（可选）">
         <input
           value={cue.speakerId || ""}
@@ -921,6 +954,221 @@ export function CaptionCueEditor({
   );
 }
 
+type CaptionClockInterval = {
+  id: CaptionCueValue["id"];
+  group: string;
+  start: number;
+  end: number;
+};
+
+function captionClockInterval(cue: CaptionCueValue): CaptionClockInterval {
+  if (cue.time.kind === "timeline") {
+    return {
+      id: cue.id,
+      group: "timeline",
+      start: cue.time.startFrame,
+      end: cue.time.startFrame + cue.time.durationFrames,
+    };
+  }
+  return {
+    id: cue.id,
+    group:
+      cue.time.kind === "source"
+        ? `source:${refKey(cue.time.source)}`
+        : `speech:${cue.time.sceneId}`,
+    start: cue.time.range.startUs,
+    end: cue.time.range.startUs + cue.time.range.durationUs,
+  };
+}
+
+function overlappingCaptionCueIds(
+  cues: readonly CaptionCueValue[],
+): ReadonlySet<CaptionCueValue["id"]> {
+  const ordered = cues
+    .map(captionClockInterval)
+    .sort(
+      (left, right) =>
+        left.group.localeCompare(right.group) ||
+        left.start - right.start ||
+        left.end - right.end ||
+        left.id.localeCompare(right.id),
+    );
+  const overlapping = new Set<CaptionCueValue["id"]>();
+  let activeGroup = "";
+  let furthestId = "";
+  let furthestEnd = Number.NEGATIVE_INFINITY;
+
+  for (const interval of ordered) {
+    if (interval.group !== activeGroup) {
+      activeGroup = interval.group;
+      furthestId = interval.id;
+      furthestEnd = interval.end;
+      continue;
+    }
+    if (interval.start < furthestEnd) {
+      overlapping.add(furthestId);
+      overlapping.add(interval.id);
+    }
+    if (interval.end > furthestEnd) {
+      furthestId = interval.id;
+      furthestEnd = interval.end;
+    }
+  }
+  return overlapping;
+}
+
+function captionCueMatchesQuery(cue: CaptionCueValue, query: string) {
+  if (!query) return true;
+  return [cue.text, cue.sourceText, cue.speakerId].some((value) =>
+    value
+      ?.normalize("NFKC")
+      .toLocaleLowerCase()
+      .includes(query),
+  );
+}
+
+export function CaptionTrackEditor({
+  cues,
+  track,
+  draft,
+  assets,
+  locale,
+  selectedSource,
+  onCueChange,
+  onRemoveCue,
+}: {
+  cues: CaptionTrackValue["cues"];
+  track: CaptionTrackValue;
+  draft: ProjectDocument;
+  assets: z.infer<typeof MediaAssetVersion>[];
+  locale: string;
+  selectedSource: string;
+  onCueChange: (cue: CaptionCueValue) => void;
+  onRemoveCue: (cueId: CaptionCueValue["id"]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [overlapsOnly, setOverlapsOnly] = useState(false);
+  const [requestedPage, setRequestedPage] = useState(1);
+  const overlapIds = useMemo(
+    () => overlappingCaptionCueIds(cues),
+    [cues],
+  );
+  const normalizedQuery = query.trim().normalize("NFKC").toLocaleLowerCase();
+  const visibleCues = useMemo(
+    () =>
+      cues.filter(
+        (cue) =>
+          captionCueMatchesQuery(cue, normalizedQuery) &&
+          (!overlapsOnly || overlapIds.has(cue.id)),
+      ),
+    [cues, normalizedQuery, overlapIds, overlapsOnly],
+  );
+  const pageCount = Math.max(
+    1,
+    Math.ceil(visibleCues.length / CAPTION_PAGE_SIZE),
+  );
+  const page = Math.min(requestedPage, pageCount);
+  const pageStart = (page - 1) * CAPTION_PAGE_SIZE;
+  const pageCues = visibleCues.slice(
+    pageStart,
+    pageStart + CAPTION_PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    if (requestedPage !== page) setRequestedPage(page);
+  }, [page, requestedPage]);
+
+  return (
+    <section>
+      <div className="actions">
+        <ReviewField label="检索字幕">
+          <input
+            value={query}
+            placeholder="字幕文本、原始转写或说话人标识"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setRequestedPage(1);
+            }}
+          />
+        </ReviewField>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={overlapsOnly}
+            onChange={(event) => {
+              setOverlapsOnly(event.target.checked);
+              setRequestedPage(1);
+            }}
+          />
+          仅看重叠
+        </label>
+      </div>
+      <div className="section-title">
+        <small>
+          共 {visibleCues.length} 条
+          {visibleCues.length > 0
+            ? ` · 第 ${page}/${pageCount} 页 · 当前第 ${pageStart + 1}–${pageStart + pageCues.length} 条`
+            : " · 当前没有字幕"}
+        </small>
+        <div>
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setRequestedPage(page - 1)}
+          >
+            上一页
+          </button>
+          <button
+            type="button"
+            disabled={page >= pageCount}
+            onClick={() => setRequestedPage(page + 1)}
+          >
+            下一页
+          </button>
+        </div>
+      </div>
+      {pageCues.length > 0 ? (
+        pageCues.map((cue, index) => {
+          const hasOverlap = overlapIds.has(cue.id);
+          return (
+            <div key={cue.id}>
+              <div className="section-title">
+                <b>第 {pageStart + index + 1} 条字幕</b>
+                <div>
+                  {hasOverlap && (
+                    <span className="badge">时间重叠，请核对</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveCue(cue.id)}
+                  >
+                    移除此条字幕
+                  </button>
+                </div>
+              </div>
+              <CaptionCueEditor
+                cue={cue}
+                track={track}
+                draft={draft}
+                assets={assets}
+                locale={locale}
+                selectedSource={selectedSource}
+                onChange={onCueChange}
+              />
+            </div>
+          );
+        })
+      ) : (
+        <p className="hint">
+          {cues.length
+            ? "没有匹配当前检索或重叠筛选的字幕。"
+            : "当前字幕轨没有 cue。"}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function runLabel(state: string) {
   return (
     {
@@ -943,6 +1191,7 @@ export function CaptionAssistPanel({
   disabled,
   fail,
   onApply,
+  onRunChange,
 }: {
   projectId: string;
   sourceLocale: string;
@@ -950,6 +1199,7 @@ export function CaptionAssistPanel({
   disabled: boolean;
   fail: (error: unknown) => void;
   onApply: (runId: string) => void;
+  onRunChange?: () => void;
 }) {
   const requestSequence = useRef(0);
   const [targetLocale, setTargetLocale] = useState(
@@ -958,31 +1208,38 @@ export function CaptionAssistPanel({
   const [run, setRun] = useState<z.infer<typeof RunRecord> | null>(null);
   const [detail, setDetail] = useState<z.infer<typeof RunDetail> | null>(null);
   const [status, setStatus] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [runAction, setRunAction] = useState<"cancel" | "resume" | null>(null);
   useEffect(() => {
     requestSequence.current++;
     setRun(null);
     setDetail(null);
     setStatus("");
+    setSubmitting(false);
+    setRunAction(null);
   }, [projectId, sourceLocale]);
+  const runId = run?.id;
+  const runState = run?.state;
   useEffect(() => {
-    if (!run || !["queued", "running", "cancelling"].includes(run.state))
-      return;
+    if (!runId || !runState || !ACTIVE_RUN_STATES.has(runState)) return;
     const sequence = requestSequence.current;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = () =>
-      api(`/runs/${run.id}`, RunDetail, { signal: controller.signal })
+      api(`/runs/${runId}`, RunDetail, { signal: controller.signal })
         .then((next) => {
           if (
             controller.signal.aborted ||
             sequence !== requestSequence.current
           )
             return;
+          setRun(next.run);
           setDetail(next);
           setStatus(runLabel(next.run.state));
           if (next.run.error) fail(new Error(next.run.error.message));
-          if (["queued", "running", "cancelling"].includes(next.run.state))
+          if (ACTIVE_RUN_STATES.has(next.run.state))
             timer = setTimeout(poll, 1000);
+          else onRunChange?.();
         })
         .catch((error) => {
           if (
@@ -996,13 +1253,71 @@ export function CaptionAssistPanel({
       controller.abort();
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, [run, projectId]);
+  }, [projectId, runId, runState]);
   const result =
     detail?.run.state === "succeeded"
       ? CaptionAssistResult.safeParse(detail.nodes[0]?.result)
       : null;
   const staleResult =
     result?.success && result.data.revision !== expectedRevision;
+  const hasActiveRun = run ? ACTIVE_RUN_STATES.has(run.state) : false;
+  const canResume = run ? RESUMABLE_RUN_STATES.has(run.state) : false;
+  const submit = () => {
+    if (disabled || submitting || hasActiveRun || runAction) return;
+    const sequence = ++requestSequence.current;
+    setSubmitting(true);
+    setRun(null);
+    setDetail(null);
+    setStatus("提交中");
+    api(`/projects/${projectId}/captions/assist`, RunRecord, {
+      method: "POST",
+      body: {
+        locale: sourceLocale,
+        targetLocale,
+        expectedRevision,
+        requestId: requestId(),
+      },
+    })
+      .then((next) => {
+        if (sequence !== requestSequence.current) return;
+        setSubmitting(false);
+        setRun(next);
+        setStatus(runLabel(next.state));
+        onRunChange?.();
+      })
+      .catch((error) => {
+        if (sequence !== requestSequence.current) return;
+        setSubmitting(false);
+        setStatus("");
+        fail(error);
+      });
+  };
+  const changeRun = (action: "cancel" | "resume") => {
+    if (!run || runAction) return;
+    if (action === "cancel" && !hasActiveRun) return;
+    if (action === "resume" && !canResume) return;
+    const sequence = ++requestSequence.current;
+    setRunAction(action);
+    setStatus(action === "cancel" ? "正在取消作业" : "正在恢复作业");
+    api(`/runs/${run.id}/${action}`, RunRecord, {
+      method: "POST",
+      body: {},
+    })
+      .then((next) => {
+        if (sequence !== requestSequence.current) return;
+        setRunAction(null);
+        setRun(next);
+        setDetail(null);
+        setStatus(runLabel(next.state));
+        onRunChange?.();
+      })
+      .catch((error) => {
+        if (sequence !== requestSequence.current) return;
+        setRunAction(null);
+        setStatus(runLabel(run.state));
+        fail(error);
+      });
+  };
   return (
     <section className="assist-panel">
       <h3>字幕译文作业</h3>
@@ -1018,36 +1333,38 @@ export function CaptionAssistPanel({
           />
         </ReviewField>
         <button
-          disabled={disabled || !targetLocale}
-          onClick={() => {
-            const sequence = ++requestSequence.current;
-            setRun(null);
-            setDetail(null);
-            setStatus("提交中");
-            api(`/projects/${projectId}/captions/assist`, RunRecord, {
-              method: "POST",
-              body: {
-                locale: sourceLocale,
-                targetLocale,
-                expectedRevision,
-                requestId: requestId(),
-              },
-            })
-              .then((next) => {
-                if (sequence !== requestSequence.current) return;
-                setRun(next);
-                setStatus(runLabel(next.state));
-              })
-              .catch((error) => {
-                if (sequence !== requestSequence.current) return;
-                setStatus("");
-                fail(error);
-              });
-          }}
+          disabled={
+            disabled ||
+            !targetLocale ||
+            submitting ||
+            hasActiveRun ||
+            runAction !== null
+          }
+          onClick={submit}
         >
           生成译文字幕
         </button>
       </div>
+      {run && (
+        <div className="actions">
+          <button
+            disabled={
+              !hasActiveRun ||
+              run.state === "cancelling" ||
+              runAction !== null
+            }
+            onClick={() => changeRun("cancel")}
+          >
+            取消作业
+          </button>
+          <button
+            disabled={!canResume || runAction !== null}
+            onClick={() => changeRun("resume")}
+          >
+            恢复未完成步骤
+          </button>
+        </div>
+      )}
       {status && <small>{status}</small>}
       {detail?.run.error && (
         <p className="error">{detail.run.error.message}</p>
@@ -1102,6 +1419,7 @@ export function SpeakerAssistPanel({
   disabled,
   fail,
   onApply,
+  onRunChange,
 }: {
   projectId: string;
   sourceId: string;
@@ -1111,36 +1429,44 @@ export function SpeakerAssistPanel({
   disabled: boolean;
   fail: (error: unknown) => void;
   onApply: (runId: string) => void;
+  onRunChange?: () => void;
 }) {
   const requestSequence = useRef(0);
   const [run, setRun] = useState<z.infer<typeof RunRecord> | null>(null);
   const [detail, setDetail] = useState<z.infer<typeof RunDetail> | null>(null);
   const [status, setStatus] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [runAction, setRunAction] = useState<"cancel" | "resume" | null>(null);
   useEffect(() => {
     requestSequence.current++;
     setRun(null);
     setDetail(null);
     setStatus("");
+    setSubmitting(false);
+    setRunAction(null);
   }, [projectId, sourceId, locale]);
+  const runId = run?.id;
+  const runState = run?.state;
   useEffect(() => {
-    if (!run || !["queued", "running", "cancelling"].includes(run.state))
-      return;
+    if (!runId || !runState || !ACTIVE_RUN_STATES.has(runState)) return;
     const sequence = requestSequence.current;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = () =>
-      api(`/runs/${run.id}`, RunDetail, { signal: controller.signal })
+      api(`/runs/${runId}`, RunDetail, { signal: controller.signal })
         .then((next) => {
           if (
             controller.signal.aborted ||
             sequence !== requestSequence.current
           )
             return;
+          setRun(next.run);
           setDetail(next);
           setStatus(runLabel(next.run.state));
           if (next.run.error) fail(new Error(next.run.error.message));
-          if (["queued", "running", "cancelling"].includes(next.run.state))
+          if (ACTIVE_RUN_STATES.has(next.run.state))
             timer = setTimeout(poll, 1000);
+          else onRunChange?.();
         })
         .catch((error) => {
           if (
@@ -1154,7 +1480,7 @@ export function SpeakerAssistPanel({
       controller.abort();
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, [run, projectId]);
+  }, [projectId, runId, runState]);
   const result =
     detail?.run.state === "succeeded"
       ? SpeakerAssistResult.safeParse(detail.nodes[0]?.result)
@@ -1165,6 +1491,59 @@ export function SpeakerAssistPanel({
       : [];
   const staleResult =
     result?.success && result.data.revision !== expectedRevision;
+  const hasActiveRun = run ? ACTIVE_RUN_STATES.has(run.state) : false;
+  const canResume = run ? RESUMABLE_RUN_STATES.has(run.state) : false;
+  const submit = () => {
+    if (disabled || submitting || hasActiveRun || runAction) return;
+    const sequence = ++requestSequence.current;
+    setSubmitting(true);
+    setRun(null);
+    setDetail(null);
+    setStatus("提交中");
+    api(`/projects/${projectId}/speakers`, RunRecord, {
+      method: "POST",
+      body: { sourceId, locale, requestId: requestId() },
+    })
+      .then((next) => {
+        if (sequence !== requestSequence.current) return;
+        setSubmitting(false);
+        setRun(next);
+        setStatus(runLabel(next.state));
+        onRunChange?.();
+      })
+      .catch((error) => {
+        if (sequence !== requestSequence.current) return;
+        setSubmitting(false);
+        setStatus("");
+        fail(error);
+      });
+  };
+  const changeRun = (action: "cancel" | "resume") => {
+    if (!run || runAction) return;
+    if (action === "cancel" && !hasActiveRun) return;
+    if (action === "resume" && !canResume) return;
+    const sequence = ++requestSequence.current;
+    setRunAction(action);
+    setStatus(action === "cancel" ? "正在取消作业" : "正在恢复作业");
+    api(`/runs/${run.id}/${action}`, RunRecord, {
+      method: "POST",
+      body: {},
+    })
+      .then((next) => {
+        if (sequence !== requestSequence.current) return;
+        setRunAction(null);
+        setRun(next);
+        setDetail(null);
+        setStatus(runLabel(next.state));
+        onRunChange?.();
+      })
+      .catch((error) => {
+        if (sequence !== requestSequence.current) return;
+        setRunAction(null);
+        setStatus(runLabel(run.state));
+        fail(error);
+      });
+  };
   return (
     <section className="assist-panel">
       <h3>临时分段说话人</h3>
@@ -1174,33 +1553,37 @@ export function SpeakerAssistPanel({
       <button
         disabled={
           disabled ||
+          submitting ||
+          hasActiveRun ||
+          runAction !== null ||
           !ready ||
           !sourceId ||
           !["zh", "en"].includes(locale)
         }
-        onClick={() => {
-          const sequence = ++requestSequence.current;
-          setRun(null);
-          setDetail(null);
-          setStatus("提交中");
-          api(`/projects/${projectId}/speakers`, RunRecord, {
-            method: "POST",
-            body: { sourceId, locale, requestId: requestId() },
-          })
-            .then((next) => {
-              if (sequence !== requestSequence.current) return;
-              setRun(next);
-              setStatus(runLabel(next.state));
-            })
-            .catch((error) => {
-              if (sequence !== requestSequence.current) return;
-              setStatus("");
-              fail(error);
-            });
-        }}
+        onClick={submit}
       >
         检测临时说话人分段
       </button>
+      {run && (
+        <div className="actions">
+          <button
+            disabled={
+              !hasActiveRun ||
+              run.state === "cancelling" ||
+              runAction !== null
+            }
+            onClick={() => changeRun("cancel")}
+          >
+            取消作业
+          </button>
+          <button
+            disabled={!canResume || runAction !== null}
+            onClick={() => changeRun("resume")}
+          >
+            恢复未完成步骤
+          </button>
+        </div>
+      )}
       {(!ready || !sourceId || !["zh", "en"].includes(locale)) && (
         <small>
           {!sourceId

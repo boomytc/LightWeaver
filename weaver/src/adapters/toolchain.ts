@@ -50,8 +50,11 @@ export async function localModelDigest(
   await visit(file);
   return digest(files);
 }
-export async function toolVersion(command: string): Promise<string> {
+export async function toolVersion(
+  command: string,
+  signal?: AbortSignal,
+): Promise<string> {
   return (
-    await processRun(command, ["-version"], { timeoutMs: 5000 })
+    await processRun(command, ["-version"], { timeoutMs: 5000, signal })
   ).stdout.split("\n")[0];
 }

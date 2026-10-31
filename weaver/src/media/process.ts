@@ -1,5 +1,45 @@
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { WeaverError } from "../contracts/errors.ts";
+import { z } from "../contracts/index.ts";
+
+const supervisorPath = fileURLToPath(
+  new URL("../../scripts/process-supervisor.mjs", import.meta.url),
+);
+
+const SupervisorMessage = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("result"),
+    code: z.number().int().nullable(),
+    signal: z.string().nullable(),
+  }),
+  z.strictObject({
+    type: z.literal("spawn-error"),
+    message: z.string(),
+  }),
+]);
+type SupervisorMessage = z.infer<typeof SupervisorMessage>;
+type SupervisorResult = Extract<SupervisorMessage, { type: "result" }>;
+
+type StopReason =
+  | { type: "abort"; reason: unknown }
+  | { type: "deadline" }
+  | { type: "output-overflow" };
+
+function parseSupervisorMessage(value: unknown): SupervisorMessage | null {
+  const parsed = SupervisorMessage.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+function stopError(reason: StopReason): WeaverError {
+  if (reason.type === "abort") {
+    if (reason.reason instanceof WeaverError) return reason.reason;
+    return new WeaverError("CANCELLED", "操作已取消");
+  }
+  return reason.type === "output-overflow"
+    ? new WeaverError("OUTPUT_TOO_LARGE", "进程输出超过 32 MiB 上限")
+    : new WeaverError("DEADLINE_EXCEEDED", "操作超过时限");
+}
 
 export async function processRun(
   command: string,
@@ -13,73 +53,138 @@ export async function processRun(
 ): Promise<{ stdout: string; stderr: string }> {
   options.signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const supervisor = spawn(process.execPath, [supervisorPath], {
       cwd: options.cwd,
       env: options.env ?? process.env,
       detached: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      stdio: ["pipe", "pipe", "pipe", "ipc"],
     });
     let stdout = "",
+      stdoutBytes = 0,
       stderr = "",
-      stopped = false;
-    let killTimer: ReturnType<typeof setTimeout> | undefined;
-    const kill = (signal: NodeJS.Signals): void => {
-      if (child.pid) {
-        try {
-          process.kill(-child.pid, signal);
-        } catch {
-          /* 已退出 */
-        }
-      }
+      spawned = false,
+      stopReason: StopReason | undefined,
+      result: SupervisorResult | undefined,
+      spawnFailure: string | undefined,
+      protocolFailure: string | undefined,
+      settled = false;
+    const requestStop = (reason: StopReason): void => {
+      if (stopReason) return;
+      stopReason = reason;
+      if (spawned && supervisor.connected)
+        supervisor.send({ type: "stop" }, (error) => {
+          if (error) protocolFailure ??= error.message;
+        });
     };
-    const stop = (): void => {
-      stopped = true;
-      kill("SIGTERM");
-      killTimer ??= setTimeout(() => kill("SIGKILL"), 3000);
-    };
-    const timeout = setTimeout(stop, options.timeoutMs ?? 900000);
-    options.signal?.addEventListener("abort", stop, { once: true });
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-      if (stdout.length > 32 * 1024 * 1024) stop();
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr = (stderr + chunk.toString()).slice(-2 * 1024 * 1024);
-    });
+    const timeout = setTimeout(
+      () => requestStop({ type: "deadline" }),
+      options.timeoutMs ?? 900000,
+    );
+    const abort = (): void =>
+      requestStop({ type: "abort", reason: options.signal?.reason });
+    if (options.signal?.aborted) abort();
+    else options.signal?.addEventListener("abort", abort, { once: true });
     const cleanup = (): void => {
       clearTimeout(timeout);
-      if (killTimer) clearTimeout(killTimer);
-      options.signal?.removeEventListener("abort", stop);
+      options.signal?.removeEventListener("abort", abort);
     };
-    child.on("error", (e) => {
+    const rejectOnce = (error: WeaverError): void => {
+      if (settled) return;
+      settled = true;
       cleanup();
-      reject(
+      reject(error);
+    };
+    supervisor.once("error", (error) => {
+      rejectOnce(
         new WeaverError(
           "CONFIG_MISSING",
-          `无法启动 ${command}: ${e.message}`,
+          `无法启动 ${command}: ${error.message}`,
           null,
           [`安装 ${command} 并检查 PATH`],
         ),
       );
     });
-    child.on("close", (code) => {
+    const stdoutStream = supervisor.stdout;
+    const stderrStream = supervisor.stderr;
+    if (!stdoutStream || !stderrStream) {
+      supervisor.kill("SIGKILL");
+      rejectOnce(
+        new WeaverError("PROCESS_FAILED", `${command} 监督进程缺少输出管道`),
+      );
+      return;
+    }
+    supervisor.once("spawn", () => {
+      spawned = true;
+      supervisor.send(
+        { type: "start", command, args },
+        (error?: Error | null) => {
+          if (error) {
+            protocolFailure ??= error.message;
+            supervisor.kill("SIGTERM");
+          }
+        },
+      );
+      if (stopReason)
+        supervisor.send({ type: "stop" }, (error) => {
+          if (error) protocolFailure ??= error.message;
+        });
+    });
+    stdoutStream.setEncoding("utf8");
+    stderrStream.setEncoding("utf8");
+    stdoutStream.on("data", (chunk: string) => {
+      if (stdoutBytes > 32 * 1024 * 1024) return;
+      stdoutBytes += Buffer.byteLength(chunk, "utf8");
+      if (stdoutBytes > 32 * 1024 * 1024) {
+        requestStop({ type: "output-overflow" });
+        return;
+      }
+      stdout += chunk;
+    });
+    stderrStream.on("data", (chunk: string) => {
+      stderr = (stderr + chunk).slice(-2 * 1024 * 1024);
+    });
+    supervisor.on("message", (value: unknown) => {
+      const message = parseSupervisorMessage(value);
+      if (!message) {
+        protocolFailure ??= "媒体监督进程返回了无效状态";
+        supervisor.kill("SIGTERM");
+      } else if (message.type === "result") result = message;
+      else spawnFailure = message.message;
+    });
+    supervisor.once("close", (supervisorCode) => {
+      if (settled) return;
       cleanup();
-      if (stopped) {
-        kill("SIGKILL");
+      settled = true;
+      if (spawnFailure) {
         reject(
           new WeaverError(
-            options.signal?.aborted ? "CANCELLED" : "DEADLINE_EXCEEDED",
-            options.signal?.aborted ? "操作已取消" : "操作超过时限",
+            "CONFIG_MISSING",
+            `无法启动 ${command}: ${spawnFailure}`,
+            null,
+            [`安装 ${command} 并检查 PATH`],
           ),
         );
-      } else if (code !== 0)
+      } else if (stopReason) {
+        reject(stopError(stopReason));
+      } else if (!result) {
         reject(
           new WeaverError("PROCESS_FAILED", `${command} 执行失败`, {
-            code,
+            code: supervisorCode,
+            diagnostic: protocolFailure ?? stderr.slice(-6000),
+          }),
+        );
+      } else if (result.code !== 0) {
+        reject(
+          new WeaverError("PROCESS_FAILED", `${command} 执行失败`, {
+            code: result.code,
+            signal: result.signal,
             diagnostic: stderr.slice(-6000),
           }),
         );
-      else resolve({ stdout, stderr });
+      } else {
+        resolve({ stdout, stderr });
+      }
     });
   });
 }

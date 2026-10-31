@@ -23,7 +23,7 @@ import {
 import { api, ApiError, mediaUrl, requestId } from "./api";
 import {
   CaptionAssistPanel,
-  CaptionCueEditor,
+  CaptionTrackEditor,
   CreativePlanEditor,
   MaskEditor,
   RunDetail,
@@ -119,7 +119,13 @@ export function App() {
     [conflict, setConflict] = useState<z.infer<typeof ProjectRevision> | null>(
       null,
     ),
-    [backup, setBackup] = useState("");
+    [backup, setBackup] = useState(() => {
+      try {
+        return localStorage.getItem("lightweaver-draft-backup") || "";
+      } catch {
+        return "";
+      }
+    });
   const [activeRun, setActiveRun] = useState(""),
     [runDetail, setRunDetail] = useState<z.infer<typeof RunDetail> | null>(
       null,
@@ -143,6 +149,8 @@ export function App() {
     [plan, setPlan] = useState<unknown>(null),
     [busy, setBusy] = useState(false),
     [locale, setLocale] = useState("zh");
+  const baseRef = useRef(base);
+  baseRef.current = base;
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const planDraftRef = useRef(planDraft);
@@ -165,13 +173,23 @@ export function App() {
     setProjects(p);
     setLibrary(l);
   };
+  const retainBackup = (value: string) => {
+    setBackup(value);
+    try {
+      localStorage.setItem("lightweaver-draft-backup", value);
+    } catch {
+      setError("浏览器未能保存本地草稿备份，请复制草稿后再离开");
+    }
+  };
   const preserveDraftBeforeNavigation = () => {
     const currentDraft = draftRef.current,
       currentPlan = planDraftRef.current;
     if ((dirtyRef.current && currentDraft) || planDirtyRef.current)
-      setBackup(
+      retainBackup(
         JSON.stringify(
           {
+            projectId: projectRef.current,
+            base: baseRef.current,
             document: dirtyRef.current ? currentDraft : undefined,
             creativePlanDraft: planDirtyRef.current ? currentPlan : undefined,
           },
@@ -180,6 +198,21 @@ export function App() {
         ),
       );
   };
+  useEffect(() => {
+    const retainOnLeave = () => preserveDraftBeforeNavigation();
+    const confirmLeave = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current && !planDirtyRef.current) return;
+      preserveDraftBeforeNavigation();
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    addEventListener("pagehide", retainOnLeave);
+    addEventListener("beforeunload", confirmLeave);
+    return () => {
+      removeEventListener("pagehide", retainOnLeave);
+      removeEventListener("beforeunload", confirmLeave);
+    };
+  }, []);
   useEffect(() => {
     api(
       "/capabilities",
@@ -546,10 +579,14 @@ export function App() {
       controller = new AbortController(),
       source = new EventSource(`/api/runs/${run}/events`);
     setEvents([]);
-    const update = () =>
-      api(`/runs/${run}`, RunDetail, { signal: controller.signal })
+    setRunDetail(null);
+    let sequence = 0;
+    const update = () => {
+      const requestSequence = ++sequence;
+      return api(`/runs/${run}`, RunDetail, { signal: controller.signal })
         .then((d) => {
-          if (!controller.signal.aborted && projectRef.current === id) {
+          if (!controller.signal.aborted && projectRef.current === id &&
+              requestSequence === sequence && d.run.id === run) {
             setRunDetail(d);
             reload(id).catch(fail);
           }
@@ -557,10 +594,11 @@ export function App() {
         .catch((e) => {
           if (
             !controller.signal.aborted &&
-            projectRef.current === id
+            projectRef.current === id && requestSequence === sequence
           )
             fail(e);
         });
+    };
     source.addEventListener("weaver", (event) => {
       if (controller.signal.aborted || projectRef.current !== id) return;
       const data: unknown = JSON.parse(event.data);
@@ -683,6 +721,40 @@ export function App() {
           <button onClick={() => navigator.clipboard.writeText(backup)}>
             复制草稿
           </button>
+          <button disabled={!ctx || dirty || planDirty} onClick={() => act(async () => {
+            const saved = z.object({
+              projectId: z.string(), base: z.string(),
+              document: ProjectDocument.optional(),
+              creativePlanDraft: CreativePlan.nullable().optional(),
+            }).parse(JSON.parse(backup));
+            if (!ctx || saved.projectId !== route.projectId ||
+                (saved.document && saved.document.id !== saved.projectId))
+              throw new Error("请先打开备份所属项目再恢复");
+            if (saved.document) {
+              setBase(saved.base);
+              edit(saved.document);
+              if (saved.base !== ctx.revision.id) setConflict(ctx.revision);
+            }
+            if (saved.creativePlanDraft !== undefined) {
+              planSeq.current++;
+              planDirtyRef.current = true;
+              setPlanDraft(saved.creativePlanDraft);
+              setPlanDirty(true);
+            }
+            setNotice("已恢复为未保存草稿，请核对后保存修订");
+          })}>
+            恢复到草稿
+          </button>
+          <button onClick={() => {
+            try {
+              localStorage.removeItem("lightweaver-draft-backup");
+              setBackup("");
+            } catch (error) {
+              fail(error);
+            }
+          }}>
+            清除备份
+          </button>
         </details>
       )}
       {route.page !== "films" ? (
@@ -749,12 +821,15 @@ export function App() {
                     <button
                       onClick={() =>
                         act(async () => {
+                          const generation = epoch.current;
                           const text = await api(
                             `/projects/${draft.id}/brief`,
                             z.string(),
                           );
+                          if (generation !== epoch.current || projectRef.current !== draft.id) return;
                           await navigator.clipboard.writeText(text);
-                          setNotice("已复制当前项目与修订给 agent");
+                          if (generation === epoch.current && projectRef.current === draft.id)
+                            setNotice("已复制当前项目与修订给 agent");
                         })
                       }
                     >
@@ -790,9 +865,11 @@ export function App() {
                     </details>
                     <button
                       onClick={() => {
-                        setBackup(
+                        retainBackup(
                           JSON.stringify(
                             {
+                              projectId: draft.id,
+                              base,
                               document: draft,
                               ...(planDirty
                                 ? { creativePlanDraft: planDraft }
@@ -1463,6 +1540,7 @@ export function App() {
                       disabled={busy || dirty}
                       fail={fail}
                       onApply={applySpeakerAssist}
+                      onRunChange={() => void reload().catch(fail)}
                     />
                     {draft.locales.map((l) => {
                       const track = draft.captions.find((t) => t.locale === l);
@@ -1642,26 +1720,33 @@ export function App() {
                                 disabled={busy || dirty}
                                 fail={fail}
                                 onApply={applyCaptionAssist}
+                                onRunChange={() => void reload().catch(fail)}
                               />
-                              {track.cues.map((cue, index) => (
-                                <CaptionCueEditor
-                                  key={cue.id}
-                                  cue={cue}
-                                  track={track}
-                                  draft={draft}
-                                  assets={ctx.assets}
-                                  locale={l}
-                                  selectedSource={captionSource}
-                                  onChange={(next) =>
-                                    updateTrack({
-                                      ...track,
-                                      cues: track.cues.map((current, currentIndex) =>
-                                        currentIndex === index ? next : current,
-                                      ),
-                                    })
-                                  }
-                                />
-                              ))}
+                              <CaptionTrackEditor
+                                key={`${draft.id}:${l}`}
+                                cues={track.cues}
+                                track={track}
+                                draft={draft}
+                                assets={ctx.assets}
+                                locale={l}
+                                selectedSource={captionSource}
+                                onCueChange={(next) =>
+                                  updateTrack({
+                                    ...track,
+                                    cues: track.cues.map((current) =>
+                                      current.id === next.id ? next : current,
+                                    ),
+                                  })
+                                }
+                                onRemoveCue={(cueId) =>
+                                  updateTrack({
+                                    ...track,
+                                    cues: track.cues.filter(
+                                      (cue) => cue.id !== cueId,
+                                    ),
+                                  })
+                                }
+                              />
                             </>
                           )}
                         </article>
@@ -1874,7 +1959,7 @@ export function App() {
                           <div>
                             <button
                               disabled={
-                                !["queued", "running", "cancelling"].includes(
+                                busy || !["queued", "running", "cancelling"].includes(
                                   r.state,
                                 )
                               }
@@ -1892,7 +1977,7 @@ export function App() {
                             </button>
                             <button
                               disabled={
-                                ![
+                                busy || ![
                                   "failed",
                                   "partial",
                                   "cancelled",
@@ -1901,12 +1986,15 @@ export function App() {
                               }
                               onClick={() =>
                                 act(async () => {
+                                  const generation = epoch.current;
+                                  const projectId = draft.id;
                                   await api(`/runs/${r.id}/resume`, RunRecord, {
                                     method: "POST",
                                     body: {},
                                   });
+                                  if (generation !== epoch.current || projectRef.current !== projectId) return;
                                   setActiveRun(r.id);
-                                  await reload();
+                                  await reload(projectId);
                                 })
                               }
                             >
@@ -1932,7 +2020,7 @@ export function App() {
                         {r.error && <p className="error">{r.error.message}</p>}
                       </article>
                     ))}
-                    {runDetail && <Json value={runDetail} />}
+                    {runDetail?.run.id === activeRun && runDetail.run.projectId === route.projectId && <Json value={runDetail} />}
                     <details>
                       <summary>事件（自动断线重连）</summary>
                       <Json value={events} />

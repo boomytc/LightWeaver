@@ -451,7 +451,10 @@ export class Jobs {
       30 * 60 * 1000 - (Date.now() - Date.parse(first.started_at)),
     );
     const deadline = setTimeout(
-      () => controller.abort(new Error("作业总时限")),
+      () =>
+        controller.abort(
+          new WeaverError("DEADLINE_EXCEEDED", "作业总时限"),
+        ),
       remainingMs,
     );
     const publications: (() => void)[] = [];
@@ -571,7 +574,10 @@ export class Jobs {
       } catch (error) {
         this.store.transaction(() => {
           const cancelled = this.read(n.run_id).cancelRequested,
-            protocol = errorProtocol(error);
+            protocol =
+              controller.signal.reason instanceof WeaverError
+                ? errorProtocol(controller.signal.reason)
+                : errorProtocol(error);
           const interrupted = !cancelled && this.stopping;
           const retry =
             !cancelled &&
