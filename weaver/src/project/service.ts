@@ -10,6 +10,8 @@ import {
   WORKFLOWS,
   PROFILES,
   speechOf,
+  AnalysisEntry,
+  refKey,
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { Store, digest, newId, now, canonical } from "../store/index.ts";
@@ -91,9 +93,29 @@ export class Projects {
       throw new WeaverError("INVALID_INPUT", "语言、输出规格或字幕标识重复");
     if (!WORKFLOWS.some((w) => w.id === doc.workflow))
       throw new WeaverError("INVALID_INPUT", "未注册 workflow");
+    const sources = new Set(doc.assets.map(refKey));
+    for (const beat of doc.creativePlan?.beats || []) {
+      for (const evidence of beat.evidence) {
+        const entry = this.store.readJson(
+          "SELECT json FROM analysis WHERE id=? AND project_id=?",
+          [evidence.analysisId, doc.id], AnalysisEntry,
+        );
+        if (!sources.has(refKey(evidence.source)) || refKey(entry.source) !== refKey(evidence.source) ||
+            evidence.range.startUs < entry.range.startUs ||
+            evidence.range.startUs + evidence.range.durationUs > entry.range.startUs + entry.range.durationUs)
+          throw new WeaverError("INVALID_INPUT", "创作证据与当前素材版本或区间不符", {analysisId: evidence.analysisId});
+      }
+      if (beat.scene.kind === "clip" && beat.evidence.length) {
+        const scene = beat.scene;
+        if (!beat.evidence.some((e) => refKey(e.source) === refKey(scene.source) &&
+            e.range.startUs <= scene.sourceRange.startUs &&
+            e.range.startUs + e.range.durationUs >= scene.sourceRange.startUs + scene.sourceRange.durationUs))
+          throw new WeaverError("INVALID_INPUT", "创作选段未被引用证据覆盖", {sceneId: scene.id});
+      }
+    }
     const media = [...doc.assets];
     const library = [...doc.bindings, ...(doc.method ? [doc.method] : [])];
-    for (const scene of doc.scenes) {
+    for (const scene of [...doc.scenes, ...(doc.creativePlan?.beats.map((b) => b.scene) || [])]) {
       if (scene.kind === "clip") media.push(scene.source);
       if (scene.kind === "still") media.push(scene.image);
       const speech = speechOf(scene);
@@ -156,16 +178,17 @@ export class Projects {
       });
     this.store.pin(`revision:${revision.id}`, {
       ...document,
-      assets: this.assetsFor(document),
-      library: this.libraryFor(document),
+      assets: this.assetsFor(document, "saved"),
+      library: this.libraryFor(document, "saved"),
     });
     return revision;
   }
-  assetsFor(doc: ProjectDocument): MediaAssetVersion[] {
+  assetsFor(doc: ProjectDocument, scope: "applied" | "saved" = "applied"): MediaAssetVersion[] {
     const refs = [...doc.assets];
     const scenes = [
       ...doc.scenes,
-      ...this.libraryFor(doc).flatMap((v) =>
+      ...(scope === "saved" ? doc.creativePlan?.beats.map((b) => b.scene) || [] : []),
+      ...this.libraryFor(doc, scope).flatMap((v) =>
         v.payload.kind === "method" ? v.payload.sceneTemplate : [],
       ),
     ];
@@ -192,9 +215,9 @@ export class Projects {
       ).values(),
     ];
   }
-  libraryFor(doc: ProjectDocument): LibraryVersion[] {
+  libraryFor(doc: ProjectDocument, scope: "applied" | "saved" = "applied"): LibraryVersion[] {
     const refs = [...doc.bindings, ...(doc.method ? [doc.method] : [])];
-    for (const s of doc.scenes) {
+    for (const s of [...doc.scenes, ...(scope === "saved" ? doc.creativePlan?.beats.map((b) => b.scene) || [] : [])]) {
       const sp = speechOf(s);
       if (sp?.kind === "authored") refs.push(...Object.values(sp.voice));
     }
@@ -284,6 +307,9 @@ export class Projects {
               break;
             case "captions":
               doc = { ...doc, captions: op.value };
+              break;
+            case "creative-plan":
+              doc = { ...doc, creativePlan: op.value ?? undefined };
               break;
             case "profiles":
               doc = { ...doc, profiles: op.value };

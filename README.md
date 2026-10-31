@@ -64,13 +64,23 @@ uv pip install --python weaver/.venv/bin/python -r weaver/requirements.models.tx
 
 按配置示例设置模型路径和 `llama_server` 可执行文件。模型可放在忽略的 `weaver/models/`，或显式指向自己的权重目录；运行时不会下载权重。Apple Silicon 默认 MLX，其他平台默认 Torch。Mac 上选择 Torch 时使用单独的 Python 环境安装 `qwen-asr==0.0.6`，再设置 `model_python` 与 `alignment_backend: 'torch'`。
 
-对齐支持 zh、yue、en、de、es、fr、it、pt、ru、ko、ja，单场景语音上限 180 秒。字幕保留作者原文，使用真实词/字时间生成句界；VAD 和估算字幕不会标为精确对齐。语义检索召回字幕及画面观察文本，查询使用任务指令，素材使用原文；直接跨模态搜画面尚未接入。
+对齐支持 zh、yue、en、de、es、fr、it、pt、ru、ko、ja，单场景语音上限 180 秒。字幕保留作者原文，使用真实词/字时间生成句界；VAD 和估算字幕不会标为精确对齐。语义检索召回字幕及画面观察文本，查询使用任务指令，素材使用原文；视觉模式使用 EmbeddingGemma 2 对视频窗口中点抽帧，直接检索画面。它只代表采样帧的相似度，仍需预览完整候选窗。
 
 ```bash
 npx weaver search --project demo --query "宠物在户外休息" --mode semantic --rerank --wait --json
+npx weaver search --project demo --query "正在打羽毛球的人" --mode visual --wait --json
 ```
 
 `--rerank` 需配置重排权重，未启用时只做向量召回。GGUF 服务由每个作业启动并回收，取消会终止整个进程组。人工 SRT 和文本检索仍可独立使用。详见 [运行约定](docs/conventions.md) 与 [对齐和检索验收](docs/acceptance-alignment-search.md)。
+
+本地 VoxCPM2、Hy-MT2 字幕翻译和 MOSS 临时说话人分段也使用本仓适配脚本。VoxCPM2 单独安装，避免与 MLX 对齐依赖冲突：
+
+```bash
+uv venv --python 3.12 weaver/.speech-venv
+uv pip install --python weaver/.speech-venv/bin/python -r weaver/requirements.speech.txt
+```
+
+源 ASR 可显式 `--align` 后采用为源片字幕。Studio 支持候选预览裁剪、逐句时间编辑、遮罩和创作方案审核。翻译保留原声音轨与句界，采用后记录字幕目标语言；说话人标签仅在同一分析窗口内有效。完整命令和配置见 [运行约定](docs/conventions.md)。
 
 ## 数据与交接
 
@@ -83,7 +93,7 @@ npx weaver export --project demo --format jianying --dest /absolute/empty-jianyi
 npx weaver backup --dest /absolute/empty-backup-dir --json
 ```
 
-迁移、恢复、缓存、错误协议和完整命令见 [运行约定](docs/conventions.md)。架构取舍见 [架构说明](docs/architecture-v2.md)，本轮证据和验证边界见 [验收记录](docs/acceptance-v2.md)。
+迁移、恢复、缓存、错误协议和完整命令见 [运行约定](docs/conventions.md)。架构取舍见 [架构说明](docs/architecture-v2.md)，本轮能力覆盖、证据与限制见 [落地验收](docs/acceptance-coverage.md)，既有媒体链见 [架构验收](docs/acceptance-v2.md)。
 
 ## 开发
 

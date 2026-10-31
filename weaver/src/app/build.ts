@@ -44,7 +44,7 @@ import { processRun } from "../media/process.ts";
 import { renderTimeline, RENDER_ALGORITHM } from "../media/render.ts";
 import { compileTimeline } from "../timeline/compiler.ts";
 
-const BUILD_ALGORITHM = "build-v3";
+const BUILD_ALGORITHM = "build-v4";
 
 const ProbeInput = z.object({
   digest: Digest,
@@ -86,7 +86,7 @@ const CompileResult = z.object({
 function localeScene(scene: Scene, locale: string): unknown {
   const visit = (v: unknown, key = ""): unknown => {
     if (
-      ["text", "voice", "audio", "copy"].includes(key) &&
+      ["text", "voice", "audio", "copy", "style"].includes(key) &&
       v &&
       typeof v === "object" &&
       !Array.isArray(v) &&
@@ -140,7 +140,7 @@ export function targetFingerprint(
     },
     providerBindings: {
       tts: doc.scenes.some((s) => speechOf(s)?.kind === "authored")
-        ? providers?.["modelbest-voxcpm2"]
+        ? Object.fromEntries(Object.entries(providers || {}).filter(([id]) => !id.startsWith("tool:") && id !== ALIGNMENT_PROVIDER))
         : undefined,
       alignment: needsAlignment(doc, locale)
         ? providers?.[ALIGNMENT_PROVIDER]
@@ -171,6 +171,15 @@ export class Builds {
       "render",
       (context) => this.renderNode(context),
       (context, result) => this.publish(context, result),
+    );
+  }
+  private ttsProviders(doc: ProjectDocument): string[] {
+    const voices = new Set(doc.scenes.flatMap((scene) => {
+      const speech = speechOf(scene);
+      return speech?.kind === "authored" ? Object.values(speech.voice).map((ref) => `${ref.itemId}@${ref.version}`) : [];
+    }));
+    return this.projects.libraryFor(doc).flatMap((v) =>
+      v.payload.kind === "voice" && voices.has(`${v.itemId}@${v.version}`) ? [v.payload.provider] : [],
     );
   }
   private async toolsFor(
@@ -489,7 +498,7 @@ export class Builds {
             provider = v.payload.provider;
             cacheKey = ttsKey({
               text: speech.text[i.locale],
-              style: v.payload.style,
+              style: speech.style?.[i.locale] ?? v.payload.style,
               locale: i.locale,
               voiceVersion: v.version,
               reference: v.payload.reference,
@@ -655,7 +664,7 @@ export class Builds {
       const voice = v.payload;
       provider = voice.provider;
       text = speech.text[input.locale];
-      if (provider !== "modelbest-voxcpm2")
+      if (!this.providers.descriptors().some((p) => p.id === provider && p.capabilities.includes("tts")))
         throw new WeaverError(
           "CAPABILITY_UNAVAILABLE",
           "音色协议没有对应 TTS 适配器",
@@ -663,7 +672,7 @@ export class Builds {
         );
       const ttsInputs = {
         text,
-        style: voice.style,
+        style: speech.style?.[input.locale] ?? voice.style,
         locale: input.locale,
         voiceVersion: v.version,
         reference: voice.reference,
@@ -690,8 +699,9 @@ export class Builds {
           remoteCancellation: false,
         });
         await this.providers.tts({
+          provider,
           text,
-          style: voice.style,
+          style: speech.style?.[input.locale] ?? voice.style,
           reference: voice.reference,
           referenceText: voice.referenceText,
           binding: snap.providers[provider],
@@ -1042,7 +1052,7 @@ export class Builds {
         "FENCED",
         "作者内容或有效 provider 已改变，本次结果不能提升 current",
       );
-    for (const id of ["modelbest-voxcpm2", ALIGNMENT_PROVIDER])
+    for (const id of Object.keys(r.providerBindings).filter((id) => !id.startsWith("tool:")))
       if (r.providerBindings[id]) {
         const old = z
           .object({
@@ -1096,11 +1106,11 @@ export class Builds {
     projectId: string,
     doc = this.projects.read(projectId).document,
   ) {
-    const providers = await this.providers.freeze(
-      doc.locales.some((locale) => needsAlignment(doc, locale))
-        ? ["modelbest-voxcpm2", ALIGNMENT_PROVIDER]
-        : ["modelbest-voxcpm2"],
-    );
+    const ttsIds = this.ttsProviders(doc);
+    const providers = await this.providers.freeze([
+      ...ttsIds,
+      ...(doc.locales.some((locale) => needsAlignment(doc, locale)) ? [ALIGNMENT_PROVIDER] : []),
+    ]);
     Object.assign(providers, await this.toolsFor(doc));
     const currentIds = new Set(
       z

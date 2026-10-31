@@ -9,6 +9,10 @@ import {
   AnalysisEntry,
   Proposal,
   Scene,
+  Locale,
+  AssetId,
+  RunId,
+  SourceRange,
   refKey,
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
@@ -19,6 +23,8 @@ import { fileURLToPath } from "node:url";
 import {
   Providers,
   AsrResult,
+  AlignmentResult,
+  ALIGNMENT_PROVIDER,
   EMBEDDING_PROVIDER,
   RERANK_PROVIDER,
 } from "../adapters/providers.ts";
@@ -57,6 +63,11 @@ import {
   type SceneIndex,
   type TimedCut,
 } from "../match-scene.ts";
+import {
+  mergeSourceCaptionTrack,
+  selectSourceEntries,
+  sourceCues,
+} from "./source-captions.ts";
 
 const AnalysisInput = z.object({
   revision: ProjectRevision,
@@ -68,6 +79,7 @@ const AnalysisInput = z.object({
   fromUs: z.number().int().nonnegative().default(0),
   durationUs: z.number().int().positive().optional(),
   generation: z.string(),
+  align: z.boolean().default(false),
 });
 const ObservationTree = z.object({
   source: z.string(),
@@ -93,6 +105,117 @@ const ObservationTree = z.object({
     }),
   ),
 });
+const AnalyzeSnapshot = z.object({
+  revision: ProjectRevision,
+  assets: z.array(MediaAssetVersion),
+  binding: z.record(z.string(), z.string()),
+});
+const AnalyzeNodeResult = z.object({
+  entries: z.array(AnalysisEntry),
+});
+
+function absoluteWords(input: {
+  words: { text: string; start: number; end: number }[];
+  offsetUs: number;
+  boundStartUs: number;
+  boundEndUs: number;
+}) {
+  return input.words.map((word) => {
+    const startUs = Math.min(
+        input.boundEndUs,
+        Math.max(
+          input.boundStartUs,
+          input.offsetUs + Math.round(word.start * 1e6),
+        ),
+      ),
+      endUs = Math.min(
+        input.boundEndUs,
+        Math.max(
+          startUs,
+          input.offsetUs + Math.round(word.end * 1e6),
+        ),
+      );
+    return { text: word.text, startUs, endUs };
+  });
+}
+
+function alignmentCanonical(text: string): string {
+  return [...text.normalize("NFKC").toLowerCase().replace(/ß/g, "ss")]
+    .filter((char) => /^[\p{L}\p{N}]$/u.test(char))
+    .join("");
+}
+
+function alignedSourceSpans(input: {
+  text: string;
+  alignment: z.infer<typeof AlignmentResult>;
+  startUs: number;
+  endUs: number;
+}) {
+  const expected = alignmentCanonical(input.text),
+    alignedWords = alignmentCanonical(
+      input.alignment.words.map((word) => word.text).join(""),
+    ),
+    alignedSegments = alignmentCanonical(
+      input.alignment.segments.map((segment) => segment.text).join(""),
+    );
+  if (alignedWords !== expected || alignedSegments !== expected)
+    throw new WeaverError(
+      "PROVIDER_FORMAT",
+      "对齐结果没有按原文字符覆盖完整窗口",
+    );
+
+  let wordOffset = 0;
+  const wordSpans = input.alignment.words.map((word) => {
+    const start = wordOffset;
+    wordOffset += alignmentCanonical(word.text).length;
+    return { word, start, end: wordOffset };
+  });
+  const absoluteUs = (seconds: number) =>
+    Math.max(
+      input.startUs,
+      Math.min(
+        input.endUs,
+        input.startUs + Math.round(seconds * 1e6),
+      ),
+    );
+  let segmentOffset = 0;
+  const spans: {
+    text: string;
+    range: { startUs: number; durationUs: number };
+    words: { text: string; startUs: number; endUs: number }[];
+  }[] = [];
+  for (const segment of input.alignment.segments) {
+    const start = segmentOffset,
+      end = start + alignmentCanonical(segment.text).length;
+    segmentOffset = end;
+    const rangeStartUs = absoluteUs(segment.start),
+      rangeEndUs = absoluteUs(segment.end),
+      words = wordSpans
+        .filter((span) => span.start < end && span.end > start)
+        .map(({ word }) => ({
+          text: word.text,
+          startUs: absoluteUs(word.start),
+          endUs: Math.max(
+            absoluteUs(word.start),
+            absoluteUs(word.end),
+          ),
+        }));
+    if (rangeEndUs <= rangeStartUs)
+      throw new WeaverError(
+        "PROVIDER_FORMAT",
+        "对齐返回了无效的句段时间",
+      );
+    spans.push({
+      text: segment.text,
+      range: {
+        startUs: rangeStartUs,
+        durationUs: rangeEndUs - rangeStartUs,
+      },
+      words,
+    });
+  }
+  return spans;
+}
 
 export class Analysis {
   readonly artifacts: Artifacts;
@@ -103,20 +226,34 @@ export class Analysis {
     readonly providers: Providers,
   ) {
     this.artifacts = new Artifacts(store);
-    jobs.register("analyze", (c) => this.analyzeNode(c));
-    jobs.register("reference-match", (c) => this.matchNode(c));
+    jobs.register(
+      "analyze",
+      (c) => this.analyzeNode(c),
+      (_c, result) => this.publishAnalysisResult(result),
+    );
+    jobs.register(
+      "reference-match",
+      (c) => this.matchNode(c),
+      (_c, result) => this.publishProposal(result),
+    );
     jobs.register(
       "semantic-search",
       (c) => this.semanticNode(c),
-      (_c, result) => {
-        this.saveProposal(Proposal.parse(result));
-      },
+      (_c, result) => this.publishProposal(result),
     );
     jobs.register("standalone-asr", (c) => this.standaloneAsr(c));
     jobs.register("voice-mint", (c) => this.mint(c));
-    jobs.register("import-proposal", (c) => this.importProposalNode(c));
+    jobs.register(
+      "import-proposal",
+      (c) => this.importProposalNode(c),
+      (_c, result) => this.publishProposal(result),
+    );
     jobs.register("capture", (c) => this.captureNode(c));
-    jobs.register("import-analysis", (c) => this.importAnalysisNode(c));
+    jobs.register(
+      "import-analysis",
+      (c) => this.importAnalysisNode(c),
+      (_c, result) => this.publishAnalysisResult(result),
+    );
   }
   private evidence(projectId: string) {
     return this.store.listJson(
@@ -144,6 +281,7 @@ export class Analysis {
     durationUs?: number;
     regenerate?: boolean;
     vlmProvider?: string;
+    align?: boolean;
   }) {
     const prior = this.jobs.prior(
       "analyze",
@@ -162,9 +300,17 @@ export class Analysis {
         );
     if (!assets.length)
       throw new WeaverError("INVALID_INPUT", "项目没有所选媒体");
-    const vlmProvider = this.providers.selectedVlm(input.vlmProvider);
+    const vlmProvider = this.providers.selectedVlm(input.vlmProvider),
+      locale = input.locale || revision.document.locales[0];
+    if (input.align && !input.kinds.includes("asr"))
+      throw new WeaverError("INVALID_INPUT", "源字幕对齐需要 ASR 分析");
+    if (input.align) await this.providers.requireAlignment([locale]);
+    const providerIds: string[] = input.kinds.map((kind) =>
+      kind === "asr" ? "qwen3-asr" : vlmProvider,
+    );
+    if (input.align) providerIds.push(ALIGNMENT_PROVIDER);
     const binding = await this.providers.freeze(
-      input.kinds.map((k) => (k === "asr" ? "qwen3-asr" : vlmProvider)),
+      providerIds,
     );
     const nodes = assets.map((a) => ({
       key: `analyze:${a.assetId}@${a.version}`,
@@ -173,12 +319,13 @@ export class Analysis {
         revision,
         asset: a,
         kinds: input.kinds,
-        locale: input.locale || revision.document.locales[0],
+        locale,
         binding,
         vlmProvider,
         fromUs: input.fromUs,
         durationUs: input.durationUs,
         generation: input.regenerate ? input.requestId : "default",
+        align: input.align,
       }),
     }));
     return this.jobs.submit({
@@ -190,22 +337,27 @@ export class Analysis {
       requestId: input.requestId,
     });
   }
-  private index(entry: z.infer<typeof AnalysisEntry>): void {
-    this.store.transaction(() => {
-      this.store.db
-        .prepare("INSERT OR REPLACE INTO analysis VALUES(?,?,?,?,?,?,?,?)")
-        .run(
-          entry.id,
-          entry.projectId,
-          refKey(entry.source),
-          entry.kind,
-          entry.range.startUs,
-          entry.range.durationUs,
-          entry.model,
-          canonical(entry),
-        );
-      this.store.pin(`analysis:${entry.id}`, entry);
-    });
+  private indexRow(entry: z.infer<typeof AnalysisEntry>): void {
+    const previous = this.store.db.prepare("SELECT json FROM analysis WHERE id=?").get(entry.id);
+    if (previous && z.object({json: z.string()}).parse(previous).json !== canonical(entry))
+      throw new WeaverError("INTEGRITY_FAILED", "分析证据标识已绑定不同内容");
+    this.store.db
+      .prepare("INSERT OR IGNORE INTO analysis VALUES(?,?,?,?,?,?,?,?)")
+      .run(
+        entry.id,
+        entry.projectId,
+        refKey(entry.source),
+        entry.kind,
+        entry.range.startUs,
+        entry.range.durationUs,
+        entry.model,
+        canonical(entry),
+      );
+    this.store.pin(`analysis:${entry.id}`, entry);
+  }
+  private publishAnalysisResult(result: unknown): void {
+    const parsed = AnalyzeNodeResult.parse(result);
+    for (const entry of parsed.entries) this.indexRow(entry);
   }
   private async transcribe(
     input: {
@@ -219,7 +371,7 @@ export class Analysis {
     c: NodeContext,
     depth = 0,
   ): Promise<z.infer<typeof AsrResult>> {
-    const key = this.artifacts.key("asr-window-v3", {
+    const key = this.artifacts.key("asr-window-v4", {
         ...input,
         algorithm: "qwen-overlap-stitch-v2",
       }),
@@ -237,8 +389,6 @@ export class Analysis {
         "-y",
         "-ss",
         String(input.startUs / 1e6),
-        "-t",
-        String(input.durationUs / 1e6),
         "-i",
         this.store.blobPath(input.digest),
         "-vn",
@@ -246,6 +396,10 @@ export class Analysis {
         "1",
         "-ar",
         "16000",
+        "-af",
+        "apad",
+        "-t",
+        String(input.durationUs / 1e6),
         dest,
       ],
       { signal: c.signal },
@@ -296,7 +450,7 @@ export class Analysis {
       );
     }
     this.artifacts.record({
-      operation: "asr-window-v3",
+      operation: "asr-window-v4",
       cacheKey: key,
       generation: input.generation,
       digest: this.store.putJson(result),
@@ -311,6 +465,98 @@ export class Analysis {
     });
     return result;
   }
+  private async alignSourceWindow(
+    input: {
+      digest: z.infer<typeof Digest>;
+      text: string;
+      locale: string;
+      binding: string;
+      startUs: number;
+      endUs: number;
+      generation: string;
+    },
+    c: NodeContext,
+  ): Promise<{
+    alignment: z.infer<typeof AlignmentResult>;
+    digest: z.infer<typeof Digest>;
+  }> {
+    const durationUs = input.endUs - input.startUs,
+      key = this.artifacts.key("source-window-alignment-v1", {
+        sourceDigest: input.digest,
+        text: input.text,
+        locale: input.locale,
+        startUs: input.startUs,
+        durationUs,
+        binding: input.binding,
+      }),
+      cached = this.artifacts.lookup(key, input.generation);
+    if (cached)
+      return {
+        alignment: this.store.jsonBlob(cached.digest, AlignmentResult),
+        digest: cached.digest,
+      };
+    const audio = path.join(
+      c.workDir,
+      `align-${input.startUs}-${input.endUs}.wav`,
+    );
+    await processRun(
+      "ffmpeg",
+      [
+        "-v",
+        "error",
+        "-y",
+        "-ss",
+        String(input.startUs / 1e6),
+        "-i",
+        this.store.blobPath(input.digest),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-af",
+        "apad",
+        "-t",
+        String(durationUs / 1e6),
+        audio,
+      ],
+      { signal: c.signal },
+    );
+    c.event("provider-request", {
+      provider: ALIGNMENT_PROVIDER,
+      sourceDigest: input.digest,
+      startUs: input.startUs,
+      durationUs,
+      binding: input.binding,
+    });
+    const aligned = await this.providers.align({
+      audio,
+      text: input.text,
+      locale: input.locale,
+      duration: durationUs / 1e6,
+      binding: input.binding,
+      workDir: c.workDir,
+      signal: c.signal,
+    }),
+      alignedDigest = this.store.putJson(aligned);
+    this.artifacts.record({
+      operation: "source-window-alignment-v1",
+      cacheKey: key,
+      generation: input.generation,
+      digest: alignedDigest,
+      mime: "application/json",
+      dependencies: [input.digest],
+      provenance: {
+        runId: c.runId,
+        sourceRange: { startUs: input.startUs, durationUs },
+        locale: input.locale,
+        text: input.text,
+        binding: input.binding,
+      },
+      verified: true,
+    });
+    return { alignment: aligned, digest: alignedDigest };
+  }
   private async analyzeNode(c: NodeContext) {
     const i = AnalysisInput.parse(c.input),
       a = i.asset,
@@ -324,10 +570,19 @@ export class Analysis {
     if (i.kinds.includes("asr")) {
       if (!fact.audio)
         throw new WeaverError("INVALID_MEDIA", "源媒体无音轨，选择画面观察");
+      const alignmentBinding = i.align
+        ? i.binding[ALIGNMENT_PROVIDER]
+        : undefined;
+      if (i.align && !alignmentBinding)
+        throw new WeaverError(
+          "CAPABILITY_UNAVAILABLE",
+          "源字幕对齐绑定缺失，请重新提交分析",
+        );
       for (const w of windowsFor((end - i.fromUs) / 1e6)) {
         c.signal.throwIfAborted();
         const startUs = i.fromUs + Math.round(w.start * 1e6),
-          durationUs = Math.round((w.end - w.start) * 1e6);
+          endUs = i.fromUs + Math.round(w.end * 1e6),
+          durationUs = endUs - startUs;
         const result = await this.transcribe(
             {
               digest: a.digest,
@@ -339,43 +594,177 @@ export class Analysis {
             },
             c,
           ),
-          evidenceDigest = this.store.putJson(result);
+          resultDigest = this.store.putJson(result);
         const sentences = result.sentences?.length
           ? result.sentences
           : result.text
             ? [{ text: result.text, start: 0, end: durationUs / 1e6 }]
             : [];
-        for (const [index, s] of sentences.entries()) {
-          const start = startUs + Math.round(s.start * 1e6),
-            stop = Math.min(end, startUs + Math.round(s.end * 1e6));
-          if (
-            stop <= start ||
-            entries.some(
-              (e) =>
-                e.range.startUs <= start &&
-                e.range.startUs + e.range.durationUs >= stop,
+        if (alignmentBinding) {
+          const text =
+            result.text.trim() ||
+            sentences.map((sentence) => sentence.text).join(" ");
+          if (text) {
+            const aligned = await this.alignSourceWindow(
+                {
+                  digest: a.digest,
+                  text,
+                  locale: i.locale,
+                  binding: alignmentBinding,
+                  startUs,
+                  endUs,
+                  generation: i.generation,
+                },
+                c,
+              ),
+              spans = alignedSourceSpans({
+                text,
+                alignment: aligned.alignment,
+                startUs,
+                endUs,
+              });
+            for (const [index, span] of spans.entries()) {
+              const evidenceDigest = this.store.putJson({
+                  source,
+                  sourceDigest: a.digest,
+                  locale: i.locale,
+                  asrResultDigest: resultDigest,
+                  asrBinding: i.binding["qwen3-asr"],
+                  alignment: {
+                    binding: alignmentBinding,
+                    digest: aligned.digest,
+                  },
+                  window: {
+                    startUs,
+                    durationUs,
+                    text,
+                  },
+                  segment: {
+                    index,
+                    text: span.text,
+                    startUs: span.range.startUs,
+                    endUs: span.range.startUs + span.range.durationUs,
+                  },
+                }),
+                entry = AnalysisEntry.parse({
+                  id: `analysis-${digest({
+                    projectId: i.revision.projectId,
+                    source,
+                    kind: "asr",
+                    locale: i.locale,
+                    text: span.text,
+                    range: span.range,
+                    binding: i.binding["qwen3-asr"],
+                    alignmentBinding,
+                    alignmentDigest: aligned.digest,
+                    evidenceDigest,
+                  })}`,
+                  projectId: i.revision.projectId,
+                  source,
+                  sourceDigest: a.digest,
+                  range: span.range,
+                  kind: "asr",
+                  locale: i.locale,
+                  text: span.text,
+                  sourceText: span.text,
+                  ...(span.words.length ? { words: span.words } : {}),
+                  evidenceDigest,
+                  model: i.binding["qwen3-asr"],
+                  timingQuality: "aligned",
+                });
+              entries.push(entry);
+              transcripts.push({
+                text: span.text,
+                start: span.range.startUs / 1e6,
+                end:
+                  (span.range.startUs + span.range.durationUs) /
+                  1e6,
+              });
+            }
+          }
+        } else {
+          for (const sentence of sentences) {
+            const sentenceStartUs = Math.max(
+                startUs,
+                Math.min(
+                  endUs,
+                  startUs + Math.round(sentence.start * 1e6),
+                ),
+              ),
+              sentenceEndUs = Math.min(
+                endUs,
+                Math.max(
+                  sentenceStartUs,
+                  startUs + Math.round(sentence.end * 1e6),
+                ),
+              );
+            if (
+              sentenceEndUs <= sentenceStartUs ||
+              entries.some(
+                (entry) =>
+                  entry.range.startUs <= sentenceStartUs &&
+                  entry.range.startUs + entry.range.durationUs >=
+                    sentenceEndUs,
+              )
             )
-          )
-            continue;
-          const entry = AnalysisEntry.parse({
-            id: `analysis-${digest({ projectId: i.revision.projectId, source, kind: "asr", start, stop, binding: i.binding["qwen3-asr"] })}`,
-            projectId: i.revision.projectId,
-            source,
-            sourceDigest: a.digest,
-            range: { startUs: start, durationUs: stop - start },
-            kind: "asr",
-            text: s.text,
-            evidenceDigest,
-            model: i.binding["qwen3-asr"],
-            timingQuality: result.timingQuality,
-          });
-          this.index(entry);
-          entries.push(entry);
-          transcripts.push({
-            text: s.text,
-            start: start / 1e6,
-            end: stop / 1e6,
-          });
+              continue;
+            const words = absoluteWords({
+                words:
+                  sentence.words?.map((word) => ({
+                    text: word.token,
+                    start: word.start,
+                    end: word.end,
+                  })) ?? [],
+                offsetUs: startUs,
+                boundStartUs: sentenceStartUs,
+                boundEndUs: sentenceEndUs,
+              }),
+              evidenceDigest = this.store.putJson({
+                source,
+                sourceDigest: a.digest,
+                locale: i.locale,
+                resultDigest,
+                sentence: {
+                  text: sentence.text,
+                  startUs: sentenceStartUs,
+                  endUs: sentenceEndUs,
+                },
+                asrBinding: i.binding["qwen3-asr"],
+              }),
+              entry = AnalysisEntry.parse({
+                id: `analysis-${digest({
+                  projectId: i.revision.projectId,
+                  source,
+                  kind: "asr",
+                  locale: i.locale,
+                  start: sentenceStartUs,
+                  stop: sentenceEndUs,
+                  binding: i.binding["qwen3-asr"],
+                  evidenceDigest,
+                })}`,
+                projectId: i.revision.projectId,
+                source,
+                sourceDigest: a.digest,
+                range: {
+                  startUs: sentenceStartUs,
+                  durationUs: sentenceEndUs - sentenceStartUs,
+                },
+                kind: "asr",
+                locale: i.locale,
+                text: sentence.text,
+                sourceText: sentence.text,
+                ...(words.length ? { words } : {}),
+                evidenceDigest,
+                model: i.binding["qwen3-asr"],
+                timingQuality: result.timingQuality,
+              });
+            entries.push(entry);
+            transcripts.push({
+              text: sentence.text,
+              start: sentenceStartUs / 1e6,
+              end: sentenceEndUs / 1e6,
+            });
+          }
         }
         c.event("analysis-window", {
           source,
@@ -489,7 +878,7 @@ export class Analysis {
         if (seq.observation) {
           const evidenceDigest = this.store.putJson({ source, sequence: seq });
           const entry = AnalysisEntry.parse({
-            id: `analysis-${digest({ projectId: i.revision.projectId, source, kind: "describe", in: seq.in, out: seq.out, binding: i.binding[i.vlmProvider] })}`,
+            id: `analysis-${digest({ projectId: i.revision.projectId, source, kind: "describe", evidenceDigest, in: seq.in, out: seq.out, binding: i.binding[i.vlmProvider] })}`,
             projectId: i.revision.projectId,
             source,
             sourceDigest: a.digest,
@@ -503,7 +892,6 @@ export class Analysis {
             model: i.binding[i.vlmProvider],
             timingQuality: "native",
           });
-          this.index(entry);
           entries.push(entry);
         }
         c.event("analysis-window", {
@@ -597,9 +985,12 @@ export class Analysis {
       Proposal,
     );
   }
+  private publishProposal(result: unknown): void {
+    this.saveProposal(Proposal.parse(result));
+  }
   private saveProposal(p: Proposal): void {
     this.store.db
-      .prepare("INSERT INTO proposals VALUES(?,?,?)")
+      .prepare("INSERT OR REPLACE INTO proposals VALUES(?,?,?)")
       .run(p.id, p.projectId, canonical(p));
     this.store.pin(`proposal:${p.id}`, p);
   }
@@ -610,6 +1001,7 @@ export class Analysis {
     expectedRevision: string;
     requestId: string;
     allowReuse?: boolean;
+    ranges?: Record<string, z.input<typeof SourceRange>>;
   }) {
     return this.store.mutate(
       "proposal-apply",
@@ -634,11 +1026,38 @@ export class Analysis {
               current: p,
             },
           );
+        const selectedIds = new Set(input.selection),
+          requestedRanges =
+            z
+              .record(z.string(), SourceRange)
+              .optional()
+              .parse(input.ranges) ?? {},
+          extraneousRanges = Object.keys(requestedRanges).filter(
+            (id) => !selectedIds.has(id),
+          );
+        if (extraneousRanges.length)
+          throw new WeaverError("INVALID_INPUT", "裁剪范围引用了未选择的候选", {
+            ids: extraneousRanges,
+          });
         const selected = input.selection.map((id) => {
-          const c = proposal.candidates.find((c) => c.id === id);
-          if (!c)
+          const candidate = proposal.candidates.find(
+            (candidate) => candidate.id === id,
+          );
+          if (!candidate)
             throw new WeaverError("INVALID_INPUT", "候选选择不存在", { id });
-          return c;
+          const range = requestedRanges[id] ?? candidate.range,
+            offset = range.startUs - candidate.range.startUs;
+          if (
+            offset < 0 ||
+            offset >= candidate.range.durationUs ||
+            range.durationUs > candidate.range.durationUs - offset
+          )
+            throw new WeaverError("SOURCE_RANGE", "裁剪范围超出候选源窗", {
+              id,
+              range,
+              candidate: candidate.range,
+            });
+          return { ...candidate, range };
         });
         if (!selected.length)
           throw new WeaverError("INVALID_INPUT", "至少选择一个候选");
@@ -700,6 +1119,180 @@ export class Analysis {
           .prepare("UPDATE proposals SET json=? WHERE id=?")
           .run(canonical(updated), proposal.id);
         return revision;
+      },
+    );
+  }
+  adoptCaptions(input: {
+    projectId: string;
+    sourceId?: string;
+    locale: string;
+    expectedRevision: string;
+    requestId: string;
+    runId?: string;
+  }) {
+    return this.store.mutate(
+      "captions-adopt",
+      input.requestId,
+      input,
+      ProjectRevision,
+      () => {
+        const p = this.projects.read(input.projectId);
+        if (p.id !== input.expectedRevision)
+          throw new WeaverError("REVISION_CONFLICT", "字幕采用基于旧修订", {
+            current: p,
+          });
+        const locale = Locale.parse(input.locale),
+          sourceId = input.sourceId
+            ? AssetId.parse(input.sourceId)
+            : undefined,
+          runId = input.runId ? RunId.parse(input.runId) : undefined,
+          documentRefs = new Set(p.document.assets.map(refKey)),
+          sources = this.projects
+            .assetsFor(p.document)
+            .filter(
+              (asset) =>
+                documentRefs.has(refKey(asset)) &&
+                (asset.kind === "video" || asset.kind === "audio") &&
+                (!sourceId || asset.assetId === sourceId),
+            ),
+          sourceKeys = new Set(sources.map(refKey));
+        if (!sources.length)
+          throw new WeaverError("INVALID_INPUT", "项目没有所选当前源版本", {
+            sourceId: input.sourceId,
+          });
+        let entries: z.infer<typeof AnalysisEntry>[];
+        const replaceWindows: {source: string; startUs: number; endUs?: number}[] = [];
+        if (runId) {
+          const run = this.jobs.read(runId);
+          if (
+            run.kind !== "analyze" ||
+            run.projectId !== input.projectId ||
+            run.state !== "succeeded"
+          )
+            throw new WeaverError(
+              "INVALID_INPUT",
+              "只能采用成功的分析作业结果",
+              { runId },
+            );
+          const snapshot = this.store.jsonBlob(
+            run.snapshotDigest,
+            AnalyzeSnapshot,
+          );
+          if (
+            snapshot.revision.id !== input.expectedRevision ||
+            snapshot.revision.projectId !== input.projectId
+          )
+            throw new WeaverError(
+              "REVISION_CONFLICT",
+              "分析作业快照基于旧修订",
+              {
+                current: p,
+                runRevision: snapshot.revision.id,
+              },
+            );
+          const nodes = new Map(
+            this.jobs
+              .nodes(run.id)
+              .filter((node) => node.state === "succeeded")
+              .map((node) => [node.key, node]),
+          );
+          entries = [];
+          const specs = z
+            .array(
+              z.object({
+                key: z.string(),
+                operation: z.string(),
+                input: z.unknown(),
+              }),
+            )
+            .parse(
+              this.store.db
+                .prepare("SELECT json FROM nodes WHERE run_id=? ORDER BY rowid")
+                .all(run.id)
+                .map((row) =>
+                  JSON.parse(
+                    z.object({ json: z.string() }).parse(row).json,
+                  ),
+                ),
+            )
+            .filter((spec) => spec.operation === "analyze");
+          if (!specs.length)
+            throw new WeaverError("INVALID_INPUT", "分析作业没有分析节点", {
+              runId,
+            });
+          for (const spec of specs) {
+            const analysisInput = AnalysisInput.parse(spec.input);
+            replaceWindows.push({source: refKey(analysisInput.asset), startUs: analysisInput.fromUs,
+              endUs: analysisInput.durationUs === undefined ? undefined : analysisInput.fromUs + analysisInput.durationUs});
+            if (analysisInput.locale !== locale)
+              throw new WeaverError(
+                "INVALID_INPUT",
+                "分析作业语言与目标字幕语言不一致",
+                {
+                  runId,
+                  expected: locale,
+                  actual: analysisInput.locale,
+                },
+              );
+            const node = nodes.get(spec.key);
+            if (!node)
+              throw new WeaverError(
+                "INVALID_INPUT",
+                "分析作业节点尚未成功完成",
+                { runId, key: spec.key },
+              );
+            const nodeEntries = AnalyzeNodeResult.parse(node.result).entries,
+              mismatched = nodeEntries.find(
+                (entry) =>
+                  entry.locale !== undefined && entry.locale !== locale,
+              );
+            if (mismatched)
+              throw new WeaverError(
+                "INVALID_INPUT",
+                "分析作业结果语言与目标字幕语言不一致",
+                {
+                  runId,
+                  expected: locale,
+                  actual: mismatched.locale,
+                },
+              );
+            entries.push(...nodeEntries);
+          }
+        } else entries = this.evidence(input.projectId);
+        const selected = selectSourceEntries({
+            entries,
+            sourceKeys,
+            locale,
+          }),
+          cues = sourceCues(selected);
+        if (!selected.length)
+          throw new WeaverError(
+            "INVALID_INPUT",
+            "所选当前源版本没有字幕证据",
+            { sourceId: input.sourceId, runId },
+          );
+        const current = p.document.captions.find(
+            (track) => track.locale === locale,
+          ),
+          track = mergeSourceCaptionTrack({
+            track: current,
+            locale,
+            fps: p.document.profiles[0].fps,
+            sourceKeys: new Set(selected.map((entry) => refKey(entry.source))),
+            cues,
+            replaceWindows: runId ? replaceWindows : undefined,
+          }),
+          captions = current
+            ? p.document.captions.map((candidate) =>
+                candidate.locale === locale ? track : candidate,
+              )
+            : [...p.document.captions, track];
+        return this.projects.apply({
+          projectId: input.projectId,
+          expectedRevision: input.expectedRevision,
+          requestId: input.requestId,
+          ops: [{ op: "captions", value: captions }],
+        });
       },
     );
   }
@@ -897,7 +1490,6 @@ export class Analysis {
         ...(cuts.length ? [] : ["无候选"]),
       ],
     });
-    this.saveProposal(proposal);
     return proposal;
   }
   async submitSemantic(input: {
@@ -1139,6 +1731,7 @@ export class Analysis {
     voiceId?: string;
     voiceVersion?: string;
     locale?: string;
+    provider?: string;
     requestId: string;
   }) {
     return this.store.owned("standalone-submit", async () => {
@@ -1162,12 +1755,36 @@ export class Analysis {
             }),
           )
         : undefined;
-      const provider = input.kind === "asr" ? "qwen3-asr" : "modelbest-voxcpm2";
+      const provider =
+        input.kind === "asr"
+          ? "qwen3-asr"
+          : voice?.payload.provider ??
+            input.provider ??
+            "modelbest-voxcpm2";
+      if (input.kind !== "asr") {
+        const descriptor = this.providers
+          .descriptors()
+          .find((candidate) => candidate.id === provider);
+        if (
+          !descriptor?.capabilities.includes("tts") ||
+          (input.kind === "voice-design" &&
+            !descriptor.capabilities.includes("voice-design"))
+        )
+          throw new WeaverError(
+            "CAPABILITY_UNAVAILABLE",
+            "所选 provider 不支持该语音任务",
+            {
+              provider,
+              kind: input.kind,
+            },
+          );
+      }
       const frozen = {
         ...input,
         file: undefined,
         sourceDigest,
         voice,
+        provider,
         binding: (await this.providers.freeze([provider]))[provider],
       };
       return this.jobs.submit({
@@ -1218,6 +1835,7 @@ export class Analysis {
       .object({
         text: z.string().min(1),
         style: z.string().optional(),
+        provider: z.string(),
         binding: z.string(),
         voice: z
           .object({
@@ -1231,10 +1849,9 @@ export class Analysis {
           .optional(),
       })
       .parse(c.input);
-    if (i.voice && i.voice.payload.provider !== "modelbest-voxcpm2")
-      throw new WeaverError("CAPABILITY_UNAVAILABLE", "该音色协议未注册适配器");
     const dest = path.join(c.workDir, "preview.wav");
     await this.providers.tts({
+      provider: i.provider,
       text: i.text,
       style: i.style ?? i.voice?.payload.style,
       reference: i.voice?.payload.reference,
@@ -1250,7 +1867,7 @@ export class Analysis {
       digest: await this.store.importFile(dest, "audio/wav"),
       text: i.text,
       style: i.style ?? i.voice?.payload.style ?? "",
-      provider: "modelbest-voxcpm2",
+      provider: i.provider,
       durationUs: fact.durationUs,
     };
   }
@@ -1381,7 +1998,6 @@ export class Analysis {
       id: newId("proposal"),
       selections: [],
     });
-    this.saveProposal(imported);
     return imported;
   }
   importEvidence(input: {
@@ -1451,7 +2067,7 @@ export class Analysis {
       if (e.startUs + e.durationUs > f.durationUs)
         throw new WeaverError("SOURCE_RANGE", "人工证据超出真实源窗");
       const entry = AnalysisEntry.parse({
-        id: `analysis-${digest({ projectId: i.revision.projectId, source: a.digest, text: e.text, startUs: e.startUs, durationUs: e.durationUs })}`,
+        id: `analysis-${digest({ projectId: i.revision.projectId, source: refKey(a), text: e.text, startUs: e.startUs, durationUs: e.durationUs })}`,
         projectId: i.revision.projectId,
         source: { assetId: a.assetId, version: a.version },
         sourceDigest: a.digest,
@@ -1465,7 +2081,6 @@ export class Analysis {
         model: "manual",
         timingQuality: "manual",
       });
-      this.index(entry);
       out.push(entry);
     }
     return { entries: out };

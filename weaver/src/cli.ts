@@ -13,6 +13,8 @@ import {
   EditOperation,
   Proposal,
   TimelineManifest,
+  CreativePlan,
+  SourceRange,
   ErrorProtocol,
 } from "./contracts/index.ts";
 import { WeaverError, errorProtocol, exitCode } from "./contracts/errors.ts";
@@ -71,11 +73,18 @@ try {
         "project apply --project id --ops /abs/edit-ops.json --expected-revision rev",
         "project import --project id --file /abs/document.json --expected-revision rev",
         "project brief <id>",
+        "project context <id>",
         "asset add --project id --file /abs/media --expected-revision rev [--asset-id id]",
         "library list|show [id] [--version digest]",
         "library set --file /abs/payload.json [--media /abs/file] [--id id --expected-version digest]",
         "library delete --id id --expected-version digest",
         "captions import --project id --file /abs/subtitles.srt --locale zh --expected-revision rev",
+        "captions from-analysis --project id --locale zh [--source-id id --run runId] --expected-revision rev",
+        "captions translate --project id --locale zh --target-locale en --expected-revision rev [--wait]",
+        "captions apply-translation --project id --run runId --expected-revision rev",
+        "creative-plan import|show|apply --project id [--file /abs/plan.json --append] [--expected-revision rev]",
+        "speakers analyze --project id --source-id id --locale zh|en [--from-us n --duration-us n --wait]",
+        "speakers apply --project id --run runId --expected-revision rev",
         "build --project id [--locales zh,en] [--profiles landscape,portrait,square] [--plan|--wait] [--regenerate]",
         "run list [--project id] | run status|cancel|resume <runId> [--wait] | run events <runId> [--after seq]",
         "artifacts --project id",
@@ -84,15 +93,15 @@ try {
         "capabilities --json",
         "asset adopt --project id --item library-id --version digest --expected-revision rev",
         "library import-builtin --package-version digest",
-        "analyze --project id --with asr,describe [--provider modelbest-vlm|deepseek-vlm] [--source-id id --from-us n --duration-us n] [--wait]",
+        "analyze --project id --with asr,describe [--align --locale zh] [--provider modelbest-vlm|deepseek-vlm] [--source-id id --from-us n --duration-us n] [--wait]",
         "analyze --project id --import /abs/evidence.json --expected-revision rev --wait",
-        "search --project id --query text [--mode text|semantic] [--rerank] [--sources id,id --from-us n --to-us n] [--wait]",
+        "search --project id --query text [--mode text|semantic|visual] [--rerank] [--sources id,id --from-us n --to-us n] [--wait]",
         "match --project id --edited asset-id [--sources id,id] --wait",
         "proposal import --project id --file /abs/proposal.json --expected-revision rev --wait",
-        "proposal apply --project id --proposal proposal-id --select candidate-id,candidate-id --expected-revision rev [--allow-reuse]",
+        "proposal apply --project id --proposal proposal-id --select candidate-id,candidate-id --expected-revision rev [--ranges /abs/ranges.json --allow-reuse]",
         "asr --file /abs/audio-or-video [--locale zh] --wait [--dest /abs/result.json]",
-        "tts --text text [--voice id --voice-version digest] --wait [--dest /abs/speech.wav]",
-        "voice-design --text sample --style description --wait [--dest /abs/preview.wav]",
+        "tts --text text [--voice id --voice-version digest --provider local-voxcpm2] --wait [--dest /abs/speech.wav]",
+        "voice-design --text sample --style description [--provider local-voxcpm2] --wait [--dest /abs/preview.wav]",
         "capture --url https://example.com [--width 1440 --height 1100 --selector css] --wait [--dest /abs/image.png]",
         "export --project id --format otio|jianying|bundle --dest /abs/empty-output [--delivery id]",
         "export verify --dir /abs/package | export install --dir /abs/jianying-package",
@@ -118,6 +127,7 @@ try {
       speech: Speech,
       profile: OutputProfile,
       captions: CaptionTrack,
+      "creative-plan": CreativePlan,
       library: LibraryPayload,
       ops: z.array(EditOperation),
       proposal: Proposal,
@@ -156,6 +166,7 @@ try {
         document: jsonFile("file"),
       });
     else if (action === "brief") result = app.agentBrief(projectId);
+    else if (action === "context") result = await app.projectContext(projectId);
     else throw new WeaverError("INVALID_INPUT", "未知 project 操作");
   } else if (command === "asset" && action === "add")
     result = await app.addAsset({
@@ -227,6 +238,34 @@ try {
         },
       ],
     });
+  } else if (command === "captions" && action === "from-analysis") {
+    result = app.analysis.adoptCaptions({projectId: str("project"), locale: str("locale"),
+      sourceId: str("source-id", true) || undefined, runId: str("run", true) || undefined,
+      expectedRevision: str("expected-revision"), requestId});
+  } else if (command === "captions" && action === "translate") {
+    const run = await app.captions.submit({projectId: str("project"), locale: str("locale"),
+      targetLocale: str("target-locale"), expectedRevision: str("expected-revision"), requestId});
+    result = options.wait ? {run: await app.jobs.wait(run.id), nodes: app.jobs.nodes(run.id)} : run;
+  } else if (command === "captions" && action === "apply-translation") {
+    result = app.captions.apply({projectId: str("project"), runId: str("run"),
+      expectedRevision: str("expected-revision"), requestId});
+  } else if (command === "creative-plan") {
+    if (action === "import") result = app.authoring.save({projectId: str("project"),
+      expectedRevision: str("expected-revision"), requestId, plan: jsonFile("file")});
+    else if (action === "apply") result = app.authoring.apply({projectId: str("project"),
+      expectedRevision: str("expected-revision"), requestId, append: !!options.append});
+    else if (action === "show") result = app.projects.read(str("project")).document.creativePlan ?? null;
+    else throw new WeaverError("INVALID_INPUT", "未知 creative-plan 操作");
+  } else if (command === "speakers") {
+    if (action === "analyze") {
+      const run = await app.speakers.submit({projectId: str("project"), sourceId: str("source-id"),
+        locale: str("locale"), requestId,
+        fromUs: options["from-us"] === undefined ? undefined : Number(str("from-us")),
+        durationUs: options["duration-us"] === undefined ? undefined : Number(str("duration-us"))});
+      result = options.wait ? {run: await app.jobs.wait(run.id), nodes: app.jobs.nodes(run.id)} : run;
+    } else if (action === "apply") result = app.speakers.apply({projectId: str("project"), runId: str("run"),
+      expectedRevision: str("expected-revision"), requestId});
+    else throw new WeaverError("INVALID_INPUT", "未知 speakers 操作");
   } else if (command === "build") {
     const input = {
       projectId: str("project"),
@@ -291,6 +330,7 @@ try {
             ? Number(str("duration-us"))
             : undefined,
           regenerate: !!options.regenerate,
+          align: !!options.align,
         });
     result = options.wait
       ? { run: await app.jobs.wait(run.id), nodes: app.jobs.nodes(run.id) }
@@ -312,7 +352,12 @@ try {
   } else if (command === "search") {
     if (options.rerank && str("mode", true) !== "semantic")
       throw new WeaverError("INVALID_INPUT", "候选重排只适用于语义检索");
-    if (str("mode", true) === "semantic") {
+    if (str("mode", true) === "visual") {
+      const run = await app.visual.submit({projectId: str("project"), query: str("query"), requestId,
+        sourceIds: csv("sources"), fromUs: options["from-us"] ? Number(str("from-us")) : undefined,
+        toUs: options["to-us"] ? Number(str("to-us")) : undefined});
+      result = options.wait ? {run: await app.jobs.wait(run.id), nodes: app.jobs.nodes(run.id)} : run;
+    } else if (str("mode", true) === "semantic") {
       const run = await app.analysis.submitSemantic({
         projectId: str("project"),
         query: str("query"),
@@ -362,6 +407,7 @@ try {
       expectedRevision: str("expected-revision"),
       requestId,
       allowReuse: !!options["allow-reuse"],
+      ranges: options.ranges ? z.record(z.string(), SourceRange).parse(jsonFile("ranges")) : undefined,
     });
   else if (
     command === "asr" ||
@@ -370,6 +416,7 @@ try {
   ) {
     const run = await app.analysis.standalone({
       kind: command,
+      provider: str("provider", true) || undefined,
       file: str("file", true) || undefined,
       text: str("text", true) || undefined,
       style: str("style", true) || undefined,

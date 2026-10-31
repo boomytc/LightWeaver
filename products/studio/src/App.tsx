@@ -3,6 +3,7 @@ import {
   z,
   ProviderDescriptor,
   CaptionTrack,
+  CreativePlan,
   Frames,
   ProjectRevision,
   ProjectDocument,
@@ -20,6 +21,17 @@ import {
   type Speech,
 } from "@lightweaver/weaver/contracts";
 import { api, ApiError, mediaUrl, requestId } from "./api";
+import {
+  CaptionAssistPanel,
+  CaptionCueEditor,
+  CreativePlanEditor,
+  MaskEditor,
+  RunDetail,
+  SpeakerAssistPanel,
+  SourceWindowPlayer,
+  type SourceWindow,
+  type SceneMask,
+} from "./ReviewTools";
 
 const Context = z.object({
   revision: ProjectRevision,
@@ -31,18 +43,7 @@ const Context = z.object({
   deliveries: z.array(Delivery.extend({ state: z.string() })),
 });
 type Context = z.infer<typeof Context>;
-const RunDetail = z.object({
-  run: RunRecord,
-  nodes: z.array(
-    z.object({
-      key: z.string(),
-      state: z.string(),
-      attempts: z.number(),
-      result: z.unknown(),
-      error: z.unknown().optional(),
-    }),
-  ),
-});
+type CreativePlanValue = z.infer<typeof CreativePlan>;
 const labels: Record<string, string> = {
   landscape: "横屏 1920×1080",
   portrait: "竖屏 1080×1920",
@@ -87,6 +88,23 @@ function Field({
 function Json({ value }: { value: unknown }) {
   return <pre>{JSON.stringify(value, null, 2)}</pre>;
 }
+function localeName(value: string) {
+  return value === "zh"
+    ? "中文"
+    : value === "en"
+      ? "英文"
+      : value === "ja"
+        ? "日文"
+        : value === "ko"
+          ? "韩文"
+          : value;
+}
+function findMedia(
+  assets: z.infer<typeof MediaAssetVersion>[],
+  key: string,
+) {
+  return assets.find((asset) => refKey(asset) === key);
+}
 export function App() {
   const [route, setRoute] = useState(currentRoute),
     [projects, setProjects] = useState<z.infer<typeof ProjectRevision>[]>([]),
@@ -111,20 +129,31 @@ export function App() {
       z.infer<typeof ProviderDescriptor>[]
     >([]),
     [vlmProvider, setVlmProvider] = useState("modelbest-vlm"),
-    [captionSource, setCaptionSource] = useState("");
+    [captionSource, setCaptionSource] = useState(""),
+    [analysisSource, setAnalysisSource] = useState("");
   const [query, setQuery] = useState(""),
     [mode, setMode] = useState("text"),
     [rerank, setRerank] = useState(false),
+    [candidateRanges, setCandidateRanges] = useState<
+      Record<string, SourceWindow>
+    >({}),
+    [allowReuse, setAllowReuse] = useState<Record<string, boolean>>({}),
+    [planDraft, setPlanDraft] = useState<CreativePlanValue | null>(null),
+    [planDirty, setPlanDirty] = useState(false),
     [plan, setPlan] = useState<unknown>(null),
     [busy, setBusy] = useState(false),
     [locale, setLocale] = useState("zh");
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const planDraftRef = useRef(planDraft);
+  planDraftRef.current = planDraft;
   const draftSeq = useRef(0);
   const listSeq = useRef(0);
   const refreshSeq = useRef(0),
     epoch = useRef(0),
     dirtyRef = useRef(false),
+    planDirtyRef = useRef(false),
+    planSeq = useRef(0),
     projectRef = useRef(route.projectId);
   const refreshLists = async () => {
     const seq = ++listSeq.current;
@@ -135,6 +164,21 @@ export function App() {
     if (seq !== listSeq.current) return;
     setProjects(p);
     setLibrary(l);
+  };
+  const preserveDraftBeforeNavigation = () => {
+    const currentDraft = draftRef.current,
+      currentPlan = planDraftRef.current;
+    if ((dirtyRef.current && currentDraft) || planDirtyRef.current)
+      setBackup(
+        JSON.stringify(
+          {
+            document: dirtyRef.current ? currentDraft : undefined,
+            creativePlanDraft: planDirtyRef.current ? currentPlan : undefined,
+          },
+          null,
+          2,
+        ),
+      );
   };
   useEffect(() => {
     api(
@@ -150,7 +194,10 @@ export function App() {
       })
       .catch((e) => setError(String(e)));
     refreshLists().catch((e) => setError(String(e)));
-    const pop = () => setRoute(currentRoute());
+    const pop = () => {
+      preserveDraftBeforeNavigation();
+      setRoute(currentRoute());
+    };
     addEventListener("popstate", pop);
     return () => removeEventListener("popstate", pop);
   }, []);
@@ -160,8 +207,15 @@ export function App() {
       controller = new AbortController();
     projectRef.current = id;
     draftSeq.current++;
+    planSeq.current++;
     dirtyRef.current = false;
+    planDirtyRef.current = false;
     setCaptionSource("");
+    setAnalysisSource("");
+    setCandidateRanges({});
+    setAllowReuse({});
+    setPlanDraft(null);
+    setPlanDirty(false);
     setCtx(null);
     setDraft(null);
     setDirty(false);
@@ -180,6 +234,10 @@ export function App() {
           setDraft(c.revision.document);
           setBase(c.revision.id);
           setLocale(c.revision.document.locales[0]);
+          setAnalysisSource(
+            c.assets.find((asset) => asset.kind === "video")?.assetId || "",
+          );
+          setPlanDraft(c.revision.document.creativePlan || null);
         })
         .catch((e) => {
           if (!controller.signal.aborted) setError(String(e));
@@ -187,7 +245,7 @@ export function App() {
     return () => controller.abort();
   }, [route.projectId]);
   const navigate = (page: string, id = "") => {
-    if (dirty && draft) setBackup(JSON.stringify(draft, null, 2));
+    preserveDraftBeforeNavigation();
     history.pushState(null, "", `/${page}${id ? `/${id}` : ""}`);
     setRoute({ page, projectId: id });
   };
@@ -206,6 +264,10 @@ export function App() {
     if (!dirtyRef.current) {
       setDraft(c.revision.document);
       setBase(c.revision.id);
+    }
+    if (!planDirtyRef.current) {
+      setPlanDraft(c.revision.document.creativePlan || null);
+      setPlanDirty(false);
     }
   };
   const fail = (e: unknown) => {
@@ -238,6 +300,203 @@ export function App() {
     dirtyRef.current = true;
     setPlan(null);
   };
+  const acceptDraftRevision = (revision: z.infer<typeof ProjectRevision>) => {
+    setCtx((current) =>
+      current ? { ...current, revision } : current,
+    );
+    setBase(revision.id);
+    setConflict(null);
+    draftRef.current = revision.document;
+    setDraft(revision.document);
+    dirtyRef.current = false;
+    setDirty(false);
+  };
+  const acceptProjectRevision = async (
+    revision: z.infer<typeof ProjectRevision>,
+    guard: {
+      id: string;
+      generation: number;
+      draftSequence: number;
+      planSequence?: number;
+    },
+  ) => {
+    if (
+      revision.projectId !== projectRef.current ||
+      guard.id !== projectRef.current ||
+      guard.generation !== epoch.current
+    )
+      return false;
+    const draftAccepted = guard.draftSequence === draftSeq.current;
+    const planAccepted =
+      guard.planSequence === undefined ||
+      guard.planSequence === planSeq.current;
+    if (draftAccepted) acceptDraftRevision(revision);
+    else setConflict(revision);
+    if (guard.planSequence !== undefined && planAccepted) {
+      planDirtyRef.current = false;
+      setPlanDirty(false);
+      setPlanDraft(revision.document.creativePlan || null);
+    }
+    await reload(revision.projectId);
+    await refreshLists();
+    return draftAccepted && planAccepted;
+  };
+  const editCreativePlan = (next: CreativePlanValue) => {
+    planSeq.current++;
+    planDirtyRef.current = true;
+    planDraftRef.current = next;
+    setPlanDirty(true);
+    setPlanDraft(next);
+  };
+  const saveCreativePlan = (candidate: CreativePlanValue) =>
+    act(async () => {
+      if (!draft) return;
+      if (dirtyRef.current)
+        throw new Error("先保存当前项目草稿，再保存创作方案");
+      const generation = epoch.current,
+        id = projectRef.current,
+        draftSequence = draftSeq.current,
+        planSequence = planSeq.current,
+        plan = CreativePlan.parse(candidate),
+        revision = await api(
+          `/projects/${id}/creative-plan`,
+          ProjectRevision,
+          {
+            method: "PUT",
+            body: {
+              plan,
+              expectedRevision: base,
+              requestId: requestId(),
+            },
+          },
+        );
+      if (
+        await acceptProjectRevision(revision, {
+          id,
+          generation,
+          draftSequence,
+          planSequence,
+        })
+      )
+        setNotice("创作方案已保存为项目蓝图");
+    });
+  const applyCreativePlan = () =>
+    act(async () => {
+      if (!draft || !planDraft) return;
+      if (dirtyRef.current || planDirtyRef.current)
+        throw new Error("先保存项目草稿与创作方案，再应用方案");
+      const generation = epoch.current,
+        id = projectRef.current,
+        draftSequence = draftSeq.current,
+        revision = await api(
+          `/projects/${id}/creative-plan/apply`,
+          ProjectRevision,
+          {
+            method: "POST",
+            body: {
+              expectedRevision: base,
+              requestId: requestId(),
+            },
+          },
+        );
+      if (
+        await acceptProjectRevision(revision, {
+          id,
+          generation,
+          draftSequence,
+        })
+      )
+        setNotice("方案已应用到当前场景；之后可独立编辑，方案不会自动同步");
+    });
+  const applyCaptionAssist = (runId: string) =>
+    act(async () => {
+      if (!draft || dirtyRef.current)
+        throw new Error("先保存当前项目草稿，再采用译文字幕");
+      const generation = epoch.current,
+        id = projectRef.current,
+        draftSequence = draftSeq.current,
+        revision = await api(
+          `/projects/${id}/captions/assist/apply`,
+          ProjectRevision,
+          {
+            method: "POST",
+            body: {
+              runId,
+              expectedRevision: base,
+              requestId: requestId(),
+            },
+          },
+        );
+      if (
+        await acceptProjectRevision(revision, {
+          id,
+          generation,
+          draftSequence,
+        })
+      )
+        setNotice("译文字幕已显式采用到原字幕轨");
+    });
+  const applySpeakerAssist = (runId: string) =>
+    act(async () => {
+      if (!draft || dirtyRef.current)
+        throw new Error("先保存当前项目草稿，再采用说话人分段");
+      const generation = epoch.current,
+        id = projectRef.current,
+        draftSequence = draftSeq.current,
+        revision = await api(
+          `/projects/${id}/speakers/apply`,
+          ProjectRevision,
+          {
+            method: "POST",
+            body: {
+              runId,
+              expectedRevision: base,
+              requestId: requestId(),
+            },
+          },
+        );
+      if (
+        await acceptProjectRevision(revision, {
+          id,
+          generation,
+          draftSequence,
+        })
+      )
+        setNotice("临时说话人分段已显式采用；可在每个 cue 中手动改名");
+    });
+  const adoptAnalysisCaptions = (
+    input: { sourceId?: string; runId?: string; locale?: string } = {},
+  ) =>
+    act(async () => {
+      if (!draft || dirtyRef.current)
+        throw new Error("先保存当前项目草稿，再从转写采用字幕");
+      const generation = epoch.current,
+        id = projectRef.current,
+        draftSequence = draftSeq.current,
+        targetLocale = input.locale || locale,
+        revision = await api(
+          `/projects/${id}/captions/from-analysis`,
+          ProjectRevision,
+          {
+            method: "POST",
+            body: {
+              locale: targetLocale,
+              ...(input.sourceId ? { sourceId: input.sourceId } : {}),
+              ...(input.runId ? { runId: input.runId } : {}),
+              expectedRevision: base,
+              requestId: requestId(),
+            },
+          },
+        );
+      if (
+        await acceptProjectRevision(revision, {
+          id,
+          generation,
+          draftSequence,
+        })
+      )
+        setNotice(`已采用 ${localeName(targetLocale)} 转写字幕`);
+    });
   const save = () =>
     act(async () => {
       if (!draft) return;
@@ -253,14 +512,13 @@ export function App() {
           },
         });
       if (projectRef.current !== id || generation !== epoch.current) return;
-      setBase(rev.id);
       if (seq === draftSeq.current) {
-        dirtyRef.current = false;
-        setDirty(false);
-        setDraft(rev.document);
+        acceptDraftRevision(rev);
+        setNotice("修订已保存");
+      } else {
+        setConflict(rev);
+        setNotice("保存已写入服务器，但保存期间的新编辑仍保留为草稿");
       }
-      setConflict(null);
-      setNotice("修订已保存");
       await reload(id);
       await refreshLists();
     });
@@ -297,7 +555,11 @@ export function App() {
           }
         })
         .catch((e) => {
-          if (!controller.signal.aborted) fail(e);
+          if (
+            !controller.signal.aborted &&
+            projectRef.current === id
+          )
+            fail(e);
         });
     source.addEventListener("weaver", (event) => {
       if (controller.signal.aborted || projectRef.current !== id) return;
@@ -362,6 +624,24 @@ export function App() {
     }
     edit({ ...draft, scenes: [...draft.scenes, Scene.parse(raw)] });
   };
+  const analysisAssets =
+    ctx?.assets.filter(
+      (asset) => asset.kind === "video" || asset.kind === "audio",
+    ) || [];
+  const asrReady = providers.some(
+    (provider) =>
+      provider.capabilities.includes("asr") && provider.ready,
+  );
+  const alignmentReady = providers.some(
+    (provider) =>
+      provider.capabilities.includes("alignment") && provider.ready,
+  );
+  const speakerReady = providers.some(
+    (provider) =>
+      provider.id === "moss-speakers" &&
+      provider.capabilities.includes("diarization") &&
+      provider.ready,
+  );
   return (
     <div className="app">
       <header>
@@ -416,6 +696,7 @@ export function App() {
                 : "material"
           }
           library={library}
+          providers={providers}
           refresh={refreshLists}
           fail={fail}
         />
@@ -509,12 +790,22 @@ export function App() {
                     </details>
                     <button
                       onClick={() => {
-                        setBackup(JSON.stringify(draft, null, 2));
-                        dirtyRef.current = false;
-                        setDirty(false);
-                        setDraft(conflict.document);
-                        setBase(conflict.id);
-                        setConflict(null);
+                        setBackup(
+                          JSON.stringify(
+                            {
+                              document: draft,
+                              ...(planDirty
+                                ? { creativePlanDraft: planDraft }
+                                : {}),
+                            },
+                            null,
+                            2,
+                          ),
+                        );
+                        acceptDraftRevision(conflict);
+                        planDirtyRef.current = false;
+                        setPlanDirty(false);
+                        setPlanDraft(conflict.document.creativePlan || null);
                       }}
                     >
                       保留草稿并加载当前修订
@@ -525,6 +816,7 @@ export function App() {
                   {[
                     ["assets", "素材与观察"],
                     ["script", "脚本与选段"],
+                    ["creative", "创作方案"],
                     ["captions", "字幕"],
                     ["sound", "声音"],
                     ["output", "输出"],
@@ -664,17 +956,54 @@ export function App() {
                       </select>
                     </Field>
                     <div className="actions">
+                      <Field label="分析源片或音轨">
+                        <select
+                          value={analysisSource}
+                          onChange={(event) =>
+                            setAnalysisSource(event.target.value)
+                          }
+                        >
+                          <option value="">先选择源素材</option>
+                          {analysisAssets.map((asset) => (
+                            <option key={asset.version} value={asset.assetId}>
+                              {asset.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
                       <button
+                        disabled={busy || !analysisSource || !asrReady}
                         onClick={() =>
                           act(() =>
                             submitJob(`/projects/${draft.id}/analyze`, {
                               kinds: ["asr"],
+                              sourceId: analysisSource,
+                              align: false,
+                              locale,
                               requestId: requestId(),
                             }),
                           )
                         }
                       >
-                        转写音轨
+                        仅转写
+                      </button>
+                      <button
+                        disabled={
+                          busy || !analysisSource || !asrReady || !alignmentReady
+                        }
+                        onClick={() =>
+                          act(() =>
+                            submitJob(`/projects/${draft.id}/analyze`, {
+                              kinds: ["asr"],
+                              sourceId: analysisSource,
+                              align: true,
+                              locale,
+                              requestId: requestId(),
+                            }),
+                          )
+                        }
+                      >
+                        转写并精确对齐
                       </button>
                       <select
                         aria-label="画面观察模型"
@@ -691,10 +1020,14 @@ export function App() {
                           ))}
                       </select>
                       <button
+                        disabled={busy}
                         onClick={() =>
                           act(() =>
                             submitJob(`/projects/${draft.id}/analyze`, {
                               kinds: ["describe"],
+                              ...(analysisSource
+                                ? { sourceId: analysisSource }
+                                : {}),
                               vlmProvider,
                               requestId: requestId(),
                             }),
@@ -704,6 +1037,17 @@ export function App() {
                         观察画面
                       </button>
                     </div>
+                    {(!analysisSource ||
+                      !asrReady ||
+                      !alignmentReady) && (
+                      <small>
+                        {!analysisSource
+                          ? "先选择源素材。"
+                          : !asrReady
+                            ? "本地 ASR 尚未就绪。"
+                            : "精确对齐模型尚未就绪，不会退回估算时间。"}
+                      </small>
+                    )}
                     <h2>源时间证据</h2>
                     {ctx.analysis.map((e) => (
                       <article key={e.id}>
@@ -716,6 +1060,28 @@ export function App() {
                           秒 · {e.state} · {e.timingQuality}
                         </small>
                         <p>{e.text}</p>
+                        {e.sourceText && e.sourceText !== e.text && (
+                          <div className="source-copy">
+                            <small>原始转写</small>
+                            <p>{e.sourceText}</p>
+                          </div>
+                        )}
+                        {e.kind === "asr" &&
+                          e.state === "current" &&
+                          e.timingQuality === "aligned" &&
+                          (e.locale === undefined || e.locale === locale) && (
+                            <button
+                              disabled={busy || dirty}
+                              onClick={() =>
+                                adoptAnalysisCaptions({
+                                  sourceId: e.source.assetId,
+                                  locale,
+                                })
+                              }
+                            >
+                              采用为{localeName(locale)}字幕
+                            </button>
+                          )}
                       </article>
                     ))}
                   </>
@@ -777,6 +1143,7 @@ export function App() {
                           scene={s}
                           locale={locale}
                           assets={ctx.assets}
+                          profile={draft.profiles[0]}
                           voices={[...library, ...ctx.library].filter(
                             (v, i, a) =>
                               v.payload.kind === "voice" &&
@@ -786,6 +1153,20 @@ export function App() {
                                   x.version === v.version,
                               ) === i,
                           )}
+                          masks={draft.masks.filter(
+                            (mask) => mask.sceneId === s.id,
+                          )}
+                          onMasksChange={(masks) =>
+                            edit({
+                              ...draft,
+                              masks: [
+                                ...draft.masks.filter(
+                                  (mask) => mask.sceneId !== s.id,
+                                ),
+                                ...masks,
+                              ],
+                            })
+                          }
                           onChange={(scene) => sceneUpdate(i, scene)}
                         />
                       </article>
@@ -799,10 +1180,14 @@ export function App() {
                       />
                       <select
                         value={mode}
-                        onChange={(e) => setMode(e.target.value)}
+                        onChange={(e) => {
+                          setMode(e.target.value);
+                          if (e.target.value !== "semantic") setRerank(false);
+                        }}
                       >
                         <option value="text">文本检索</option>
                         <option value="semantic">语义检索（字幕与观察）</option>
+                        <option value="visual">画面检索</option>
                       </select>
                       {mode === "semantic" && (
                         <label>
@@ -872,90 +1257,247 @@ export function App() {
                           ))}
                       </select>
                     </Field>
-                    {ctx.proposals.map((p) => (
-                      <details key={p.id}>
-                        <summary>
-                          {p.query} · {p.candidates.length} 个候选{" "}
-                          {p.warnings.join("；")}
-                        </summary>
-                        {p.candidates.map((c) => (
-                          <article key={c.id}>
-                            <p>{c.evidence[0]}</p>
-                            <small>
-                              {(c.range.startUs / 1e6).toFixed(2)} 秒起 · 文本{" "}
-                              {c.scores.text.toFixed(2)} / 画面{" "}
-                              {c.scores.visual.toFixed(2)} / 语义{" "}
-                              {c.scores.semantic.toFixed(2)}
-                              {c.scores.rerank !== undefined &&
-                                ` / 重排 ${c.scores.rerank.toFixed(2)}`}
-                            </small>
-                            <p>{c.limitations.join("；")}</p>
-                            <button
-                              disabled={dirty}
-                              onClick={() =>
-                                act(async () => {
-                                  await api(
-                                    `/projects/${draft.id}/proposal`,
-                                    ProjectRevision,
-                                    {
-                                      method: "POST",
-                                      body: {
-                                        proposalId: p.id,
-                                        selection: [c.id],
-                                        expectedRevision: base,
-                                        requestId: requestId(),
-                                      },
-                                    },
-                                  );
-                                  await reload();
-                                })
-                              }
-                            >
-                              应用此选段
-                            </button>
-                          </article>
-                        ))}
-                      </details>
-                    ))}
+                    {ctx.proposals.map((p) => {
+                      const proposalStale = p.revision !== base;
+                      return (
+                        <details key={p.id}>
+                          <summary>
+                            {p.query} · {p.candidates.length} 个候选{" "}
+                            {p.warnings.join("；")}
+                            {proposalStale && " · 基于旧修订，仅可查看"}
+                          </summary>
+                          {proposalStale && (
+                            <p className="hint">
+                              此候选基于修订 {p.revision.slice(0, 16)}
+                              ，当前修订是 {base.slice(0, 16)}
+                              。重新查询后才能应用。
+                            </p>
+                          )}
+                          {p.candidates.map((c) => {
+                          const rangeKey = `${p.id}:${c.id}`;
+                          const range = candidateRanges[rangeKey] || c.range;
+                          const reuseKey = rangeKey;
+                          const asset = findMedia(
+                            ctx.assets,
+                            refKey(c.source),
+                          );
+                          return (
+                            <article key={c.id}>
+                              <p>{c.evidence[0]}</p>
+                              <small>
+                                {(c.range.startUs / 1e6).toFixed(2)} 秒起 ·
+                                文本 {c.scores.text.toFixed(2)} / 画面{" "}
+                                {c.scores.visual.toFixed(2)} / 语义{" "}
+                                {c.scores.semantic.toFixed(2)}
+                                {c.scores.rerank !== undefined &&
+                                  ` / 重排 ${c.scores.rerank.toFixed(2)}`}
+                              </small>
+                              <SourceWindowPlayer
+                                sourceUrl={
+                                  asset ? mediaUrl(asset.digest) : undefined
+                                }
+                                sourceKey={refKey(c.source)}
+                                range={range}
+                                bounds={c.range}
+                                label={`候选 ${c.id}`}
+                                editable
+                                onRangeChange={(next) =>
+                                  setCandidateRanges((current) => ({
+                                    ...current,
+                                    [rangeKey]: next,
+                                  }))
+                                }
+                              />
+                              <p>{c.limitations.join("；")}</p>
+                              <label className="check">
+                                <input
+                                  type="checkbox"
+                                  checked={!!allowReuse[reuseKey]}
+                                  onChange={(event) =>
+                                    setAllowReuse((current) => ({
+                                      ...current,
+                                      [reuseKey]: event.target.checked,
+                                    }))
+                                  }
+                                />
+                                允许与已有场景复用重叠源窗
+                              </label>
+                              <button
+                                disabled={busy || dirty || proposalStale}
+                                onClick={() =>
+                                  act(async () => {
+                                    const generation = epoch.current,
+                                      id = projectRef.current,
+                                      draftSequence = draftSeq.current,
+                                      revision = await api(
+                                        `/projects/${id}/proposal`,
+                                        ProjectRevision,
+                                        {
+                                          method: "POST",
+                                          body: {
+                                            proposalId: p.id,
+                                            selection: [c.id],
+                                            ranges: { [c.id]: range },
+                                            allowReuse: !!allowReuse[reuseKey],
+                                            expectedRevision: base,
+                                            requestId: requestId(),
+                                          },
+                                        },
+                                      );
+                                    if (
+                                      await acceptProjectRevision(revision, {
+                                        id,
+                                        generation,
+                                        draftSequence,
+                                      })
+                                    )
+                                      setNotice("候选源窗已应用到场景");
+                                  })
+                                }
+                              >
+                                应用此源窗
+                              </button>
+                            </article>
+                          );
+                        })}
+                        </details>
+                      );
+                    })}
                   </>
+                )}
+                {tab === "creative" && (
+                  <CreativePlanEditor
+                    plan={planDraft}
+                    projectTitle={draft.title}
+                    projectScenes={draft.scenes}
+                    analysis={ctx.analysis}
+                    projectDirty={dirty}
+                    planDirty={planDirty}
+                    busy={busy}
+                    onChange={editCreativePlan}
+                    onSave={saveCreativePlan}
+                    onApply={applyCreativePlan}
+                    renderSceneEditor={(scene, onChange) => (
+                      <SceneEditor
+                        scene={scene}
+                        locale={locale}
+                        assets={ctx.assets}
+                        profile={draft.profiles[0]}
+                        voices={[...library, ...ctx.library].filter(
+                          (value, index, values) =>
+                            value.payload.kind === "voice" &&
+                            values.findIndex(
+                              (candidate) =>
+                                candidate.itemId === value.itemId &&
+                                candidate.version === value.version,
+                            ) === index,
+                        )}
+                        onChange={onChange}
+                      />
+                    )}
+                  />
                 )}
                 {tab === "captions" && (
                   <>
                     <p>
                       人工字幕、语音对齐和估算字幕使用同一 cue
-                      计划。估算结果会显示在交付收据中。
+                      计划。编辑文本或时码会标为人工并清除逐词对齐；原始转写始终保留。
                     </p>
-                    <Field label="导入字幕的时钟">
-                      <select
-                        value={captionSource}
-                        onChange={(e) => setCaptionSource(e.target.value)}
+                    <div className="inline-fields">
+                      <Field label="导入字幕 / 来源对照">
+                        <select
+                          value={captionSource}
+                          onChange={(e) => setCaptionSource(e.target.value)}
+                        >
+                          <option value="">成片时间</option>
+                          {ctx.assets
+                            .filter(
+                              (a) => a.kind === "video" || a.kind === "audio",
+                            )
+                            .map((a) => (
+                              <option
+                                key={a.version}
+                                value={refKey(a)}
+                              >
+                                {a.kind === "audio" ? "音轨" : "源片"}：{a.name}
+                              </option>
+                            ))}
+                        </select>
+                      </Field>
+                      <button
+                        disabled={
+                          busy ||
+                          dirty ||
+                          !ctx.analysis.some(
+                            (entry) =>
+                              entry.kind === "asr" &&
+                              entry.state === "current" &&
+                              (entry.locale === undefined ||
+                                entry.locale === locale),
+                          )
+                        }
+                        onClick={() =>
+                          adoptAnalysisCaptions({
+                            sourceId: captionSource
+                              ? draft.assets.find(
+                                  (asset) => refKey(asset) === captionSource,
+                                )?.assetId
+                              : undefined,
+                            locale,
+                          })
+                        }
                       >
-                        <option value="">成片时间</option>
-                        {ctx.assets
-                          .filter((a) => a.kind === "video")
-                          .map((a) => (
-                            <option
-                              key={a.version}
-                              value={`${a.assetId}@${a.version}`}
-                            >
-                              源片：{a.name}
-                            </option>
-                          ))}
-                      </select>
-                    </Field>
+                        从转写采用为{localeName(locale)}
+                      </button>
+                    </div>
+                    <SpeakerAssistPanel
+                      projectId={draft.id}
+                      sourceId={
+                        draft.assets.find(
+                          (asset) => refKey(asset) === captionSource,
+                        )?.assetId || ""
+                      }
+                      locale={locale}
+                      expectedRevision={base}
+                      ready={speakerReady}
+                      disabled={busy || dirty}
+                      fail={fail}
+                      onApply={applySpeakerAssist}
+                    />
                     {draft.locales.map((l) => {
                       const track = draft.captions.find((t) => t.locale === l);
+                      const updateTrack = (
+                        next: z.infer<typeof CaptionTrack>,
+                      ) =>
+                        edit({
+                          ...draft,
+                          captions: [
+                            ...draft.captions.filter((t) => t.locale !== l),
+                            next,
+                          ],
+                        });
                       return (
                         <article key={l}>
                           <h2>
-                            {l === "zh" ? "中文" : l === "en" ? "英文" : l}
+                            {localeName(l)}字幕
+                            {track?.translationLocale
+                              ? ` · ${localeName(track.translationLocale)}译文`
+                              : ""}
                           </h2>
+                          {track?.translationLocale && (
+                            <p className="notice-inline">
+                              这是 {localeName(l)} 字幕的{" "}
+                              {localeName(track.translationLocale)}
+                              译文。项目输出语言与音频没有被改写。
+                            </p>
+                          )}
                           <Field label="计时方式">
                             <select
                               value={track?.mode || "none"}
                               onChange={(e) => {
                                 const next = {
                                   locale: l,
+                                  translationLocale: track?.translationLocale,
                                   mode: z
                                     .enum([
                                       "none",
@@ -1013,17 +1555,10 @@ export function App() {
                                     body: {
                                       body,
                                       locale: l,
-                                      source: ctx.assets.find(
-                                        (a) =>
-                                          `${a.assetId}@${a.version}` ===
-                                          captionSource,
-                                      )
-                                        ? draft.assets.find(
-                                            (a) =>
-                                              `${a.assetId}@${a.version}` ===
-                                              captionSource,
-                                          )
-                                        : undefined,
+                                      source: draft.assets.find(
+                                        (asset) =>
+                                          refKey(asset) === captionSource,
+                                      ),
                                       fps: draft.profiles[0].fps,
                                     },
                                   },
@@ -1059,19 +1594,12 @@ export function App() {
                                   <input
                                     value={track.style.font}
                                     onChange={(e) =>
-                                      edit({
-                                        ...draft,
-                                        captions: draft.captions.map((t) =>
-                                          t.locale === l
-                                            ? {
-                                                ...t,
-                                                style: {
-                                                  ...t.style,
-                                                  font: e.target.value,
-                                                },
-                                              }
-                                            : t,
-                                        ),
+                                      updateTrack({
+                                        ...track,
+                                        style: {
+                                          ...track.style,
+                                          font: e.target.value,
+                                        },
                                       })
                                     }
                                   />
@@ -1081,19 +1609,12 @@ export function App() {
                                     type="number"
                                     value={track.style.size}
                                     onChange={(e) =>
-                                      edit({
-                                        ...draft,
-                                        captions: draft.captions.map((t) =>
-                                          t.locale === l
-                                            ? {
-                                                ...t,
-                                                style: {
-                                                  ...t.style,
-                                                  size: Number(e.target.value),
-                                                },
-                                              }
-                                            : t,
-                                        ),
+                                      updateTrack({
+                                        ...track,
+                                        style: {
+                                          ...track.style,
+                                          size: Number(e.target.value),
+                                        },
                                       })
                                     }
                                   />
@@ -1103,56 +1624,43 @@ export function App() {
                                     type="number"
                                     value={track.style.marginV}
                                     onChange={(e) =>
-                                      edit({
-                                        ...draft,
-                                        captions: draft.captions.map((t) =>
-                                          t.locale === l
-                                            ? {
-                                                ...t,
-                                                style: {
-                                                  ...t.style,
-                                                  marginV: Number(
-                                                    e.target.value,
-                                                  ),
-                                                },
-                                              }
-                                            : t,
-                                        ),
+                                      updateTrack({
+                                        ...track,
+                                        style: {
+                                          ...track.style,
+                                          marginV: Number(e.target.value),
+                                        },
                                       })
                                     }
                                   />
                                 </Field>
                               </div>
+                              <CaptionAssistPanel
+                                projectId={draft.id}
+                                sourceLocale={l}
+                                expectedRevision={base}
+                                disabled={busy || dirty}
+                                fail={fail}
+                                onApply={applyCaptionAssist}
+                              />
                               {track.cues.map((cue, index) => (
-                                <Field
+                                <CaptionCueEditor
                                   key={cue.id}
-                                  label={`${cue.id} · ${cue.timingQuality}`}
-                                >
-                                  <textarea
-                                    value={cue.text}
-                                    onChange={(e) =>
-                                      edit({
-                                        ...draft,
-                                        captions: draft.captions.map((t) =>
-                                          t.locale === l
-                                            ? {
-                                                ...t,
-                                                cues: t.cues.map((c, j) =>
-                                                  j === index
-                                                    ? {
-                                                        ...c,
-                                                        text: e.target.value,
-                                                        timingQuality: "manual",
-                                                      }
-                                                    : c,
-                                                ),
-                                              }
-                                            : t,
-                                        ),
-                                      })
-                                    }
-                                  />
-                                </Field>
+                                  cue={cue}
+                                  track={track}
+                                  draft={draft}
+                                  assets={ctx.assets}
+                                  locale={l}
+                                  selectedSource={captionSource}
+                                  onChange={(next) =>
+                                    updateTrack({
+                                      ...track,
+                                      cues: track.cues.map((current, currentIndex) =>
+                                        currentIndex === index ? next : current,
+                                      ),
+                                    })
+                                  }
+                                />
                               ))}
                             </>
                           )}
@@ -1404,6 +1912,20 @@ export function App() {
                             >
                               恢复未完成步骤
                             </button>
+                            {r.kind === "analyze" &&
+                              r.state === "succeeded" && (
+                                <button
+                                  disabled={busy || dirty}
+                                  onClick={() =>
+                                    adoptAnalysisCaptions({
+                                      runId: r.id,
+                                      locale,
+                                    })
+                                  }
+                                >
+                                  采用此次分析结果为{localeName(locale)}字幕
+                                </button>
+                              )}
                           </div>
                         </div>
                         <small>{r.id}</small>
@@ -1553,13 +2075,19 @@ function SceneEditor({
   scene: s,
   locale,
   assets,
+  profile,
   voices,
+  masks = [],
+  onMasksChange,
   onChange,
 }: {
   scene: Scene;
   locale: string;
   assets: z.infer<typeof MediaAssetVersion>[];
+  profile: ProjectDocument["profiles"][number];
   voices: z.infer<typeof LibraryVersion>[];
+  masks?: SceneMask[];
+  onMasksChange?: (masks: SceneMask[]) => void;
   onChange: (s: Scene) => void;
 }) {
   const speech = speechOf(s),
@@ -1609,6 +2137,10 @@ function SceneEditor({
   });
   const selectAsset = (value: string) =>
     assets.find((a) => refKey(a) === value);
+  const selectedAsset =
+    s.kind === "card"
+      ? undefined
+      : selectAsset(refKey(s.kind === "clip" ? s.source : s.image));
   return (
     <>
       {localError && <p className="error">{localError}</p>}
@@ -1714,6 +2246,25 @@ function SceneEditor({
                 ))}
             </select>
           </Field>
+          {s.kind === "clip" && (
+            <SourceWindowPlayer
+              sourceUrl={
+                selectedAsset ? mediaUrl(selectedAsset.digest) : undefined
+              }
+              sourceKey={refKey(s.source)}
+              range={s.sourceRange}
+              label="当前片段源窗"
+            />
+          )}
+          {s.kind === "still" && selectedAsset && (
+            <div className="scene-preview">
+              <img
+                className="scene-still"
+                src={mediaUrl(selectedAsset.digest)}
+                alt="当前静帧"
+              />
+            </div>
+          )}
           <div className="actions">
             <Field label="画面适配">
               <select
@@ -1901,6 +2452,23 @@ function SceneEditor({
                     </option>
                   ))}
                 </select>
+              </Field>
+              <Field label={`场景语气（可选，${localeName(locale)}）`}>
+                <textarea
+                  value={speech.style?.[locale] || ""}
+                  placeholder="例如：克制、略带迟疑；留空时沿用音色版本默认语气"
+                  onChange={(event) => {
+                    const style = {
+                      ...(speech.style || {}),
+                      [locale]: event.target.value,
+                    };
+                    if (!event.target.value.trim()) delete style[locale];
+                    speechChange({
+                      ...speech,
+                      style: Object.keys(style).length ? style : undefined,
+                    });
+                  }}
+                />
               </Field>
             </>
           ) : (
@@ -2160,6 +2728,27 @@ function SceneEditor({
           )}
         </>
       )}
+      {onMasksChange && (
+        <MaskEditor
+          sceneId={s.id}
+          masks={masks}
+          profile={profile}
+          coordinateOnly={s.kind === "card"}
+          media={
+            s.kind !== "card" && selectedAsset
+              ? {
+                  kind: s.kind === "clip" ? "video" : "image",
+                  url: mediaUrl(selectedAsset.digest),
+                  sourceKey: refKey(s.kind === "clip" ? s.source : s.image),
+                  startUs:
+                    s.kind === "clip" ? s.sourceRange.startUs : undefined,
+                  framing: s.framing,
+                }
+              : undefined
+          }
+          onChange={onMasksChange}
+        />
+      )}
     </>
   );
 }
@@ -2290,11 +2879,13 @@ function BgmEditor({
 function LibraryPanel({
   kind,
   library,
+  providers,
   refresh,
   fail,
 }: {
   kind: "voice" | "method" | "material";
   library: z.infer<typeof LibraryVersion>[];
+  providers: z.infer<typeof ProviderDescriptor>[];
   refresh: () => Promise<void>;
   fail: (e: unknown) => void;
 }) {
@@ -2315,6 +2906,7 @@ function LibraryPanel({
     [needs, setNeeds] = useState<string[]>([]),
     [clipAudio, setClipAudio] = useState(""),
     [observed, setObserved] = useState(false);
+  const [voiceProvider, setVoiceProvider] = useState("modelbest-voxcpm2");
   useEffect(() => {
     setSelected(null);
     setName("");
@@ -2323,6 +2915,8 @@ function LibraryPanel({
     setFile(null);
     setResult(null);
     setRunId("");
+    setStyle("");
+    setVoiceProvider("modelbest-voxcpm2");
   }, [kind]);
   useEffect(() => {
     if (!runId) return;
@@ -2387,6 +2981,10 @@ function LibraryPanel({
       body.append("name", name);
       body.append("referenceText", referenceText);
       body.append("requestId", requestId());
+      if (kind === "voice") {
+        body.append("provider", voiceProvider);
+        body.append("style", style);
+      }
       if (selected) {
         body.append("itemId", selected.itemId);
         body.append("expectedVersion", selected.version);
@@ -2406,7 +3004,13 @@ function LibraryPanel({
               clipAlignment: observed ? "observed-sequences" : undefined,
             }
           : selected?.payload.kind === "voice"
-            ? { ...selected.payload, name, referenceText }
+            ? {
+                ...selected.payload,
+                name,
+                referenceText,
+                provider: voiceProvider,
+                style,
+              }
             : selected
               ? { ...selected.payload, name }
               : null;
@@ -2476,6 +3080,10 @@ function LibraryPanel({
                             ? v.payload.description
                             : "",
                         );
+                        if (v.payload.kind === "voice") {
+                          setVoiceProvider(v.payload.provider);
+                          setStyle(v.payload.style);
+                        }
                       }}
                     >
                       编辑
@@ -2509,6 +3117,28 @@ function LibraryPanel({
           <Field label="名称">
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
+          {kind === "voice" && (
+            <Field label="语音提供方">
+              <select
+                value={voiceProvider}
+                onChange={(event) => setVoiceProvider(event.target.value)}
+              >
+                <option value="modelbest-voxcpm2">
+                  云端 ModelBest VoxCPM2（默认）
+                </option>
+                {providers
+                  .filter(
+                    (provider) =>
+                      provider.id === "local-voxcpm2" && provider.ready,
+                  )
+                  .map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name} · 已就绪
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          )}
           {kind === "method" ? (
             <>
               <Field label="适用条件与方法">
@@ -2638,7 +3268,12 @@ function LibraryPanel({
                 onClick={() =>
                   startRun(
                     "/voice/design",
-                    { style, text: sample, requestId: requestId() },
+                    {
+                      style,
+                      text: sample,
+                      provider: voiceProvider,
+                      requestId: requestId(),
+                    },
                     "design",
                   )
                 }

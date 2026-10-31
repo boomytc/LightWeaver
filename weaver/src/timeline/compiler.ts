@@ -315,7 +315,16 @@ export function compileTimeline(
           (c) => c.time.kind === "speech" && c.time.sceneId === scene.id,
         ),
       ];
-      if (!cues.length && speech && sf) {
+      const importedSource =
+        speech?.kind === "imported" ? speech.audio[locale] : undefined;
+      const hasSourceCaptions =
+        importedSource &&
+        track.cues.some(
+          (c) =>
+            c.time.kind === "source" &&
+            refKey(c.time.source) === refKey(importedSource),
+        );
+      if (!cues.length && !hasSourceCaptions && speech && sf) {
         if (track.mode === "precise") {
           cues = sf.cues;
           if (
@@ -407,7 +416,43 @@ export function compileTimeline(
     }
     cursor += durationFrames;
   }
-  if (track && track.mode !== "none")
+  if (track && track.mode !== "none") {
+    type SourceCaptionWindow = Pick<
+      Extract<TimelineManifest["visuals"][number], { kind: "clip" }>,
+      | "source"
+      | "sourceRange"
+      | "speed"
+      | "sceneId"
+      | "startFrame"
+      | "durationFrames"
+    >;
+    const sourceWindows = new Map<string, SourceCaptionWindow>();
+    for (const visual of visuals)
+      if (visual.kind === "clip")
+        sourceWindows.set(
+          `${visual.sceneId}:${refKey(visual.source)}`,
+          visual,
+        );
+    for (const segment of audio) {
+      if (segment.role !== "speech") continue;
+      const scene = doc.scenes.find((s) => s.id === segment.sceneId);
+      if (!scene) continue;
+      const speech = speechOf(scene);
+      const source =
+        speech?.kind === "imported" ? speech.audio[locale] : undefined;
+      if (!source) continue;
+      sourceWindows.set(`${scene.id}:${refKey(source)}`, {
+        source,
+        sourceRange: {
+          startUs: segment.trimUs,
+          durationUs: segment.sourceDurationUs,
+        },
+        speed: segment.speed,
+        sceneId: scene.id,
+        startFrame: segment.startFrame,
+        durationFrames: segment.durationFrames,
+      });
+    }
     for (const cue of track.cues) {
       if (cue.time.kind === "timeline") {
         const from = secondsFrames(
@@ -440,40 +485,37 @@ export function compileTimeline(
       }
       if (cue.time.kind === "source") {
         const time = cue.time;
-        for (const visual of visuals)
-          if (
-            visual.kind === "clip" &&
-            refKey(visual.source) === refKey(time.source)
-          ) {
+        for (const window of sourceWindows.values())
+          if (refKey(window.source) === refKey(time.source)) {
             const start = Math.max(
                 time.range.startUs,
-                visual.sourceRange.startUs,
+                window.sourceRange.startUs,
               ),
               end = Math.min(
                 time.range.startUs + time.range.durationUs,
-                visual.sourceRange.startUs + visual.sourceRange.durationUs,
+                window.sourceRange.startUs + window.sourceRange.durationUs,
               );
             if (end <= start) continue;
             const from = secondsFrames(
                 usSeconds(
                   Math.round(
-                    (start - visual.sourceRange.startUs) / visual.speed,
+                    (start - window.sourceRange.startUs) / window.speed,
                   ),
                 ),
                 output.fps,
               ),
               to = secondsFrames(
                 usSeconds(
-                  Math.round((end - visual.sourceRange.startUs) / visual.speed),
+                  Math.round((end - window.sourceRange.startUs) / window.speed),
                 ),
                 output.fps,
               );
-            const clippedEnd = Math.min(visual.durationFrames, to);
+            const clippedEnd = Math.min(window.durationFrames, to);
             if (clippedEnd <= from) continue;
             captions.push({
-              id: `${cue.id}-${visual.sceneId}`,
+              id: `${cue.id}-${window.sceneId}`,
               text: cue.text,
-              startFrame: Frames.parse(visual.startFrame + from),
+              startFrame: Frames.parse(window.startFrame + from),
               durationFrames: Frames.parse(clippedEnd - from),
               timingQuality: cue.timingQuality,
               provenance: cue.provenance,
@@ -482,6 +524,7 @@ export function compileTimeline(
           }
       }
     }
+  }
   if (doc.bgm) {
     const bgm = doc.bgm,
       fact = facts.media[refKey(bgm.source)],
@@ -512,6 +555,7 @@ export function compileTimeline(
     manifest: TimelineManifest.parse({
       schemaVersion: 2,
       locale,
+      captionLanguage: track?.translationLocale ?? locale,
       output,
       totalFrames: cursor,
       totalSamples: frameSamples(cursor, output.fps),

@@ -27,3 +27,15 @@ model_python: 'weaver/.venv/bin/python'
 llama_server: 'llama-server'
 # embedding_model: 'weaver/models/Qwen3-Embedding-0.6B-Q8_0.gguf'
 # reranker_model: 'weaver/models/Qwen3-Reranker-0.6B-fixed-Q8_0.gguf'
+
+# Visual retrieval requires an EmbeddingGemma 2 capable llama-server build.
+# visual_model: 'weaver/models/embeddinggemma-2-Q8_0.gguf'
+# visual_mmproj: 'weaver/models/mmproj-F16.gguf'
+# visual_server: 'weaver/runtime/visual/llama-server'
+
+# Local VoxCPM2 uses its own Python environment, separate from MLX alignment.
+speech_python: 'weaver/.speech-venv/bin/python'
+# local_tts_model: 'weaver/models/VoxCPM2'
+# translation_model: 'weaver/models/Hy-MT2-1.8B-Q4_K_M.gguf'
+# translation_server: 'llama-server'
+# diarization_model: 'weaver/models/MOSS-Transcribe-Diarize-Q8_0.gguf'

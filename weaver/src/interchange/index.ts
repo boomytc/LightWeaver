@@ -92,8 +92,8 @@ export class Interchange {
     fs.mkdirSync(temp);
     try {
       const revision = this.projects.read(projectId),
-        assets = this.projects.assetsFor(revision.document),
-        library = this.projects.libraryFor(revision.document),
+        assets = this.projects.assetsFor(revision.document, "saved"),
+        library = this.projects.libraryFor(revision.document, "saved"),
         refs = new Set<string>([
           ...assets.map((a) => a.digest),
           ...library.flatMap((v) =>
@@ -116,17 +116,21 @@ export class Interchange {
             text: z.string(),
             locale: z.string(),
             voiceVersion: z.string(),
+            style: z.string().optional(),
           })
           .safeParse(a.provenance.inputs);
         return (
           inputs.success &&
           revision.document.scenes.some((scene) => {
             const speech = speechOf(scene);
+            const voice = speech?.kind === "authored" ? speech.voice[inputs.data.locale] : undefined;
+            const version = library.find((v) => v.itemId === voice?.itemId && v.version === voice?.version);
             return (
               speech?.kind === "authored" &&
               speech.text[inputs.data.locale] === inputs.data.text &&
               speech.voice[inputs.data.locale]?.version ===
-                inputs.data.voiceVersion
+                inputs.data.voiceVersion &&
+              (speech.style?.[inputs.data.locale] ?? (version?.payload.kind === "voice" ? version.payload.style : undefined) ?? "") === (inputs.data.style ?? "")
             );
           })
         );
@@ -303,6 +307,7 @@ export class Interchange {
       doc.bindings.forEach(requireLibrary);
       if (doc.method) requireLibrary(doc.method);
       doc.scenes.forEach(checkScene);
+      doc.creativePlan?.beats.forEach((b) => checkScene(b.scene));
       if (doc.bgm) requireMedia(doc.bgm.source);
       doc.captions.forEach((t) =>
         t.cues.forEach((c) => {
@@ -382,12 +387,6 @@ export class Interchange {
             origin: bundle.revision.document.origin,
             requestId: `bundle-create-${digest(requestId)}`,
           });
-          const revision = this.projects.update({
-            projectId: created.projectId,
-            expectedRevision: created.id,
-            requestId: `bundle-document-${digest(requestId)}`,
-            document: { ...bundle.revision.document, id: created.projectId },
-          });
           for (const e of bundle.analysis) {
             const entry = AnalysisEntry.parse({
               ...e,
@@ -408,6 +407,19 @@ export class Interchange {
               );
             this.store.pin(`analysis:${entry.id}`, entry);
           }
+          const plan = bundle.revision.document.creativePlan;
+          const revision = this.projects.update({
+            projectId: created.projectId,
+            expectedRevision: created.id,
+            requestId: `bundle-document-${digest(requestId)}`,
+            document: { ...bundle.revision.document, id: created.projectId,
+              creativePlan: plan ? {...plan, beats: plan.beats.map((beat) => ({...beat,
+                evidence: beat.evidence.map((e) => ({...e,
+                  analysisId: `analysis-${digest({projectId: created.projectId, id: e.analysisId})}`,
+                })),
+              }))} : undefined,
+            },
+          });
           this.store.pin(
             `bundle:${created.projectId}`,
             bundle.blobs.map((b) => b.digest),

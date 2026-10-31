@@ -12,6 +12,9 @@ import { processRun } from "../media/process.ts";
 import { Store } from "../store/index.ts";
 import { localModelDigest } from "./toolchain.ts";
 import { readSpeechWav } from "./speech.ts";
+import { SpeechModels, LOCAL_TTS_PROVIDER, TRANSLATION_PROVIDER } from "./speech-models.ts";
+import { VisualModels, VISUAL_PROVIDER } from "./visual-models.ts";
+import { SpeakerModels, SPEAKER_PROVIDER } from "./speaker-models.ts";
 import {
   LocalModels,
   ALIGNMENT_PROVIDER,
@@ -37,6 +40,10 @@ export const workspaceRoot = fileURLToPath(
 const scripts = fileURLToPath(new URL("../../scripts/", import.meta.url));
 const cfg = (env: string, key: string) =>
   process.env[env]?.trim() || localConfigValue(key, workspaceRoot);
+const cfgPath = (env: string, key: string) => {
+  const value = cfg(env, key);
+  return value ? path.resolve(workspaceRoot, value) : "";
+};
 export const AsrResult = z.object({
   text: z.string(),
   language: z.string(),
@@ -71,6 +78,9 @@ export const AsrResult = z.object({
 });
 export class Providers {
   readonly local = new LocalModels(workspaceRoot);
+  readonly speech = new SpeechModels(workspaceRoot);
+  readonly visual = new VisualModels(workspaceRoot);
+  readonly speakers = new SpeakerModels(workspaceRoot);
   constructor(private readonly store: Store) {}
   descriptors() {
     const modelbest = modelbestBackend(workspaceRoot),
@@ -122,14 +132,14 @@ export class Providers {
         id: "qwen3-asr",
         name: "本地 TEN VAD + Qwen3-ASR",
         capabilities: ["asr"],
-        model: path.basename(cfg("LIGHTWEAVER_ASR_MODEL", "asr_model")),
+        model: path.basename(cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model")),
         version: "ten-vad-qwen-gguf-v2",
         endpoint: "local-process",
         ready: [
-          cfg("LIGHTWEAVER_ASR_MODEL", "asr_model"),
-          cfg("TRANSCRIBE_LIBRARY", "asr_library"),
-          cfg("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
-          cfg("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+          cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),
+          cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
+          cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
+          cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
         ].every((v) => v && fs.existsSync(v)),
         remote: false,
         idempotency: true,
@@ -137,6 +147,9 @@ export class Providers {
         hint: "配置 LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS、LIGHTWEAVER_VAD_LIBRARY",
       },
       ...this.local.descriptors(),
+      ...this.speech.descriptors(),
+      ...this.visual.descriptors(),
+      ...this.speakers.descriptors(),
     ]);
   }
   selectedVlm(value?: string) {
@@ -162,6 +175,19 @@ export class Providers {
   async freeze(ids: string[]): Promise<Record<string, string>> {
     const result: Record<string, string> = {};
     for (const id of [...new Set(ids)]) {
+      if (id === VISUAL_PROVIDER) {
+        result[id] = await this.visual.freeze();
+        continue;
+      }
+      if (id === SPEAKER_PROVIDER) {
+        result[id] = await this.speakers.freeze();
+        continue;
+      }
+      if ([LOCAL_TTS_PROVIDER, TRANSLATION_PROVIDER].includes(id)) {
+        result[id] = await this.speech.freeze(id);
+        continue;
+      }
+      const adapter = this.local;
       const base = z
         .object({
           id: z.string(),
@@ -173,13 +199,13 @@ export class Providers {
       const local =
         id === "qwen3-asr"
           ? [
-              cfg("LIGHTWEAVER_ASR_MODEL", "asr_model"),
-              cfg("TRANSCRIBE_LIBRARY", "asr_library"),
-              cfg("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
-              cfg("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+              cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),
+              cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
+              cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
+              cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
               path.join(scripts, "asr.py"),
             ]
-          : [base.model, ...this.local.files(id)];
+          : [base.model, ...adapter.files(id)];
       const files: string[] = [];
       for (const file of local)
         if (file && fs.existsSync(file))
@@ -187,8 +213,8 @@ export class Providers {
       result[id] = JSON.stringify({
         ...base,
         files,
-        ...(this.local.files(id).length
-          ? { runtime: await this.local.versions(id) }
+        ...(adapter.files(id).length
+          ? { runtime: await adapter.versions(id) }
           : {}),
       });
     }
@@ -280,6 +306,7 @@ export class Providers {
     return response;
   }
   async tts(input: {
+    provider?: string;
     text: string;
     reference?: string;
     referenceText?: string;
@@ -289,7 +316,10 @@ export class Providers {
     workDir: string;
     signal: AbortSignal;
   }): Promise<void> {
-    this.require("modelbest-voxcpm2", input.binding);
+    const provider = input.provider || "modelbest-voxcpm2";
+    if (!["modelbest-voxcpm2", LOCAL_TTS_PROVIDER].includes(provider))
+      throw new WeaverError("CAPABILITY_UNAVAILABLE", "音色协议没有对应 TTS 适配器");
+    this.require(provider, input.binding);
     let ref: string | undefined;
     if (input.reference) {
       ref = path.join(input.workDir, "voice-reference.wav");
@@ -313,6 +343,13 @@ export class Providers {
         throw new WeaverError("INVALID_INPUT", "克隆源超过 5 MiB");
       if (!input.referenceText?.trim())
         throw new WeaverError("INVALID_INPUT", "克隆音色需要参考文本");
+    }
+    if (provider === LOCAL_TTS_PROVIDER) {
+      await this.checkLocalBinding(provider, input.binding);
+      await this.speech.synthesize({text: input.text, reference: ref, referenceText: input.referenceText,
+        style: input.style, dest: input.dest, workDir: input.workDir, signal: input.signal});
+      await this.checkLocalBinding(provider, input.binding);
+      return;
     }
     const response = await this.request(
       "modelbest",
@@ -359,17 +396,18 @@ export class Providers {
         kind: "transcribe",
         audio: input.audio,
         language: input.locale,
-        model: cfg("LIGHTWEAVER_ASR_MODEL", "asr_model"),
-        library: cfg("TRANSCRIBE_LIBRARY", "asr_library"),
-        bindings: cfg("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
+        model: cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),
+        library: cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
+        bindings: cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
         backend: "auto",
-        vadLibrary: cfg("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+        vadLibrary: cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
       }),
     );
     const out = await processRun(
       "python3",
       [path.join(scripts, "asr.py"), "--job", jobFile],
-      { signal: input.signal },
+      { signal: input.signal, env: { ...process.env, PYTHONHOME: undefined,
+        PYTHONPATH: "", PYTHONNOUSERSITE: "1", PYTHONDONTWRITEBYTECODE: "1" } },
     );
     if (/OutputTruncated/.test(out.stderr))
       throw new WeaverError("ASR_TRUNCATED", "ASR 输出截断，需要缩小窗口");
@@ -431,6 +469,14 @@ export class Providers {
         "PROVIDER_CHANGED",
         "本地模型、参数或运行时已改变，请重新提交作业",
       );
+  }
+  async translate(input: {texts: {id: string; text: string}[]; targetLocale: string;
+    workDir: string; signal: AbortSignal; binding?: string}) {
+    await this.checkLocalBinding(TRANSLATION_PROVIDER, input.binding);
+    const result = await this.speech.translate({texts: input.texts, targetLocale: input.targetLocale,
+      workDir: input.workDir, signal: input.signal});
+    await this.checkLocalBinding(TRANSLATION_PROVIDER, input.binding);
+    return result;
   }
   async requireAlignment(locales: string[]) {
     for (const locale of locales) alignmentLanguage(locale);
@@ -617,6 +663,9 @@ export class Providers {
       .safeParse(
         await this.local.versions(ALIGNMENT_PROVIDER).catch(() => null),
       );
+    const speechRuntime = z.object({available: z.boolean(), missing: z.array(z.string())}).safeParse(
+      await this.speech.versions(LOCAL_TTS_PROVIDER).catch(() => null),
+    );
     return {
       node: process.version,
       sqlite: z
@@ -631,12 +680,15 @@ export class Providers {
           p.ready &&
           (p.id === ALIGNMENT_PROVIDER
             ? alignmentRuntime.success && alignmentRuntime.data.available
+            : p.id === LOCAL_TTS_PROVIDER
+              ? speechRuntime.success && speechRuntime.data.available
             : true),
       })),
       modules,
       alignmentRuntime: alignmentRuntime.success
         ? alignmentRuntime.data
         : { available: false },
+      speechRuntime: speechRuntime.success ? speechRuntime.data : {available: false},
       jianying,
     };
   }

@@ -25,6 +25,10 @@ import { Migration } from "../migration/index.ts";
 import { backup, restore, gc } from "../store/maintenance.ts";
 import { inferKind, mimeFor } from "../media/types.ts";
 import { importCaptions } from "../timeline/captions.ts";
+import { Authoring } from "../authoring/service.ts";
+import { CaptionAssistance } from "../captions/assistance.ts";
+import { VisualSearch } from "../search/visual.ts";
+import { SpeakerAssistance } from "../captions/speakers.ts";
 export { errorProtocol, httpStatus } from "../contracts/errors.ts";
 
 export class Application {
@@ -37,6 +41,10 @@ export class Application {
   readonly analysis: Analysis;
   readonly interchange: Interchange;
   readonly migration: Migration;
+  readonly authoring: Authoring;
+  readonly captions: CaptionAssistance;
+  readonly visual: VisualSearch;
+  readonly speakers: SpeakerAssistance;
   constructor(options: { dataDir?: string } = {}) {
     this.store = new Store(options.dataDir);
     this.projects = new Projects(this.store);
@@ -57,6 +65,10 @@ export class Application {
     );
     this.interchange = new Interchange(this.store, this.projects, this.builds);
     this.migration = new Migration(this.store, this.projects, this.library);
+    this.authoring = new Authoring(this.store, this.projects);
+    this.captions = new CaptionAssistance(this.store, this.projects, this.jobs, this.providers);
+    this.visual = new VisualSearch(this.store, this.projects, this.jobs, this.providers.visual);
+    this.speakers = new SpeakerAssistance(this.store, this.projects, this.jobs, this.providers.speakers);
   }
   close(): void {
     this.store.close();
@@ -203,11 +215,12 @@ export class Application {
             name: z.string(),
             referenceText: z.string().optional(),
             style: z.string().optional(),
+            provider: z.string().optional(),
           })
           .parse(payload);
         payload =
           base.kind === "voice"
-            ? { ...base, provider: "modelbest-voxcpm2", reference: d }
+            ? { ...base, provider: base.provider || "modelbest-voxcpm2", reference: d }
             : {
                 kind: "material",
                 name: base.name,
@@ -225,7 +238,7 @@ export class Application {
   }
   agentBrief(projectId: string): string {
     const p = this.projects.read(projectId);
-    return `项目 ${p.projectId}\n当前修订 ${p.id}\n绑定版本 ${JSON.stringify(this.projects.libraryFor(p.document).map((v) => ({ itemId: v.itemId, version: v.version, name: v.payload.name })))}\n目标 ${p.document.locales.join(",")} / ${p.document.profiles.map((p) => p.id).join(",")}\n先运行 weaver project show ${p.projectId} --json，使用 weaver schema / doctor --json 发现合同与能力；导出 bundle 或读取分析与候选，再携带 expectedRevision 和 requestId 提交 ops。`;
+    return `项目 ${p.projectId}\n当前修订 ${p.id}\n绑定版本 ${JSON.stringify(this.projects.libraryFor(p.document, "saved").map((v) => ({ itemId: v.itemId, version: v.version, name: v.payload.name })))}\n目标 ${p.document.locales.join(",")} / ${p.document.profiles.map((p) => p.id).join(",")}\n先运行 weaver project context ${p.projectId} --json，使用 weaver schema / doctor --json 发现合同与能力。外部作者编写剧情和旁白，使用 schema creative-plan 将分场、选择理由和证据区间组织为方案；creative-plan import 保存待审方案，creative-plan apply 显式采用。源片字幕可 analyze --align 后 captions from-analysis；修改时携带 expectedRevision 和 requestId，先 build --plan 再制作。`;
   }
   mediaFile(value: string): { file: string; mime: string; bytes: number } {
     const row = z
@@ -243,8 +256,8 @@ export class Application {
     const revision = this.projects.read(id);
     return {
       revision,
-      assets: this.projects.assetsFor(revision.document),
-      library: this.projects.libraryFor(revision.document),
+      assets: this.projects.assetsFor(revision.document, "saved"),
+      library: this.projects.libraryFor(revision.document, "saved"),
       analysis: this.analysis.list(id),
       proposals: this.analysis.proposals(id),
       runs: this.jobs.list(id),

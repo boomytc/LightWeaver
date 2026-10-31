@@ -45,6 +45,7 @@ export const Speech = z.discriminatedUnion("kind", [
     kind: z.literal("authored"),
     text: z.record(Locale, z.string().min(1)),
     voice: z.record(Locale, LibraryRef),
+    style: z.record(Locale, z.string()).optional(),
   }),
   z.strictObject({
     kind: z.literal("imported"),
@@ -154,16 +155,25 @@ export const CaptionStyle = z.strictObject({
   marginV: z.number().min(0).max(1000).default(80),
   maxChars: z.number().int().positive().default(24),
 });
+export const SourceWord = z.strictObject({
+  text: z.string().min(1),
+  startUs: Microseconds,
+  endUs: Microseconds,
+}).refine((w) => w.endUs >= w.startUs, "词时间顺序无效");
 export const CaptionCue = z.strictObject({
   id: Id,
   text: z.string().min(1),
   timingQuality: z.enum(["native", "aligned", "manual", "estimated"]),
   provenance: z.string(),
+  sourceText: z.string().optional(),
+  translationSourceText: z.string().optional(),
+  speakerId: Id.optional(),
+  words: z.array(SourceWord).optional(),
   time: z.discriminatedUnion("kind", [
     z.strictObject({
       kind: z.literal("timeline"),
       startFrame: Frames,
-      durationFrames: Frames,
+      durationFrames: Frames.refine((n) => n > 0, "字幕区间必须为正"),
     }),
     z.strictObject({
       kind: z.literal("source"),
@@ -176,9 +186,18 @@ export const CaptionCue = z.strictObject({
       range: SourceRange,
     }),
   ]),
+}).superRefine((cue, context) => {
+  if (!cue.words?.length) return;
+  const range = cue.time.kind === "timeline" ? undefined : cue.time.range;
+  for (const [i, word] of cue.words.entries()) {
+    if ((i > 0 && word.startUs < cue.words[i - 1].startUs) ||
+        (range && (word.startUs < range.startUs || word.endUs > range.startUs + range.durationUs)))
+      context.addIssue({code: "custom", path: ["words", i], message: "词时间倒序或超出字幕区间"});
+  }
 });
 export const CaptionTrack = z.strictObject({
   locale: Locale,
+  translationLocale: Locale.optional(),
   fps: Fps.default({ num: 30, den: 1 }),
   mode: z.enum(["manual", "precise", "estimated", "none"]),
   style: CaptionStyle,
@@ -234,6 +253,19 @@ export const Bgm = z.strictObject({
   fadeOutFrames: Frames,
   ducking: z.boolean(),
 });
+export const CreativePlan = z.strictObject({
+  title: z.string().trim().min(1),
+  summary: z.string(),
+  beats: z.array(z.strictObject({
+    scene: Scene,
+    rationale: z.string(),
+    evidence: z.array(z.strictObject({
+      analysisId: Id,
+      source: MediaRef,
+      range: SourceRange,
+    })),
+  })).min(1),
+}).refine((p) => new Set(p.beats.map((b) => b.scene.id)).size === p.beats.length, "创作方案场景标识重复");
 export const CardRenderInput = z.strictObject({
   cardSpec: RegisteredCardSpec,
   locale: Locale,
@@ -252,6 +284,7 @@ export const ProjectDocument = z.strictObject({
   bindings: z.array(LibraryRef),
   method: LibraryRef.optional(),
   scenes: z.array(Scene),
+  creativePlan: CreativePlan.optional(),
   captions: z.array(CaptionTrack),
   bgm: Bgm.optional(),
   profiles: z.array(OutputProfile).min(1),
@@ -471,6 +504,7 @@ export const ResolvedCue = z.strictObject({
 export const TimelineManifest = z.strictObject({
   schemaVersion: z.literal(2),
   locale: Locale,
+  captionLanguage: Locale.optional(),
   output: OutputProfile,
   totalFrames: Frames,
   totalSamples: Samples,
@@ -518,6 +552,7 @@ export const EditOperation = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("scene"), value: Scene }),
   z.strictObject({ op: z.literal("remove-scene"), id: SceneId }),
   z.strictObject({ op: z.literal("captions"), value: z.array(CaptionTrack) }),
+  z.strictObject({ op: z.literal("creative-plan"), value: CreativePlan.nullable() }),
   z.strictObject({
     op: z.literal("profiles"),
     value: z.array(OutputProfile).min(1),
@@ -574,7 +609,11 @@ export const AnalysisEntry = z.strictObject({
   sourceDigest: Digest,
   range: SourceRange,
   kind: z.enum(["asr", "describe", "manual"]),
+  locale: z.string().optional(),
   text: z.string(),
+  sourceText: z.string().optional(),
+  words: z.array(SourceWord).optional(),
+  speakerId: Id.optional(),
   evidenceDigest: Digest,
   model: z.string(),
   timingQuality: z.enum(["native", "aligned", "manual", "estimated"]),
@@ -680,6 +719,8 @@ export const ProviderDescriptor = z.object({
       "alignment",
       "embedding",
       "rerank",
+      "translation",
+      "diarization",
     ]),
   ),
   model: z.string(),

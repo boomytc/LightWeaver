@@ -44,6 +44,8 @@ build 冻结作者、资产、库、provider 和工具，先准备真实事实�
 ## 分析与候选
 
 ```bash
+npx weaver analyze --project demo --with asr --align --locale zh --wait --json
+npx weaver captions from-analysis --project demo --locale zh --run RUN --expected-revision REV --json
 npx weaver analyze --project demo --with asr,describe --provider modelbest-vlm --wait --json
 npx weaver analyze --project demo --with describe --provider deepseek-vlm --from-us 0 --duration-us 10000000 --wait --json
 npx weaver search --project demo --query "需要的画面" --mode text --json
@@ -53,11 +55,23 @@ npx weaver match --project demo --edited edited-asset-id --sources source-asset-
 npx weaver proposal apply --project demo --proposal PROPOSAL --select CANDIDATE --expected-revision REV --json
 ```
 
-ASR、描述按源版本与窗口保存。describe 的观察和镜头树供作者判断，核心不代写旁白。文本模式按已存证据检索，semantic 模式用 Qwen3 Embedding 召回同一份字幕与观察文本，可显式使用 Qwen3 Reranker 重排前 50 个候选，默认返回前 20 个。两种模式都遵守素材和完整证据时间窗过滤。语义分数是归一化向量的余弦相似度，重排分数单列保存；它们不是内容正确率。未配置请求的能力时明确失败，不回退到其它模型。
+ASR、描述按源版本与窗口保存。describe 的观察和镜头树供作者判断，核心不代写旁白。文本模式按已存证据检索，semantic 模式用 Qwen3 Embedding 召回同一份字幕与观察文本，可显式使用 Qwen3 Reranker 重排前 50 个候选，默认返回前 20 个。文本和语义模式都遵守素材和完整证据时间窗过滤。视觉模式使用 EmbeddingGemma 2 和 mmproj，按五秒窗口的中点帧召回视频；不会读取 ASR 文本，也不会把单帧分数当作整窗内容判断。素材、时间过滤在抽帧前生效。语义分数是归一化向量的余弦相似度，重排分数单列保存；它们不是内容正确率。未配置请求的能力时明确失败，不回退到其它模型。
 
 查询以 `Instruct` / `Query` 格式编码，素材用原文，使用 last-token pooling 和 L2 归一化。角色、指令、模型字节和实际运行时进入缓存绑定，重排另按查询与候选文本缓存。检索不改写源证据；候选绑定提交时修订，作业成功后才在事务中发布。单条向量输入最多 8192 tokens；重排的查询与单条候选合计最多 7680 tokens，为模型模板预留空间。超限拒绝，不静默截断。
 
-人工证据文件是 `[{sourceId,startUs,durationUs,text}]`，通过 `analyze --import /absolute/evidence.json --expected-revision REV --wait` 导入。外部候选使用 `schema proposal`，经 `proposal import --file /absolute/proposal.json --expected-revision REV --wait` 校验后保存。应用选择生成新修订，并保留选择记录。
+人工证据文件是 `[{sourceId,startUs,durationUs,text}]`，通过 `analyze --import /absolute/evidence.json --expected-revision REV --wait` 导入。外部候选使用 `schema proposal`，经 `proposal import --file /absolute/proposal.json --expected-revision REV --wait` 校验后保存。应用选择生成新修订，并保留选择记录。`proposal apply --ranges /absolute/ranges.json` 可传 `{候选ID:{startUs,durationUs}}`，裁剪必须完全包含在所选候选窗内。Studio 提供同样的预览和裁剪。
+
+## 创作方案
+
+外部 agent 使用 `project context` 读取修订、证据、素材和候选，通过 `schema creative-plan` 取得合同。方案包含标题、概述、场景、理由和源证据引用。
+
+```bash
+npx weaver creative-plan import --project demo --file /absolute/plan.json --expected-revision REV --json
+npx weaver creative-plan show --project demo --json
+npx weaver creative-plan apply --project demo --expected-revision REV --json
+```
+
+保存方案生成新修订，现有场景继续用于制作。采用默认替换场景，`--append` 追加。引用证据必须属于此项目，素材版本和区间必须匹配。无分析证据的人工选段也可保存。Studio 审核同一方案，并要求先保存本地草稿。方案与依赖随 bundle 保存。
 
 ## 字幕与声音
 
@@ -69,6 +83,20 @@ npx weaver captions import --project demo --file /absolute/subtitles.srt --local
 字幕支持人工 SRT、VTT，时间可映射到成片、源片或场景语音。manual、native、aligned、estimated 分别记录。precise 模式缺对齐能力时报错；estimated 需要显式选择。SRT、ASS、烧录和交接使用同一 cue。
 
 precise 使用 Qwen3-ForcedAligner-0.6B。zh、yue、en、de、es、fr、it、pt、ru、ko、ja 可用，区域标签取主语种，拒绝 auto。单场景语音最多 180 秒，音频转为 16kHz 单声道；字幕用作者原文分句，通过实际词/字时间得到句界。空结果、原文覆盖不完整和无效时码会失败，不伪造 aligned 字幕。
+
+源片 `analyze --with asr --align` 保留 ASR 原文和实际词时间，再按当前修订采用为源片字幕。字幕 cue 可在 Studio 编辑文字、时间、来源和临时说话人标签；人工修改清除已失效词时间。视频和静帧遮罩按所选输出规格预览，位置保存在项目修订中；卡片遮罩使用坐标示意，并通过制作预览核对实际画面。
+
+```bash
+npx weaver captions translate --project demo --locale zh --target-locale en --expected-revision REV --wait --json
+npx weaver captions apply-translation --project demo --run RUN --expected-revision REV --json
+npx weaver speakers analyze --project demo --source-id SOURCE --locale zh --wait --json
+npx weaver speakers apply --project demo --run RUN --expected-revision REV --json
+npx weaver voice-design --provider local-voxcpm2 --text "试听内容" --style "温和自然" --wait --json
+```
+
+翻译保留 cue 标识、句界、源引用和 sourceText，清除译文无对应关系的词时间。采用后 `translationLocale` 记录字幕语言，制作 locale 与原声不变。MOSS 仅支持中文与英文；每窗最多 40 秒，标签带窗口作用域，不跨窗推断人物身份。模型完成不会自动覆盖项目字幕。按 run 采用局部结果只替换重叠的源字幕，窗口外 cue 保留。原文结果不能混入仍保留译文 cue 的轨道；完整恢复原文会清除译文标记。再次翻译已有译文轨时从保留的原文开始。
+
+本地 VoxCPM2 音色可通过 Studio 上传或试听收下。音色的 provider 随版本保存，场景的 `Speech.style[locale]` 可覆盖默认风格；真实文字、风格、参考音频和模型绑定共同决定语音缓存。本地合成有风格时使用可控克隆，只向模型传参考音频；无风格且有参考文本时使用续写克隆。两种模式不混用。语音绑定还摘要实际 site-packages 内容，环境字节变化会失效。
 
 声音计划包含原声、语音、BGM、增益、裁剪、循环、淡变、旁白驱动 ducking 和最终 LUFS、true peak 目标。默认 -16 LUFS、-1 dBTP。静音节目不填写虚构测量值。正式视频验证帧数、规格和解码音频采样数，AAC 允许最多 2048 个额外样本。
 
@@ -82,6 +110,10 @@ precise 使用 Qwen3-ForcedAligner-0.6B。zh、yue、en、de、es、fr、it、pt
 | 精确对齐 | Qwen3 ForcedAligner，显式 MLX / Torch | LIGHTWEAVER_ALIGNMENT_MODEL、LIGHTWEAVER_ALIGNMENT_BACKEND、LIGHTWEAVER_ALIGNMENT_DEVICE |
 | 向量 | Qwen3 Embedding GGUF，last-token pooling | LIGHTWEAVER_EMBEDDING_MODEL |
 | 重排 | Qwen3 Reranker GGUF，rank pooling | LIGHTWEAVER_RERANKER_MODEL，search --rerank |
+| 视觉检索 | EmbeddingGemma 2 GGUF 与 mmproj，mean pooling | LIGHTWEAVER_VISUAL_MODEL、LIGHTWEAVER_VISUAL_MMPROJ、LIGHTWEAVER_VISUAL_SERVER |
+| 本地语音 | VoxCPM2 Torch | LIGHTWEAVER_LOCAL_TTS_MODEL、LIGHTWEAVER_SPEECH_PYTHON |
+| 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL、LIGHTWEAVER_TRANSLATION_SERVER |
+| 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
 本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，默认 `weaver/.venv/bin/python`。GGUF 使用 `LIGHTWEAVER_LLAMA_SERVER` / `llama_server` 指定的二进制，默认从 PATH 查找 `llama-server`。相对配置路径以仓库根解析，不读取相邻仓库配置或 Python 环境。依赖安装见 README；Torch 和新版 MLX 的 Transformers 版本不同，切换时使用各自独立环境。权重路径需要显式设置，不自动下载。
 
@@ -89,7 +121,7 @@ precise 使用 Qwen3-ForcedAligner-0.6B。zh、yue、en、de、es、fr、it、pt
 
 本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。
 
-`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)与[强制对齐和检索验收](acceptance-alignment-search.md)。
+`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)与[能力落地验收](acceptance-coverage.md)。
 
 ## 库与交接
 

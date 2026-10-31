@@ -7,7 +7,7 @@ import {
   errorProtocol,
   httpStatus,
 } from "@lightweaver/weaver/app";
-import { z, MediaRef } from "@lightweaver/weaver/contracts";
+import { z, MediaRef, SourceRange } from "@lightweaver/weaver/contracts";
 
 const app = new Application(),
   server = express();
@@ -190,6 +190,8 @@ server.post(
           kind: z.enum(["voice", "material"]),
           name: z.string(),
           referenceText: z.string().optional(),
+          provider: z.string().optional(),
+          style: z.string().optional(),
         })
         .parse(req.body);
       const result = await app.importLibrary({
@@ -202,6 +204,8 @@ server.post(
           kind: body.kind,
           name: body.name,
           referenceText: body.referenceText,
+          provider: body.provider,
+          style: body.style,
         },
       });
       res.json({ ok: true, result });
@@ -255,6 +259,10 @@ route("post", "/api/projects/:id/analyze", (req) =>
         requestId: z.string(),
         sourceId: z.string().optional(),
         vlmProvider: z.string().optional(),
+        locale: z.string().optional(),
+        align: z.boolean().optional(),
+        fromUs: z.number().int().nonnegative().optional(),
+        durationUs: z.number().int().positive().optional(),
       })
       .parse(req.body),
   }),
@@ -264,20 +272,25 @@ route("post", "/api/projects/:id/search", (req) => {
     .object({
       query: z.string(),
       requestId: z.string(),
-      mode: z.enum(["text", "semantic"]),
+      mode: z.enum(["text", "semantic", "visual"]),
       rerank: z.boolean().optional(),
+      sourceIds: z.array(z.string()).optional(),
+      fromUs: z.number().int().nonnegative().optional(),
+      toUs: z.number().int().positive().optional(),
     })
     .refine(
       (i) => !i.rerank || i.mode === "semantic",
       "候选重排只适用于语义检索",
     )
     .parse(req.body);
-  return i.mode === "semantic"
+  const {mode, rerank, ...request} = i;
+  if (mode === "visual") return app.visual.submit({projectId: z.string().parse(req.params.id), ...request});
+  return mode === "semantic"
     ? app.analysis.submitSemantic({
         projectId: z.string().parse(req.params.id),
-        ...i,
+        ...request, rerank,
       })
-    : app.analysis.search({ projectId: z.string().parse(req.params.id), ...i });
+    : app.analysis.search({ projectId: z.string().parse(req.params.id), ...request });
 });
 route("post", "/api/projects/:id/match", (req) =>
   app.analysis.submitMatch({
@@ -301,15 +314,45 @@ route("post", "/api/projects/:id/proposal", (req) =>
         expectedRevision: z.string(),
         requestId: z.string(),
         allowReuse: z.boolean().optional(),
+        ranges: z.record(z.string(), SourceRange).optional(),
       })
       .parse(req.body),
   }),
+);
+route("post", "/api/projects/:id/captions/from-analysis", (req) =>
+  app.analysis.adoptCaptions({projectId: z.string().parse(req.params.id),
+    ...Write.extend({locale: z.string(), sourceId: z.string().optional(), runId: z.string().optional()}).parse(req.body)}),
+);
+route("put", "/api/projects/:id/creative-plan", (req) =>
+  app.authoring.save({projectId: z.string().parse(req.params.id),
+    ...Write.extend({plan: z.unknown()}).parse(req.body)}),
+);
+route("post", "/api/projects/:id/creative-plan/apply", (req) =>
+  app.authoring.apply({projectId: z.string().parse(req.params.id),
+    ...Write.extend({append: z.boolean().optional()}).parse(req.body)}),
+);
+route("post", "/api/projects/:id/captions/assist", (req) =>
+  app.captions.submit({projectId: z.string().parse(req.params.id),
+    ...Write.extend({locale: z.string(), targetLocale: z.string()}).parse(req.body)}),
+);
+route("post", "/api/projects/:id/captions/assist/apply", (req) =>
+  app.captions.apply({projectId: z.string().parse(req.params.id),
+    ...Write.extend({runId: z.string()}).parse(req.body)}),
+);
+route("post", "/api/projects/:id/speakers", (req) =>
+  app.speakers.submit({projectId: z.string().parse(req.params.id),
+    ...z.object({sourceId: z.string(), locale: z.string(), requestId: z.string(),
+      fromUs: z.number().optional(), durationUs: z.number().optional()}).parse(req.body)}),
+);
+route("post", "/api/projects/:id/speakers/apply", (req) =>
+  app.speakers.apply({projectId: z.string().parse(req.params.id),
+    ...Write.extend({runId: z.string()}).parse(req.body)}),
 );
 route("post", "/api/voice/design", (req) =>
   app.analysis.standalone({
     kind: "voice-design",
     ...z
-      .object({ text: z.string(), style: z.string(), requestId: z.string() })
+      .object({ text: z.string(), style: z.string(), provider: z.string().optional(), requestId: z.string() })
       .parse(req.body),
   }),
 );
