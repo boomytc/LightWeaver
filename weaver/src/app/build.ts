@@ -173,15 +173,6 @@ export class Builds {
       (context, result) => this.publish(context, result),
     );
   }
-  private ttsProviders(doc: ProjectDocument): string[] {
-    const voices = new Set(doc.scenes.flatMap((scene) => {
-      const speech = speechOf(scene);
-      return speech?.kind === "authored" ? Object.values(speech.voice).map((ref) => `${ref.itemId}@${ref.version}`) : [];
-    }));
-    return this.projects.libraryFor(doc).flatMap((v) =>
-      v.payload.kind === "voice" && voices.has(`${v.itemId}@${v.version}`) ? [v.payload.provider] : [],
-    );
-  }
   private async toolsFor(
     doc: ProjectDocument,
     signal?: AbortSignal,
@@ -1114,12 +1105,6 @@ export class Builds {
     projectId: string,
     doc = this.projects.read(projectId).document,
   ) {
-    const ttsIds = this.ttsProviders(doc);
-    const providers = await this.providers.freeze([
-      ...ttsIds,
-      ...(doc.locales.some((locale) => needsAlignment(doc, locale)) ? [ALIGNMENT_PROVIDER] : []),
-    ]);
-    Object.assign(providers, await this.toolsFor(doc));
     const currentIds = new Set(
       z
         .array(z.object({ delivery_id: z.string() }))
@@ -1145,15 +1130,33 @@ export class Builds {
         const complete = Object.values(d.artifacts).every((x) =>
           this.store.verifyBlob(x),
         );
+        let snapshot: z.infer<typeof RunSnapshot> | undefined;
+        if (this.store.verifyBlob(d.runSnapshotDigest)) {
+          try {
+            const parsed = RunSnapshot.safeParse(
+              JSON.parse(
+                fs.readFileSync(
+                  this.store.blobPath(d.runSnapshotDigest),
+                  "utf8",
+                ),
+              ),
+            );
+            if (parsed.success) snapshot = parsed.data;
+          } catch (error) {
+            if (!(error instanceof SyntaxError)) throw error;
+          }
+        }
         return {
           ...d,
           state: !complete
             ? "missing"
             : !currentIds.has(d.id)
               ? "historical"
-              : p &&
+              : snapshot &&
+                  p &&
                   doc.locales.includes(locale) &&
-                  targetFingerprint(doc, locale, p, providers) === d.fingerprint
+                  targetFingerprint(doc, locale, p, snapshot.providers) ===
+                    d.fingerprint
                 ? "current"
                 : "stale",
         };

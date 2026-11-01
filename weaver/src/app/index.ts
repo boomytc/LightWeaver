@@ -155,13 +155,35 @@ export class Application {
     asset: z.infer<typeof MediaAssetVersion>;
     revision: z.infer<typeof ProjectRevision>;
   }> {
-    return this.store.owned("asset-import", async () => {
+    const name = input.name || path.basename(input.file),
+      kind = input.kind || inferKind(name),
+      mime = input.mime || mimeFor(name);
+    const result = await this.store.owned("asset-import", async () => {
+      const content = await this.store.importFile(input.file, mime);
+      const requestInput = { ...input, file: undefined, content };
+      const resultSchema = z.object({
+        asset: MediaAssetVersion,
+        revision: ProjectRevision,
+      });
+      const preflight = this.store.transaction(():
+        | { kind: "replay"; result: z.infer<typeof resultSchema> }
+        | { kind: "import"; current: z.infer<typeof ProjectRevision> } => {
+        const prior = this.store.request(
+          "asset-add",
+          input.requestId,
+          requestInput,
+          resultSchema,
+        );
+        if (prior) return { kind: "replay", result: prior };
+        const current = this.projects.read(input.projectId);
+        if (current.id !== input.expectedRevision)
+          throw new WeaverError("REVISION_CONFLICT", "项目已修改", { current });
+        return { kind: "import", current };
+      });
+      if (preflight.kind === "replay") return preflight.result;
       const provenance = MediaProvenance.optional().parse(input.provenance);
-      const current = this.projects.read(input.projectId);
-      if (current.id !== input.expectedRevision)
-        throw new WeaverError("REVISION_CONFLICT", "项目已修改", { current });
       if (provenance) {
-        const assets = new Map(this.projects.assetsFor(current.document, "saved").map((asset) => [refKey(asset), asset]));
+        const assets = new Map(this.projects.assetsFor(preflight.current.document, "saved").map((asset) => [refKey(asset), asset]));
         for (const origin of provenance.inputs) {
           const source = assets.get(refKey(origin.source));
           if (!source) throw new WeaverError("INVALID_INPUT", "来源必须是当前项目中的精确素材版本", origin.source);
@@ -174,15 +196,11 @@ export class Application {
           }
         }
       }
-      const name = input.name || path.basename(input.file),
-        kind = input.kind || inferKind(name),
-        mime = input.mime || mimeFor(name);
-      const content = await this.store.importFile(input.file, mime);
       return this.store.mutate(
         "asset-add",
         input.requestId,
-        { ...input, file: undefined, content },
-        z.object({ asset: MediaAssetVersion, revision: ProjectRevision }),
+        requestInput,
+        resultSchema,
         () => {
           const current = this.projects.read(input.projectId);
           if (current.id !== input.expectedRevision)
@@ -224,6 +242,17 @@ export class Application {
         },
       );
     });
+    if (
+      result.asset.name !== name ||
+      result.asset.kind !== kind ||
+      result.asset.mime !== mime
+    )
+      throw new WeaverError(
+        "REQUEST_ID_REUSED",
+        "同一 requestId 对应不同素材元数据",
+        { requestId: input.requestId },
+      );
+    return result;
   }
   async adoptMaterial(input: {
     projectId: string;
