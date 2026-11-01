@@ -10,9 +10,11 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   screen,
   session,
   shell,
+  Tray,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
@@ -26,6 +28,7 @@ import {
   type CommandName,
   type DesktopPreferences,
   type QuitDecision,
+  type QuitIntent,
   type RecoveryFlushResult,
 } from "./protocol";
 import { RecoveryJournal } from "./recovery-journal";
@@ -125,15 +128,20 @@ let service: ServiceReady | null = null;
 let quitting = false;
 let quitConfirmed = false;
 let quitInProgress = false;
-let quitWait: ((decision: QuitDecision) => void) | null = null;
+let ipcRequestId = 0;
+let quitWait: { id: number; finish: (decision: QuitDecision) => void } | null = null;
+type WindowCloseRequest = { quitIntent: QuitIntent | null };
+let closeRequest: WindowCloseRequest | null = null;
+let backgroundTray: Tray | null = null;
 type RendererRecoveryFlushOutcome =
   | { status: "complete" }
   | { status: "unavailable" }
   | { status: "timeout" }
   | { status: "failed"; message: string };
-let recoveryFlushWait:
-  | ((result: RecoveryFlushResult | null) => void)
-  | null = null;
+let recoveryFlushWait: {
+  id: number;
+  finish: (result: RecoveryFlushResult | null) => void;
+} | null = null;
 let credentialInstalled = false;
 let runtimeSerial = 0;
 let runtimeQueue: Promise<void> = Promise.resolve();
@@ -530,7 +538,9 @@ function createWindow(visualPreferences?: DesktopPreferences): BrowserWindow {
     if (!isTrustedPage(url)) event.preventDefault();
   });
   win.webContents.on("render-process-gone", (_event, details) => {
-    if (quitting || details.reason === "clean-exit") return;
+    if (quitConfirmed || details.reason === "clean-exit") return;
+    quitWait?.finish({ action: "cancel", stopJobs: false });
+    recoveryFlushWait?.finish({ ok: false, message: "界面进程已退出，请等待恢复后重试" });
     rendererGeneration = null;
     const targetService = service;
     const target = currentContentTarget();
@@ -550,15 +560,93 @@ function createWindow(visualPreferences?: DesktopPreferences): BrowserWindow {
   });
   win.on("close", (event) => {
     if (quitConfirmed) return;
-    if (process.platform === "darwin" && !quitting) {
-      event.preventDefault();
-      win.hide();
-      return;
-    }
     event.preventDefault();
-    void requestQuit();
+    void requestClose(win);
+  });
+  win.once("closed", () => {
+    if (mainWindow === win) mainWindow = null;
   });
   return win;
+}
+
+function showMainWindow(): void {
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function ensureBackgroundTray(): void {
+  if (backgroundTray && !backgroundTray.isDestroyed()) return;
+  const iconFile = dev
+    ? path.join(__dirname, "../packaging/icon.png")
+    : path.join(process.resourcesPath, "lightweaver", "icon.png");
+  const icon = nativeImage.createFromPath(iconFile);
+  if (icon.isEmpty()) throw new Error("托盘图标不可用，无法提供后台窗口恢复入口");
+  const tray = new Tray(icon.resize({ width: 18, height: 18 }));
+  try {
+    tray.setToolTip("LightWeaver");
+    tray.on("click", showMainWindow);
+    tray.on("double-click", showMainWindow);
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: "打开 LightWeaver", click: showMainWindow },
+      { type: "separator" },
+      { label: "退出 LightWeaver", click: () => { showMainWindow(); void requestQuit(); } },
+    ]));
+    backgroundTray = tray;
+  } catch (error) {
+    tray.destroy();
+    throw error;
+  }
+}
+
+async function requestClose(win: BrowserWindow): Promise<void> {
+  if (closeRequest || quitInProgress || quitting || win.isDestroyed()) return;
+  const request: WindowCloseRequest = { quitIntent: null };
+  closeRequest = request;
+  try {
+    const { response } = await dialog.showMessageBox(win, {
+      type: "question",
+      title: "关闭 LightWeaver 窗口",
+      message: "关闭窗口后，是否停止后台进程？",
+      detail: "后台运行会保留本地服务，正在进行的制作或下载会继续。可通过托盘菜单重新打开窗口。",
+      buttons: ["后台运行", "停止后台并退出", "取消"],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    });
+    if (win.isDestroyed() || quitting) return;
+    if (response === 1) {
+      request.quitIntent = "stop-jobs";
+      return;
+    }
+    if (response !== 0 || request.quitIntent) return;
+    const flush = await enqueueRuntime(() => requestRendererRecoveryFlush());
+    if (flush.status === "failed" || flush.status === "timeout")
+      throw new Error(flush.status === "failed" ? flush.message : "界面未确认草稿已写入磁盘，请稍后重试");
+    if (request.quitIntent || quitting || win.isDestroyed()) return;
+    ensureBackgroundTray();
+    if (win.isFullScreen()) win.setFullScreen(false);
+    win.hide();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`关闭窗口未完成：${message}`);
+    if (!win.isDestroyed()) {
+      win.show();
+      await dialog.showMessageBox(win, {
+        type: "warning",
+        title: "窗口保持打开",
+        message: "未能安全转入后台运行",
+        detail: message,
+        buttons: ["知道了"],
+        noLink: true,
+      }).catch(() => undefined);
+    }
+  } finally {
+    closeRequest = null;
+    if (request.quitIntent) await requestQuit(request.quitIntent);
+  }
 }
 
 function saveBounds(): void {
@@ -725,7 +813,7 @@ async function shutdownRuntime(): Promise<void> {
   await serviceHost.stop().catch(() => undefined);
 }
 
-function enqueueRuntime(operation: () => Promise<void>): Promise<void> {
+function enqueueRuntime<T>(operation: () => Promise<T>): Promise<T> {
   const run = runtimeQueue.then(operation, operation);
   runtimeQueue = run.then(
     () => undefined,
@@ -864,8 +952,9 @@ function requestRendererRecoveryFlush(): Promise<RendererRecoveryFlushOutcome> {
       .flush()
       .then(() => ({ status: "unavailable" as const }));
   return new Promise((resolve, reject) => {
+    const id = ++ipcRequestId;
     const finish = (result: RecoveryFlushResult | null) => {
-      if (recoveryFlushWait !== finish) return;
+      if (recoveryFlushWait?.id !== id) return;
       clearTimeout(timer);
       recoveryFlushWait = null;
       void recoveryJournal.flush().then(
@@ -884,8 +973,8 @@ function requestRendererRecoveryFlush(): Promise<RendererRecoveryFlushOutcome> {
       );
     };
     const timer = setTimeout(() => finish(null), 1_500);
-    recoveryFlushWait = finish;
-    win.webContents.send(ipcChannels.prepareRecoveryFlush);
+    recoveryFlushWait = { id, finish };
+    win.webContents.send(ipcChannels.prepareRecoveryFlush, id);
   });
 }
 
@@ -1001,39 +1090,70 @@ function quitDecision(value: unknown): QuitDecision | null {
   };
 }
 
-async function requestQuit(): Promise<void> {
+async function requestQuit(intent: QuitIntent = "confirm-jobs"): Promise<void> {
   if (quitConfirmed) {
     app.quit();
+    return;
+  }
+  if (closeRequest) {
+    if (intent === "stop-jobs" || closeRequest.quitIntent === null)
+      closeRequest.quitIntent = intent;
     return;
   }
   if (quitInProgress) return;
   quitInProgress = true;
   quitting = true;
-  if (!mainWindow || mainWindow.webContents.isLoading() || !service) {
+  showMainWindow();
+  try {
+    if (!mainWindow || mainWindow.webContents.isLoading() || !service) {
+      await finishQuit();
+      return;
+    }
+    const decision = await new Promise<QuitDecision>((resolve) => {
+      const id = ++ipcRequestId;
+      const finish = (value: QuitDecision) => {
+        if (quitWait?.id !== id) return;
+        clearTimeout(timeout);
+        quitWait = null;
+        if (value.action === "cancel" && mainWindow && !mainWindow.webContents.isDestroyed())
+          mainWindow.webContents.send(ipcChannels.cancelQuit, id);
+        resolve(value);
+      };
+      const timeout = setTimeout(
+        () => finish({ action: "cancel", stopJobs: false }),
+        60_000,
+      );
+      quitWait = { id, finish };
+      mainWindow?.webContents.send(ipcChannels.prepareQuit, id, intent);
+    });
+    if (decision.action !== "quit") {
+      cancelQuit();
+      return;
+    }
     await finishQuit();
-    return;
+  } catch (error) {
+    cancelQuit();
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`退出未完成：${message}`);
+    const win = mainWindow;
+    if (win && !win.isDestroyed())
+      await dialog.showMessageBox(win, {
+        type: "warning",
+        title: "退出未完成",
+        message: "未能安全停止后台，窗口保持打开",
+        detail: message,
+        buttons: ["返回应用"],
+        noLink: true,
+      }).catch(() => undefined);
   }
-  const decision = await new Promise<QuitDecision>((resolve) => {
-    const finish = (value: QuitDecision) => {
-      clearTimeout(timeout);
-      quitWait = null;
-      resolve(value);
-    };
-    const timeout = setTimeout(
-      () => finish({ action: "cancel", stopJobs: false }),
-      60_000,
-    );
-    quitWait = finish;
-    mainWindow?.webContents.send(ipcChannels.prepareQuit);
-  });
-  if (decision.action !== "quit") {
-    quitting = false;
-    quitInProgress = false;
-    mainWindow?.show();
-    if (!serviceHost.running) serviceDidExit();
-    return;
-  }
-  await finishQuit();
+}
+
+function cancelQuit(): void {
+  quitting = false;
+  quitInProgress = false;
+  if (recoveryBinding) restoreRendererGeneration(recoveryBinding.serviceGeneration);
+  showMainWindow();
+  if (!serviceHost.running) serviceDidExit();
 }
 
 async function finishQuit(): Promise<void> {
@@ -1041,7 +1161,9 @@ async function finishQuit(): Promise<void> {
   rendererGeneration = null;
   discardPendingRuntimePreferences();
   await enqueueRuntime(async () => {
-    await requestRendererRecoveryFlush();
+    const flush = await requestRendererRecoveryFlush();
+    if (flush.status === "failed" || flush.status === "timeout")
+      throw new Error(flush.status === "failed" ? flush.message : "界面未确认草稿已写入磁盘，请稍后重试");
     await recoveryJournal.flush();
     clearRecoveryBinding();
     clearCredential();
@@ -1066,15 +1188,15 @@ function installIpc(): void {
       event.returnValue = "system";
     }
   });
-  ipcMain.on(ipcChannels.quitResponse, (event, value: unknown) => {
+  ipcMain.on(ipcChannels.quitResponse, (event, id: unknown, value: unknown) => {
     assertSender(event);
     const decision = quitDecision(value);
-    if (decision) quitWait?.(decision);
+    if (decision && quitWait && quitWait.id === id) quitWait.finish(decision);
   });
-  ipcMain.on(ipcChannels.recoveryFlushResult, (event, value: unknown) => {
+  ipcMain.on(ipcChannels.recoveryFlushResult, (event, id: unknown, value: unknown) => {
     assertSender(event);
     const result = parseRecoveryFlushResult(value);
-    if (result) recoveryFlushWait?.(result);
+    if (result && recoveryFlushWait && recoveryFlushWait.id === id) recoveryFlushWait.finish(result);
   });
   ipcMain.handle(ipcChannels.pickMedia, async (event) => {
     assertSender(event);
@@ -1226,14 +1348,13 @@ if (!gotLock) app.quit();
 else {
   app.on("second-instance", () => {
     if (!mainWindow) createWindow();
-    mainWindow?.show();
-    mainWindow?.focus();
+    showMainWindow();
   });
   app.on("activate", () => {
     if (!mainWindow) {
       createWindow();
       void launchRuntime();
-    } else mainWindow.show();
+    } else showMainWindow();
   });
   app.on("before-quit", (event) => {
     if (quitConfirmed) return;
@@ -1242,6 +1363,10 @@ else {
   });
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") void requestQuit();
+  });
+  app.on("will-quit", () => {
+    backgroundTray?.destroy();
+    backgroundTray = null;
   });
   app.whenReady().then(async () => {
     installIpc();

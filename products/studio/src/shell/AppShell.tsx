@@ -226,7 +226,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ConfirmDialog
           open={session.jobsOpen}
           title="还有未结束的作业"
-          description="没有后台托盘，退出会停掉这些作业。"
+          description="退出应用会停止这些作业。需要继续执行时，可留在应用或关窗后选择后台运行。"
           onOpenChange={(open) => {
             if (!open) session.answerJobs(false);
           }}

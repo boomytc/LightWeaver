@@ -22,6 +22,8 @@ export type QuitDecision = {
   stopJobs: boolean;
 };
 
+export type QuitIntent = "confirm-jobs" | "stop-jobs";
+
 export type RecoveryDraft = {
   projectId: string;
   base: string;
@@ -43,7 +45,10 @@ export type DesktopBridge = {
   getPreferences?: () => Promise<DesktopPreferences>;
   setPreferences?: (patch: Partial<DesktopPreferences>) => Promise<DesktopPreferences>;
   onCommand?: (handler: (command: StudioCommand) => void) => () => void;
-  onPrepareQuit?: (handler: () => Promise<QuitDecision>) => () => void;
+  onPrepareQuit?: (
+    handler: (intent: QuitIntent) => Promise<QuitDecision>,
+    cancel: () => void,
+  ) => () => void;
   onPrepareRecoveryFlush?: (handler: () => Promise<void>) => () => void;
   themeSync?: () => ThemePreference;
   restartRuntime?: () => Promise<void>;

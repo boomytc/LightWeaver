@@ -6,6 +6,7 @@ import {
   renderMedia,
   selectComposition,
   makeCancelSignal,
+  openBrowser,
 } from "@remotion/renderer";
 import { CardRenderInput } from "@lightweaver/weaver/contracts";
 import { adapterInfo } from "./adapter-info";
@@ -25,8 +26,13 @@ if (
     "CARD_ADAPTER_CHANGED: 卡片实现或字体/浏览器已改变，请重新构建",
   );
 const { cancel, cancelSignal } = makeCancelSignal();
-process.on("SIGTERM", cancel);
-process.on("SIGINT", cancel);
+const controller = new AbortController();
+const stop = () => {
+  controller.abort();
+  cancel();
+};
+process.on("SIGTERM", stop);
+process.on("SIGINT", stop);
 const prebuiltSite = process.env.LIGHTWEAVER_CARD_SITE || "";
 const serveUrl = prebuiltSite
   ? prebuiltSite
@@ -44,29 +50,43 @@ const chrome =
       : undefined);
 if (process.env.LIGHTWEAVER_PACKAGED === "1" && !chrome)
   throw new Error("卡片浏览器未随包提供");
-const composition = await selectComposition({
-  serveUrl,
-  id: "Card",
-  inputProps: props,
+controller.signal.throwIfAborted();
+const browser = await openBrowser("chrome", {
   browserExecutable: chrome,
   logLevel: "error",
 });
-await renderMedia({
-  serveUrl,
-  composition,
-  inputProps: props,
-  codec: "h264",
-  outputLocation: dest,
-  muted: true,
-  enforceAudioTrack: false,
-  pixelFormat: "yuv420p",
-  colorSpace: "bt709",
-  browserExecutable: chrome,
-  cancelSignal,
-  concurrency: 2,
-  logLevel: "error",
-  crf: props.output.crf,
-});
+try {
+  controller.signal.throwIfAborted();
+  const composition = await selectComposition({
+    serveUrl,
+    id: "Card",
+    inputProps: props,
+    puppeteerInstance: browser,
+    logLevel: "error",
+  });
+  controller.signal.throwIfAborted();
+  await renderMedia({
+    serveUrl,
+    composition,
+    inputProps: props,
+    codec: "h264",
+    outputLocation: dest,
+    muted: true,
+    enforceAudioTrack: false,
+    pixelFormat: "yuv420p",
+    colorSpace: "bt709",
+    puppeteerInstance: browser,
+    cancelSignal,
+    concurrency: 2,
+    logLevel: "error",
+    crf: props.output.crf,
+  });
+} finally {
+  await browser.close({ silent: true });
+  process.off("SIGTERM", stop);
+  process.off("SIGINT", stop);
+}
+controller.signal.throwIfAborted();
 process.stdout.write(
   JSON.stringify({ file: dest, frames: props.durationFrames, silent: true }) +
     "\n",

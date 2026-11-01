@@ -16,7 +16,7 @@ import {
 import { api, ApiError, requestId } from "../api";
 import type { ClientStore, DraftBackup } from "../client/state";
 import { onStudioCommand, runCommand, shortcutCommand } from "../commands";
-import { desktop, type QuitDecision } from "../desktop";
+import { desktop, type QuitDecision, type QuitIntent } from "../desktop";
 import { Context, type Context as ProjectContext } from "../domain/context";
 import { RunDetail } from "../domain/run";
 import { saveFate } from "../domain/save";
@@ -99,6 +99,8 @@ export function useProjectSession(client: ClientStore) {
   const clientRef = useRef(client);
   clientRef.current = client;
   const leaveWait = useRef<((choice: LeaveChoice) => void) | null>(null);
+  const leaveInProgress = useRef(false);
+  const quitAttempt = useRef<symbol | null>(null);
   const jobsWait = useRef<((stop: boolean) => void) | null>(null);
   const urlRef = useRef(routeUrl(route));
   const recoveryDraft = useRef<DraftBackup | null>(null);
@@ -547,33 +549,39 @@ export function useProjectSession(client: ClientStore) {
     leaveWait.current = null;
   };
 
-  const confirmLeave = async () => {
+  const confirmLeave = async (forQuit = false) => {
+    if (leaveInProgress.current || (quitAttempt.current && !forQuit)) return "stay" as const;
     if (!dirtyRef.current && !planDirtyRef.current) return "proceed" as const;
-    const choice = await new Promise<LeaveChoice>((resolve) => {
-      leaveWait.current = resolve;
-      setLeaveOpen(true);
-    });
-    if (choice === "cancel") return "stay" as const;
-    if (choice === "discard") {
-      const recovery = snapshot();
-      if (recovery && !(await clearDraftThrough(recovery.projectId, recovery.updatedAt)))
-        return "stay" as const;
-      dirtyRef.current = false;
-      planDirtyRef.current = false;
-      setDirty(false);
-      setPlanDirty(false);
+    leaveInProgress.current = true;
+    try {
+      const choice = await new Promise<LeaveChoice>((resolve) => {
+        leaveWait.current = resolve;
+        setLeaveOpen(true);
+      });
+      if (choice === "cancel") return "stay" as const;
+      if (choice === "discard") {
+        const recovery = snapshot();
+        if (recovery && !(await clearDraftThrough(recovery.projectId, recovery.updatedAt)))
+          return "stay" as const;
+        dirtyRef.current = false;
+        planDirtyRef.current = false;
+        setDirty(false);
+        setPlanDirty(false);
+        return "proceed" as const;
+      }
+      if (choice === "keep") {
+        const snap = snapshot();
+        if (snap && !(await clientRef.current.upsertDraft(snap))) return "stay" as const;
+        return "proceed" as const;
+      }
+      if (dirtyRef.current && !(await save())) return "stay" as const;
+      if (dirtyRef.current) return "stay" as const;
+      if (planDirtyRef.current && planDraftRef.current) await saveCreativePlan(planDraftRef.current);
+      if (planDirtyRef.current || dirtyRef.current) return "stay" as const;
       return "proceed" as const;
+    } finally {
+      leaveInProgress.current = false;
     }
-    if (choice === "keep") {
-      const snap = snapshot();
-      if (snap && !(await clientRef.current.upsertDraft(snap))) return "stay" as const;
-      return "proceed" as const;
-    }
-    if (dirtyRef.current && !(await save())) return "stay" as const;
-    if (dirtyRef.current) return "stay" as const;
-    if (planDirtyRef.current && planDraftRef.current) await saveCreativePlan(planDraftRef.current);
-    if (planDirtyRef.current || dirtyRef.current) return "stay" as const;
-    return "proceed" as const;
   };
 
   const navigate = async (page: string, projectId = "", section = "") => {
@@ -855,23 +863,48 @@ export function useProjectSession(client: ClientStore) {
     return () => window.clearTimeout(timer);
   }, [base, dirty, draft, planDirty, planDraft]);
 
-  const quitRef = useRef<() => Promise<QuitDecision>>(async () => ({ action: "quit", stopJobs: false }));
-  quitRef.current = async () => {
-    if ((await confirmLeave()) === "stay") return { action: "cancel", stopJobs: false };
-    const runs = await api("/runs", z.array(RunRecord)).catch(() => []);
-    const active = runs.some((run) => run.state === "queued" || run.state === "running" || run.state === "cancelling");
-    if (!active) return { action: "quit", stopJobs: false };
-    const stop = await new Promise<boolean>((resolve) => {
-      jobsWait.current = resolve;
-      setJobsOpen(true);
-    });
-    return stop ? { action: "quit", stopJobs: true } : { action: "cancel", stopJobs: false };
+  const quitCancelRef = useRef(() => {});
+  quitCancelRef.current = () => {
+    if (!quitAttempt.current) return;
+    quitAttempt.current = null;
+    answerLeave("cancel");
+    setJobsOpen(false);
+    jobsWait.current?.(false);
+    jobsWait.current = null;
+  };
+  const quitRef = useRef<(intent: QuitIntent) => Promise<QuitDecision>>(async () => ({ action: "cancel", stopJobs: false }));
+  quitRef.current = async (intent) => {
+    if (leaveInProgress.current || quitAttempt.current) return { action: "cancel", stopJobs: false };
+    const attempt = Symbol("quit");
+    quitAttempt.current = attempt;
+    try {
+      if ((await confirmLeave(true)) === "stay" || quitAttempt.current !== attempt)
+        return { action: "cancel", stopJobs: false };
+      if (intent === "stop-jobs") return { action: "quit", stopJobs: true };
+      let runs: z.infer<typeof RunRecord>[];
+      try {
+        runs = await api("/runs", z.array(RunRecord));
+      } catch (reason) {
+        fail(reason);
+        return { action: "cancel", stopJobs: false };
+      }
+      if (quitAttempt.current !== attempt) return { action: "cancel", stopJobs: false };
+      const active = runs.some((run) => run.state === "queued" || run.state === "running" || run.state === "cancelling");
+      if (!active) return { action: "quit", stopJobs: false };
+      const stop = await new Promise<boolean>((resolve) => {
+        jobsWait.current = resolve;
+        setJobsOpen(true);
+      });
+      return stop ? { action: "quit", stopJobs: true } : { action: "cancel", stopJobs: false };
+    } finally {
+      if (quitAttempt.current === attempt) quitAttempt.current = null;
+    }
   };
 
   useEffect(() => {
     const bridge = desktop();
     if (!bridge?.onPrepareQuit) return;
-    return bridge.onPrepareQuit(() => quitRef.current());
+    return bridge.onPrepareQuit((intent) => quitRef.current(intent), () => quitCancelRef.current());
   }, []);
 
   const recoveryFlushRef = useRef<() => Promise<void>>(async () => {});

@@ -4,6 +4,7 @@ import {
   type CommandName,
   type DesktopPreferences,
   type QuitDecision,
+  type QuitIntent,
   type RecoveryDraft,
   type RecoveryFlushResult,
 } from "./protocol";
@@ -38,18 +39,45 @@ contextBridge.exposeInMainWorld("lightweaver", {
     ipcRenderer.on(ipcChannels.command, listener);
     return () => ipcRenderer.removeListener(ipcChannels.command, listener);
   },
-  onPrepareQuit: (handler: () => Promise<QuitDecision> | QuitDecision) => {
-    const listener = async () => {
-      const decision = await handler();
-      ipcRenderer.send(ipcChannels.quitResponse, decision);
+  onPrepareQuit: (
+    handler: (intent: QuitIntent) => Promise<QuitDecision> | QuitDecision,
+    cancel: () => void,
+  ) => {
+    let active: number | null = null;
+    const cancelListener = (_event: unknown, id: unknown) => {
+      if (active !== id) return;
+      active = null;
+      cancel();
+    };
+    const listener = async (_event: unknown, id: unknown, intent: unknown) => {
+      if (typeof id !== "number" || !Number.isSafeInteger(id)) return;
+      if (active !== null) cancel();
+      active = id;
+      let decision: QuitDecision = { action: "cancel", stopJobs: false };
+      try {
+        if (intent === "confirm-jobs" || intent === "stop-jobs")
+          decision = await handler(intent);
+      } catch {
+        // A failed confirmation must leave the application running.
+      }
+      if (active !== id) return;
+      active = null;
+      ipcRenderer.send(ipcChannels.quitResponse, id, decision);
     };
     ipcRenderer.on(ipcChannels.prepareQuit, listener);
-    return () => ipcRenderer.removeListener(ipcChannels.prepareQuit, listener);
+    ipcRenderer.on(ipcChannels.cancelQuit, cancelListener);
+    return () => {
+      ipcRenderer.removeListener(ipcChannels.prepareQuit, listener);
+      ipcRenderer.removeListener(ipcChannels.cancelQuit, cancelListener);
+      if (active !== null) cancel();
+      active = null;
+    };
   },
   onPrepareRecoveryFlush: (
     handler: () => Promise<void> | void,
   ) => {
-    const listener = async () => {
+    const listener = async (_event: unknown, id: unknown) => {
+      if (typeof id !== "number" || !Number.isSafeInteger(id)) return;
       let result: RecoveryFlushResult;
       try {
         await handler();
@@ -61,7 +89,7 @@ contextBridge.exposeInMainWorld("lightweaver", {
             error instanceof Error ? error.message : String(error),
         };
       }
-      ipcRenderer.send(ipcChannels.recoveryFlushResult, result);
+      ipcRenderer.send(ipcChannels.recoveryFlushResult, id, result);
     };
     ipcRenderer.on(ipcChannels.prepareRecoveryFlush, listener);
     return () =>

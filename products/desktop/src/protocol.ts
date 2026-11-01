@@ -22,6 +22,8 @@ export type QuitDecision = {
   stopJobs: boolean;
 };
 
+export type QuitIntent = "confirm-jobs" | "stop-jobs";
+
 export type RecoveryDraft = {
   projectId: string;
   base: string;
@@ -54,6 +56,7 @@ export const ipcChannels = {
   clearRecoveryDraft: "clear-recovery-draft",
   command: "command",
   prepareQuit: "prepare-quit",
+  cancelQuit: "cancel-quit",
   prepareRecoveryFlush: "prepare-recovery-flush",
   recoveryFlushResult: "recovery-flush-result",
 } as const;
