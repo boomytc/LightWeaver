@@ -6,6 +6,7 @@ import {
   Proposal,
   Issue,
   Digest,
+  RevisionId,
   RunSnapshot,
   OutputProfile,
   PROFILES,
@@ -555,12 +556,13 @@ export class Builds {
   }
   async submit(input: {
     projectId: string;
-    expectedRevision?: string;
+    expectedRevision: string;
     locales?: string[];
     profiles?: string[];
     regenerate?: boolean;
     requestId: string;
   }) {
+    RevisionId.parse(input.expectedRevision);
     const prior = this.jobs.prior(
       "build",
       input.requestId,

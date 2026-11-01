@@ -318,6 +318,7 @@ function conditionMatches(
   condition: RequirementCondition,
 ): boolean {
   const value = parsed.options[condition.name];
+  if (condition.absent) return value === undefined || value === false;
   if (condition.present)
     return typeof value === "string" ? value.length > 0 : value !== undefined;
   if (condition.equals)

@@ -37,6 +37,7 @@ Agent 从项目 **复制给 agent** 或 `project brief <id>` 取得完整调用�
 
 | 文档 | 范围 |
 | --- | --- |
+| [功能收尾验收](acceptance-completion.md) | Skill、桌面编辑、制作交付及异常恢复的最终闭环 |
 | [能力验收](acceptance-coverage.md) | 共享制作与媒体能力 |
 | [架构升级验收](acceptance-v2.md) | 混合场景、模型与制作链 |
 | [Agent 制作与交付验收](acceptance-agent-delivery.md) | 外部 agent 制作、交付与复盘 |

@@ -43,7 +43,7 @@ npx weaver project brief demo --json
 npx weaver schema scene --json
 npx weaver project apply --project demo --ops /absolute/ops.json --expected-revision REV --request-id edit-1 --json
 npx weaver build --project demo --locales zh --profiles landscape,portrait,square --plan --json
-npx weaver build --project demo --wait --json
+npx weaver build --project demo --expected-revision REVIEWED_REV --wait --json
 npx weaver artifacts --project demo --json
 npx weaver artifact show RECEIPT_DIGEST --json
 npx weaver export --project demo --format video --dest /absolute/movie.mp4 --json
@@ -51,13 +51,17 @@ npx weaver export --project demo --format video --dest /absolute/movie.mp4 --jso
 
 Draft 可为空。Scene 是 card、still 或 clip。静帧使用固定帧或真实语音时长，clip 使用整数微秒源窗，并显式选择源时长或语音时长。超窗默认拒绝，定格和变速由作者设置上限。原声场无需音色。
 
-场景集合变更通过共享规则移除已删除场景的 speech 字幕与遮罩，保留其他字幕及轨道设置。CLI 操作、整份项目保存和 Studio 草稿编辑使用同一规则；新提交的失效场景引用在保存时被拒绝。
+场景集合变更通过共享规则移除已删除场景的 speech 字幕与遮罩。取消旁白或切换为原声、静音时，同步移除原来绑定该场景的 speech 字幕，保留独立 timeline、source 字幕及轨道设置。CLI 操作、整份项目保存和 Studio 草稿编辑使用同一规则；新提交的无旁白场景或失效场景引用在保存时被拒绝。
 
 build 冻结作者、资产、库、provider 和工具，先准备真实事实，再编译 TimelineManifest。Remotion 只输出无声卡片，FFmpeg 统一画面、字幕、混音与最终封装。低清预览来自同一正式时间轴。
 
 缓存按实际依赖与工具版本查找。改标题保留无关语音，按 locale 的文字与字幕独立失效。交付列表按文件完整性及当前工程与已存制作快照的依赖判断状态，不加载模型或探测当前制作工具。模型和工具配置变化不阻断项目读取或已有视频导出；重新制作时冻结并校验当前环境。历史结果可以显式导出。
 
+实际提交制作必须携带已审核计划返回的 `expectedRevision`。CLI、HTTP 和共享入口均拒绝省略该值，修订变化返回冲突。只读 `build --plan` 可省略它，以取得待审核的当前计划。
+
 视频导出默认选择当前交付，也可用 `--delivery ID` 显式选择旧交付。导出校验视频摘要，复制到目标目录中的临时文件，核对副本后原子发布，不覆盖已有目标。缺失或损坏的交付拒绝导出。桌面按钮与 CLI 使用同一核心路径。目标文件系统不支持排他链接发布时返回明确错误，可先导出到支持的本地目录。
+
+视频、bundle、OTIO 和剪映导出以 requestId 保存请求与首次结果。首次请求固定交付或项目修订，响应丢失后用相同 requestId、目标路径与参数重试。重试验证目标的文件身份和内容，不把任意已有目标认作成功。已准备但尚未确认发布的输出保留在目标目录旁的私有暂存目录，进程退出后可由原请求恢复。参数变化必须使用新 requestId。目标被移动或修改后，原请求返回完整性错误。
 
 预处理素材可在 `asset add` 时传 `--provenance /absolute/provenance.json`。用 `schema media-provenance` 或 `schema media-asset` 读取合同。下面展示字段结构，`version` 的示意值需换成 `project context` 返回的实际 64 位素材版本摘要：
 
@@ -148,9 +152,9 @@ npx weaver models settings set --file /absolute/model-settings.json --json
 npx weaver schema model-settings --json
 npx weaver models download qwen3-asr --wait --json
 npx weaver models verify qwen3-asr --json
-npx weaver models use qwen3-asr --path /absolute/qwen3-asr --json
-npx weaver models use ten-vad-darwin-arm64 --path /absolute/ten_vad --json
-npx weaver models use-provider modelbest --json
+npx weaver models use qwen3-asr --path /absolute/qwen3-asr --expected-revision CONFIG_REV --json
+npx weaver models use ten-vad-darwin-arm64 --path /absolute/ten_vad --expected-revision CONFIG_REV --json
+npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 ```
 
 本地目录由 TypeScript 声明式 catalog 提供。每条发布固定 repository、revision、文件路径、大小和 SHA-256；不接受任意下载 URL。下载输入只接受 catalog 模型 ID 和根目录，路径拒绝绝对文件项、`..` 与控制字符。下载作业沿用现有 Jobs 取消、恢复、重试和事件，模型下载单独使用六小时时限。
@@ -159,7 +163,9 @@ npx weaver models use-provider modelbest --json
 
 模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码环境默认以仓库为配置基准，桌面环境默认以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，环境变量覆盖保持可见。
 
-`config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置以同目录临时文件同步后原子替换，权限为 `0600`。密钥空输入保持现值，清除必须显式请求；环境变量优先，SettingsView 只暴露是否配置和来源。
+配置写入、供应商预设和已有模型采用均需读取 `models settings get` 的 revision，写入时沿用该 expectedRevision 和稳定 requestId。响应丢失后重放原请求，不重新计算 expectedRevision。
+
+`config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置与私有请求收据注释一起同步并原子替换，权限为 `0600`。逻辑 revision 排除这些内部收据注释。收据保存请求指纹和不含明文密钥的首次结果。相同请求重放首次结果，不同参数复用 requestId 被拒绝。密钥空输入保持现值，清除必须显式请求；环境变量优先，SettingsView 只暴露是否配置和来源。
 
 | 能力 | 当前适配 | 配置 |
 | --- | --- | --- |

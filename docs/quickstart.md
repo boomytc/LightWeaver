@@ -61,8 +61,10 @@
 ```text
 <完整 CLI 命令> project show first-film --json
 <完整 CLI 命令> build --project first-film --plan --json
-<完整 CLI 命令> build --project first-film --wait --json
+<完整 CLI 命令> build --project first-film --expected-revision <reviewed-revision> --wait --json
 ```
+
+确认制作计划后，把计划返回的 `revision` 填到 `<reviewed-revision>`。若出现修订冲突，重新读取并审核计划，再决定制作新版本。
 
 `build --wait` 在终端中的阶段进度写到 stderr；通过管道或脚本执行时，加 `--progress` 才显示阶段进度。未加 `--human` 时，stdout 保持 JSON 结果，适合脚本和 agent 读取。需要终端表格时显式加 `--human`。
 

@@ -28,8 +28,8 @@ weaver: ## 调用共享应用 CLI（ARGS='doctor --json'）
 typecheck: ## 检查公开模块边界与 TypeScript
 	npm run typecheck
 
-films: ## 制作已保存项目（PROJECT=稳定项目ID）
-	./weaver/bin/weaver.mjs build --project "$(PROJECT)" --wait --json
+films: ## 制作已审核修订（PROJECT=稳定项目ID REVISION=已审核修订）
+	./weaver/bin/weaver.mjs build --project "$(PROJECT)" --expected-revision "$(REVISION)" --wait --json
 
 clean: ## 仅清理可重建构建缓存，不删除项目或原始媒体
 	rm -rf products/studio/dist products/study-films/.cache products/study-films/out

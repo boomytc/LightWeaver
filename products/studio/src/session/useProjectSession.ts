@@ -27,11 +27,17 @@ import { currentRoute, routeUrl } from "./route";
 
 type LeaveChoice = "save" | "keep" | "discard" | "cancel";
 type CreativePlanValue = z.infer<typeof CreativePlan>;
-type AssetEditSession = {
-  projectId: string;
-  generation: number;
+export type ProjectSessionIdentity = {
+  readonly projectId: string;
+  readonly generation: number;
+};
+type AssetEditSession = ProjectSessionIdentity & {
   draftSequence: number;
   assets: ProjectDocument["assets"];
+};
+type StableRequest = {
+  readonly requestId: string;
+  readonly expectedRevision?: string;
 };
 
 const Capabilities = z.object({
@@ -118,9 +124,14 @@ export function useProjectSession(client: ClientStore) {
     requestId: string;
   } | null>(null);
   const buildRetry = useRef<{ projectId: string; generation: number; revision: string; requestId: string } | null>(null);
+  const stableRequests = useRef(new Map<string, StableRequest>());
+  const assetImportReceipts = useRef(new Map<string, { requestId: string; revision: string; assetKey: string }>());
 
-  const fail = (reason: unknown) => {
-    setError(reason instanceof Error ? reason.message : String(reason));
+  const fail = (
+    reason: unknown,
+    message = reason instanceof Error ? reason.message : String(reason),
+  ) => {
+    setError(message);
     if (reason instanceof ApiError && reason.protocol.code === "REVISION_CONFLICT") {
       const details = reason.protocol.details;
       if (details && typeof details === "object" && "current" in details) {
@@ -128,6 +139,45 @@ export function useProjectSession(client: ClientStore) {
         if (parsed.success) setConflict(parsed.data);
       }
     }
+  };
+  const handleError = (reason: unknown, message?: string) => {
+    fail(reason, message);
+  };
+  const isSessionCurrent = (identity: ProjectSessionIdentity) =>
+    projectRef.current === identity.projectId &&
+    routeRef.current.projectId === identity.projectId &&
+    epoch.current === identity.generation;
+  const stableRequest = (key: string, expectedRevision?: string) => {
+    const current = stableRequests.current.get(key);
+    if (current) return current;
+    const next: StableRequest = {
+      requestId: requestId(),
+      ...(expectedRevision ? { expectedRevision } : {}),
+    };
+    stableRequests.current.set(key, next);
+    return next;
+  };
+  const rotateStableRequest = (key: string, previous: StableRequest, expectedRevision = previous.expectedRevision) => {
+    const current = stableRequests.current.get(key);
+    if (current && current.requestId !== previous.requestId) return current;
+    const next: StableRequest = { requestId: requestId(), ...(expectedRevision ? { expectedRevision } : {}) };
+    stableRequests.current.set(key, next);
+    return next;
+  };
+  const completeStableRequest = (key: string, attempt: StableRequest) => {
+    if (stableRequests.current.get(key)?.requestId === attempt.requestId)
+      stableRequests.current.delete(key);
+    if (assetImportReceipts.current.get(key)?.requestId === attempt.requestId)
+      assetImportReceipts.current.delete(key);
+  };
+  const assetImportReceipt = (key: string, attempt: StableRequest) => {
+    const receipt = assetImportReceipts.current.get(key);
+    return receipt?.requestId === attempt.requestId ? receipt : undefined;
+  };
+  const rememberAssetImport = (key: string, attempt: StableRequest, result: z.infer<typeof AssetImportResult>) => {
+    assetImportReceipts.current.set(key, {
+      requestId: attempt.requestId, revision: result.revision.id, assetKey: refKey(result.asset),
+    });
   };
 
   const refreshLists = async () => {
@@ -353,8 +403,10 @@ export function useProjectSession(client: ClientStore) {
       editSession.projectId !== projectRef.current
     )
       return "stale";
-    if (baseRef.current !== expectedRevision)
+    if (baseRef.current !== expectedRevision) {
+      setConflict(revision);
       throw new Error("素材导入期间项目修订已变化，请重新确认后导入");
+    }
 
     setCtx((current) =>
       current
@@ -376,7 +428,6 @@ export function useProjectSession(client: ClientStore) {
       );
     if (!assetsUnchanged) {
       setConflict(revision);
-      setError("素材已导入，但素材导入期间本地素材列表也被编辑；当前草稿未被覆盖");
       if (dirtyRef.current) persistRecoveryDraft();
       return "assets-changed";
     }
@@ -1102,6 +1153,7 @@ export function useProjectSession(client: ClientStore) {
     },
     setNotice,
     setError,
+    handleError,
     refreshLists,
     refreshCapabilities,
     reload,
@@ -1123,6 +1175,12 @@ export function useProjectSession(client: ClientStore) {
     addScene,
     beginAssetEditSession,
     acceptAssetImport,
+    isSessionCurrent,
+    stableRequest,
+    rotateStableRequest,
+    completeStableRequest,
+    assetImportReceipt,
+    rememberAssetImport,
     restoreDraft,
     loadServerKeepingDraft,
     currentBase: () => baseRef.current,

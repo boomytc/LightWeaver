@@ -160,4 +160,4 @@ npm run build -w @lightweaver/studio
 
 本仓采用 `confident-development-conventions`。按改动完成有限验收，结束后清理本次创建的临时脚本、mock、样本与自启服务。保留产品诊断、schema 校验、模块边界和类型检查。
 
-职责与设计说明见[架构说明](architecture-v2.md)。当前视频交付、素材来源和技能的证据见[Agent 制作与交付验收](acceptance-agent-delivery.md)。模型与媒体能力的既有证据见[能力验收](acceptance-coverage.md)、[模型安装验收](acceptance-model-setup.md)及[全片精确对齐验收](acceptance-alignment-root-cause.md)。
+职责与设计说明见[架构说明](architecture-v2.md)。当前端到端闭环与异常恢复证据见[功能收尾验收](acceptance-completion.md)，视频交付、素材来源和技能的既有证据见[Agent 制作与交付验收](acceptance-agent-delivery.md)。模型与媒体能力的既有证据见[能力验收](acceptance-coverage.md)、[模型安装验收](acceptance-model-setup.md)及[全片精确对齐验收](acceptance-alignment-root-cause.md)。

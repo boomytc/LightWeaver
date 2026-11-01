@@ -719,26 +719,43 @@ export function reconcileSceneReferences(
   previous: ProjectDocument,
   next: ProjectDocument,
 ): ProjectDocument {
-  const nextSceneIds = new Set(next.scenes.map((scene) => scene.id));
+  const nextScenes = new Map(next.scenes.map((scene) => [scene.id, scene]));
+  const nextSceneIds = new Set(nextScenes.keys());
   const removedSceneIds = new Set(
     previous.scenes
       .filter((scene) => !nextSceneIds.has(scene.id))
       .map((scene) => scene.id),
   );
-  if (!removedSceneIds.size) return next;
-
-  return {
-    ...next,
-    captions: next.captions.map((track) => ({
-      ...track,
-      cues: track.cues.filter(
-        (cue) =>
-          cue.time.kind !== "speech" ||
-          !removedSceneIds.has(cue.time.sceneId),
+  const previousSpeechRefs = new Map<string, Set<string>>();
+  for (const track of previous.captions) {
+    previousSpeechRefs.set(
+      track.locale,
+      new Set(
+        track.cues.flatMap((cue) =>
+          cue.time.kind === "speech"
+            ? [`${cue.id}\0${cue.time.sceneId}`]
+            : [],
+        ),
       ),
-    })),
-    masks: next.masks.filter((mask) => !removedSceneIds.has(mask.sceneId)),
-  };
+    );
+  }
+  let changed = false;
+  const captions = next.captions.map((track) => {
+    const priorRefs = previousSpeechRefs.get(track.locale);
+    const cues = track.cues.filter((cue) => {
+      if (cue.time.kind !== "speech") return true;
+      const scene = nextScenes.get(cue.time.sceneId);
+      if (scene && speechOf(scene)) return true;
+      return !priorRefs?.has(`${cue.id}\0${cue.time.sceneId}`);
+    });
+    if (cues.length !== track.cues.length) changed = true;
+    return cues.length === track.cues.length ? track : { ...track, cues };
+  });
+  const masks = next.masks.filter(
+    (mask) => !removedSceneIds.has(mask.sceneId),
+  );
+  if (masks.length !== next.masks.length) changed = true;
+  return changed ? { ...next, captions, masks } : next;
 }
 
 export const VlmProvider = z.enum(["modelbest-vlm", "deepseek-vlm"]);

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PROFILES, z } from "@lightweaver/weaver/contracts";
-import { api, mediaUrl, requestId } from "../api";
+import { api, ApiError, mediaUrl, requestId } from "../api";
 import { desktop } from "../desktop";
 import { labels } from "../domain/format";
 import { useSession } from "../session/context";
@@ -11,6 +11,11 @@ import { Badge } from "../ui/Badge";
 
 const exportKinds = ["file", "otio", "jianying", "bundle"] as const;
 type ExportKind = (typeof exportKinds)[number];
+type DeliveryChoice = {
+  projectId: string;
+  deliveryId: string;
+};
+const ExportResult = z.object({ file: z.string().optional() }).passthrough();
 
 const kindLabel: Record<ExportKind, string> = {
   file: "视频文件",
@@ -25,22 +30,57 @@ export function DeliveryPanel() {
   const ctx = session.ctx;
   const [pendingKind, setPendingKind] = useState<ExportKind | null>(null);
   const [destination, setDestination] = useState("");
-  const [deliveryId, setDeliveryId] = useState("");
+  const [deliveryChoice, setDeliveryChoice] = useState<DeliveryChoice | null>(null);
   if (!draft || !ctx) return null;
+  const deliveryId =
+    deliveryChoice?.projectId === draft.id &&
+    ctx.deliveries.some((delivery) => delivery.id === deliveryChoice.deliveryId)
+      ? deliveryChoice.deliveryId
+      : ctx.deliveries.find((delivery) => delivery.state === "current")?.id || "";
 
   const send = (kind: ExportKind, target: string, selectedDelivery = deliveryId) =>
     session.act(async () => {
-      const id = draft.id;
-      const result = await api(`/projects/${id}/export`, z.object({ file: z.string().optional() }).passthrough(), {
-        method: "POST",
-        body: {
-          kind,
-          destination: target,
-          ...(selectedDelivery ? { deliveryId: selectedDelivery } : {}),
-          requestId: requestId(),
-        },
-      });
-      if (session.route.projectId !== id) return;
+      const editSession = session.beginAssetEditSession();
+      if (!editSession || editSession.projectId !== draft.id) return;
+      const id = editSession.projectId;
+      const key = JSON.stringify(["project-export", id, kind, target, selectedDelivery]);
+      let attempt = session.stableRequest(key);
+      const submit = () =>
+        api(`/projects/${id}/export`, ExportResult, {
+          method: "POST",
+          body: {
+            kind,
+            destination: target,
+            ...(selectedDelivery ? { deliveryId: selectedDelivery } : {}),
+            requestId: attempt.requestId,
+          },
+        });
+      let result: z.infer<typeof ExportResult>;
+      let retriedTransport = false;
+      let retriedReuse = false;
+      while (true) {
+        try {
+          result = await submit();
+          break;
+        } catch (reason) {
+          if (
+            reason instanceof ApiError &&
+            reason.protocol.code === "REQUEST_ID_REUSED" &&
+            !retriedReuse
+          ) {
+            retriedReuse = true;
+            attempt = session.rotateStableRequest(key, attempt);
+            continue;
+          }
+          if (!(reason instanceof ApiError) && !retriedTransport) {
+            retriedTransport = true;
+            continue;
+          }
+          throw reason;
+        }
+      }
+      session.completeStableRequest(key, attempt);
+      if (!session.isSessionCurrent(editSession)) return;
       const revealed = typeof result.file === "string" ? result.file : target;
       await desktop()?.reveal?.(revealed);
       session.setNotice(`已导出${kindLabel[kind]}`);
@@ -235,7 +275,12 @@ export function DeliveryPanel() {
             </div>
             {delivery.artifacts.video && <video className="max-h-96 rounded-[8px] bg-black" controls src={mediaUrl(delivery.artifacts.video)} />}
             <div className="actions">
-              <Button size="sm" emphasized={deliveryId === delivery.id} type="button" onClick={() => setDeliveryId(delivery.id)}>
+              <Button
+                size="sm"
+                emphasized={deliveryId === delivery.id}
+                type="button"
+                onClick={() => setDeliveryChoice({ projectId: draft.id, deliveryId: delivery.id })}
+              >
                 {deliveryId === delivery.id ? "将用这份交付导出" : "导出时使用这份"}
               </Button>
               {["srt", "ass", "manifest", "receipt", "audio"]

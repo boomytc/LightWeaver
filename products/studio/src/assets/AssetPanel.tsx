@@ -1,5 +1,5 @@
 import { z, refKey } from "@lightweaver/weaver/contracts";
-import { api, mediaUrl, requestId } from "../api";
+import { api, ApiError, mediaUrl, requestId } from "../api";
 import { desktop, pathForFile } from "../desktop";
 import { useSession } from "../session/context";
 import { AssetImportResult } from "../session/useProjectSession";
@@ -9,12 +9,28 @@ import { Badge } from "../ui/Badge";
 import { AudioIcon, FileIcon, ImageIcon, VideoIcon } from "../ui/Icons";
 import { MediaSourceDetails } from "./MediaSourceDetails";
 
+type AssetImportSource =
+  | { kind: "path"; file: string }
+  | { kind: "upload"; file: File };
+
+function assetImportSourceKey(source: AssetImportSource) {
+  return source.kind === "path"
+    ? JSON.stringify([source.kind, source.file])
+    : JSON.stringify([
+        source.kind,
+        source.file.name,
+        source.file.size,
+        source.file.lastModified,
+        source.file.type,
+      ]);
+}
+
 export function useProjectAssetImport() {
   const session = useSession();
   const draft = session.draft;
   const importBatch = async (
     projectId: string,
-    senders: Array<(expectedRevision: string, request: string) => Promise<z.infer<typeof AssetImportResult>>>,
+    sources: AssetImportSource[],
   ) => {
     if (session.dirty && !(await session.save())) {
       session.setError("素材导入前未能保存当前草稿，批量导入未开始");
@@ -25,48 +41,133 @@ export function useProjectAssetImport() {
       if (!initialSession || initialSession.projectId !== projectId) throw new Error("素材导入目标项目已变化，请重新选择文件");
       let expectedRevision = session.currentBase();
       let completed = 0;
+      const accepted = new Map<string, ReturnType<typeof session.stableRequest>>();
+      let activeRequest: {
+        key: string;
+        attempt: ReturnType<typeof session.stableRequest>;
+      } | null = null;
       try {
-        for (const send of senders) {
-          const current = session.beginAssetEditSession();
-          const editSession = current?.generation === initialSession.generation ? current : initialSession;
-          const result = await send(expectedRevision, requestId());
+        for (const source of sources) {
+          const editSession = session.beginAssetEditSession();
+          if (
+            !editSession ||
+            !session.isSessionCurrent(initialSession) ||
+            editSession.projectId !== projectId ||
+            editSession.generation !== initialSession.generation
+          )
+            return;
+          const key = JSON.stringify([
+            "asset-import",
+            projectId,
+            assetImportSourceKey(source),
+          ]);
+          let attempt = session.stableRequest(key, expectedRevision);
+          activeRequest = { key, attempt };
+          let requestRevision = attempt.expectedRevision || expectedRevision;
+          const send = (request: string) => {
+            if (source.kind === "path")
+              return api(`/projects/${projectId}/assets/path`, AssetImportResult, {
+                method: "POST",
+                body: { file: source.file, expectedRevision: requestRevision, requestId: request },
+              });
+            const disk = pathForFile(source.file);
+            if (disk)
+              return api(`/projects/${projectId}/assets/path`, AssetImportResult, {
+                method: "POST",
+                body: {
+                  file: disk,
+                  name: source.file.name,
+                  expectedRevision: requestRevision,
+                  requestId: request,
+                },
+              });
+            const form = new FormData();
+            form.append("file", source.file);
+            form.append("expectedRevision", requestRevision);
+            form.append("requestId", request);
+            return api(`/projects/${projectId}/assets`, AssetImportResult, {
+              method: "POST",
+              body: form,
+            });
+          };
+          let result: z.infer<typeof AssetImportResult>;
+          let retriedTransport = false;
+          let retriedReuse = false;
+          let alreadyApplied = false;
+          while (true) {
+            try {
+              result = await send(attempt.requestId);
+              const receipt = session.assetImportReceipt(key, attempt);
+              if (receipt && receipt.revision === result.revision.id) {
+                if (!editSession.assets.some((asset) => refKey(asset) === receipt.assetKey)) {
+                  attempt = session.rotateStableRequest(key, attempt, expectedRevision);
+                  requestRevision = expectedRevision;
+                  activeRequest = { key, attempt };
+                  continue;
+                }
+                alreadyApplied = true;
+              }
+              break;
+            } catch (reason) {
+              if (
+                reason instanceof ApiError &&
+                reason.protocol.code === "REQUEST_ID_REUSED" &&
+                !retriedReuse
+              ) {
+                retriedReuse = true;
+                attempt = session.rotateStableRequest(key, attempt, expectedRevision);
+                requestRevision = expectedRevision;
+                activeRequest = { key, attempt };
+                continue;
+              }
+              if (!(reason instanceof ApiError) && !retriedTransport) {
+                retriedTransport = true;
+                continue;
+              }
+              throw reason;
+            }
+          }
+          if (!alreadyApplied) {
+            const outcome = session.acceptAssetImport(result, editSession, requestRevision);
+            if (outcome === "stale") return;
+            if (outcome === "assets-changed")
+              throw new Error("素材已导入，但素材导入期间本地素材列表也被编辑；当前草稿未被覆盖");
+            session.rememberAssetImport(key, attempt, result);
+          }
+          accepted.set(key, attempt);
           completed += 1;
-          const outcome = session.acceptAssetImport(result, editSession, expectedRevision);
-          expectedRevision = result.revision.id;
-          if (outcome === "assets-changed") throw new Error("本地素材列表也发生编辑，请核对后重新选择剩余文件");
+          expectedRevision = alreadyApplied ? session.currentBase() : result.revision.id;
         }
         await session.reload(projectId);
-        session.setNotice(`已导入 ${completed}/${senders.length} 个素材到项目 ${projectId}`);
+        if (session.isSessionCurrent(initialSession)) {
+          for (const [key, attempt] of accepted) session.completeStableRequest(key, attempt);
+          session.setNotice(`已导入 ${completed}/${sources.length} 个素材到项目 ${projectId}`);
+        }
       } catch (reason) {
-        session.setError(`项目 ${projectId} 已导入 ${completed}/${senders.length} 个素材：${reason instanceof Error ? reason.message : String(reason)}`);
+        if (
+          activeRequest &&
+          reason instanceof ApiError &&
+          reason.protocol.code !== "REQUEST_ID_REUSED"
+        )
+          session.completeStableRequest(activeRequest.key, activeRequest.attempt);
+        if (session.isSessionCurrent(initialSession)) {
+          session.handleError(
+            reason,
+            `项目 ${projectId} 已导入 ${completed}/${sources.length} 个素材：${reason instanceof Error ? reason.message : String(reason)}`,
+          );
+        }
       }
     });
   };
   const importPaths = async (paths: string[]) => {
     if (!draft || session.busy || paths.length === 0) return;
     const projectId = draft.id;
-    await importBatch(projectId, paths.map((file) => (expectedRevision, request) =>
-      api(`/projects/${projectId}/assets/path`, AssetImportResult, {
-        method: "POST",
-        body: { file, expectedRevision, requestId: request },
-      }),
-    ));
+    await importBatch(projectId, paths.map((file) => ({ kind: "path", file })));
   };
   const importFiles = async (files: File[]) => {
     if (!draft || session.busy || files.length === 0) return;
     const projectId = draft.id;
-    await importBatch(projectId, files.map((file) => (expectedRevision, request) => {
-      const disk = pathForFile(file);
-      if (disk) return api(`/projects/${projectId}/assets/path`, AssetImportResult, {
-        method: "POST",
-        body: { file: disk, name: file.name, expectedRevision, requestId: request },
-      });
-      const form = new FormData();
-      form.append("file", file);
-      form.append("expectedRevision", expectedRevision);
-      form.append("requestId", request);
-      return api(`/projects/${projectId}/assets`, AssetImportResult, { method: "POST", body: form });
-    }));
+    await importBatch(projectId, files.map((file) => ({ kind: "upload", file })));
   };
   return { importPaths, importFiles };
 }

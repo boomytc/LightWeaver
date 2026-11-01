@@ -41,7 +41,8 @@ import { VisualSearch } from "../search/visual.ts";
 import { SpeakerAssistance } from "../captions/speakers.ts";
 import { Models } from "../models/service.ts";
 import { probe } from "../media/probe.ts";
-import { exportVideo, type ExportVideoInput } from "./export-video.ts";
+import { ExportVideoResultSchema } from "./export-video.ts";
+import { DeliveryExports, type ExportOptions } from "./exports.ts";
 export { WeaverError, errorProtocol, httpStatus } from "../contracts/errors.ts";
 export {
   RuntimeContext,
@@ -63,6 +64,7 @@ export class Application {
   readonly builds: Builds;
   readonly analysis: Analysis;
   readonly interchange: Interchange;
+  readonly exports: DeliveryExports;
   readonly migration: Migration;
   readonly authoring: Authoring;
   readonly captions: CaptionAssistance;
@@ -105,6 +107,7 @@ export class Application {
       this.providers,
     );
     this.interchange = new Interchange(this.store, this.projects, this.builds);
+    this.exports = new DeliveryExports(this.store, this.projects, this.builds, this.interchange);
     this.migration = new Migration(this.store, this.projects, this.library);
     this.authoring = new Authoring(this.store, this.projects);
     this.captions = new CaptionAssistance(this.store, this.projects, this.jobs, this.providers);
@@ -114,8 +117,8 @@ export class Application {
   close(): void {
     this.store.close();
   }
-  exportVideo(input: Omit<ExportVideoInput, "store" | "builds">) {
-    return exportVideo({ ...input, store: this.store, builds: this.builds });
+  async exportVideo(input: Omit<ExportOptions, "format">) {
+    return ExportVideoResultSchema.parse(await this.exports.run({ ...input, format: "video" }));
   }
   capabilities() {
     return {
@@ -355,8 +358,9 @@ export class Application {
       `${cli.command} doctor --json`,
       `修改前重新读取当前版本，使用 --expected-revision 和独立 --request-id。发生冲突先核对内容，不自动替换版本重试。`,
       `方案先用 creative-plan import 保存供审核，再由 creative-plan apply 显式采用；也可用 project apply 提交已确认的场景编辑。`,
-      `检查制作计划：${cli.command} build --project ${p.projectId} --plan --json`,
-      `制作：${cli.command} build --project ${p.projectId} --wait --json`,
+      `检查制作计划：${cli.command} build --project ${p.projectId} --expected-revision ${p.id} --plan --json`,
+      `审核计划后制作同一修订：${cli.command} build --project ${p.projectId} --expected-revision ${p.id} --wait --json`,
+      `计划或制作发生修订冲突时，重新读取并审核新版本，不自动采用最新 head。`,
       `源片字幕可 analyze --align 后 captions from-analysis。外部作者负责剧情、选段和旁白。`,
       `技能入口：${resourcePath(".agents", "skills", "lightweaver-film", "SKILL.md")}`,
     ].join("\n");

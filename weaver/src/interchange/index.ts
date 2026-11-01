@@ -86,12 +86,12 @@ export class Interchange {
     readonly projects: Projects,
     readonly builds: Builds,
   ) {}
-  async bundle(projectId: string, destination: string) {
+  async bundle(projectId: string, destination: string, revisionId?: string) {
     const dest = emptyDest(destination),
       temp = `${dest}.${newId("partial")}`;
     fs.mkdirSync(temp);
     try {
-      const revision = this.projects.read(projectId),
+      const revision = this.projects.read(projectId, revisionId),
         assets = this.projects.assetsFor(revision.document, "saved"),
         library = this.projects.libraryFor(revision.document, "saved"),
         refs = new Set<string>([
@@ -110,6 +110,10 @@ export class Interchange {
         ArtifactManifest,
       );
       const artifacts: z.infer<typeof ArtifactManifest>[] = [];
+      const speechScenes = [
+        ...revision.document.scenes,
+        ...(revision.document.creativePlan?.beats.map((beat) => beat.scene) ?? []),
+      ];
       const relevantSpeech = (a: z.infer<typeof ArtifactManifest>) => {
         const inputs = z
           .object({
@@ -121,7 +125,7 @@ export class Interchange {
           .safeParse(a.provenance.inputs);
         return (
           inputs.success &&
-          revision.document.scenes.some((scene) => {
+          speechScenes.some((scene) => {
             const speech = speechOf(scene);
             const voice = speech?.kind === "authored" ? speech.voice[inputs.data.locale] : undefined;
             const version = library.find((v) => v.itemId === voice?.itemId && v.version === voice?.version);

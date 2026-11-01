@@ -30,6 +30,7 @@ export type PositionalSpec = {
 export type RequirementCondition = {
   readonly name: FlagName;
   readonly present?: true;
+  readonly absent?: true;
   readonly equals?: readonly string[];
 };
 
@@ -467,7 +468,7 @@ const FLAG_LIST = [
   {
     name: "label",
     value: "text",
-    description: "场景标签；卡片必填",
+    description: "场景标签；卡片省略时使用标题",
     placeholder: "TEXT",
   },
   {
@@ -479,7 +480,7 @@ const FLAG_LIST = [
   {
     name: "body",
     value: "text",
-    description: "卡片要点，每行一个；card 必填",
+    description: "卡片要点，每行一个；省略时生成标题卡",
     placeholder: "TEXT",
   },
   {
@@ -621,24 +622,25 @@ export const COMMANDS: readonly CommandSpec[] = [
     path: ["models", "use"],
     group: "模型与数据",
     summary: "采用既有模型文件或目录",
-    synopsis: "models use MODEL_ID --path /absolute/path",
+    synopsis: "models use MODEL_ID --path /absolute/path --expected-revision CONFIG_REV",
     flags: ["path", ...MUTATION_FLAGS],
     positionals: [
       { name: "model-id", description: "catalog 模型 ID", required: true },
     ],
-    requirements: [{ kind: "flag", name: "path" }],
-    examples: ["weaver models use qwen3-asr --path /absolute/qwen3-asr --json"],
+    requirements: [{ kind: "flag", name: "path" }, { kind: "flag", name: "expected-revision" }],
+    examples: ["weaver models use qwen3-asr --path /absolute/qwen3-asr --expected-revision CONFIG_REV --json"],
   },
   {
     path: ["models", "use-provider"],
     group: "模型与数据",
     summary: "采用完整远端模型 provider 预设",
-    synopsis: "models use-provider PROVIDER_ID",
+    synopsis: "models use-provider PROVIDER_ID --expected-revision CONFIG_REV",
     flags: [...MUTATION_FLAGS],
     positionals: [
       { name: "provider-id", description: "provider ID", required: true },
     ],
-    examples: ["weaver models use-provider modelbest --json"],
+    requirements: [{ kind: "flag", name: "expected-revision" }],
+    examples: ["weaver models use-provider modelbest --expected-revision CONFIG_REV --json"],
   },
   {
     path: ["schema"],
@@ -1096,7 +1098,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     path: ["build"],
     group: "制作与交付",
-    summary: "检查或提交整片制作；显式 revision 可选",
+    summary: "检查整片制作；提交时必须指定已审核 revision",
     synopsis:
       "build --project ID [--expected-revision REV] [--locales zh,en] [--profiles landscape] [--plan|--wait]",
     flags: [
@@ -1109,11 +1111,15 @@ export const COMMANDS: readonly CommandSpec[] = [
       ...WAIT_FLAGS,
       ...MUTATION_FLAGS,
     ],
-    requirements: [{ kind: "flag", name: "project" }],
+    requirements: [
+      { kind: "flag", name: "project" },
+      { kind: "flag", name: "expected-revision", conditions: [{ name: "plan", absent: true }] },
+    ],
     examples: [
       "weaver build --project first-film --plan --json",
       "weaver build --project first-film --expected-revision rev-... --wait --progress --json",
     ],
+    notes: ["--plan 只读检查可以省略 revision；实际提交必须携带已审核计划返回的 --expected-revision。"],
   },
   {
     path: ["run", "list"],
@@ -1409,7 +1415,7 @@ export const COMMANDS: readonly CommandSpec[] = [
     summary: "导出视频、bundle、OTIO 或剪映草稿",
     synopsis:
       "export --project ID --format video|bundle|otio|jianying --dest /absolute/path",
-    flags: ["project", "format", "dest", "delivery"],
+    flags: ["project", "format", "dest", "delivery", ...MUTATION_FLAGS],
     requirements: [
       { kind: "flag", name: "project" },
       { kind: "flag", name: "format" },

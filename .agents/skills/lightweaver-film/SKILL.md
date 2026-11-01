@@ -26,7 +26,7 @@ description: Author and revise LightWeaver films through the exact workspace CLI
 3. 用 `asset add` 导入任务素材。每次写入带当前 `--expected-revision` 和独立 `--request-id`。同一请求重试保留 requestId。
 4. 只有任务需要时才运行 `analyze --with asr,describe --wait`，或导入人工证据。观察记录人物、动作、场景和变化，作者另写旁白。
 5. 编辑场景前读取 `schema scene`、`schema ops`。新增单场可用 `scene add`；修改已有场景或批量编排用 `project apply`。制作前补齐所有可见内容、素材引用和必要声音策略。
-6. 制作前运行 `doctor --json` 核对本次需要的工具与能力，再运行 `build --plan` 查看缺项和缓存，最后运行 `build --wait`。准备阶段取得真实语音和媒体事实，最终时长由时间轴 manifest 决定。
+6. 制作前运行 `doctor --json` 核对本次需要的工具与能力，再运行 `build --plan` 查看缺项和缓存。审核计划后，把它返回的 `revision` 原样传给 `build --expected-revision <revision> --wait`。修订冲突时重读并审核新版本，不自动替换 revision 重试。准备阶段取得真实语音和媒体事实，最终时长由时间轴 manifest 决定。
 7. 读取 `artifacts` 和 receipt，核对交付状态、帧数与 timingQuality。需要修改时重读当前 revision，再保存局部修改并构建受影响目标。
 8. 用 `export --format video --project <id> --dest /absolute/movie.mp4 --json` 导出当前成片。需要特定版本时传 `--delivery <id>`。按用户用途选择 OTIO、剪映或 bundle；工程包写到不存在的目标路径。交接软件和模型质量的验证范围据实说明。
 

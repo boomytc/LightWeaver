@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { z, Id } from "./contracts/index.ts";
 import { WeaverError } from "./contracts/errors.ts";
 import { currentRuntime, usesInstalledConfig } from "./runtime.ts";
 const defaultRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -11,8 +12,22 @@ export function localConfigPath(root = defaultRoot): string {
   return path.join(path.resolve(root), "config.local.yaml");
 }
 
+const configRequestMarker = "# lightweaver-config-request-v1 ";
+const configRequestLine =
+  /^# lightweaver-config-request-v1 [^\r\n]*(?:\r?\n|$)/gm;
+
 export function configRevision(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
+  return createHash("sha256")
+    .update(content.replace(configRequestLine, ""))
+    .digest("hex");
+}
+
+export function localConfigContentValue(content: string, name: string): string {
+  const line = content
+    .split(/\r?\n/)
+    .find((line) => line.startsWith(`${name}:`));
+  if (!line) return "";
+  return scalarValue(line.slice(name.length + 1), name);
 }
 
 function scalarValue(rawValue: string, key: string): string {
@@ -40,31 +55,192 @@ function scalarValue(rawValue: string, key: string): string {
 export function localConfigValue(name: string, root = defaultRoot): string {
   const file = localConfigPath(root);
   if (!fs.existsSync(file)) return "";
-  const line = fs
-    .readFileSync(file, "utf8")
-    .split(/\r?\n/)
-    .find((line) => line.startsWith(`${name}:`));
-  if (!line) return "";
-  return scalarValue(line.slice(name.length + 1), name);
+  return localConfigContentValue(fs.readFileSync(file, "utf8"), name);
 }
 
 function quoteScalar(value: string): string {
   if (/[\u0000-\u001f\u007f-\u009f]/.test(value))
-    throw new WeaverError(
-      "INVALID_INPUT",
-      "本地配置值不能包含控制字符",
-    );
+    throw new WeaverError("INVALID_INPUT", "本地配置值不能包含控制字符");
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-export function patchLocalConfig(input: {
+const ConfigRequestReceipt = z.strictObject({
+  schemaVersion: z.literal(1),
+  requestId: Id,
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedRevision: z.string().regex(/^[a-f0-9]{64}$/),
+  targetRevision: z.string().regex(/^[a-f0-9]{64}$/),
+  result: z.unknown(),
+  createdAt: z.string(),
+});
+type ConfigRequestReceipt = z.infer<typeof ConfigRequestReceipt>;
+
+function normalizedPatch(
+  patch: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(patch)
+      .filter((entry): entry is [string, string] => entry[1] !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right, "en")),
+  );
+}
+
+function requestFingerprint(
+  expectedRevision: string,
+  patch: Record<string, string>,
+  identity?: unknown,
+): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        expectedRevision,
+        ...(identity === undefined
+          ? { patch: Object.entries(patch) }
+          : { request: identity }),
+      }),
+    )
+    .digest("hex");
+}
+
+function applyConfigPatch(
+  current: string,
+  patch: Record<string, string>,
+): string {
+  const lines = current ? current.split(/\r?\n/) : [];
+  for (const [key, value] of Object.entries(patch)) {
+    const matches = lines.flatMap((line, index) =>
+      line.startsWith(`${key}:`) ? [index] : [],
+    );
+    if (matches.length > 1)
+      throw new WeaverError("INVALID_INPUT", "本地配置包含重复的模型设置项", {
+        key,
+      });
+    const next = `${key}: ${quoteScalar(value)}`;
+    if (matches.length) lines[matches[0]] = next;
+    else {
+      if (lines.length && lines.at(-1) === "") lines.splice(-1, 0, next);
+      else lines.push(next);
+    }
+  }
+  return `${lines.join("\n").replace(/\n+$/, "")}\n`;
+}
+
+function syncDirectory(directory: string): void {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(directory, "r");
+    fs.fsyncSync(fd);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      ["EINVAL", "ENOTSUP", "EPERM", "EISDIR"].includes(String(error.code))
+    )
+      return;
+    throw error;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+function atomicWrite(file: string, content: string): void {
+  const directory = path.dirname(file),
+    temp = path.join(
+      directory,
+      `.${path.basename(file)}.${process.pid}.${randomUUID()}.tmp`,
+    );
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(temp, "wx", 0o600);
+    fs.writeFileSync(fd, content, "utf8");
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = undefined;
+    fs.chmodSync(temp, 0o600);
+    fs.renameSync(temp, file);
+    fs.chmodSync(file, 0o600);
+    syncDirectory(directory);
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+    fs.rmSync(temp, { force: true });
+  }
+}
+
+function configRequestReceipts(content: string): ConfigRequestReceipt[] {
+  const receipts: ConfigRequestReceipt[] = [];
+  for (const line of content.split(/\r?\n/)) {
+    if (!line.startsWith(configRequestMarker)) continue;
+    try {
+      const encoded = line.slice(configRequestMarker.length);
+      receipts.push(
+        ConfigRequestReceipt.parse(
+          JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")),
+        ),
+      );
+    } catch {
+      throw new WeaverError("INVALID_INPUT", "模型配置请求收据损坏");
+    }
+  }
+  return receipts;
+}
+
+function matchingRequest<T>(
+  content: string,
+  requestId: string,
+  fingerprint: string,
+  schema: z.ZodType<T>,
+): T | undefined {
+  const prior = configRequestReceipts(content).find(
+    (request) => request.requestId === requestId,
+  );
+  if (!prior) return;
+  if (prior.fingerprint !== fingerprint)
+    throw new WeaverError(
+      "REQUEST_ID_REUSED",
+      "同一 requestId 对应不同配置请求",
+      { requestId },
+    );
+  return schema.parse(prior.result);
+}
+
+export function replayConfigRequest<T>(input: {
   root?: string;
+  requestId: string;
   expectedRevision: string;
-  patch: Record<string, string | undefined>;
-}): string {
+  identity: unknown;
+  resultSchema: z.ZodType<T>;
+}): T | undefined {
+  Id.parse(input.requestId);
+  const file = localConfigPath(input.root);
+  const content = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+  return matchingRequest(
+    content,
+    input.requestId,
+    requestFingerprint(input.expectedRevision, {}, input.identity),
+    input.resultSchema,
+  );
+}
+
+export function patchLocalConfig<T>(input: {
+  root?: string;
+  requestId: string;
+  expectedRevision: string;
+  patch: Readonly<Record<string, string | undefined>>;
+  identity?: unknown;
+  resultSchema: z.ZodType<T>;
+  buildResult: (content: string, revision: string) => T;
+}): T {
+  Id.parse(input.requestId);
   const root = input.root || defaultRoot,
     file = localConfigPath(root),
-    lock = `${file}.lock`;
+    lock = `${file}.lock`,
+    patch = normalizedPatch(input.patch),
+    fingerprint = requestFingerprint(
+      input.expectedRevision,
+      patch,
+      input.identity,
+    );
   fs.mkdirSync(path.dirname(file), { recursive: true });
   let lockFd: number;
   try {
@@ -97,60 +273,56 @@ export function patchLocalConfig(input: {
       }),
       { encoding: "utf8" },
     );
-    const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+    for (const entry of fs.readdirSync(path.dirname(file), {
+      withFileTypes: true,
+    })) {
+      if (
+        entry.isFile() &&
+        entry.name.startsWith(`.${path.basename(file)}.`) &&
+        entry.name.endsWith(".tmp")
+      )
+        fs.rmSync(path.join(path.dirname(file), entry.name), { force: true });
+    }
+    const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "",
+      prior = matchingRequest(
+        current,
+        input.requestId,
+        fingerprint,
+        input.resultSchema,
+      );
+    if (prior !== undefined) return prior;
     if (configRevision(current) !== input.expectedRevision)
       throw new WeaverError(
         "CONFIG_CONFLICT",
         "config.local.yaml 已被其他操作修改，请刷新后重试",
       );
-    let lines = current ? current.split(/\r?\n/) : [];
-    for (const [key, value] of Object.entries(input.patch)) {
-      if (value === undefined) continue;
-      const matches = lines.flatMap((line, index) =>
-        line.startsWith(`${key}:`) ? [index] : [],
-      );
-      if (matches.length > 1)
-        throw new WeaverError(
-          "INVALID_INPUT",
-          "本地配置包含重复的模型设置项",
-          { key },
-        );
-      const next = `${key}: ${quoteScalar(value)}`;
-      if (matches.length) lines[matches[0]] = next;
-      else {
-        if (lines.length && lines.at(-1) === "") lines.splice(-1, 0, next);
-        else lines.push(next);
-      }
-    }
-    const content = `${lines.join("\n").replace(/\n+$/, "")}\n`,
+    const content = applyConfigPatch(current, patch),
       revision = configRevision(content),
-      temp = path.join(
-        path.dirname(file),
-        `.config.local.yaml.${process.pid}.${Date.now()}.tmp`,
+      result = input.resultSchema.parse(input.buildResult(content, revision));
+    const receipt: ConfigRequestReceipt = {
+      schemaVersion: 1,
+      requestId: input.requestId,
+      fingerprint,
+      expectedRevision: input.expectedRevision,
+      targetRevision: revision,
+      result,
+      createdAt: new Date().toISOString(),
+    };
+    const stored = `${content.replace(/\n+$/, "")}\n${configRequestMarker}${Buffer.from(
+      JSON.stringify(ConfigRequestReceipt.parse(receipt)),
+    ).toString("base64url")}\n`;
+    if (configRevision(stored) !== revision)
+      throw new WeaverError(
+        "EXECUTION_FAILED",
+        "模型配置请求收据改变了配置修订",
       );
-    try {
-      const fd = fs.openSync(temp, "wx", 0o600);
-      try {
-        fs.writeFileSync(fd, content, "utf8");
-        fs.fsyncSync(fd);
-      } finally {
-        fs.closeSync(fd);
-      }
-      fs.chmodSync(temp, 0o600);
-      fs.renameSync(temp, file);
-      fs.chmodSync(file, 0o600);
-    } finally {
-      fs.rmSync(temp, { force: true });
-    }
-    return revision;
+    atomicWrite(file, stored);
+    return result;
   } finally {
     fs.closeSync(lockFd);
     try {
       const current = fs.statSync(lock);
-      if (
-        current.dev === lockIdentity.dev &&
-        current.ino === lockIdentity.ino
-      )
+      if (current.dev === lockIdentity.dev && current.ino === lockIdentity.ino)
         fs.rmSync(lock, { force: true });
     } catch {
       // The owner never removes a lock that it cannot prove is its own.
@@ -177,9 +349,7 @@ function recoverStaleLock(lock: string): void {
       return;
     }
     const pid =
-      data && typeof data === "object" && "pid" in data
-        ? Number(data.pid)
-        : 0;
+      data && typeof data === "object" && "pid" in data ? Number(data.pid) : 0;
     if (!Number.isInteger(pid) || pid <= 0) {
       if (age > malformedGraceMs) fs.rmSync(lock, { force: true });
       return;

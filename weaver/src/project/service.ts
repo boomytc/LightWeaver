@@ -109,21 +109,30 @@ export class Projects {
       )
     )
       throw new WeaverError("INVALID_INPUT", "语言、输出规格或字幕标识重复");
-    const sceneIds = new Set(doc.scenes.map((scene) => scene.id));
+    const scenes = new Map(doc.scenes.map((scene) => [scene.id, scene]));
     const invalidSpeechCues = doc.captions.flatMap((track) =>
-      track.cues.flatMap((cue) =>
-        cue.time.kind === "speech" && !sceneIds.has(cue.time.sceneId)
-          ? [{ locale: track.locale, cueId: cue.id, sceneId: cue.time.sceneId }]
-          : [],
-      ),
+      track.cues.flatMap((cue) => {
+        if (cue.time.kind !== "speech") return [];
+        const scene = scenes.get(cue.time.sceneId);
+        return !scene || !speechOf(scene)
+          ? [
+              {
+                locale: track.locale,
+                cueId: cue.id,
+                sceneId: cue.time.sceneId,
+                reason: scene ? "speech-removed" : "scene-missing",
+              },
+            ]
+          : [];
+      }),
     );
     const invalidMasks = doc.masks.flatMap((mask, index) =>
-      sceneIds.has(mask.sceneId)
+      scenes.has(mask.sceneId)
         ? []
         : [{ index, sceneId: mask.sceneId }],
     );
     if (invalidSpeechCues.length || invalidMasks.length)
-      throw new WeaverError("INVALID_INPUT", "字幕或遮罩引用了不存在的场景", {
+      throw new WeaverError("INVALID_INPUT", "语音字幕没有对应的旁白场景或遮罩引用了不存在的场景", {
         captions: invalidSpeechCues,
         masks: invalidMasks,
       });

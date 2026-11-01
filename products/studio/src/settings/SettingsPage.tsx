@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
 import { UiSelect } from "../ui/UiSelect";
@@ -125,13 +125,47 @@ function RuntimePanel() {
   const save = async () => {
     setSaving(true);
     try {
-      const body = ModelSettingsPatch.parse({ expectedRevision: settings.revision, ...fields });
-      const next = await api("/models/settings", ModelSettingsView, { method: "PUT", body });
+      const submittedFields = fields;
+      const payload = ModelSettingsPatch.parse({ expectedRevision: settings.revision, ...submittedFields });
+      const key = JSON.stringify(["model-settings", payload]);
+      let attempt = session.stableRequest(key);
+      const submit = () =>
+        api("/models/settings", ModelSettingsView, {
+          method: "PUT",
+          body: { ...payload, requestId: attempt.requestId },
+        });
+      let next: z.infer<typeof ModelSettingsView>;
+      let retriedTransport = false;
+      let retriedReuse = false;
+      while (true) {
+        try {
+          next = await submit();
+          break;
+        } catch (reason) {
+          if (
+            reason instanceof ApiError &&
+            reason.protocol.code === "REQUEST_ID_REUSED" &&
+            !retriedReuse
+          ) {
+            retriedReuse = true;
+            attempt = session.rotateStableRequest(key, attempt);
+            continue;
+          }
+          if (!(reason instanceof ApiError) && !retriedTransport) {
+            retriedTransport = true;
+            continue;
+          }
+          throw reason;
+        }
+      }
+      session.completeStableRequest(key, attempt);
       setSettings(next);
-      setFields(runtimeFieldValues(next));
+      setFields((current) => current === submittedFields ? runtimeFieldValues(next) : current);
       window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
       session.setNotice("运行时路径已保存，环境变量覆盖仍优先");
-    } catch (reason) { session.setError(reason instanceof Error ? reason.message : String(reason)); }
+    } catch (reason) {
+      session.handleError(reason);
+    }
     finally { setSaving(false); }
   };
   const rows = [

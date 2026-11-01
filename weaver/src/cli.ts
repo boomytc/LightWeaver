@@ -261,7 +261,7 @@ async function main(): Promise<void> {
       if (action === "settings") {
         if (arg === "get") result = app.models.settings();
         else if (arg === "set")
-          result = app.models.save(jsonFile(parsed, "file"));
+          result = app.models.save({ payload: jsonFile(parsed, "file"), requestId });
         else
           throw new WeaverError(
             "INVALID_INPUT",
@@ -295,18 +295,21 @@ async function main(): Promise<void> {
         const modelId = parsed.words[2];
         if (!modelId)
           throw new WeaverError("INVALID_INPUT", "缺少 model-id");
-        result = await app.models.adopt(
-          modelId,
-          required(parsed, "path"),
-        );
+        result = app.models.adopt({
+          id: modelId,
+          directory: required(parsed, "path"),
+          expectedRevision: required(parsed, "expected-revision"),
+          requestId,
+        });
       } else if (action === "use-provider") {
         const providerId = parsed.words[2];
         if (!providerId)
           throw new WeaverError("INVALID_INPUT", "缺少 provider-id");
-        result = app.models.adoptProvider(
-          providerId,
-          app.models.settings().revision,
-        );
+        result = app.models.adoptProvider({
+          id: providerId,
+          expectedRevision: required(parsed, "expected-revision"),
+          requestId,
+        });
       } else
         throw new WeaverError("INVALID_INPUT", "未知 models 操作");
     } else if (command === "schema") {
@@ -548,7 +551,10 @@ async function main(): Promise<void> {
           revision: snapshot.projectRevision.id,
         };
       } else {
-        const run = await app.builds.submit(input);
+        const run = await app.builds.submit({
+          ...input,
+          expectedRevision: required(parsed, "expected-revision"),
+        });
         result = booleanOption(parsed, "wait")
           ? {
               run: await wait(run.id),
@@ -738,24 +744,13 @@ async function main(): Promise<void> {
         const format = z
           .enum(["video", "bundle", "otio", "jianying"])
           .parse(required(parsed, "format"));
-        result =
-          format === "video"
-            ? await app.exportVideo({
-                projectId: required(parsed, "project"),
-                destination: required(parsed, "dest"),
-                deliveryId: option(parsed, "delivery"),
-              })
-            : format === "bundle"
-              ? await app.interchange.bundle(
-                  required(parsed, "project"),
-                  required(parsed, "dest"),
-                )
-              : await app.interchange.export({
-                  projectId: required(parsed, "project"),
-                  format,
-                  destination: required(parsed, "dest"),
-                  deliveryId: option(parsed, "delivery"),
-                });
+        result = await app.exports.run({
+          projectId: required(parsed, "project"),
+          format,
+          destination: required(parsed, "dest"),
+          deliveryId: option(parsed, "delivery"),
+          requestId,
+        });
       }
     } else if (command === "import")
       result = await app.interchange.importBundle(

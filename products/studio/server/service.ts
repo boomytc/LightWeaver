@@ -196,12 +196,15 @@ export async function startStudioService(
     app.models.view(z.string().min(1).optional().parse(req.query.root)),
   );
   route("get", "/api/models/settings", () => app.models.settings());
-  route("put", "/api/models/settings", (req) => app.models.save(req.body));
+  route("put", "/api/models/settings", (req) => {
+    const { requestId, ...payload } = z.object({ requestId: z.string().min(1) }).passthrough().parse(req.body);
+    return app.models.save({ payload, requestId });
+  });
   route("post", "/api/models/providers/:id/adopt", (req) =>
-    app.models.adoptProvider(
-      z.string().parse(req.params.id),
-      z.object({ expectedRevision: z.string() }).parse(req.body).expectedRevision,
-    ),
+    app.models.adoptProvider({
+      id: z.string().parse(req.params.id),
+      ...z.object({ expectedRevision: z.string(), requestId: z.string() }).parse(req.body),
+    }),
   );
   route("post", "/api/models/:id/download", (req) =>
     app.models.download({
@@ -216,10 +219,11 @@ export async function startStudioService(
     ),
   );
   route("post", "/api/models/:id/adopt", (req) =>
-    app.models.adopt(
-      z.string().parse(req.params.id),
-      z.object({ path: z.string() }).parse(req.body).path,
-    ),
+    app.models.adopt({
+      id: z.string().parse(req.params.id),
+      directory: z.object({ path: z.string() }).parse(req.body).path,
+      ...z.object({ expectedRevision: z.string(), requestId: z.string() }).parse(req.body),
+    }),
   );
   route("get", "/api/projects", () => app.projects.list());
   route("post", "/api/projects/import-bundle", async (req) => {
@@ -453,7 +457,7 @@ export async function startStudioService(
           locales: z.array(z.string()).optional(),
           profiles: z.array(z.string()).optional(),
           regenerate: z.boolean().optional(),
-          expectedRevision: z.string().optional(),
+          expectedRevision: z.string().min(1),
           requestId: z.string(),
         })
         .parse(req.body),
@@ -648,19 +652,12 @@ export async function startStudioService(
     if (!path.isAbsolute(input.destination) || input.destination.includes("\0"))
       throw new Error("导出目标必须是绝对路径");
     const projectId = z.string().parse(req.params.id);
-    if (input.kind === "bundle")
-      return app.interchange.bundle(projectId, input.destination);
-    if (input.kind === "otio" || input.kind === "jianying")
-      return app.interchange.export({
-        projectId,
-        format: input.kind,
-        destination: input.destination,
-        deliveryId: input.deliveryId,
-      });
-    return app.exportVideo({
+    return app.exports.run({
       projectId,
+      format: input.kind === "file" ? "video" : input.kind,
       destination: input.destination,
       deliveryId: input.deliveryId,
+      requestId: input.requestId,
     });
   });
   route("post", "/api/export/verify", (req) =>

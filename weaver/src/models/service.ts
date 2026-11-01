@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import {
   z,
   DownloadInput,
+  Id,
   ModelSettingsPatch,
   ModelSettingsView,
   ModelStatus,
@@ -16,9 +17,10 @@ import { WeaverError } from "../contracts/errors.ts";
 import {
   configRevision,
   localConfigPath,
-  localConfigValue,
+  localConfigContentValue,
   modelbestBackend,
   patchLocalConfig,
+  replayConfigRequest,
 } from "../config.ts";
 import { Jobs, type NodeContext } from "../jobs/index.ts";
 import {
@@ -112,10 +114,21 @@ function field(
   setting: Setting,
   env: NodeJS.ProcessEnv,
 ): z.infer<typeof ModelSettingsView>["values"][string] {
+  const content = fs.existsSync(localConfigPath(root))
+    ? fs.readFileSync(localConfigPath(root), "utf8")
+    : "";
+  return fieldFromContent(content, setting, env);
+}
+
+function fieldFromContent(
+  content: string,
+  setting: Setting,
+  env: NodeJS.ProcessEnv,
+): z.infer<typeof ModelSettingsView>["values"][string] {
   const fromEnvironment = env[setting.environment]?.trim();
   if (fromEnvironment)
     return { value: fromEnvironment, source: "environment" };
-  const fromFile = localConfigValue(setting.key, root);
+  const fromFile = localConfigContentValue(content, setting.key);
   if (fromFile) return { value: fromFile, source: "file" };
   if (setting.fallback !== undefined)
     return { value: setting.fallback, source: "default" };
@@ -185,14 +198,18 @@ export class Models {
 
   settings(env: NodeJS.ProcessEnv = process.env) {
     const content = fs.existsSync(localConfigPath(this.root))
-        ? fs.readFileSync(localConfigPath(this.root), "utf8")
-        : "",
-      values = Object.fromEntries(
-        Object.entries(SETTINGS).map(([name, setting]) => [
-          name,
-          field(this.root, setting, env),
-        ]),
-      );
+      ? fs.readFileSync(localConfigPath(this.root), "utf8")
+      : "";
+    return this.settingsFromContent(content, env);
+  }
+
+  private settingsFromContent(content: string, env: NodeJS.ProcessEnv) {
+    const values = Object.fromEntries(
+      Object.entries(SETTINGS).map(([name, setting]) => [
+        name,
+        fieldFromContent(content, setting, env),
+      ]),
+    );
     if (values.downloadRoot.source === "unset")
       values.downloadRoot = {
         value: currentRuntime().modelDir,
@@ -200,7 +217,7 @@ export class Models {
       };
     const keySource = env.MODELBEST_API_KEY?.trim()
       ? "environment"
-      : localConfigValue("modelbest_api_key", this.root)
+      : localConfigContentValue(content, "modelbest_api_key")
         ? "file"
         : "unset";
     return ModelSettingsView.parse({
@@ -266,15 +283,16 @@ export class Models {
     });
   }
 
-  save(raw: unknown) {
-    const input = ModelSettingsPatch.parse(raw),
+  save(input: { payload: unknown; requestId: string }) {
+    Id.parse(input.requestId);
+    const request = ModelSettingsPatch.parse(input.payload),
       patch: Record<string, string | undefined> = {};
-    if (input.modelbestApiKey?.trim())
-      patch.modelbest_api_key = input.modelbestApiKey.trim();
-    if (input.clearModelbestApiKey) patch.modelbest_api_key = "";
-    if (input.downloadRoot !== undefined)
-      patch.model_download_root = input.downloadRoot.trim();
-    for (const [name, value] of Object.entries(input)) {
+    if (request.modelbestApiKey?.trim())
+      patch.modelbest_api_key = request.modelbestApiKey.trim();
+    if (request.clearModelbestApiKey) patch.modelbest_api_key = "";
+    if (request.downloadRoot !== undefined)
+      patch.model_download_root = request.downloadRoot.trim();
+    for (const [name, value] of Object.entries(request)) {
       if (
         name === "expectedRevision" ||
         name === "modelbestApiKey" ||
@@ -285,27 +303,33 @@ export class Models {
       const setting = SETTINGS[name];
       if (setting && typeof value === "string") patch[setting.key] = value.trim();
     }
-    patchLocalConfig({
+    return this.writeSettings({
       root: this.root,
-      expectedRevision: input.expectedRevision,
+      requestId: input.requestId,
+      expectedRevision: request.expectedRevision,
       patch,
     });
-    return this.settings();
   }
 
-  adoptProvider(id: string, expectedRevision: string) {
-    if (id !== "modelbest")
-      throw new WeaverError("INVALID_INPUT", "未知供应商预设", { id });
-    patchLocalConfig({
+  adoptProvider(input: {
+    id: string;
+    expectedRevision: string;
+    requestId: string;
+  }) {
+    if (input.id !== "modelbest")
+      throw new WeaverError("INVALID_INPUT", "未知供应商预设", {
+        id: input.id,
+      });
+    return this.writeSettings({
       root: this.root,
-      expectedRevision,
+      requestId: input.requestId,
+      expectedRevision: input.expectedRevision,
       patch: {
         vlm_provider: "modelbest-vlm",
         vlm_model: MODELBEST_VLM_MODEL,
         tts_model: MODELBEST_TTS_MODEL,
       },
     });
-    return this.settings();
   }
 
   download(raw: unknown) {
@@ -349,10 +373,18 @@ export class Models {
     return this.verifyDirectory(item, resolved, directory);
   }
 
-  adopt(id: string, directory: string) {
-    const item = this.model(id),
-      resolved = resolvePath(this.root, directory),
-      expectedRevision = this.settings().revision;
+  adopt(input: {
+    id: string;
+    directory: string;
+    expectedRevision: string;
+    requestId: string;
+  }) {
+    Id.parse(input.requestId);
+    const resolved = resolvePath(this.root, input.directory);
+    const identity = { operation: "model-adopt", id: input.id, directory: resolved };
+    const prior = replayConfigRequest({ ...input, root: this.root, identity, resultSchema: ModelSettingsView });
+    if (prior) return Promise.resolve(prior);
+    const item = this.model(input.id);
     let isFile = false;
     try {
       isFile = fs.statSync(resolved).isFile();
@@ -363,7 +395,7 @@ export class Models {
       throw new WeaverError(
         "INVALID_INPUT",
         "多文件模型必须采用完整目录",
-        { id },
+        { id: input.id },
       );
     const verification = isFile
       ? this.verifySingleFile(item, resolved)
@@ -383,7 +415,7 @@ export class Models {
               throw new WeaverError(
                 "INVALID_INPUT",
                 "单文件模型包含不兼容的目录绑定",
-                { id, setting: binding.setting },
+                { id: input.id, setting: binding.setting },
               );
             patch[binding.setting] = resolved;
             continue;
@@ -391,14 +423,29 @@ export class Models {
           safeRelative(binding.target === "file" ? binding.file : "");
           patch[binding.setting] = modelBindingValue(item, resolved, binding);
         }
-        patchLocalConfig({
+        return this.writeSettings({
           root: this.root,
-          expectedRevision,
+          requestId: input.requestId,
+          expectedRevision: input.expectedRevision,
           patch,
+          identity,
         });
-        return this.settings();
       },
     );
+  }
+
+  private writeSettings(input: {
+    root: string;
+    requestId: string;
+    expectedRevision: string;
+    patch: Record<string, string | undefined>;
+    identity?: unknown;
+  }) {
+    return patchLocalConfig({
+      ...input,
+      resultSchema: ModelSettingsView,
+      buildResult: (content) => this.settingsFromContent(content, process.env),
+    });
   }
 
   private directory(root: string, item: DownloadableLocalModel): string {

@@ -16,12 +16,12 @@
 <ACTUAL CLI> project create first-film --sample --json
 <ACTUAL CLI> project show first-film --json
 <ACTUAL CLI> build --project first-film --plan --json
-<ACTUAL CLI> build --project first-film --wait --json
+<ACTUAL CLI> build --project first-film --expected-revision <reviewed-revision> --wait --json
 <ACTUAL CLI> artifacts --project first-film --json
 <ACTUAL CLI> export --project first-film --format video --dest /absolute/first-film.mp4 --json
 ```
 
-示例是三张固定 90 帧的卡片，不含外部素材或声音。创建入口的源码或桌面包形式以实际 brief 和运行时为准。
+审核计划后，用返回的 `revision` 替换 `<reviewed-revision>`。示例是三张固定 90 帧的卡片，不含外部素材或声音。创建入口的源码或桌面包形式以实际 brief 和运行时为准。
 
 ## CreativePlan 流程
 
@@ -46,12 +46,12 @@
 <ACTUAL CLI> project show demo --json
 <ACTUAL CLI> project apply --project demo --ops /absolute/edits.json --expected-revision revision --json
 <ACTUAL CLI> build --project demo --plan --json
-<ACTUAL CLI> build --project demo --wait --json
+<ACTUAL CLI> build --project demo --expected-revision <reviewed-revision> --wait --json
 <ACTUAL CLI> artifacts --project demo --json
 <ACTUAL CLI> export --project demo --format video --dest /absolute/movie.mp4 --json
 ```
 
-每次修改后使用返回的新 revision。job 返回 runId；取消用 `run cancel`，中断后用 `run resume --wait`。独立 ASR、TTS 无需创建项目。
+每次修改后使用返回的新 revision。制作时使用已审核计划的 `revision`，不能用新的 head 绕过冲突。job 返回 runId；取消用 `run cancel`，中断后用 `run resume --wait`。独立 ASR、TTS 无需创建项目。
 
 新增简单场景可运行 `scene add`；修改已有场景使用 `project apply`。`--kind` 接受 `card`、`still`、`clip`；卡片需要 `--headline`，`--label` 默认取标题，`--body` 可省略。静帧和视频片段使用 `--source`，视频片段可传 `--start`、`--duration`。`--duration` 按秒计，写入仍必须带 `--expected-revision`。可执行的纯卡片批量写入样例见 [sample-ops.json](examples/sample-ops.json)。
 

@@ -34,15 +34,13 @@ export type ExportVideoInput = ExportVideoOptions & {
   builds: Builds;
 };
 
-export type ExportVideoResult = {
-  file: string;
-  digest: z.infer<typeof Digest>;
-  deliveryId: string;
-  state: Exclude<
-    Awaited<ReturnType<Builds["deliveries"]>>[number]["state"],
-    "missing"
-  >;
-};
+export const ExportVideoResultSchema = z.strictObject({
+  file: z.string(),
+  digest: Digest,
+  deliveryId: Id,
+  state: z.enum(["current", "stale", "historical"]),
+});
+export type ExportVideoResult = z.infer<typeof ExportVideoResultSchema>;
 
 async function canonicalDestination(destination: string): Promise<string> {
   const requested = path.resolve(destination),
@@ -66,12 +64,12 @@ async function targetExists(target: string): Promise<boolean> {
   }
 }
 
-async function publishWithoutOverwrite(
+export function publishFileWithoutOverwrite(
   staged: string,
   target: string,
-): Promise<void> {
+): void {
   try {
-    await fsp.link(staged, target);
+    fs.linkSync(staged, target);
   } catch (error) {
     if (isErrno(error, "EEXIST"))
       throw new WeaverError(
@@ -166,13 +164,13 @@ export async function exportVideo(
     } finally {
       await handle.close();
     }
-    await publishWithoutOverwrite(staged, target);
-    return {
+    publishFileWithoutOverwrite(staged, target);
+    return ExportVideoResultSchema.parse({
       file: target,
       digest: video,
       deliveryId: delivery.id,
       state: delivery.state,
-    };
+    });
   } finally {
     await fsp.rm(staged, { force: true }).catch(() => undefined);
   }

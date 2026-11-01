@@ -7,7 +7,8 @@ import {
   VerifyResult,
   EventRecord,
 } from "@lightweaver/weaver/contracts";
-import { api, requestId } from "../api";
+import { api, ApiError, requestId } from "../api";
+import { useSession } from "../session/context";
 import { desktop, openLink } from "../desktop";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { Button } from "../ui/Button";
@@ -77,6 +78,7 @@ export function ModelSettings({
   onOpenRuntime: () => void;
   onOpenJobs: () => void;
 }) {
+  const session = useSession();
   const [view, setView] = useState<z.infer<typeof ModelsView> | null>(null),
     [root, setRoot] = useState(""),
     [apiKey, setApiKey] = useState(""),
@@ -176,18 +178,38 @@ export function ModelSettings({
     [view, adoptPaths],
   );
 
+  const writeSettings = async (
+    endpoint: string,
+    method: "PUT" | "POST",
+    payload: Record<string, unknown>,
+  ) => {
+    const key = JSON.stringify([endpoint, payload]);
+    const attempt = session.stableRequest(key);
+    const submit = () => api(endpoint, ModelSettingsView, {
+      method,
+      body: { ...payload, requestId: attempt.requestId },
+    });
+    let saved: z.infer<typeof ModelSettingsView>;
+    try { saved = await submit(); }
+    catch (error) {
+      if (error instanceof ApiError) throw error;
+      saved = await submit();
+    }
+    session.completeStableRequest(key, attempt);
+    return saved;
+  };
+
   const saveSettings = async (patch: Record<string, unknown>) => {
     if (!view) return;
     const submittedRoot =
       typeof patch.downloadRoot === "string" ? patch.downloadRoot : undefined;
-    const saved = await api("/models/settings", ModelSettingsView, {
-      method: "PUT",
-      body: {
-        expectedRevision: view.settings.revision,
-        ...patch,
-      },
+    const submittedApiKey = apiKey;
+    const saved = await writeSettings("/models/settings", "PUT", {
+      expectedRevision: view.settings.revision,
+      ...patch,
     });
-    setApiKey("");
+    if ("modelbestApiKey" in patch || patch.clearModelbestApiKey)
+      setApiKey((current) => current === submittedApiKey ? "" : current);
     if (submittedRoot !== undefined && rootRef.current === submittedRoot) {
       rootDirty.current = false;
       rootRef.current = saved.downloadRoot.value;
@@ -258,13 +280,10 @@ export function ModelSettings({
           disabled={!!busy}
           onClick={() =>
             act("采用 ModelBest 预设", async () => {
-              await api(
+              await writeSettings(
                 `/models/providers/modelbest/adopt`,
-                ModelSettingsView,
-                {
-                  method: "POST",
-                  body: { expectedRevision: view.settings.revision },
-                },
+                "POST",
+                { expectedRevision: view.settings.revision },
               );
               await refreshModels(false);
               window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
@@ -504,15 +523,10 @@ export function ModelSettings({
                 }
                 onClick={() =>
                   act(`采用 ${model.id}`, async () => {
-                    await api(
+                    await writeSettings(
                       `/models/${encodeURIComponent(model.id)}/adopt`,
-                      ModelSettingsView,
-                      {
-                        method: "POST",
-                        body: {
-                          path: adoptPath,
-                        },
-                      },
+                      "POST",
+                      { path: adoptPath, expectedRevision: view.settings.revision },
                     );
                     await refreshModels(false);
                     window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
