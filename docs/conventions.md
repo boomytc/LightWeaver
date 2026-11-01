@@ -16,13 +16,23 @@
 
 ## 公开入口
 
-Node 产品使用 `@lightweaver/weaver/app`，浏览器使用 `@lightweaver/weaver/contracts`。`weaver capabilities` 返回工作流、输出规格、provider 描述符和内置包版本。capabilities 与 doctor 的 `runtime` 显示实际模式、数据目录和配置文件，供 agent 核对目标工作区。`schema` 由运行时 Zod 合同生成。下列 `npx weaver` 示例用于源码工作区；协作桌面项目时换成设置页提供的随包 CLI。
+Node 产品使用 `@lightweaver/weaver/app`，浏览器使用 `@lightweaver/weaver/contracts`。`weaver capabilities` 返回工作流、输出规格、provider 描述符和内置包版本。capabilities 与 doctor 的 `runtime` 显示实际模式、数据目录和配置文件，供 agent 核对目标工作区。capabilities 和 Studio 设置页还提供带绝对 Node、CLI、数据目录、配置文件和配置基准的完整命令；项目 brief 沿用同一命令，供其他工作目录中的 agent 访问当前项目。`schema` 由运行时 Zod 合同生成。下列 `npx weaver` 示例用于源码工作区；协作桌面项目时换成设置页提供的随包 CLI。
 
-stdout 结果为 `{ok:true,result,requestId}`，错误为 `{ok:false,error:{code,message,retryable,details,hints}}`。日志进 stderr。`--json` 输出单行 JSON。CLI `events` 输出 JSONL，`run events` 返回事件数组。HTTP 返回相同结果与错误形状；SSE 使用单调 seq，支持 Last-Event-ID。
+stdout 结果为 `{ok:true,result,requestId}`，错误为 `{ok:false,error:{code,message,retryable,details,hints}}`。日志进 stderr。`--json` 输出单行 JSON。CLI 默认仍返回 JSON；终端用户可显式使用 `--human`，它与 `--json` 互斥。帮助和参数检查共享命令描述，必填参数自动进入允许参数和帮助，不接受未知参数。`--help`、`-h` 在创建 Application 前解析。`--wait` 在终端中默认把阶段进度写到 stderr，非终端可显式加 `--progress`；stdout 保持结果契约。CLI `events` 输出 JSONL，`run events` 返回事件数组。HTTP 返回相同结果与错误形状；SSE 使用单调 seq，支持 Last-Event-ID。
 
 项目写入携带 expectedRevision，库写入携带 expectedVersion。requestId 标识一次逻辑请求，相同请求可重试。修订冲突返回当前内容。删除库 head 使用墓碑，精确版本继续可读。
 
+帮助按命令作用域发现，完整参数以当前 CLI 返回为准：
+
+```bash
+npx weaver --help --human
+npx weaver scene add --help --human
+npx weaver project list --human
+```
+
 素材导入按文件内容摘要和请求参数识别重试，不把上传临时路径作为请求身份。已完成的请求返回首次素材与修订，沿用首次 expectedRevision；同一 requestId 对应不同内容或参数时返回 REQUEST_ID_REUSED。素材名、类型与 MIME 包括从文件名推导的默认值，改变这些值也会被拒绝。重试仍需提供相同文件字节。
+
+`project create --sample` 和 Studio 的“打开示例”通过同一项目创建事务生成三张无旁白文字卡片，每张 90 帧，不导入素材或调用模型。默认规格为 1920×1080、30 fps，制作仍需 FFmpeg、ffprobe 和 Chrome。`scene add` 在共享项目写入入口按 requestId 查重、检查 expectedRevision，再解析源素材与时长；改变请求参数不能复用旧 requestId。card 的 body、label 可省略，locale 必须属于项目语言；still 和 clip 使用当前修订的精确素材引用。
 
 ## 编辑与制作
 
@@ -222,6 +232,10 @@ make desktop          # Electron + Vite HMR + 动态端口服务
 make desktop-package  # 本机未签名可运行包
 make desktop-dist     # 未签名安装分发包
 ```
+
+Studio 的“保存”一次写入文档与待审创作方案；“保存并制作”先完成该写入，再以返回的精确 expectedRevision 提交制作。保存方案不会自动采用场景。等待保存期间产生新文档或方案编辑时，保留草稿并暂停制作；保存或提交制作的响应丢失时，相同内容重试复用 requestId。离开项目时选择保存也使用同一写入。创建项目和导入项目包的失败重试保留请求身份，确认成功后才结束该操作。
+
+冲突界面保留本地草稿并展示内容差异。加载服务器内容前先备份、重新读取 head；服务器又更新时要求重新查看差异。备份、读取及恢复的回调绑定项目、会话代次和草稿序号，不能清除期间的新编辑，也不能向新项目展示旧项目的恢复 journal 错误。
 
 `make studio` 继续使用仓库 `data/.weaver` 与 Vite。桌面开发包和正式包默认把数据库写到用户目录，不写安装目录或仓库数据。`LIGHTWEAVER_USER_DATA` 可隔离整个桌面配置。正式服务和 CLI 使用随包 Node；bundle 内的 `bin/weaver`（Windows 为 `bin/weaver.cmd`）默认读取同一桌面偏好，也可用 `--data-dir`、`--config-file`、`--config-base` 显式覆盖。
 

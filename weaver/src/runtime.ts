@@ -110,6 +110,24 @@ export function currentRuntime(): RuntimeContext {
   return active ?? developmentRuntime();
 }
 
+export function cliInvocation(context = currentRuntime()) {
+  const node = context.tools.node;
+  const entry = context.mode === "production"
+    ? path.join(path.dirname(context.resourcesDir), "service", "cli.mjs")
+    : path.join(context.resourcesDir, "weaver", "bin", "weaver.mjs");
+  const quote = (value: string) => process.platform === "win32"
+    ? `'${value.replaceAll("'", "''")}'`
+    : `'${value.replaceAll("'", "'\"'\"'")}'`;
+  const command = [node, entry, "--data-dir", context.dataDir, "--config-file", context.configFile, "--config-base", context.configBase]
+    .map(quote).join(" ");
+  return {
+    node,
+    entry,
+    shell: process.platform === "win32" ? "PowerShell" : "POSIX shell",
+    command: `${process.platform === "win32" ? "& " : ""}${command}`,
+  };
+}
+
 export function resourcePath(...parts: string[]): string {
   const file = path.join(currentRuntime().resourcesDir, ...parts);
   const root = path.resolve(currentRuntime().resourcesDir);

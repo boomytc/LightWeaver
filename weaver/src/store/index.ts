@@ -344,9 +344,16 @@ export class Store {
     file: string,
     mime = "application/octet-stream",
   ): Promise<z.infer<typeof Digest>> {
-    const source = await fsp.realpath(file);
-    if (!(await fsp.stat(source)).isFile())
-      throw new WeaverError("INVALID_INPUT", "素材必须是普通文件");
+    let source: string;
+    try {
+      source = await fsp.realpath(file);
+      if (!(await fsp.stat(source)).isFile())
+        throw new WeaverError("INVALID_INPUT", "素材必须是普通文件");
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT")
+        throw new WeaverError("NOT_FOUND", `文件不存在：${file}`, undefined, ["检查文件路径，或重新选择文件。相对路径按命令的当前工作目录解析。"]);
+      throw error;
+    }
     const temp = path.join(this.root, "work", newId("import"));
     const hash = createHash("sha256");
     let bytes = 0;

@@ -6,6 +6,7 @@ import {
   MediaRef,
   LibraryVersion,
   EditOperation,
+  Scene,
   ProjectId,
   RevisionId,
   WORKFLOWS,
@@ -17,6 +18,8 @@ import {
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { Store, digest, newId, now, canonical } from "../store/index.ts";
+
+import { sceneFromInput, type SceneAddInput } from "./scene.ts";
 
 export class Projects {
   constructor(private readonly store: Store) {}
@@ -47,6 +50,7 @@ export class Projects {
     requestId: string;
     id?: string;
     origin?: "user" | "first-party";
+    template?: "starter";
   }): ProjectRevision {
     return this.store.mutate(
       "project-create",
@@ -70,7 +74,19 @@ export class Projects {
           locales: ["zh"],
           assets: [],
           bindings: [],
-          scenes: [],
+          scenes: input.template === "starter"
+            ? [
+                { id: "welcome", template: "title", headline: "我的第一支视频", points: [] },
+                { id: "steps", template: "points", headline: "从这里开始创作", points: ["修改卡片文字", "保存并制作", "在交付页播放和导出 MP4"] },
+                { id: "finish", template: "close", headline: "下一步，加入你的素材", points: ["静帧展示图片，视频片段保留原片声音", "需要配音时，再配置音色与模型服务"] },
+              ].map(({ id, template, headline, points }) => Scene.parse({
+                id,
+                kind: "card",
+                label: headline,
+                cardSpec: { template, version: "2", copy: { zh: { headline, points } } },
+                timing: { kind: "fixed", frames: 90 },
+              }))
+            : [],
           captions: [],
           profiles: [PROFILES.landscape],
         });
@@ -268,24 +284,40 @@ export class Projects {
     const document = ProjectDocument.parse(input.document);
     if (document.id !== input.projectId)
       throw new WeaverError("INVALID_INPUT", "不能修改项目身份");
+    return this.edit(input, input, () => document);
+  }
+  private edit(
+    input: { projectId: string; expectedRevision: string; requestId: string },
+    identity: unknown,
+    edit: (document: ProjectDocument) => ProjectDocument,
+  ): ProjectRevision {
     return this.store.mutate(
       `project:${input.projectId}`,
       input.requestId,
-      input,
+      identity,
       ProjectRevision,
       () => {
-        const parent = this.read(input.projectId);
-        if (parent.id !== input.expectedRevision)
-          throw new WeaverError("REVISION_CONFLICT", "修订冲突，请重读后提交", {
-            current: parent,
-          });
+        const current = this.read(input.projectId);
+        if (current.id !== input.expectedRevision)
+          throw new WeaverError("REVISION_CONFLICT", "修订冲突，请重读后提交", { current });
         return this.insert(
-          reconcileSceneReferences(parent.document, document),
-          parent,
+          reconcileSceneReferences(current.document, edit(current.document)),
+          current,
           input.requestId,
         );
       },
     );
+  }
+  addScene(input: SceneAddInput): ProjectRevision {
+    return this.edit(input, { sceneAdd: input }, (document) => {
+      const scene = sceneFromInput(input, document, () => this.assetsFor(document, "saved"));
+      return {
+        ...document,
+        scenes: document.scenes.some((current) => current.id === scene.id)
+          ? document.scenes.map((current) => current.id === scene.id ? scene : current)
+          : [...document.scenes, scene],
+      };
+    });
   }
   apply(input: {
     projectId: string;
@@ -294,86 +326,68 @@ export class Projects {
     ops: unknown;
   }): ProjectRevision {
     const ops = z.array(EditOperation).parse(input.ops);
-    return this.store.mutate(
-      `project:${input.projectId}`,
-      input.requestId,
-      input,
-      ProjectRevision,
-      () => {
-        const current = this.read(input.projectId);
-        if (current.id !== input.expectedRevision)
-          throw new WeaverError("REVISION_CONFLICT", "修订冲突，请重读后提交", {
-            current,
-          });
-        let doc = current.document;
-        for (const op of ops) {
-          switch (op.op) {
-            case "title":
-              doc = { ...doc, title: op.value };
-              break;
-            case "scenes":
-              doc = { ...doc, scenes: op.value };
-              break;
-            case "scene":
-              doc = {
-                ...doc,
-                scenes: doc.scenes.some((s) => s.id === op.value.id)
-                  ? doc.scenes.map((s) => (s.id === op.value.id ? op.value : s))
-                  : [...doc.scenes, op.value],
-              };
-              break;
-            case "remove-scene":
-              doc = {
-                ...doc,
-                scenes: doc.scenes.filter((s) => s.id !== op.id),
-              };
-              break;
-            case "captions":
-              doc = { ...doc, captions: op.value };
-              break;
-            case "creative-plan":
-              doc = { ...doc, creativePlan: op.value ?? undefined };
-              break;
-            case "profiles":
-              doc = { ...doc, profiles: op.value };
-              break;
-            case "bgm":
-              doc = { ...doc, bgm: op.value ?? undefined };
-              break;
-            case "method":
-              doc = { ...doc, method: op.value ?? undefined };
-              break;
-            case "rebind": {
-              const replace = (v: unknown): unknown => {
-                if (Array.isArray(v)) return v.map(replace);
-                if (v && typeof v === "object") {
-                  if (
-                    "itemId" in v &&
-                    "version" in v &&
-                    v.itemId === op.from.itemId &&
-                    v.version === op.from.version
-                  )
-                    return op.to;
-                  return Object.fromEntries(
-                    Object.entries(v).map(([k, x]) => [k, replace(x)]),
-                  );
-                }
-                return v;
-              };
-              doc = ProjectDocument.parse(replace(doc));
-              break;
-            }
+    return this.edit(input, input, (document) => {
+      let doc = document;
+      for (const op of ops) {
+        switch (op.op) {
+          case "title":
+            doc = { ...doc, title: op.value };
+            break;
+          case "scenes":
+            doc = { ...doc, scenes: op.value };
+            break;
+          case "scene":
+            doc = {
+              ...doc,
+              scenes: doc.scenes.some((s) => s.id === op.value.id)
+                ? doc.scenes.map((s) => (s.id === op.value.id ? op.value : s))
+                : [...doc.scenes, op.value],
+            };
+            break;
+          case "remove-scene":
+            doc = {
+              ...doc,
+              scenes: doc.scenes.filter((s) => s.id !== op.id),
+            };
+            break;
+          case "captions":
+            doc = { ...doc, captions: op.value };
+            break;
+          case "creative-plan":
+            doc = { ...doc, creativePlan: op.value ?? undefined };
+            break;
+          case "profiles":
+            doc = { ...doc, profiles: op.value };
+            break;
+          case "bgm":
+            doc = { ...doc, bgm: op.value ?? undefined };
+            break;
+          case "method":
+            doc = { ...doc, method: op.value ?? undefined };
+            break;
+          case "rebind": {
+            const replace = (v: unknown): unknown => {
+              if (Array.isArray(v)) return v.map(replace);
+              if (v && typeof v === "object") {
+                if (
+                  "itemId" in v &&
+                  "version" in v &&
+                  v.itemId === op.from.itemId &&
+                  v.version === op.from.version
+                )
+                  return op.to;
+                return Object.fromEntries(
+                  Object.entries(v).map(([k, x]) => [k, replace(x)]),
+                );
+              }
+              return v;
+            };
+            doc = ProjectDocument.parse(replace(doc));
+            break;
           }
         }
-        return this.insert(
-          reconcileSceneReferences(
-            current.document,
-            ProjectDocument.parse(doc),
-          ),
-          current,
-          input.requestId,
-        );
-      },
-    );
+      }
+      return ProjectDocument.parse(doc);
+    });
   }
 }

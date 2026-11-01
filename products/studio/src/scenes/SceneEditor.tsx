@@ -16,6 +16,7 @@ import { MaskEditor, type SceneMask } from "./MaskEditor";
 import { SourceWindowPlayer } from "./SourceWindowPlayer";
 import { Field } from "../ui/Field";
 import { MediaSourceDetails } from "../assets/MediaSourceDetails";
+import "./SceneEditors.css";
 
 export function SceneEditor({
   scene: s,
@@ -27,6 +28,7 @@ export function SceneEditor({
   onMasksChange,
   onChange,
   preview = true,
+  section = "all",
 }: {
   scene: Scene;
   locale: string;
@@ -37,6 +39,7 @@ export function SceneEditor({
   onMasksChange?: (masks: SceneMask[]) => void;
   onChange: (s: Scene) => void;
   preview?: boolean;
+  section?: "all" | "sound";
 }) {
   const speech = speechOf(s),
     [localError, setLocalError] = useState("");
@@ -89,10 +92,24 @@ export function SceneEditor({
     s.kind === "card"
       ? undefined
       : selectAsset(refKey(s.kind === "clip" ? s.source : s.image));
+  const selectedVoiceRef =
+    speech?.kind === "authored" ? speech.voice[locale] : undefined;
+  const selectedVoice = selectedVoiceRef
+    ? voices.find(
+        (voice) =>
+          voice.itemId === selectedVoiceRef.itemId &&
+          voice.version === selectedVoiceRef.version,
+      )
+    : undefined;
+  const selectedNarrationRef =
+    speech?.kind === "imported" ? speech.audio[locale] : undefined;
+  const selectedNarrationAsset = selectedNarrationRef
+    ? selectAsset(refKey(selectedNarrationRef))
+    : undefined;
   return (
     <div className="flex flex-col gap-4">
       {localError && <p className="error">{localError}</p>}
-      <section className="flex flex-col gap-3 border-b border-line pb-5">
+      {section === "all" && <section className="flex flex-col gap-3 border-b border-line pb-5">
         <h3 className="m-0 text-xs font-semibold text-muted">01 · 视觉源与画幅裁剪</h3>
       {s.kind === "card" ? (
         <>
@@ -204,7 +221,7 @@ export function SceneEditor({
               }
               sourceKey={refKey(s.source)}
               range={s.sourceRange}
-              label="当前片段源窗"
+              label="当前片段截取范围"
             />
           )}
           {preview && s.kind === "still" && selectedAsset && (
@@ -236,7 +253,7 @@ export function SceneEditor({
             </Field>
             {s.kind === "clip" && (
               <>
-                <Field label="源入点（秒）">
+                <Field label="截取开始时间（秒）">
                   <input
                     type="number"
                     min="0"
@@ -253,7 +270,7 @@ export function SceneEditor({
                     }
                   />
                 </Field>
-                <Field label="源窗时长（秒）">
+                <Field label="截取时长（秒）">
                   <input
                     type="number"
                     min="0.01"
@@ -275,9 +292,11 @@ export function SceneEditor({
           </div>
         </>
       )}
-      </section>
+      </section>}
       <section className="flex flex-col gap-3 border-b border-line pb-5">
-        <h3 className="m-0 text-xs font-semibold text-muted">02 · 声音策略与旁白</h3>
+        <h3 className="m-0 text-xs font-semibold text-muted">
+          {section === "all" ? "02 · 声音策略与旁白" : "声音策略与旁白"}
+        </h3>
       {s.kind === "clip" && (
         <Field label="声音策略">
           <select
@@ -424,39 +443,70 @@ export function SceneEditor({
                   }}
                 />
               </Field>
+              {selectedVoice?.payload.kind === "voice" && (
+                <div className="audio-audition">
+                  <b>音色参考音频</b>
+                  <small>
+                    这里播放的是“{selectedVoice.payload.name}”的克隆参考音频，用于核对音色；
+                    它不是本次旁白文案的合成结果。
+                  </small>
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={mediaUrl(selectedVoice.payload.reference)}
+                    aria-label={`试听音色参考音频：${selectedVoice.payload.name}`}
+                  />
+                </div>
+              )}
             </>
           ) : (
-            <Field label="旁白音频">
-              <select
-                value={speech.audio[locale] ? refKey(speech.audio[locale]) : ""}
-                onChange={(e) => {
-                  const a = selectAsset(e.target.value);
-                  if (a)
-                    speechChange({
-                      ...speech,
-                      audio: {
-                        ...speech.audio,
-                        [locale]: { assetId: a.assetId, version: a.version },
-                      },
-                    });
-                }}
-              >
-                <option value="">选择音频</option>
-                {assets
-                  .filter((a) => a.kind === "audio")
-                  .map((a) => (
-                    <option key={a.version} value={refKey(a)}>
-                      {a.name}
-                    </option>
-                  ))}
-              </select>
-            </Field>
+            <>
+              <Field label="旁白音频">
+                <select
+                  value={speech.audio[locale] ? refKey(speech.audio[locale]) : ""}
+                  onChange={(e) => {
+                    const a = selectAsset(e.target.value);
+                    if (a)
+                      speechChange({
+                        ...speech,
+                        audio: {
+                          ...speech.audio,
+                          [locale]: { assetId: a.assetId, version: a.version },
+                        },
+                      });
+                  }}
+                >
+                  <option value="">选择音频</option>
+                  {assets
+                    .filter((a) => a.kind === "audio")
+                    .map((a) => (
+                      <option key={a.version} value={refKey(a)}>
+                        {a.name}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+              {selectedNarrationAsset && (
+                <div className="audio-audition">
+                  <b>已上传旁白音频</b>
+                  <small>{selectedNarrationAsset.name}</small>
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={mediaUrl(selectedNarrationAsset.digest)}
+                    aria-label={`试听已上传旁白音频：${selectedNarrationAsset.name}`}
+                  />
+                </div>
+              )}
+            </>
           )}
         </>
       )}
       </section>
       <section className="flex flex-col gap-3 border-b border-line pb-5">
-        <h3 className="m-0 text-xs font-semibold text-muted">03 · 时长与超窗处理</h3>
+        <h3 className="m-0 text-xs font-semibold text-muted">
+          {section === "all" ? "03 · 时长与超窗处理" : "画面时长与声音超出处理"}
+        </h3>
       {s.kind !== "clip" ? (
         <div className="actions">
           <Field label="时长策略">
@@ -524,13 +574,13 @@ export function SceneEditor({
                 else patch({ ...s, playback: { kind: "source", audio } });
               }}
             >
-              <option value="source">由选定源窗决定</option>
-              {speech && <option value="speech">由真实旁白决定</option>}
+              <option value="source">由截取时长决定</option>
+              {speech && <option value="speech">由旁白音频长度决定</option>}
             </select>
           </Field>
           {s.playback.kind === "speech" && (
             <div className="actions">
-              <Field label="旁白超窗处理">
+              <Field label="配音长于视频片段时">
                 <select
                   value={s.playback.overflow.kind}
                   onChange={(e) =>
@@ -550,7 +600,7 @@ export function SceneEditor({
                 >
                   <option value="reject">报错并保留草稿</option>
                   <option value="freeze">允许有限末帧定格</option>
-                  <option value="speed">允许限定速度适配</option>
+                  <option value="speed">允许调整画面播放速度</option>
                 </select>
               </Field>
               {s.playback.overflow.kind === "freeze" && (
@@ -576,7 +626,7 @@ export function SceneEditor({
               )}
               {s.playback.overflow.kind === "speed" && (
                 <>
-                  <Field label="最小速度">
+                  <Field label="最慢画面速度">
                     <input
                       type="number"
                       step="0.1"
@@ -597,7 +647,7 @@ export function SceneEditor({
                       }
                     />
                   </Field>
-                  <Field label="最大速度">
+                  <Field label="最快画面速度">
                     <input
                       type="number"
                       step="0.1"
@@ -618,12 +668,36 @@ export function SceneEditor({
                       }
                     />
                   </Field>
+                  <p className="hint scene-sound-note">
+                    速度适配只调整画面的播放速度，不调整配音语速。
+                  </p>
                 </>
               )}
             </div>
           )}
           {s.playback.audio.kind === "original" && (
             <Field label="原声增益（dB）">
+              <input
+                type="number"
+                value={s.playback.audio.gainDb}
+                onChange={(e) =>
+                  patch({
+                    ...s,
+                    playback: {
+                      ...s.playback,
+                      audio: {
+                        ...s.playback.audio,
+                        gainDb: Number(e.target.value),
+                      },
+                    },
+                  })
+                }
+              />
+            </Field>
+          )}
+          {(s.playback.audio.kind === "narration" ||
+            s.playback.audio.kind === "mix") && (
+            <Field label="旁白增益（dB）">
               <input
                 type="number"
                 value={s.playback.audio.gainDb}
@@ -686,7 +760,7 @@ export function SceneEditor({
         </>
       )}
       </section>
-      {onMasksChange && (
+      {section === "all" && onMasksChange && (
         <section className="flex flex-col gap-3">
           <h3 className="m-0 text-xs font-semibold text-muted">04 · 遮罩编辑器</h3>
           <MaskEditor

@@ -34,57 +34,64 @@ const stop = () => {
 process.on("SIGTERM", stop);
 process.on("SIGINT", stop);
 const prebuiltSite = process.env.LIGHTWEAVER_CARD_SITE || "";
-const serveUrl = prebuiltSite
-  ? prebuiltSite
-  : await bundle({
-      entryPoint: fileURLToPath(new URL("./card-entry.tsx", import.meta.url)),
-      outDir: path.join(path.dirname(dest), "card-bundle"),
-      enableCaching: false,
-    });
-const chrome =
-  process.env.LIGHTWEAVER_CHROME ||
-  (process.env.LIGHTWEAVER_PACKAGED === "1"
-    ? undefined
-    : fs.existsSync("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-      ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-      : undefined);
-if (process.env.LIGHTWEAVER_PACKAGED === "1" && !chrome)
-  throw new Error("卡片浏览器未随包提供");
-controller.signal.throwIfAborted();
-const browser = await openBrowser("chrome", {
-  browserExecutable: chrome,
-  logLevel: "error",
-});
+if (!prebuiltSite) fs.mkdirSync(path.dirname(dest), { recursive: true });
+const bundleDir = prebuiltSite ? null : fs.mkdtempSync(path.join(path.dirname(dest), "card-bundle-"));
 try {
+  const serveUrl = prebuiltSite
+    ? prebuiltSite
+    : await bundle({
+        entryPoint: fileURLToPath(new URL("./card-entry.tsx", import.meta.url)),
+        outDir: bundleDir,
+        publicDir: path.join(path.dirname(dest), "card-public"),
+        enableCaching: false,
+      });
+  const chrome =
+    process.env.LIGHTWEAVER_CHROME ||
+    (process.env.LIGHTWEAVER_PACKAGED === "1"
+      ? undefined
+      : fs.existsSync("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+        ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        : undefined);
+  if (process.env.LIGHTWEAVER_PACKAGED === "1" && !chrome)
+    throw new Error("卡片浏览器未随包提供");
   controller.signal.throwIfAborted();
-  const composition = await selectComposition({
-    serveUrl,
-    id: "Card",
-    inputProps: props,
-    puppeteerInstance: browser,
+  const browser = await openBrowser("chrome", {
+    browserExecutable: chrome,
     logLevel: "error",
   });
-  controller.signal.throwIfAborted();
-  await renderMedia({
-    serveUrl,
-    composition,
-    inputProps: props,
-    codec: "h264",
-    outputLocation: dest,
-    muted: true,
-    enforceAudioTrack: false,
-    pixelFormat: "yuv420p",
-    colorSpace: "bt709",
-    puppeteerInstance: browser,
-    cancelSignal,
-    concurrency: 2,
-    logLevel: "error",
-    crf: props.output.crf,
-  });
+  try {
+    controller.signal.throwIfAborted();
+    const composition = await selectComposition({
+      serveUrl,
+      id: "Card",
+      inputProps: props,
+      puppeteerInstance: browser,
+      logLevel: "error",
+    });
+    controller.signal.throwIfAborted();
+    await renderMedia({
+      serveUrl,
+      composition,
+      inputProps: props,
+      codec: "h264",
+      outputLocation: dest,
+      muted: true,
+      enforceAudioTrack: false,
+      pixelFormat: "yuv420p",
+      colorSpace: "bt709",
+      puppeteerInstance: browser,
+      cancelSignal,
+      concurrency: 2,
+      logLevel: "error",
+      crf: props.output.crf,
+    });
+  } finally {
+    await browser.close({ silent: true });
+  }
 } finally {
-  await browser.close({ silent: true });
   process.off("SIGTERM", stop);
   process.off("SIGINT", stop);
+  if (bundleDir) fs.rmSync(bundleDir, { recursive: true, force: true });
 }
 controller.signal.throwIfAborted();
 process.stdout.write(

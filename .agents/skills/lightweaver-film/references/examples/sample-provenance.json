@@ -1,0 +1,24 @@
+{
+  "description": "占位样例。导入真实预处理素材前，必须把来源替换为当前项目的实际 asset ID 和 64 个十六进制字符的素材版本摘要。",
+  "inputs": [
+    {
+      "source": {
+        "assetId": "replace-with-source-video-id",
+        "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "role": "picture",
+      "range": {
+        "startUs": 0,
+        "durationUs": 12000000
+      }
+    },
+    {
+      "source": {
+        "assetId": "replace-with-reference-audio-id",
+        "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "role": "reference"
+    }
+  ],
+  "captions": "embedded"
+}

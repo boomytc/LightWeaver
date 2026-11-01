@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { CreativePlan, Scene, refKey, z } from "@lightweaver/weaver/contracts";
 import { MICROS_PER_SECOND } from "../domain/time";
 import type { ReviewAnalysisEntry } from "../domain/context";
@@ -15,6 +15,7 @@ const sceneLabels: Record<string, string> = {
 };
 
 export function CreativePlanEditor({
+  projectId,
   plan,
   projectTitle,
   projectScenes,
@@ -27,6 +28,7 @@ export function CreativePlanEditor({
   onApply,
   renderSceneEditor,
 }: {
+  projectId: string;
   plan: CreativePlanValue | null;
   projectTitle: string;
   projectScenes: Scene[];
@@ -35,7 +37,7 @@ export function CreativePlanEditor({
   planDirty: boolean;
   busy: boolean;
   onChange: (plan: CreativePlanValue) => void;
-  onSave: (plan: CreativePlanValue) => void;
+  onSave: () => void;
   onApply: () => void;
   renderSceneEditor: (
     scene: Scene,
@@ -44,6 +46,80 @@ export function CreativePlanEditor({
 }) {
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState("");
+  const [importingFile, setImportingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const importSequence = useRef(0);
+  const editSequence = useRef(0);
+  const projectIdRef = useRef(projectId);
+  const planRef = useRef(plan);
+  projectIdRef.current = projectId;
+  planRef.current = plan;
+
+  useLayoutEffect(() => {
+    importSequence.current += 1;
+    editSequence.current += 1;
+    setImportText("");
+    setImportError("");
+    setImportingFile(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    return () => {
+      importSequence.current += 1;
+      editSequence.current += 1;
+    };
+  }, [projectId]);
+
+  const changePlan = (next: CreativePlanValue) => {
+    editSequence.current += 1;
+    planRef.current = next;
+    onChange(next);
+  };
+  const parseIssues = (error: z.ZodError) =>
+    error.issues.slice(0, 4).map((issue) => {
+      const path = issue.path.length ? issue.path.join(".") : "方案";
+      return `${path}：${issue.message}`;
+    });
+  const applyRawPlan = (body: string) => {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(body);
+    } catch {
+      setImportError("方案不是有效 JSON");
+      return false;
+    }
+    const parsed = CreativePlan.safeParse(raw);
+    if (!parsed.success) {
+      setImportError(parseIssues(parsed.error).join("\n"));
+      return false;
+    }
+    setImportError("");
+    changePlan(parsed.data);
+    return true;
+  };
+  const importFile = async (file: File) => {
+    const operation = ++importSequence.current;
+    const capturedProjectId = projectIdRef.current;
+    const capturedPlan = planRef.current;
+    const capturedEditSequence = editSequence.current;
+    const isCurrent = () => operation === importSequence.current && capturedProjectId === projectIdRef.current;
+    setImportingFile(true);
+    setImportError("");
+    try {
+      const body = await file.text();
+      if (!isCurrent()) return;
+      if (
+        capturedPlan !== planRef.current ||
+        capturedEditSequence !== editSequence.current
+      ) {
+        setImportError("读取文件期间方案已经变化，已保留当前内容，请重新导入");
+        return;
+      }
+      if (applyRawPlan(body)) setImportText(body);
+    } catch {
+      if (isCurrent()) setImportError("读取方案文件失败，请重新选择文件");
+    } finally {
+      if (isCurrent()) setImportingFile(false);
+    }
+  };
   const evidenceForScene = (
     scene: Scene,
   ): CreativePlanValue["beats"][number]["evidence"] => {
@@ -80,23 +156,10 @@ export function CreativePlanEditor({
       return;
     }
     setImportError("");
-    onChange(parsed.data);
+    changePlan(parsed.data);
   };
   const importPlan = () => {
-    let raw: unknown;
-    try {
-      raw = JSON.parse(importText);
-    } catch {
-      setImportError("方案不是有效 JSON");
-      return;
-    }
-    const parsed = CreativePlan.safeParse(raw);
-    if (!parsed.success) {
-      setImportError(parsed.error.issues[0]?.message || "方案字段无效");
-      return;
-    }
-    setImportError("");
-    onChange(parsed.data);
+    applyRawPlan(importText);
   };
   return (
     <div className="flex flex-col gap-4">
@@ -119,7 +182,7 @@ export function CreativePlanEditor({
             <Button
               variant="primary"
               disabled={busy || projectDirty || !planDirty}
-              onClick={() => onSave(plan)}
+              onClick={onSave}
             >
               保存方案蓝图
             </Button>
@@ -138,7 +201,34 @@ export function CreativePlanEditor({
       <details className="panel-card p-4" open={!plan}>
         <summary className="font-medium">从 agent 导入方案</summary>
         <div className="mt-3 flex flex-col gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="sr-only"
+            aria-label="导入创作方案 JSON 文件"
+            disabled={busy || projectDirty}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void importFile(file);
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              disabled={busy || projectDirty || importingFile}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {importingFile ? "正在读取文件…" : "选择 JSON 文件"}
+            </Button>
+            <small className="text-muted">
+              文件会按当前方案合同校验，并且只载入到当前项目。
+            </small>
+          </div>
+          <details>
+            <summary>粘贴 JSON 高级方式</summary>
           <textarea
+            name={`creative-plan-import-${projectId}`}
             className="code-input"
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
@@ -152,7 +242,8 @@ export function CreativePlanEditor({
               校验并载入
             </Button>
           </div>
-          {importError && <p className="error m-0">{importError}</p>}
+          </details>
+          {importError && <p className="error m-0 whitespace-pre-line">{importError}</p>}
         </div>
       </details>
       {!plan ? (
@@ -170,7 +261,7 @@ export function CreativePlanEditor({
                 <input
                   value={plan.title}
                   onChange={(event) =>
-                    onChange({ ...plan, title: event.target.value })
+                    changePlan({ ...plan, title: event.target.value })
                   }
                 />
               </Field>
@@ -178,7 +269,7 @@ export function CreativePlanEditor({
                 <textarea
                   value={plan.summary}
                   onChange={(event) =>
-                    onChange({ ...plan, summary: event.target.value })
+                    changePlan({ ...plan, summary: event.target.value })
                   }
                 />
               </Field>
@@ -195,7 +286,7 @@ export function CreativePlanEditor({
                       ),
                   );
                   if (!scene) return;
-                  onChange({
+                  changePlan({
                     ...plan,
                     beats: [
                       ...plan.beats,
@@ -233,7 +324,7 @@ export function CreativePlanEditor({
                   size="sm"
                   variant="ghost"
                   onClick={() =>
-                    onChange({
+                    changePlan({
                       ...plan,
                       beats: plan.beats.filter(
                         (_, current) => current !== beatIndex,
@@ -245,7 +336,7 @@ export function CreativePlanEditor({
                 </Button>
               </div>
               {renderSceneEditor(beat.scene, (scene) =>
-                onChange({
+                changePlan({
                   ...plan,
                   beats: plan.beats.map((current, currentIndex) =>
                     currentIndex === beatIndex
@@ -258,7 +349,7 @@ export function CreativePlanEditor({
                 <textarea
                   value={beat.rationale}
                   onChange={(event) =>
-                    onChange({
+                    changePlan({
                       ...plan,
                       beats: plan.beats.map((current, currentIndex) =>
                         currentIndex === beatIndex
@@ -292,7 +383,7 @@ export function CreativePlanEditor({
                             size="sm"
                             variant="ghost"
                             onClick={() =>
-                              onChange({
+                              changePlan({
                                 ...plan,
                                 beats: plan.beats.map((current, currentIndex) =>
                                   currentIndex === beatIndex
@@ -330,7 +421,7 @@ export function CreativePlanEditor({
                           ),
                       );
                       if (!entry) return;
-                      onChange({
+                      changePlan({
                         ...plan,
                         beats: plan.beats.map((current, currentIndex) =>
                           currentIndex === beatIndex

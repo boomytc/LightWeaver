@@ -13,7 +13,7 @@ weaver library list --json
 weaver library set --file /absolute/voice.json --media /absolute/reference.wav --request-id publish-voice --json
 ```
 
-每次导入采用返回的新修订；不同请求使用新的 requestId。预处理前先导入来源，导入处理结果时传 `--provenance /absolute/provenance.json`。用 `schema media-provenance` 查询合同，记录处理说明、画面/声音/字幕参考的精确素材版本及实际源窗，`captions` 标明 `embedded`、`none` 或 `unknown`。这些来源会随项目及 bundle 保留。元数据是作者记录，不代表已验证匹配正确。
+每次导入采用返回的新修订；不同请求使用新的 requestId。预处理前先导入来源，导入处理结果时传 `--provenance /absolute/provenance.json`。用 `schema media-provenance` 查询合同，记录处理说明、画面/声音/字幕参考的精确素材版本及实际源窗，`captions` 标明 `embedded`、`none` 或 `unknown`。可参考[provenance 结构样例](../lightweaver-film/references/examples/sample-provenance.json)，其中的 asset ID 和 digest 是必须替换的占位值。这些来源会随项目及 bundle 保留。元数据是作者记录，不代表已验证匹配正确。
 
 上传 voice 的 payload 包含 kind、name 和实际 referenceText；material 包含 kind 和 name。method 的 schema 通过 `weaver schema library` 查询。
 

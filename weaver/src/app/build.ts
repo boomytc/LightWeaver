@@ -229,6 +229,7 @@ export class Builds {
   }
   async snapshot(input: {
     projectId: string;
+    expectedRevision?: string;
     locales?: string[];
     profiles?: string[];
     regenerate?: boolean;
@@ -236,6 +237,8 @@ export class Builds {
   }): Promise<z.infer<typeof RunSnapshot>> {
     const revision = this.projects.read(input.projectId),
       doc = revision.document;
+    if (input.expectedRevision && input.expectedRevision !== revision.id)
+      throw new WeaverError("REVISION_CONFLICT", "项目已修改，请核对后再制作", { current: revision });
     const profiles = input.profiles?.length
       ? input.profiles.map((id) => {
           const p = doc.profiles.find((p) => p.id === id) || PROFILES[id];
@@ -319,6 +322,7 @@ export class Builds {
   }
   async plan(input: {
     projectId: string;
+    expectedRevision?: string;
     locales?: string[];
     profiles?: string[];
     regenerate?: boolean;
@@ -551,6 +555,7 @@ export class Builds {
   }
   async submit(input: {
     projectId: string;
+    expectedRevision?: string;
     locales?: string[];
     profiles?: string[];
     regenerate?: boolean;
@@ -569,6 +574,7 @@ export class Builds {
         "BUILD_ISSUES",
         "草稿尚不满足制作合同",
         plan.issues,
+        plan.issues.map((issue) => issue.message),
       );
     const run = this.jobs.submit(
       {

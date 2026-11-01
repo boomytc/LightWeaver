@@ -6,6 +6,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import {
   Application,
+  cliInvocation,
   errorProtocol,
   httpStatus,
   WeaverError,
@@ -138,12 +139,19 @@ export async function startStudioService(
       }
     });
   const Write = z.object({ expectedRevision: z.string(), requestId: z.string() });
-  const absoluteFile = (file: string) => {
+  const existingLocalPath = (file: string, kind: "file" | "bundle") => {
     if (!path.isAbsolute(file) || file.includes("\0"))
-      throw new Error("需要绝对文件路径");
-    const real = fs.realpathSync(file);
-    if (!fs.statSync(real).isFile()) throw new Error("需要普通文件");
-    return real;
+      throw new WeaverError("INVALID_INPUT", "需要绝对文件路径");
+    try {
+      const real = fs.realpathSync(file), stat = fs.statSync(real);
+      if (!stat.isFile() && !(kind === "bundle" && stat.isDirectory()))
+        throw new WeaverError("INVALID_INPUT", kind === "bundle" ? "需要项目包 ZIP 或目录" : "需要普通文件");
+      return real;
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT")
+        throw new WeaverError("NOT_FOUND", `文件或目录不存在：${file}`, undefined, ["重新选择文件或项目包，检查位置是否已被移动、改名、删除或断开连接。"]);
+      throw error;
+    }
   };
 
   route("get", "/api/runtime", () => ({
@@ -159,9 +167,7 @@ export async function startStudioService(
       .map((name) => ({ name, file: path.join(runtime.resourcesDir, "weaver", name) }))
       .filter((item) => fs.existsSync(item.file)),
     interchangePython: runtime.tools.python,
-    cli: options.mode === "production"
-      ? { node: runtime.tools.node, entry: path.join(path.dirname(runtime.resourcesDir), "service", "cli.mjs") }
-      : null,
+    cli: cliInvocation(runtime),
     tools: {
       node: fs.existsSync(runtime.tools.node),
       ffmpeg: runtime.tools.ffmpeg ? fs.existsSync(runtime.tools.ffmpeg) : false,
@@ -218,8 +224,7 @@ export async function startStudioService(
   route("get", "/api/projects", () => app.projects.list());
   route("post", "/api/projects/import-bundle", async (req) => {
     const input = z.object({ file: z.string().min(1), requestId: z.string(), projectId: z.string().optional() }).strict().parse(req.body);
-    if (!path.isAbsolute(input.file) || input.file.includes("\0")) throw new Error("项目包需要绝对路径");
-    return app.interchange.importBundle(input.file, input.requestId, input.projectId);
+    return app.interchange.importBundle(existingLocalPath(input.file, "bundle"), input.requestId, input.projectId);
   });
   server.post("/api/projects/import-bundle/upload", upload.single("file"), async (req, res, next) => {
     try {
@@ -236,6 +241,7 @@ export async function startStudioService(
           id: z.string().optional(),
           title: z.string(),
           workflow: z.string(),
+          template: z.literal("starter").optional(),
           requestId: z.string(),
         })
         .parse(req.body),
@@ -323,7 +329,7 @@ export async function startStudioService(
       name: z.string().optional(),
       provenance: MediaProvenance.optional(),
     }).parse(req.body);
-    const file = absoluteFile(body.file);
+    const file = existingLocalPath(body.file, "file");
     return importAsset(
       z.string().parse(req.params.id),
       file,
@@ -447,6 +453,7 @@ export async function startStudioService(
           locales: z.array(z.string()).optional(),
           profiles: z.array(z.string()).optional(),
           regenerate: z.boolean().optional(),
+          expectedRevision: z.string().optional(),
           requestId: z.string(),
         })
         .parse(req.body),

@@ -1,7 +1,7 @@
 import { z, ErrorProtocol } from "@lightweaver/weaver/contracts";
 export class ApiError extends Error {
   constructor(readonly protocol: z.infer<typeof ErrorProtocol>) {
-    super(protocol.message);
+    super([protocol.message, ...protocol.hints.map((hint) => `建议：${hint}`)].join("\n"));
   }
 }
 export async function api<T>(

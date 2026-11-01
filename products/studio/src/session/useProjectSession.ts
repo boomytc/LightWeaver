@@ -59,7 +59,8 @@ export function useProjectSession(client: ClientStore) {
   const pushToast = (message: string, tone: ToastItem["tone"]) => {
     const text = message.trim();
     if (!text) return;
-    setToasts((items) => [{ id: crypto.randomUUID(), message: text, tone }, ...items].slice(0, 4));
+    const scope = projectRef.current ? { projectId: projectRef.current, generation: epoch.current } : null;
+    setToasts((items) => [{ id: crypto.randomUUID(), message: text, tone, scope }, ...items].slice(0, 4));
   };
   const setError = (message: string) => {
     setErrorState(message);
@@ -106,6 +107,17 @@ export function useProjectSession(client: ClientStore) {
   const urlRef = useRef(routeUrl(route));
   const recoveryDraft = useRef<DraftBackup | null>(null);
   const recoveryClock = useRef(0);
+  const activeAction = useRef<{ generation: number } | null>(null);
+  const saveRetry = useRef<{
+    projectId: string;
+    generation: number;
+    draftSequence: number;
+    planSequence: number;
+    includePlan: boolean;
+    expectedRevision: string;
+    requestId: string;
+  } | null>(null);
+  const buildRetry = useRef<{ projectId: string; generation: number; revision: string; requestId: string } | null>(null);
 
   const fail = (reason: unknown) => {
     setError(reason instanceof Error ? reason.message : String(reason));
@@ -163,7 +175,10 @@ export function useProjectSession(client: ClientStore) {
       updatedAt: nextRecoveryUpdatedAt(),
     };
     recoveryDraft.current = draft;
-    void desktop()?.saveRecoveryDraft?.(draft).catch(fail);
+    const generation = epoch.current;
+    void desktop()?.saveRecoveryDraft?.(draft).catch((reason) => {
+      if (projectRef.current === projectId && epoch.current === generation) fail(reason);
+    });
     return draft;
   };
 
@@ -199,8 +214,10 @@ export function useProjectSession(client: ClientStore) {
   };
 
   const clearDraftThrough = async (projectId: string, throughUpdatedAt: string) => {
+    const generation = epoch.current;
     if (!(await clientRef.current.clearProjectDraft(projectId, throughUpdatedAt))) {
-      setError("草稿备份未能清除，原备份仍保留，请恢复连接后重试");
+      if (generation === epoch.current && projectId === projectRef.current)
+        setError("草稿备份未能清除，原备份仍保留，请恢复连接后重试");
       return false;
     }
     return clearNativeRecoveryThrough(projectId, throughUpdatedAt);
@@ -210,7 +227,13 @@ export function useProjectSession(client: ClientStore) {
     if (!id) return;
     const generation = epoch.current;
     const seq = ++refreshSeq.current;
-    const next = await api(`/projects/${id}/context`, Context);
+    let next: ProjectContext;
+    try {
+      next = await api(`/projects/${id}/context`, Context);
+    } catch (reason) {
+      if (id === projectRef.current && generation === epoch.current && seq === refreshSeq.current) throw reason;
+      return;
+    }
     if (id !== projectRef.current || generation !== epoch.current || seq !== refreshSeq.current) return;
     setCtx(next);
     if (!dirtyRef.current) {
@@ -227,16 +250,22 @@ export function useProjectSession(client: ClientStore) {
     }
   };
 
-  const act = async (fn: () => Promise<void>) => {
+  const act = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     const generation = epoch.current;
+    if (activeAction.current?.generation === generation) return;
+    const owner = { generation };
+    activeAction.current = owner;
     setBusy(true);
     setError("");
     try {
-      await fn();
+      return await fn();
     } catch (reason) {
       if (generation === epoch.current) fail(reason);
     } finally {
-      if (generation === epoch.current) setBusy(false);
+      if (activeAction.current === owner) {
+        activeAction.current = null;
+        if (generation === epoch.current) setBusy(false);
+      }
     }
   };
 
@@ -298,7 +327,7 @@ export function useProjectSession(client: ClientStore) {
 
   const beginAssetEditSession = (): AssetEditSession | null => {
     const document = draftRef.current;
-    if (!document) return null;
+    if (!document || document.id !== projectRef.current || document.id !== routeRef.current.projectId) return null;
     return {
       projectId: document.id,
       generation: epoch.current,
@@ -373,71 +402,119 @@ export function useProjectSession(client: ClientStore) {
     persistRecoveryDraft();
   };
 
-  const save = () => {
+  const saveEdits = async (includePlan: boolean): Promise<string | null> => {
     const document = draftRef.current;
-    if (!document) return Promise.resolve(false);
+    if (!document || document.id !== projectRef.current || document.id !== routeRef.current.projectId) return null;
     const seq = draftSeq.current;
+    const planSequence = planSeq.current;
     const generation = epoch.current;
     const id = document.id;
     const expectedRevision = baseRef.current;
     const recoveryAtSave = snapshot();
-    let accepted = false;
-    const operation = act(async () => {
-      const revision = await api(`/projects/${id}`, ProjectRevision, {
-        method: "PUT",
-        body: {
-          expectedRevision,
-          requestId: requestId(),
-          document: ProjectDocument.parse(document),
-        },
-      });
-      const fate = saveFate({
-        requestProjectId: id,
-        currentProjectId: projectRef.current,
-        requestGeneration: generation,
-        currentGeneration: epoch.current,
-        requestDraftSeq: seq,
-        currentDraftSeq: draftSeq.current,
-      });
-      if (fate === "ignore") return;
-      if (fate === "accept") {
-        accepted = true;
-        acceptDraftRevision(revision);
-        setNotice("修订已保存");
-      } else {
-        setCtx((current) => (current ? { ...current, revision } : current));
-        setBase(revision.id);
-        baseRef.current = revision.id;
-        setConflict(revision);
-        persistRecoveryDraft();
-        setNotice("保存已写入服务器，但保存期间的新编辑仍保留为草稿");
-      }
-      if (fate === "accept" && planDirtyRef.current) persistRecoveryDraft();
-      if (recoveryAtSave) await clearDraftThrough(id, recoveryAtSave.updatedAt);
-      await reload(id);
-      await refreshLists();
+    const savedDocument = ProjectDocument.parse(includePlan && planDirtyRef.current
+      ? { ...document, creativePlan: planDraftRef.current || undefined }
+      : document);
+    const previous = saveRetry.current;
+    const retry = previous && previous.projectId === id && previous.generation === generation &&
+      previous.draftSequence === seq && previous.planSequence === planSequence &&
+      previous.includePlan === includePlan && previous.expectedRevision === expectedRevision
+      ? previous
+      : { projectId: id, generation, draftSequence: seq, planSequence, includePlan, expectedRevision, requestId: requestId() };
+    saveRetry.current = retry;
+    const revision = await api(`/projects/${id}`, ProjectRevision, {
+      method: "PUT",
+      body: {
+        expectedRevision,
+        requestId: retry.requestId,
+        document: savedDocument,
+      },
     });
-    return operation.then(() => accepted);
+    if (saveRetry.current === retry) saveRetry.current = null;
+    const fate = saveFate({
+      requestProjectId: id,
+      currentProjectId: projectRef.current,
+      requestGeneration: generation,
+      currentGeneration: epoch.current,
+      requestDraftSeq: seq,
+      currentDraftSeq: draftSeq.current,
+    });
+    if (fate === "ignore" || baseRef.current !== expectedRevision) return null;
+    if (fate === "accept") {
+      acceptDraftRevision(revision);
+    } else {
+      setCtx((current) => (current ? { ...current, revision } : current));
+      setBase(revision.id);
+      baseRef.current = revision.id;
+      if (includePlan && draftRef.current) {
+        const next = { ...draftRef.current, creativePlan: revision.document.creativePlan };
+        draftRef.current = next;
+        setDraft(next);
+      }
+      setConflict(revision);
+      setNotice("保存已写入服务器，但保存期间的新编辑仍保留为草稿");
+    }
+    if (includePlan && planSequence === planSeq.current) {
+      planDirtyRef.current = false;
+      setPlanDirty(false);
+      const next = revision.document.creativePlan || null;
+      planDraftRef.current = next;
+      setPlanDraft(next);
+    }
+    if (dirtyRef.current || planDirtyRef.current) persistRecoveryDraft();
+    if (recoveryAtSave) await clearDraftThrough(id, recoveryAtSave.updatedAt);
+    await reload(id);
+    await refreshLists();
+    return generation === epoch.current && id === projectRef.current &&
+      seq === draftSeq.current && (!includePlan || planSequence === planSeq.current) &&
+      baseRef.current === revision.id ? revision.id : null;
   };
 
-  const saveCreativePlan = (candidate: CreativePlanValue) => {
-    const generation = epoch.current;
-    const id = projectRef.current;
-    const draftSequence = draftSeq.current;
-    const planSequence = planSeq.current;
-    const expectedRevision = baseRef.current;
-    const recoveryAtSave = snapshot();
-    return act(async () => {
-      if (!draftRef.current) return;
-      if (dirtyRef.current) throw new Error("先保存当前项目草稿，再保存创作方案");
-      const revision = await api(`/projects/${id}/creative-plan`, ProjectRevision, {
-        method: "PUT",
-        body: { plan: CreativePlan.parse(candidate), expectedRevision, requestId: requestId() },
-      });
-      if (recoveryAtSave) await clearDraftThrough(id, recoveryAtSave.updatedAt);
-      if (await acceptProjectRevision(revision, { id, generation, draftSequence, planSequence }))
-        setNotice("创作方案已保存为项目蓝图");
+  const runSave = async (includePlan: boolean) => {
+    let accepted = false;
+    await act(async () => {
+      if (!draftRef.current || draftRef.current.id !== projectRef.current || projectRef.current !== routeRef.current.projectId) return;
+      if (!dirtyRef.current && (!includePlan || !planDirtyRef.current)) {
+        accepted = true;
+        return;
+      }
+      accepted = Boolean(await saveEdits(includePlan));
+      if (accepted) setNotice(includePlan ? "项目与方案已保存" : "项目已保存");
     });
+    return accepted;
+  };
+  const save = () => runSave(false);
+  const saveAll = () => runSave(true);
+
+  const saveAndBuild = async (): Promise<boolean> => {
+    let submitted = false;
+    await act(async () => {
+      const document = draftRef.current;
+      if (!document || document.id !== projectRef.current || document.id !== routeRef.current.projectId) return;
+      if (!document?.scenes.length) throw new Error("请先添加至少一个场景，再制作视频");
+      const id = projectRef.current;
+      const generation = epoch.current;
+      const draftSequence = draftSeq.current;
+      const planSequence = planSeq.current;
+      const revision = dirtyRef.current || planDirtyRef.current
+        ? await saveEdits(true)
+        : baseRef.current;
+      if (generation !== epoch.current || id !== projectRef.current) return;
+      if (!revision || draftSequence !== draftSeq.current || planSequence !== planSeq.current ||
+          dirtyRef.current || planDirtyRef.current || baseRef.current !== revision) {
+        setNotice("等待期间有新编辑或保存版本变化，已保留草稿，请核对后再次制作");
+        return;
+      }
+      const previous = buildRetry.current;
+      const retry = previous && previous.projectId === id && previous.generation === generation && previous.revision === revision
+        ? previous : { projectId: id, generation, revision, requestId: requestId() };
+      buildRetry.current = retry;
+      await submitJob(`/projects/${id}/build`, { expectedRevision: revision, requestId: retry.requestId });
+      if (buildRetry.current === retry) buildRetry.current = null;
+      if (generation !== epoch.current || id !== projectRef.current) return;
+      submitted = true;
+      setNotice("已提交制作，可继续编辑；本次制作使用刚确认的保存版本");
+    });
+    return submitted;
   };
 
   const applyCreativePlan = () => {
@@ -555,6 +632,10 @@ export function useProjectSession(client: ClientStore) {
   };
 
   const confirmLeave = async (forQuit = false) => {
+    if (activeAction.current?.generation === epoch.current) {
+      setNotice("正在保存或提交操作，请等待完成后再离开");
+      return "stay" as const;
+    }
     if (leaveInProgress.current || (quitAttempt.current && !forQuit)) return "stay" as const;
     if (!dirtyRef.current && !planDirtyRef.current) return "proceed" as const;
     leaveInProgress.current = true;
@@ -579,9 +660,7 @@ export function useProjectSession(client: ClientStore) {
         if (snap && !(await clientRef.current.upsertDraft(snap))) return "stay" as const;
         return "proceed" as const;
       }
-      if (dirtyRef.current && !(await save())) return "stay" as const;
-      if (dirtyRef.current) return "stay" as const;
-      if (planDirtyRef.current && planDraftRef.current) await saveCreativePlan(planDraftRef.current);
+      if ((dirtyRef.current || planDirtyRef.current) && !(await saveAll())) return "stay" as const;
       if (planDirtyRef.current || dirtyRef.current) return "stay" as const;
       return "proceed" as const;
     } finally {
@@ -624,7 +703,7 @@ export function useProjectSession(client: ClientStore) {
       setNotice("已恢复为未保存草稿，请核对后保存修订");
     });
 
-  const loadServerKeepingDraft = async () => {
+  const loadServerKeepingDraft = () => act(async () => {
     const revision = conflict;
     const id = projectRef.current;
     const generation = epoch.current;
@@ -659,13 +738,27 @@ export function useProjectSession(client: ClientStore) {
       await clearNativeRecoveryThrough(snap.projectId, snap.updatedAt);
       if (!canLoad()) return;
     }
-    acceptDraftRevision(revision);
+    const contextSequence = ++refreshSeq.current;
+    const current = await api(`/projects/${id}/context`, Context);
+    if (!canLoad()) return;
+    if (contextSequence !== refreshSeq.current) {
+      setNotice("项目上下文已刷新，请再次确认加载服务器内容");
+      return;
+    }
+    if (current.revision.id !== revision.id) {
+      setCtx(current);
+      setConflict(current.revision);
+      setNotice("服务器又有新修订，已保留当前草稿，请重新查看差异后确认加载");
+      return;
+    }
+    acceptDraftRevision(current.revision);
+    setCtx(current);
     planDirtyRef.current = false;
     setPlanDirty(false);
-    const nextPlan = revision.document.creativePlan || null;
+    const nextPlan = current.revision.document.creativePlan || null;
     setPlanDraft(nextPlan);
     planDraftRef.current = nextPlan;
-  };
+  });
 
   const importCaption = (locale: string, body: string, sourceKey: string) => {
     const generation = epoch.current;
@@ -805,10 +898,10 @@ export function useProjectSession(client: ClientStore) {
   }, []);
 
   const commandRef = useRef({
-    save,
+    save: saveAll,
     navigate,
   });
-  commandRef.current = { save, navigate };
+  commandRef.current = { save: saveAll, navigate };
   useEffect(() => {
     const offCommands = onStudioCommand((command) => {
       if (command === "save") void commandRef.current.save();
@@ -842,8 +935,15 @@ export function useProjectSession(client: ClientStore) {
   useEffect(() => {
     const id = route.projectId;
     const generation = ++epoch.current;
+    activeAction.current = null;
+    saveRetry.current = null;
+    buildRetry.current = null;
+    setBusy(false);
     const controller = new AbortController();
     projectRef.current = id;
+    draftRef.current = null;
+    baseRef.current = "";
+    planDraftRef.current = null;
     draftSeq.current += 1;
     planSeq.current += 1;
     dirtyRef.current = false;
@@ -853,6 +953,7 @@ export function useProjectSession(client: ClientStore) {
     setPlanDirty(false);
     setCtx(null);
     setDraft(null);
+    setBase("");
     setDirty(false);
     setConflict(null);
     setActiveRun("");
@@ -860,7 +961,7 @@ export function useProjectSession(client: ClientStore) {
     setEvents([]);
     setPlan(null);
     setError("");
-    setBusy(false);
+    setToasts((items) => items.filter((item) => item.scope === null));
     if (id) {
       clientRef.current.rememberProject(id);
       api(`/projects/${id}/context`, Context, { signal: controller.signal })
@@ -972,7 +1073,7 @@ export function useProjectSession(client: ClientStore) {
     planDraft,
     planDirty,
     error: error || client.error,
-    toasts,
+    toasts: toasts.filter((item) => item.scope === null || (item.scope.projectId === route.projectId && item.scope.generation === epoch.current)),
     dismissToast,
     conflict,
     busy,
@@ -1008,7 +1109,8 @@ export function useProjectSession(client: ClientStore) {
     edit,
     editCreativePlan,
     save,
-    saveCreativePlan,
+    saveAll,
+    saveAndBuild,
     applyCreativePlan,
     applyCaptionAssist,
     adoptAnalysisCaptions,

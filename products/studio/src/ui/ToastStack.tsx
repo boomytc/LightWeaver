@@ -11,6 +11,7 @@ export type ToastItem = {
   id: string;
   message: string;
   tone: ToastTone;
+  scope: { projectId: string; generation: number } | null;
 };
 
 export function ToastStack({ items, onDismiss }: { items: ToastItem[]; onDismiss: (id: string) => void }) {
@@ -37,7 +38,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
   };
   const arm = () => {
     clearTimer();
-    if (contact.current.pointer || contact.current.focus) return;
+    if (item.tone === "danger" || contact.current.pointer || contact.current.focus) return;
     timer.current = window.setTimeout(() => {
       if (contact.current.pointer || contact.current.focus) return;
       setPhase("closing");
@@ -81,7 +82,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       }}
     >
       <span className={`mt-1 size-2 shrink-0 rounded-full ${item.tone === "danger" ? "bg-danger" : "bg-ok"}`} aria-hidden="true" />
-      <p className="min-w-0 flex-1 text-[13px] leading-5">{item.message}</p>
+      <p className="m-0 max-h-[50vh] min-w-0 flex-1 overflow-y-auto whitespace-pre-line break-words text-[13px] leading-5">{item.message}</p>
       <button
         type="button"
         aria-label="关闭"

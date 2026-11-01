@@ -1,0 +1,114 @@
+.scene-editor-hint {
+  margin: 0;
+}
+
+.mask-coordinate-note {
+  margin: 0;
+  border-left: 2px solid var(--lw-warn);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--lw-warn-bg);
+  padding: 8px 10px;
+  color: var(--lw-warn);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mask-canvas {
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.mask-canvas.is-dragging[data-drag-mode="move"],
+.mask-canvas.is-dragging[data-drag-mode="move"] * {
+  cursor: grabbing;
+}
+
+.mask-canvas.is-dragging[data-drag-mode="north-west"],
+.mask-canvas.is-dragging[data-drag-mode="north-west"] *,
+.mask-canvas.is-dragging[data-drag-mode="south-east"],
+.mask-canvas.is-dragging[data-drag-mode="south-east"] * {
+  cursor: nwse-resize;
+}
+
+.mask-canvas.is-dragging[data-drag-mode="north-east"],
+.mask-canvas.is-dragging[data-drag-mode="north-east"] *,
+.mask-canvas.is-dragging[data-drag-mode="south-west"],
+.mask-canvas.is-dragging[data-drag-mode="south-west"] * {
+  cursor: nesw-resize;
+}
+
+.mask-selection {
+  position: absolute;
+  z-index: 2;
+  min-width: 1%;
+  min-height: 1%;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px #3b4659;
+  cursor: move;
+  touch-action: none;
+}
+
+.mask-selection:hover,
+.mask-canvas.is-dragging .mask-selection {
+  outline: 1px solid var(--lw-accent);
+  outline-offset: 2px;
+}
+
+.mask-resize-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #11151d;
+  border-radius: 3px;
+  background: white;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+  touch-action: none;
+}
+
+.mask-resize-handle[data-corner="north-west"] {
+  top: -7px;
+  left: -7px;
+  cursor: nwse-resize;
+}
+
+.mask-resize-handle[data-corner="north-east"] {
+  top: -7px;
+  right: -7px;
+  cursor: nesw-resize;
+}
+
+.mask-resize-handle[data-corner="south-west"] {
+  bottom: -7px;
+  left: -7px;
+  cursor: nesw-resize;
+}
+
+.mask-resize-handle[data-corner="south-east"] {
+  right: -7px;
+  bottom: -7px;
+  cursor: nwse-resize;
+}
+
+.audio-audition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 2px solid var(--lw-accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--lw-accent-soft);
+  padding: 8px 10px;
+}
+
+.audio-audition audio {
+  width: 100%;
+  height: 34px;
+}
+
+.audio-audition small {
+  line-height: 1.45;
+}
+
+.scene-sound-note {
+  margin: 0;
+  line-height: 1.5;
+}

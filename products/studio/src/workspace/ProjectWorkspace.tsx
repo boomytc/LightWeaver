@@ -17,8 +17,9 @@ import { SourceWindowPlayer } from "../scenes/SourceWindowPlayer";
 import { Menu, MenuItem } from "../ui/Menu";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
-import { Modal } from "../ui/Modal";
 import { Hint } from "../ui/Hint";
+import { ProjectGuidance, type GuidanceTarget } from "./ProjectGuidance";
+import { ConflictReviewDialog, ProjectReviewDialog } from "./ReviewPanels";
 import {
   AlertIcon,
   ArrowDownIcon,
@@ -46,6 +47,7 @@ import {
 type Focus = "edit" | "captions" | "sound" | "plan" | "delivery";
 type LeftMode = "assets" | "evidence" | "scenes";
 type PreviewMode = "scene" | "asset";
+type BottomMode = "storyboard" | "run";
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(value)));
@@ -65,6 +67,7 @@ export function ProjectWorkspace() {
   const [dragging, setDragging] = useState("");
   const [conflictOpen, setConflictOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [bottomMode, setBottomMode] = useState<BottomMode>("storyboard");
   const importInputRef = useRef<HTMLInputElement>(null);
   const { importPaths, importFiles } = useProjectAssetImport();
   const importRef = useRef(importPaths);
@@ -125,6 +128,17 @@ export function ProjectWorkspace() {
     : session.dirty || session.planDirty
       ? { tone: "warn" as const, label: "未保存草稿" }
       : { tone: "ok" as const, label: "已保存" };
+  const revisionDetail = [
+    revisionState.label,
+    `本地基线：${session.base || "尚未建立"}`,
+    `服务器版本：${ctx.revision.id}`,
+  ].join("；");
+  const currentRun =
+    session.runDetail?.run.id === session.activeRun
+      ? session.runDetail.run
+      : null;
+  const completedBuild =
+    currentRun?.kind === "build" && currentRun.state === "succeeded";
   const commitLayout = (next: LayoutPreference) => {
     const clamped = {
       left: clamp(next.left, 160, 640),
@@ -134,6 +148,53 @@ export function ProjectWorkspace() {
     };
     setLive(null);
     void session.client.setLayout(clamped);
+  };
+  const showLeft = (mode: LeftMode) => {
+    setFocus("edit");
+    setLeftMode(mode);
+    if (layout.collapsed.left) {
+      commitLayout({
+        ...layout,
+        collapsed: { ...layout.collapsed, left: false },
+      });
+    }
+  };
+  const showBottom = (mode: BottomMode) => {
+    setBottomMode(mode);
+    if (layout.collapsed.bottom) {
+      commitLayout({
+        ...layout,
+        collapsed: { ...layout.collapsed, bottom: false },
+      });
+    }
+  };
+  const navigateGuidance = (target: GuidanceTarget) => {
+    if (target === "assets" || target === "scenes" || target === "evidence") {
+      showLeft(target);
+      return;
+    }
+    setFocus(target);
+  };
+  const addSceneFromUi = (kind: Scene["kind"]) => {
+    const hasAsset =
+      kind === "card" ||
+      (kind === "still"
+        ? ctx.assets.some((item) => item.kind === "image")
+        : ctx.assets.some((item) => item.kind === "video"));
+    if (!hasAsset) {
+      showLeft("assets");
+      session.setNotice(
+        kind === "still"
+          ? "还没有静帧素材。请先导入图片，再回到场景添加静帧。"
+          : "还没有视频素材。请先导入视频，再回到场景添加视频片段。",
+      );
+      return;
+    }
+    setFocus("edit");
+    session.addScene(kind);
+  };
+  const buildNow = async () => {
+    if (await session.saveAndBuild()) showBottom("run");
   };
   const drag = (edge: "left" | "right" | "bottom") => (event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -207,8 +268,8 @@ export function ProjectWorkspace() {
             aria-label="项目名"
             onChange={(event) => session.edit({ ...draft, title: event.target.value })}
           />
-          <Badge tone={revisionState.tone} dot title={revisionState.label}>
-            <span className="numeric">rev {session.base.slice(0, 6) || "—"}</span>
+          <Badge tone={revisionState.tone} dot title={revisionDetail}>
+            {revisionState.label}
           </Badge>
         </div>
         <div className="seg workspace-tabs" role="tablist" aria-label="工作区">
@@ -230,34 +291,73 @@ export function ProjectWorkspace() {
             <MenuItem disabled={session.dirty} onSelect={() => void session.act(() => session.showPlan(`/projects/${draft.id}/plan`, { requestId: requestId() }))}>检查制作计划</MenuItem>
             <MenuItem onSelect={() => void session.act(() => session.showPlan(`/projects/${draft.id}/impact`, { document: draft }))}>查看影响</MenuItem>
             {session.plan !== null && <MenuItem onSelect={() => setPlanOpen(true)}>查看计划与影响</MenuItem>}
+            <MenuItem disabled={!session.activeRun} onSelect={() => showBottom("run")}>查看当前任务</MenuItem>
             <MenuItem onSelect={() => void session.copyBrief()}><span className="flex items-center gap-2"><CopyIcon />复制给 agent</span></MenuItem>
           </Menu>
-          <Button size="sm" emphasized={session.dirty} disabled={session.busy || !session.dirty} onClick={() => void session.save()}>
-            <SaveIcon />保存
+          <Button
+            size="sm"
+            emphasized={session.dirty || session.planDirty}
+            disabled={session.busy || (!session.dirty && !session.planDirty)}
+            title={
+              session.busy
+                ? "正在处理当前操作"
+                : !session.dirty && !session.planDirty
+                  ? "项目与方案都已保存"
+                  : "保存项目草稿和创作方案"
+            }
+            onClick={() => void session.saveAll()}
+          >
+            <SaveIcon />{session.busy ? "处理中…" : "保存"}
           </Button>
           <Button
             size="sm"
             variant="primary"
-            disabled={session.dirty || session.busy}
-            onClick={() => void session.act(() => session.submitJob(`/projects/${draft.id}/build`, { requestId: requestId() }))}
+            disabled={session.busy || !draft.scenes.length}
+            title={
+              session.busy
+                ? "正在保存或制作，请等待当前操作完成"
+                : !draft.scenes.length
+                  ? "先添加至少一个场景再制作"
+                  : session.dirty || session.planDirty
+                    ? "点击后会保存项目草稿和创作方案，再提交制作"
+                    : "使用已保存内容提交制作"
+            }
+            onClick={() => void buildNow()}
           >
-            制作
+            {session.dirty || session.planDirty ? "保存并制作" : "制作"}
           </Button>
         </div>
       </header>
+      <ProjectGuidance workflowId={draft.workflow} onNavigate={navigateGuidance} />
+      {completedBuild && (
+        <div
+          className="flex flex-wrap items-center gap-2 border-b border-ok/30 bg-ok/10 px-3 py-2 text-xs text-ok"
+          role="status"
+        >
+          <span className="min-w-0 flex-1">
+            制作完成，成片已进入交付列表。
+          </span>
+          <Button size="sm" onClick={() => setFocus("delivery")}>查看交付</Button>
+          <Button size="sm" variant="ghost" onClick={() => showBottom("run")}>查看任务</Button>
+        </div>
+      )}
       {session.conflict && (
         <div className="workspace-banner" role="alert">
           <AlertIcon className="shrink-0" />
-          <span className="workspace-banner-copy">修订冲突，服务器内容为 <span className="numeric">{session.conflict.id.slice(0, 12)}</span>；你的草稿已保留。</span>
-          <Button size="sm" onClick={() => setConflictOpen(true)}>对照内容</Button>
-          <Button size="sm" onClick={session.loadServerKeepingDraft}>保留草稿并加载当前修订</Button>
+          <span className="workspace-banner-copy">
+            另一处已经更新了这个项目。你的本地草稿仍保留，请先查看差异再决定加载服务器内容。
+          </span>
+          <Button size="sm" onClick={() => setConflictOpen(true)}>查看差异</Button>
+          <Button size="sm" onClick={session.loadServerKeepingDraft}>保留我的草稿并加载服务器内容</Button>
         </div>
       )}
       {session.storedDraft && (
         <div className="workspace-banner">
           <AlertIcon className="shrink-0" />
-          <span className="workspace-banner-copy">这个项目有可恢复草稿，基线仍是保存时的修订。</span>
-          <Button size="sm" onClick={() => session.storedDraft && void session.restoreDraft(session.storedDraft)}>恢复草稿</Button>
+          <span className="workspace-banner-copy">
+            找到了上次未完成的草稿备份。恢复后会先检查项目是否在别处更新，不会直接覆盖服务器内容。
+          </span>
+          <Button size="sm" onClick={() => session.storedDraft && void session.restoreDraft(session.storedDraft)}>恢复未完成草稿</Button>
           <Button size="sm" variant="ghost" onClick={session.clearStoredDraft}>清除备份</Button>
         </div>
       )}
@@ -284,7 +384,7 @@ export function ProjectWorkspace() {
                     <div className="flex flex-col gap-2">
                       <div className="actions">
                         {(["card", "still", "clip"] as const).map((kind) => (
-                          <Button key={kind} size="sm" variant="ghost" onClick={() => session.addScene(kind)}><PlusIcon />{labels[kind]}</Button>
+                          <Button key={kind} size="sm" variant="ghost" onClick={() => addSceneFromUi(kind)}><PlusIcon />{labels[kind]}</Button>
                         ))}
                       </div>
                       {draft.scenes.map((item, index) => (
@@ -319,14 +419,10 @@ export function ProjectWorkspace() {
           )}
           {focus !== "edit" && <div className="mx-auto w-full max-w-[1440px]">
             {focus === "captions" && <CaptionWorkspace />}
-            {focus === "sound" && (
-              <div className="narrow-content flex flex-col gap-4">
-                <div><h2 className="m-0">声音</h2><p className="hint mb-0 mt-1">原声场景无需音色。旁白在画面属性里选择音色版本，也可以使用上传的旁白音频。</p></div>
-                <BgmEditor draft={draft} assets={ctx.assets} edit={session.edit} />
-              </div>
-            )}
+            {focus === "sound" && <SoundWorkspace sceneId={sceneId} onSelect={setSceneId} />}
             {focus === "plan" && profile && (
               <CreativePlanEditor
+                projectId={draft.id}
                 plan={session.planDraft}
                 projectTitle={draft.title}
                 projectScenes={draft.scenes}
@@ -335,7 +431,7 @@ export function ProjectWorkspace() {
                 planDirty={session.planDirty}
                 busy={session.busy}
                 onChange={session.editCreativePlan}
-                onSave={(next) => void session.saveCreativePlan(next)}
+                onSave={() => void session.saveAll()}
                 onApply={() => void session.applyCreativePlan()}
                 renderSceneEditor={(item, onChange) => <SceneEditor scene={item} locale={session.locale} assets={ctx.assets} profile={profile} voices={voices} onChange={onChange} />}
               />
@@ -380,13 +476,44 @@ export function ProjectWorkspace() {
         ) : (
           <>
             <div className="panel-header">
-              <span>{session.activeRun ? "任务进度" : "故事板"}</span>
+              <div className="seg" role="tablist" aria-label="底部工作区">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={bottomMode === "storyboard"}
+                  className={bottomMode === "storyboard" ? "is-on" : ""}
+                  onClick={() => setBottomMode("storyboard")}
+                >
+                  故事板
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={bottomMode === "run"}
+                  className={bottomMode === "run" ? "is-on" : ""}
+                  onClick={() => setBottomMode("run")}
+                >
+                  任务{session.activeRun ? currentRun ? ` · ${runLabel(currentRun.state)}` : "进度" : "（暂无）"}
+                </button>
+              </div>
               <div className="panel-header-actions">
-                {!session.activeRun && focus === "edit" && (["card", "still", "clip"] as const).map((kind) => <Button key={kind} size="sm" variant="ghost" onClick={() => session.addScene(kind)}>+{labels[kind]}</Button>)}
+                {bottomMode === "storyboard" && (
+                  <>
+                    {focus !== "edit" && <Button size="sm" variant="ghost" onClick={() => setFocus("edit")}>返回故事板</Button>}
+                    {(focus === "edit" && width >= 900 ? (["card", "still", "clip"] as const) : []).map((kind) => <Button key={kind} size="sm" variant="ghost" onClick={() => addSceneFromUi(kind)}>+{labels[kind]}</Button>)}
+                  </>
+                )}
+                {bottomMode === "run" && <Button size="sm" variant="ghost" onClick={() => setBottomMode("storyboard")}>返回故事板</Button>}
                 <PanelButton side="bottom" collapsed={false} onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, bottom: true } })} />
               </div>
             </div>
-            {session.activeRun ? <ActiveRunPanel /> : (
+            {bottomMode === "run" ? (
+              session.activeRun ? <ActiveRunPanel /> : (
+                <div className="scroll-region min-h-0 flex-1 p-3">
+                  <p className="hint m-0 text-xs">还没有当前任务。使用“保存并制作”提交后会在这里显示进度、失败建议和完成结果。</p>
+                </div>
+              )
+            ) : (
               <div className="storyboard-track">
                 {draft.scenes.map((item, index) => (
                   <article key={item.id} className={`storyboard-card ${item.id === sceneId ? "is-on" : ""}`}>
@@ -402,17 +529,25 @@ export function ProjectWorkspace() {
                     </div>
                   </article>
                 ))}
+                {!draft.scenes.length && (
+                  <EmptyStoryboard onAdd={addSceneFromUi} onOpenAssets={() => showLeft("assets")} />
+                )}
               </div>
             )}
           </>
         )}
       </footer>
-      <Modal open={conflictOpen} title="服务器文档对照" onOpenChange={setConflictOpen}>
-        <div className="scroll-region max-h-[60vh]"><pre className="code-block">{JSON.stringify(session.conflict?.document, null, 2)}</pre></div>
-      </Modal>
-      <Modal open={planOpen && session.plan !== null} title="计划与影响" onOpenChange={setPlanOpen}>
-        <div className="scroll-region max-h-[60vh]"><pre className="code-block">{JSON.stringify(session.plan, null, 2)}</pre></div>
-      </Modal>
+      <ConflictReviewDialog
+        open={conflictOpen}
+        onOpenChange={setConflictOpen}
+        local={session.planDirty ? { ...draft, creativePlan: session.planDraft || undefined } : draft}
+        server={session.conflict?.document || null}
+      />
+      <ProjectReviewDialog
+        open={planOpen && session.plan !== null}
+        onOpenChange={setPlanOpen}
+        value={session.plan}
+      />
     </div>
   );
 }
@@ -426,6 +561,168 @@ function PanelButton({ side, collapsed, onClick }: { side: "left" | "right" | "b
   };
   const label = `${collapsed ? "展开" : "折叠"}${labels[side]}`;
   return <Hint label={label}><Button size="icon" compact variant="ghost" aria-label={label} onClick={onClick}>{icons[side]}</Button></Hint>;
+}
+
+function EmptyStoryboard({
+  onAdd,
+  onOpenAssets,
+}: {
+  onAdd: (kind: Scene["kind"]) => void;
+  onOpenAssets: () => void;
+}) {
+  return (
+    <article
+      className="storyboard-card min-h-24"
+      style={{ width: "min(620px, calc(100vw - 48px))" }}
+    >
+      <div className="flex flex-1 flex-col justify-center gap-3 p-4">
+        <div>
+          <b>从第一种画面开始</b>
+          <p className="hint mb-0 mt-1 text-xs">
+            卡片可以直接填写文字。静帧和视频片段需要对应素材；缺少素材时会打开素材区提示。
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="primary" onClick={() => onAdd("card")}>
+            <PlusIcon />添加卡片（无需素材）
+          </Button>
+          <Button size="sm" onClick={() => onAdd("still")}>
+            <PlusIcon />添加静帧
+          </Button>
+          <Button size="sm" onClick={() => onAdd("clip")}>
+            <PlusIcon />添加视频片段
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onOpenAssets}>先导入素材</Button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function SoundWorkspace({
+  sceneId,
+  onSelect,
+}: {
+  sceneId: string;
+  onSelect: (sceneId: string) => void;
+}) {
+  const session = useSession();
+  const draft = session.draft;
+  const ctx = session.ctx;
+  if (!draft || !ctx) return null;
+  const profile = draft.profiles[0];
+  const scene = draft.scenes.find((item) => item.id === sceneId) || draft.scenes[0];
+  const sceneIndex = scene
+    ? draft.scenes.findIndex((item) => item.id === scene.id)
+    : -1;
+  const voices = [...session.library, ...ctx.library].filter(
+    (value, index, values) =>
+      value.payload.kind === "voice" &&
+      values.findIndex(
+        (candidate) =>
+          candidate.itemId === value.itemId &&
+          candidate.version === value.version,
+      ) === index,
+  );
+  return (
+    <div className="narrow-content flex flex-col gap-4">
+      <div>
+        <h2 className="m-0">声音</h2>
+        <p className="hint mb-0 mt-1">
+          逐场调整原声、旁白与混音。音色参考和已上传旁白可以直接试听。
+        </p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(360px,1.2fr)]">
+        <section className="panel-card p-3" aria-labelledby="scene-sound-list-title">
+          <div className="section-title mb-2">
+            <b id="scene-sound-list-title">逐场声音</b>
+            <Badge>{draft.scenes.length}</Badge>
+          </div>
+          <div className="flex flex-col gap-2">
+            {draft.scenes.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`row-item ${item.id === scene?.id ? "is-on" : ""}`}
+                onClick={() => onSelect(item.id)}
+              >
+                <span className="storyboard-index">{String(index + 1).padStart(2, "0")}</span>
+                <SceneKindIcon kind={item.kind} />
+                <span className="row-item-copy">
+                  <b>{item.label || labels[item.kind]}</b>
+                  <small>{soundSummary(item, session.locale)}</small>
+                </span>
+              </button>
+            ))}
+            {!draft.scenes.length && (
+              <p className="hint m-0 text-xs">添加场景后，这里会显示每一场的声音来源。</p>
+            )}
+          </div>
+        </section>
+        <div className="flex flex-col gap-4">
+          {scene && profile ? (
+            <section className="panel-card p-4" aria-labelledby="selected-sound-title">
+              <div className="section-title mb-3">
+                <div>
+                  <h3 id="selected-sound-title" className="m-0">
+                    场景 {sceneIndex + 1} · {scene.label || labels[scene.kind]}
+                  </h3>
+                  <small>{soundSummary(scene, session.locale)}</small>
+                </div>
+                <Badge tone="accent">编辑这一场的声音</Badge>
+              </div>
+              <SceneEditor
+                scene={scene}
+                locale={session.locale}
+                assets={ctx.assets}
+                profile={profile}
+                voices={voices}
+                section="sound"
+                onChange={(next) =>
+                  session.edit({
+                    ...draft,
+                    scenes: draft.scenes.map((item) =>
+                      item.id === scene.id ? next : item,
+                    ),
+                  })
+                }
+              />
+            </section>
+          ) : (
+            <div className="subtle-card p-6 text-center">
+              <b>还没有可设置声音的场景</b>
+              <p className="hint mb-0 mt-1 text-xs">先添加卡片、静帧或视频片段。</p>
+            </div>
+          )}
+          <section className="panel-card p-4" aria-labelledby="background-music-title">
+            <div className="mb-3">
+              <h3 id="background-music-title" className="m-0">全片背景音乐</h3>
+              <p className="hint mb-0 mt-1 text-xs">背景音乐独立于原声和各场旁白。</p>
+            </div>
+            <BgmEditor draft={draft} assets={ctx.assets} edit={session.edit} />
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function soundSummary(scene: Scene, locale: string) {
+  if (scene.kind === "clip") {
+    if (scene.playback.audio.kind === "silent") return "静音";
+    if (scene.playback.audio.kind === "original") {
+      return "保留原声，不需要音色";
+    }
+  }
+  const speech = speechOf(scene);
+  if (!speech) return "没有旁白";
+  if (speech.kind === "imported") {
+    return speech.audio[locale] ? "上传的旁白音频" : "上传旁白（当前语言尚未选择音频）";
+  }
+  const text = speech.text[locale]?.trim();
+  const voice = speech.voice[locale];
+  if (!text) return "旁白文案尚未填写";
+  return voice ? "文案与已选音色" : "文案已填写，尚未选择音色";
 }
 
 function Resizer({ edge, dragging, onPointerDown }: { edge: "left" | "right" | "bottom"; dragging: boolean; onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void }) {
@@ -498,7 +795,16 @@ function ActiveRunPanel() {
             </div>
           </div>
           <div className="run-progress" aria-label={`作业进度 ${progress}%`}><span style={{ width: `${progress}%` }} /></div>
-          {detail.run.error && <p className="error m-0">{detail.run.error.message}</p>}
+          {detail.run.error && (
+            <div className="subtle-card border-danger/30 bg-danger/5 p-3">
+              <p className="error m-0">{detail.run.error.message}</p>
+              {detail.run.error.hints.length > 0 && (
+                <ul className="mb-0 mt-2 pl-5 text-xs text-muted">
+                  {detail.run.error.hints.map((hint) => <li key={hint}>{hint}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
           {session.activeRunError && <p className="error m-0">{session.activeRunError}</p>}
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {detail.nodes.map((node) => <div className="subtle-card flex items-center gap-2 px-3 py-2" key={node.key}><Badge tone={node.state === "succeeded" ? "ok" : isActiveRun(node.state) ? "accent" : "neutral"}>{runLabel(node.state)}</Badge><span className="min-w-0 flex-1 truncate text-xs">{node.key}</span><small className="numeric">尝试 {node.attempts}</small></div>)}

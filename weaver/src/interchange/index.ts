@@ -227,9 +227,21 @@ export class Interchange {
     }
   }
   async importBundle(source: string, requestId: string, projectId?: string) {
-    return this.store.owned("bundle-import", () =>
-      this.importBundleInner(source, requestId, projectId),
-    );
+    try {
+      return await this.store.owned("bundle-import", () =>
+        this.importBundleInner(source, requestId, projectId),
+      );
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error &&
+          (error.code === "ENOENT" || error.code === "ENOTDIR")) {
+        const missingSource = "path" in error && typeof error.path === "string" &&
+          path.resolve(error.path) === path.resolve(source);
+        throw new WeaverError(missingSource ? "NOT_FOUND" : "INVALID_INPUT",
+          missingSource ? "项目包不存在或已被移动" : "项目包缺少必要文件",
+          { source }, ["重新选择完整的 LightWeaver 项目包 ZIP 或含 bundle.json 的目录。"]);
+      }
+      throw error;
+    }
   }
   private async importBundleInner(
     source: string,
@@ -241,12 +253,26 @@ export class Interchange {
     if (fs.statSync(root).isFile()) {
       temp = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-bundle-"));
       try {
-        await processRun("python3", [
+        const result = await processRun("python3", [
           "-c",
-          "import zipfile,pathlib,sys; z=zipfile.ZipFile(sys.argv[1]); r=pathlib.Path(sys.argv[2]).resolve(); [(None if not p.is_absolute() and '..' not in p.parts else (_ for _ in ()).throw(ValueError('unsafe zip'))) for p in map(pathlib.PurePosixPath,z.namelist())]; z.extractall(r)",
+          `import json, pathlib, sys, zipfile
+try:
+    with zipfile.ZipFile(sys.argv[1]) as archive:
+        for name in archive.namelist():
+            entry = pathlib.PurePosixPath(name)
+            if entry.is_absolute() or ".." in entry.parts:
+                raise ValueError("unsafe zip")
+        archive.extractall(pathlib.Path(sys.argv[2]).resolve())
+except (zipfile.BadZipFile, ValueError, FileNotFoundError, NotADirectoryError) as error:
+    print(json.dumps({"error": str(error)}))
+else:
+    print(json.dumps({"error": None}))`,
           root,
           temp,
         ]);
+        const extraction = z.object({ error: z.string().nullable() }).parse(JSON.parse(result.stdout));
+        if (extraction.error !== null)
+          throw new WeaverError("INVALID_INPUT", "无法读取项目包 ZIP", { source, reason: extraction.error }, ["重新选择完整的 LightWeaver 项目包，或重新导出后再导入。"]);
         root = temp;
       } catch (e) {
         fs.rmSync(temp, { recursive: true, force: true });
@@ -254,9 +280,13 @@ export class Interchange {
       }
     }
     try {
-      const bundle = Bundle.parse(
-        JSON.parse(fs.readFileSync(safeRelative(root, "bundle.json"), "utf8")),
-      );
+      const manifest = fs.readFileSync(safeRelative(root, "bundle.json"), "utf8");
+      let raw: unknown;
+      try { raw = JSON.parse(manifest); }
+      catch {
+        throw new WeaverError("INVALID_INPUT", "项目包的 bundle.json 不是有效 JSON", { source }, ["重新导出完整项目包后导入。"]);
+      }
+      const bundle = Bundle.parse(raw);
       const blobIds = new Set(bundle.blobs.map((b) => b.digest)),
         assetIds = new Set(bundle.assets.map(refKey)),
         libraryIds = new Set(

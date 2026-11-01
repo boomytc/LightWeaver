@@ -1,0 +1,83 @@
+[
+  {
+    "op": "scenes",
+    "value": [
+      {
+        "id": "starter-opening",
+        "label": "开场",
+        "kind": "card",
+        "cardSpec": {
+          "template": "title",
+          "version": "2",
+          "copy": {
+            "zh": {
+              "kicker": "LIGHTWEAVER",
+              "headline": "从一张卡片开始",
+              "lede": "编辑文字，保存项目，然后制作。",
+              "points": [],
+              "tags": []
+            }
+          },
+          "brand": "LightWeaver"
+        },
+        "timing": {
+          "kind": "fixed",
+          "frames": 90
+        }
+      },
+      {
+        "id": "starter-points",
+        "label": "要点",
+        "kind": "card",
+        "cardSpec": {
+          "template": "points",
+          "version": "2",
+          "copy": {
+            "zh": {
+              "kicker": "工作方式",
+              "headline": "把选择留在项目里",
+              "lede": "方案可以审核，场景可以继续修改。",
+              "points": [
+                "先保存修订",
+                "再制作交付",
+                "最后导出文件"
+              ],
+              "tags": [
+                "本地",
+                "可编辑"
+              ]
+            }
+          },
+          "brand": "LightWeaver"
+        },
+        "timing": {
+          "kind": "fixed",
+          "frames": 90
+        }
+      },
+      {
+        "id": "starter-close",
+        "label": "收束",
+        "kind": "card",
+        "cardSpec": {
+          "template": "close",
+          "version": "2",
+          "copy": {
+            "zh": {
+              "kicker": "完成",
+              "headline": "现在导出 MP4",
+              "lede": "从任务完成提示进入交付。",
+              "points": [],
+              "tags": []
+            }
+          },
+          "brand": "LightWeaver"
+        },
+        "timing": {
+          "kind": "fixed",
+          "frames": 90
+        }
+      }
+    ]
+  }
+]

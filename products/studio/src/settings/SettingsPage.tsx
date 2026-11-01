@@ -21,7 +21,7 @@ const RuntimeView = z.object({
   logDir: z.string(),
   resourcesDir: z.string().optional(),
   interchangePython: z.string(),
-  cli: z.object({ node: z.string(), entry: z.string() }).nullable(),
+  cli: z.object({ node: z.string(), entry: z.string(), command: z.string(), shell: z.string() }).nullable(),
   requirements: z.array(z.object({ name: z.string(), file: z.string() })),
   tools: z.object({
     node: z.boolean(),
@@ -220,8 +220,8 @@ function RuntimePanel() {
       {runtime.cli && (
         <details className="subtle-card p-4">
           <summary className="font-medium">外部 agent 与命令行</summary>
-          <p className="hint mt-2 mb-3">此入口使用包内 Node，默认读取同一桌面数据和配置。可用 --data-dir、--config-file 和 --config-base 显式覆盖。</p>
-          <pre className="code-block">{`${runtime.platform === "win32" ? "& " : ""}'${runtime.cli.node.replaceAll("'", runtime.platform === "win32" ? "''" : "'\\''")}' '${runtime.cli.entry.replaceAll("'", runtime.platform === "win32" ? "''" : "'\\''")}' capabilities --json`}</pre>
+          <p className="hint mt-2 mb-3">在 {runtime.cli.shell} 中运行。命令已指定当前数据目录和配置；进入项目后也可从“更多”复制给 agent。</p>
+          <pre className="code-block">{`${runtime.cli.command} capabilities --json`}</pre>
         </details>
       )}
     </section>

@@ -23,6 +23,7 @@ import { Jobs } from "../jobs/index.ts";
 import { Providers, AsrResult, workspaceRoot } from "../adapters/providers.ts";
 import {
   currentRuntime,
+  cliInvocation,
   installRuntime,
   resourcePath,
   type RuntimeContext,
@@ -45,6 +46,7 @@ export { WeaverError, errorProtocol, httpStatus } from "../contracts/errors.ts";
 export {
   RuntimeContext,
   currentRuntime,
+  cliInvocation,
   developmentRuntime,
   installRuntime,
   resourcePath,
@@ -122,7 +124,9 @@ export class Application {
         mode: this.runtime.mode,
         dataDir: this.runtime.dataDir,
         configFile: this.runtime.configFile,
+        configBase: this.runtime.configBase,
         resourcesDir: this.runtime.resourcesDir,
+        cli: cliInvocation(this.runtime),
       },
       agentSkills: fs.readdirSync(resourcePath(".agents", "skills"), { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && fs.existsSync(resourcePath(".agents", "skills", entry.name, "SKILL.md")))
@@ -338,7 +342,24 @@ export class Application {
   }
   agentBrief(projectId: string): string {
     const p = this.projects.read(projectId);
-    return `项目 ${p.projectId}\n当前修订 ${p.id}\n绑定版本 ${JSON.stringify(this.projects.libraryFor(p.document, "saved").map((v) => ({ itemId: v.itemId, version: v.version, name: v.payload.name })))}\n目标 ${p.document.locales.join(",")} / ${p.document.profiles.map((p) => p.id).join(",")}\n先运行 weaver project context ${p.projectId} --json，使用 weaver schema / doctor --json 发现合同与能力。外部作者编写剧情和旁白，使用 schema creative-plan 将分场、选择理由和证据区间组织为方案；creative-plan import 保存待审方案，creative-plan apply 显式采用。源片字幕可 analyze --align 后 captions from-analysis；修改时携带 expectedRevision 和 requestId，先 build --plan 再制作。`;
+    const cli = cliInvocation(this.runtime);
+    return [
+      `LightWeaver 项目 ${p.projectId}`,
+      `当前已保存版本 ${p.id}；工作流 ${p.document.workflow}`,
+      `目标 ${p.document.locales.join(",")} / ${p.document.profiles.map((profile) => profile.id).join(",")}`,
+      `绑定版本 ${JSON.stringify(this.projects.libraryFor(p.document, "saved").map((version) => ({ itemId: version.itemId, version: version.version, name: version.payload.name })))}`,
+      `以下命令用于 ${cli.shell}，已绑定当前数据目录和配置。请从已保存项目开始；Studio 中未保存的修改不包含在此交接中。`,
+      `${cli.command} capabilities --json`,
+      `${cli.command} project context ${p.projectId} --json`,
+      `${cli.command} schema creative-plan --json`,
+      `${cli.command} doctor --json`,
+      `修改前重新读取当前版本，使用 --expected-revision 和独立 --request-id。发生冲突先核对内容，不自动替换版本重试。`,
+      `方案先用 creative-plan import 保存供审核，再由 creative-plan apply 显式采用；也可用 project apply 提交已确认的场景编辑。`,
+      `检查制作计划：${cli.command} build --project ${p.projectId} --plan --json`,
+      `制作：${cli.command} build --project ${p.projectId} --wait --json`,
+      `源片字幕可 analyze --align 后 captions from-analysis。外部作者负责剧情、选段和旁白。`,
+      `技能入口：${resourcePath(".agents", "skills", "lightweaver-film", "SKILL.md")}`,
+    ].join("\n");
   }
   mediaFile(value: string): { file: string; mime: string; bytes: number } {
     const row = z
