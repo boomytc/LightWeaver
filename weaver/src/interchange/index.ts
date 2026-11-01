@@ -293,7 +293,10 @@ export class Interchange {
         if (speech?.kind === "authored")
           Object.values(speech.voice).forEach(requireLibrary);
       };
-      bundle.assets.forEach((a) => requireBlob(a.digest));
+      bundle.assets.forEach((a) => {
+        requireBlob(a.digest);
+        a.provenance?.inputs.forEach((input) => requireMedia(input.source));
+      });
       bundle.library.forEach((v) => {
         if (v.payload.kind === "method")
           v.payload.sceneTemplate.forEach(checkScene);

@@ -8,12 +8,18 @@ import {
   Application,
   errorProtocol,
   httpStatus,
+  WeaverError,
 } from "@lightweaver/weaver/app";
 import {
   installRuntime,
   type RuntimeContext,
 } from "@lightweaver/weaver/app";
-import { z, MediaRef, SourceRange } from "@lightweaver/weaver/contracts";
+import {
+  z,
+  MediaProvenance,
+  MediaRef,
+  SourceRange,
+} from "@lightweaver/weaver/contracts";
 import { ClientStateStore } from "./client-state.ts";
 
 export type ServiceMode = "development" | "production";
@@ -269,7 +275,11 @@ export async function startStudioService(
     projectId: string,
     file: string,
     name: string | undefined,
-    body: { expectedRevision: string; requestId: string },
+    body: {
+      expectedRevision: string;
+      requestId: string;
+      provenance?: z.infer<typeof MediaProvenance>;
+    },
   ) =>
     app.addAsset({
       projectId,
@@ -283,14 +293,21 @@ export async function startStudioService(
     async (req, res, next) => {
       try {
         if (!req.file) throw Error("先选择素材");
-        const body = Write.parse(req.body);
+        const body = Write.extend({ provenance: z.string().optional() }).parse(req.body);
+        let provenance: z.infer<typeof MediaProvenance> | undefined;
+        if (body.provenance !== undefined) {
+          let value: unknown;
+          try { value = JSON.parse(body.provenance); }
+          catch { throw new WeaverError("INVALID_INPUT", "素材来源必须是有效 JSON"); }
+          provenance = MediaProvenance.parse(value);
+        }
         res.json({
           ok: true,
           result: await importAsset(
             z.string().parse(req.params.id),
             req.file.path,
             req.file.originalname,
-            body,
+            { ...body, provenance },
           ),
         });
       } catch (error) {
@@ -304,6 +321,7 @@ export async function startStudioService(
     const body = Write.extend({
       file: z.string(),
       name: z.string().optional(),
+      provenance: MediaProvenance.optional(),
     }).parse(req.body);
     const file = absoluteFile(body.file);
     return importAsset(
@@ -632,17 +650,11 @@ export async function startStudioService(
         destination: input.destination,
         deliveryId: input.deliveryId,
       });
-    const deliveries = await app.builds.deliveries(projectId);
-    const delivery = deliveries.find((item) =>
-      input.deliveryId ? item.id === input.deliveryId : item.state === "current",
-    );
-    if (!delivery) throw new Error("没有可导出的当前交付");
-    const digest = delivery.artifacts.video;
-    if (!digest) throw new Error("当前交付没有视频文件");
-    const media = app.mediaFile(digest);
-    await fsp.mkdir(path.dirname(input.destination), { recursive: true });
-    await fsp.copyFile(media.file, input.destination, fs.constants.COPYFILE_EXCL);
-    return { file: input.destination, digest };
+    return app.exportVideo({
+      projectId,
+      destination: input.destination,
+      deliveryId: input.deliveryId,
+    });
   });
   route("post", "/api/export/verify", (req) =>
     app.interchange.verify(z.object({ directory: z.string() }).parse(req.body).directory),

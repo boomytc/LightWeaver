@@ -333,6 +333,10 @@ function installPython(pythonExtraction) {
 
 function copyResources() {
   const resources = path.join(staging, "resources");
+  copyTree(path.join(repoRoot, ".agents", "skills"), path.join(resources, ".agents", "skills"));
+  fs.mkdirSync(path.join(resources, "docs"), { recursive: true });
+  fs.copyFileSync(path.join(repoRoot, "AGENTS.md"), path.join(resources, "AGENTS.md"));
+  fs.copyFileSync(path.join(repoRoot, "docs", "conventions.md"), path.join(resources, "docs", "conventions.md"));
   copyTree(path.join(repoRoot, "library"), path.join(resources, "library"));
   copyTree(
     path.join(repoRoot, "weaver", "scripts"),

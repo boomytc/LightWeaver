@@ -4,6 +4,8 @@ import { currentRuntime, type RuntimeContext } from "./runtime.ts";
 import path from "node:path";
 import {
   z,
+  MediaAssetVersion,
+  MediaProvenance,
   ProjectDocument,
   ProjectRevision,
   MediaRef,
@@ -92,14 +94,14 @@ try {
         "models verify <model-id> [--root /abs/download-root]",
         "models use <model-id> --path /abs/existing-model-or-file",
         "models use-provider modelbest",
-        "schema [project|revision|scene|speech|profile|captions|library|ops|proposal|timeline|model-settings|error]",
+        "schema [project|revision|scene|speech|profile|captions|library|ops|proposal|timeline|media-provenance|media-asset|model-settings|error]",
         "project create <id> [--title text] [--workflow study-explainer]",
-        "project list|show [id]",
+        "project list | project show <project-id> [--revision revision-id]",
         "project apply --project id --ops /abs/edit-ops.json --expected-revision rev",
         "project import --project id --file /abs/document.json --expected-revision rev",
         "project brief <id>",
         "project context <id>",
-        "asset add --project id --file /abs/media --expected-revision rev [--asset-id id]",
+        "asset add --project id --file /abs/media --expected-revision rev [--asset-id id] [--provenance /abs/provenance.json]",
         "library list|show [id] [--version digest]",
         "library set --file /abs/payload.json [--media /abs/file] [--id id --expected-version digest]",
         "library delete --id id --expected-version digest",
@@ -113,6 +115,7 @@ try {
         "build --project id [--locales zh,en] [--profiles landscape,portrait,square] [--plan|--wait] [--regenerate]",
         "run list [--project id] | run status|cancel|resume <runId> [--wait] | run events <runId> [--after seq]",
         "artifacts --project id",
+        "artifact show <manifest-or-receipt-digest>",
         "worker",
         "events RUN [--after seq] (JSONL snapshot)",
         "capabilities --json",
@@ -128,6 +131,7 @@ try {
         "tts --text text [--voice id --voice-version digest --provider local-voxcpm2] --wait [--dest /abs/speech.wav]",
         "voice-design --text sample --style description [--provider local-voxcpm2] --wait [--dest /abs/preview.wav]",
         "capture --url https://example.com [--width 1440 --height 1100 --selector css] --wait [--dest /abs/image.png]",
+        "export --project id --format video --dest /abs/movie.mp4 [--delivery id]",
         "export --project id --format otio|jianying|bundle --dest /abs/empty-output [--delivery id]",
         "export verify --dir /abs/package | export install --dir /abs/jianying-package",
         "import --file /abs/bundle.zip [--id new-project-id]",
@@ -184,6 +188,8 @@ try {
       captions: CaptionTrack,
       "creative-plan": CreativePlan,
       library: LibraryPayload,
+      "media-provenance": MediaProvenance,
+      "media-asset": MediaAssetVersion,
       ops: z.array(EditOperation),
       proposal: Proposal,
       timeline: TimelineManifest,
@@ -232,6 +238,9 @@ try {
       file: str("file"),
       assetId: str("asset-id", true) || undefined,
       name: str("name", true) || undefined,
+      provenance: str("provenance", true)
+        ? MediaProvenance.parse(jsonFile("provenance"))
+        : undefined,
     });
   else if (command === "asset" && action === "adopt")
     result = await app.adoptMaterial({
@@ -495,10 +504,16 @@ try {
       );
     else {
       const format = z
-        .enum(["bundle", "otio", "jianying"])
+        .enum(["video", "bundle", "otio", "jianying"])
         .parse(str("format"));
       result =
-        format === "bundle"
+        format === "video"
+          ? await app.exportVideo({
+              projectId: str("project"),
+              destination: str("dest"),
+              deliveryId: str("delivery", true) || undefined,
+            })
+          : format === "bundle"
           ? await app.interchange.bundle(str("project"), str("dest"))
           : await app.interchange.export({
               projectId: str("project"),
@@ -525,6 +540,8 @@ try {
         : options.execute
           ? await app.migration.execute(str("root"), requestId)
           : app.migration.inventory(str("root"));
+  else if (command === "artifact" && action === "show")
+    result = app.readArtifactJson(arg);
   else if (command === "artifacts")
     result = await app.builds.deliveries(str("project"));
   else if (command === "worker") {

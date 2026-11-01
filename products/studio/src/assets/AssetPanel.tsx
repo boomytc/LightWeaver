@@ -7,6 +7,7 @@ import { Field } from "../ui/Field";
 import { Dropzone } from "../ui/Dropzone";
 import { Badge } from "../ui/Badge";
 import { AudioIcon, FileIcon, ImageIcon, VideoIcon } from "../ui/Icons";
+import { MediaSourceDetails } from "./MediaSourceDetails";
 
 export function useProjectAssetImport() {
   const session = useSession();
@@ -103,6 +104,7 @@ export function AssetPanel({ selectedKey, onSelect }: { selectedKey: string; onS
         })}
       </ul>
       {ctx.assets.length === 0 && <p className="hint text-xs">还没有受管素材。</p>}
+      <MediaSourceDetails asset={ctx.assets.find((asset) => refKey(asset) === selectedKey)} assets={ctx.assets} />
       <div className="flex flex-col gap-3 border-t border-line pt-3">
         <Field label="可选方法">
           <select value={draft.method ? `${draft.method.itemId}@${draft.method.version}` : ""} onChange={(event) => {

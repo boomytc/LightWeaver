@@ -310,6 +310,15 @@ export const ProjectRevision = z.strictObject({
   createdAt: z.string(),
   requestId: Id,
 });
+export const MediaProvenance = z.strictObject({
+  description: z.string().min(1),
+  inputs: z.array(z.strictObject({
+    source: MediaRef,
+    role: z.enum(["picture", "audio", "captions", "reference"]),
+    range: SourceRange.optional(),
+  })).min(1),
+  captions: z.enum(["embedded", "none", "unknown"]),
+});
 export const MediaAssetVersion = z.strictObject({
   assetId: AssetId,
   version: Digest,
@@ -318,6 +327,7 @@ export const MediaAssetVersion = z.strictObject({
   name: z.string(),
   mime: z.string(),
   bytes: z.number().int().nonnegative(),
+  provenance: MediaProvenance.optional(),
 });
 export const VoiceVersion = z.strictObject({
   kind: z.literal("voice"),

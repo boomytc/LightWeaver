@@ -1,5 +1,7 @@
 # 桌面客户端验收
 
+2026-11-01 的视频导出、素材来源和项目技能验收见 [Agent 制作与交付验收](acceptance-agent-delivery.md)。下文保留桌面基础能力和关窗流程的验收记录。
+
 2026-10-31，本轮修复后生成未签名 macOS arm64 应用：
 
 `products/desktop/release/mac-arm64/LightWeaver.app`

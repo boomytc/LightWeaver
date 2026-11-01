@@ -10,7 +10,7 @@ LightWeaver 是桌面视频制作工具。把已有视频、图片、旁白和�
 | --- | --- |
 | 打开应用、配置模型、制作与导出视频 | [用户指南](docs/user-guide.md) |
 | 运行源代码、修改客户端、构建桌面包 | [开发指南](docs/development.md) |
-| 使用 CLI 或接入外部 agent | [命令与配置参考](docs/conventions.md) |
+| 使用 CLI 或接入外部 agent | [协作入口与工作区选择](docs/development.md#使用-cli-与外部-agent-协作) |
 
 ## 开始使用
 

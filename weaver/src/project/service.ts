@@ -3,6 +3,7 @@ import {
   ProjectDocument,
   ProjectRevision,
   MediaAssetVersion,
+  MediaRef,
   LibraryVersion,
   EditOperation,
   ProjectId,
@@ -128,12 +129,7 @@ export class Projects {
     for (const track of doc.captions)
       for (const cue of track.cues)
         if (cue.time.kind === "source") media.push(cue.time.source);
-    for (const ref of media)
-      this.store.readJson(
-        "SELECT json FROM assets WHERE asset_id=? AND version=?",
-        [ref.assetId, ref.version],
-        MediaAssetVersion,
-      );
+    this.mediaClosure(media);
     for (const ref of library)
       this.store.readJson(
         "SELECT json FROM library_versions WHERE item_id=? AND version=?",
@@ -202,18 +198,22 @@ export class Projects {
     for (const track of doc.captions)
       for (const cue of track.cues)
         if (cue.time.kind === "source") refs.push(cue.time.source);
-    return [
-      ...new Map(
-        refs.map((ref) => [
-          `${ref.assetId}@${ref.version}`,
-          this.store.readJson(
-            "SELECT json FROM assets WHERE asset_id=? AND version=?",
-            [ref.assetId, ref.version],
-            MediaAssetVersion,
-          ),
-        ]),
-      ).values(),
-    ];
+    return this.mediaClosure(refs);
+  }
+  private mediaClosure(refs: z.infer<typeof MediaRef>[]): MediaAssetVersion[] {
+    const pending = [...refs], versions = new Map<string, MediaAssetVersion>();
+    for (let index = 0; index < pending.length; index++) {
+      const ref = pending[index], key = refKey(ref);
+      if (versions.has(key)) continue;
+      const asset = this.store.readJson(
+        "SELECT json FROM assets WHERE asset_id=? AND version=?",
+        [ref.assetId, ref.version],
+        MediaAssetVersion,
+      );
+      versions.set(key, asset);
+      pending.push(...(asset.provenance?.inputs.map((input) => input.source) || []));
+    }
+    return [...versions.values()];
   }
   libraryFor(doc: ProjectDocument, scope: "applied" | "saved" = "applied"): LibraryVersion[] {
     const refs = [...doc.bindings, ...(doc.method ? [doc.method] : [])];

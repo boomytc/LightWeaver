@@ -16,7 +16,7 @@
 
 ## 公开入口
 
-Node 产品使用 `@lightweaver/weaver/app`，浏览器使用 `@lightweaver/weaver/contracts`。`weaver capabilities` 返回工作流、输出规格、provider 描述符和内置包版本。`schema` 由运行时 Zod 合同生成。
+Node 产品使用 `@lightweaver/weaver/app`，浏览器使用 `@lightweaver/weaver/contracts`。`weaver capabilities` 返回工作流、输出规格、provider 描述符和内置包版本。capabilities 与 doctor 的 `runtime` 显示实际模式、数据目录和配置文件，供 agent 核对目标工作区。`schema` 由运行时 Zod 合同生成。下列 `npx weaver` 示例用于源码工作区；协作桌面项目时换成设置页提供的随包 CLI。
 
 stdout 结果为 `{ok:true,result,requestId}`，错误为 `{ok:false,error:{code,message,retryable,details,hints}}`。日志进 stderr。`--json` 输出单行 JSON。CLI `events` 输出 JSONL，`run events` 返回事件数组。HTTP 返回相同结果与错误形状；SSE 使用单调 seq，支持 Last-Event-ID。
 
@@ -33,6 +33,8 @@ npx weaver project apply --project demo --ops /absolute/ops.json --expected-revi
 npx weaver build --project demo --locales zh --profiles landscape,portrait,square --plan --json
 npx weaver build --project demo --wait --json
 npx weaver artifacts --project demo --json
+npx weaver artifact show RECEIPT_DIGEST --json
+npx weaver export --project demo --format video --dest /absolute/movie.mp4 --json
 ```
 
 Draft 可为空。Scene 是 card、still 或 clip。静帧使用固定帧或真实语音时长，clip 使用整数微秒源窗，并显式选择源时长或语音时长。超窗默认拒绝，定格和变速由作者设置上限。原声场无需音色。
@@ -40,6 +42,23 @@ Draft 可为空。Scene 是 card、still 或 clip。静帧使用固定帧或真�
 build 冻结作者、资产、库、provider 和工具，先准备真实事实，再编译 TimelineManifest。Remotion 只输出无声卡片，FFmpeg 统一画面、字幕、混音与最终封装。低清预览来自同一正式时间轴。
 
 缓存按实际依赖与工具版本查找。改标题保留无关语音，按 locale 的文字与字幕独立失效。输出状态同时检查完整性和依赖；历史结果可以显式导出。
+
+视频导出默认选择当前交付，也可用 `--delivery ID` 显式选择旧交付。导出校验视频摘要，复制到目标目录中的临时文件，核对副本后原子发布，不覆盖已有目标。缺失或损坏的交付拒绝导出。桌面按钮与 CLI 使用同一核心路径。目标文件系统不支持排他链接发布时返回明确错误，可先导出到支持的本地目录。
+
+预处理素材可在 `asset add` 时传 `--provenance /absolute/provenance.json`。用 `schema media-provenance` 或 `schema media-asset` 读取合同。下面展示字段结构，`version` 的示意值需换成 `project context` 返回的实际 64 位素材版本摘要：
+
+```json
+{
+  "description": "从原片选取画面，合入参考音轨与字幕画面",
+  "inputs": [
+    {"source": {"assetId": "source-1", "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "role": "picture", "range": {"startUs": 0, "durationUs": 20000000}},
+    {"source": {"assetId": "ref-2", "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}, "role": "audio"}
+  ],
+  "captions": "embedded"
+}
+```
+
+来源须为当前项目可读取的精确素材版本，音视频源窗不能越界。记录进入不可变素材版本；项目、构建快照、bundle 和交接包保留来源依赖闭包。`captions` 为 `embedded`、`none` 或 `unknown`；它描述素材画面，独立字幕仍保存在项目 captions。旧素材无记录时保持未知，不推断或改写旧版本。
 
 ## 分析与候选
 
@@ -124,7 +143,7 @@ npx weaver models use-provider modelbest --json
 
 下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页只检查目录元数据；`verify`、成功下载和采用已有路径才读取并哈希完整文件。Qwen ASR GGUF 与 TEN VAD 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 的目录绑定要求完整模型目录。下载不会复制到 CAS，也不会隐式写入配置。
 
-模型根目录、采用路径和 CLI 相对路径都按仓库根解析。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，环境变量覆盖保持可见。
+模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码环境默认以仓库为配置基准，桌面环境默认以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，环境变量覆盖保持可见。
 
 `config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置以同目录临时文件同步后原子替换，权限为 `0600`。密钥空输入保持现值，清除必须显式请求；环境变量优先，SettingsView 只暴露是否配置和来源。
 
@@ -140,7 +159,7 @@ npx weaver models use-provider modelbest --json
 | 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL、LIGHTWEAVER_TRANSLATION_SERVER |
 | 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
-本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认在 Windows 使用 `weaver/.venv/Scripts/python.exe`，其他平台使用 `weaver/.venv/bin/python`。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径以仓库根解析，不读取相邻仓库配置或 Python 环境。默认 `requirements.models.txt` 在所有平台安装 `qwen-asr`；MLX 只在显式安装 `requirements.models.mlx.txt` 后可用。权重路径需要显式设置，不自动下载。
+本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认路径相对 `configBase`，Windows 为 `weaver/.venv/Scripts/python.exe`，其他平台为 `weaver/.venv/bin/python`。正式包建议在设置页指定已创建环境的绝对路径。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径按运行时配置基准解析，不读取相邻仓库配置或 Python 环境。默认 `requirements.models.txt` 在所有平台安装 `qwen-asr`；MLX 只在显式安装 `requirements.models.mlx.txt` 后可用。权重路径需要显式设置，不自动下载。
 
 每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。模型 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 

@@ -15,6 +15,7 @@ import { localeName } from "../domain/format";
 import { MaskEditor, type SceneMask } from "./MaskEditor";
 import { SourceWindowPlayer } from "./SourceWindowPlayer";
 import { Field } from "../ui/Field";
+import { MediaSourceDetails } from "../assets/MediaSourceDetails";
 
 export function SceneEditor({
   scene: s,
@@ -195,6 +196,7 @@ export function SceneEditor({
                 ))}
             </select>
           </Field>
+          <MediaSourceDetails asset={selectedAsset} assets={assets} />
           {preview && s.kind === "clip" && (
             <SourceWindowPlayer
               sourceUrl={

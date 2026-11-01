@@ -85,6 +85,8 @@ npm run package -w @lightweaver/desktop
 
 首次构建下载固定版本的 Node、FFmpeg、Chrome 和交接 Python，并安装独立 sidecar 依赖。构建不下载模型权重。资源缓存在 `products/desktop/staging/`，产物位于 `products/desktop/release/`。
 
+打包会重新生成对应目标的应用目录。打包前保存草稿，并退出运行在该目录中的应用。
+
 显式目标与可运行产物如下：
 
 | 目标 | 主机 | 产物 |
@@ -105,6 +107,8 @@ npm run dist -w @lightweaver/desktop
 分发目标为 macOS DMG 与 ZIP、Windows NSIS、Linux AppImage。这些命令不包含签名或公证。打包流程检查最终包中的文件摘要、原生架构与 SQLite 运行查询。
 
 ## 使用 CLI 与外部 agent 协作
+
+仓库技能位于 `.agents/skills/`，包括 `lightweaver`、`lightweaver-film` 和 `lightweaver-assets`。在本仓使用 Codex 时可按名称选择；从总入口开始确定桌面或源码工作区。技能发现位置遵循 [Codex 官方说明](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills)。
 
 源码环境从能力与合同发现开始：
 
@@ -127,6 +131,18 @@ npx weaver build --project demo --plan --json
 
 桌面包自带 `bin/weaver`，Windows 为 `bin/weaver.cmd`。在应用的 **设置 → 运行时与路径 → 外部 agent 与命令行** 中复制实际调用路径。随包 CLI 默认读取桌面的配置与数据，也可用 `--data-dir`、`--config-file`、`--config-base` 显式指定。
 
+先用所选入口执行 `capabilities --json`，核对 `runtime.dataDir` 和 `runtime.configFile`。返回的 `agentSkills` 提供与该运行时配套的技能文件，`runtime.resourcesDir` 下包含 AGENTS.md 和命令参考。正式包内的技能可按路径交给 agent 读取，不会自动写入个人技能目录。
+
+`npm start` 启动的源码桌面也使用系统用户目录。若用仓库 CLI 协作源码桌面，在仓库根目录显式指定设置页中的数据、配置文件和配置基准目录：
+
+```sh
+npx weaver capabilities --data-dir /absolute/desktop-data --config-file /absolute/config.local.yaml --config-base /absolute/config-base --json
+```
+
+后续命令保持这些参数，并沿用启动桌面时的工具环境。浏览器开发模式与未覆盖配置的仓库 CLI 才默认使用 `data/.weaver/`。
+
+制作完成后，用 `export --project ID --format video --dest /absolute/movie.mp4` 交付视频。先用 `artifacts --project ID` 查看交付，按需要传 `--delivery ID` 选择旧版本。用 `artifact show DIGEST` 读取 manifest 或 receipt，历史修订使用 `project show ID --revision REV`。这些命令均支持 `--json`。
+
 源码配置可从 `config.local.yaml.example` 复制到忽略的 `config.local.yaml`，保留已有配置。环境变量优先。密钥也可通过设置页保存，CLI 更新配置使用文件输入，避免把密钥写入命令参数。
 
 ## 修改实现与完成验收
@@ -144,4 +160,4 @@ npm run build -w @lightweaver/studio
 
 本仓采用 `confident-development-conventions`。按改动完成有限验收，结束后清理本次创建的临时脚本、mock、样本与自启服务。保留产品诊断、schema 校验、模块边界和类型检查。
 
-职责与设计说明见[架构说明](architecture-v2.md)。模型与媒体能力的既有证据见[能力验收](acceptance-coverage.md)、[模型安装验收](acceptance-model-setup.md)及[全片精确对齐验收](acceptance-alignment-root-cause.md)。
+职责与设计说明见[架构说明](architecture-v2.md)。当前视频交付、素材来源和技能的证据见[Agent 制作与交付验收](acceptance-agent-delivery.md)。模型与媒体能力的既有证据见[能力验收](acceptance-coverage.md)、[模型安装验收](acceptance-model-setup.md)及[全片精确对齐验收](acceptance-alignment-root-cause.md)。

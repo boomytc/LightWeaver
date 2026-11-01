@@ -4,6 +4,8 @@ import path from "node:path";
 import {
   z,
   MediaAssetVersion,
+  Digest,
+  MediaProvenance,
   MediaRef,
   AssetId,
   ProjectRevision,
@@ -11,6 +13,7 @@ import {
   ProjectDocument,
   WORKFLOWS,
   PROFILES,
+  refKey,
 } from "../contracts/index.ts";
 import { Store, digest, newId, canonical } from "../store/index.ts";
 import { Projects } from "../project/service.ts";
@@ -36,6 +39,8 @@ import { CaptionAssistance } from "../captions/assistance.ts";
 import { VisualSearch } from "../search/visual.ts";
 import { SpeakerAssistance } from "../captions/speakers.ts";
 import { Models } from "../models/service.ts";
+import { probe } from "../media/probe.ts";
+import { exportVideo, type ExportVideoInput } from "./export-video.ts";
 export { WeaverError, errorProtocol, httpStatus } from "../contracts/errors.ts";
 export {
   RuntimeContext,
@@ -107,9 +112,21 @@ export class Application {
   close(): void {
     this.store.close();
   }
+  exportVideo(input: Omit<ExportVideoInput, "store" | "builds">) {
+    return exportVideo({ ...input, store: this.store, builds: this.builds });
+  }
   capabilities() {
     return {
       schemaVersion: 2,
+      runtime: {
+        mode: this.runtime.mode,
+        dataDir: this.runtime.dataDir,
+        configFile: this.runtime.configFile,
+        resourcesDir: this.runtime.resourcesDir,
+      },
+      agentSkills: fs.readdirSync(resourcePath(".agents", "skills"), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && fs.existsSync(resourcePath(".agents", "skills", entry.name, "SKILL.md")))
+        .map((entry) => ({ name: entry.name, file: resourcePath(".agents", "skills", entry.name, "SKILL.md") })),
       workflows: WORKFLOWS,
       profiles: Object.values(PROFILES),
       defaultVlm: this.providers.selectedVlm(),
@@ -133,11 +150,30 @@ export class Application {
     kind?: z.infer<typeof MediaAssetVersion>["kind"];
     mime?: string;
     name?: string;
+    provenance?: z.infer<typeof MediaProvenance>;
   }): Promise<{
     asset: z.infer<typeof MediaAssetVersion>;
     revision: z.infer<typeof ProjectRevision>;
   }> {
     return this.store.owned("asset-import", async () => {
+      const provenance = MediaProvenance.optional().parse(input.provenance);
+      const current = this.projects.read(input.projectId);
+      if (current.id !== input.expectedRevision)
+        throw new WeaverError("REVISION_CONFLICT", "项目已修改", { current });
+      if (provenance) {
+        const assets = new Map(this.projects.assetsFor(current.document, "saved").map((asset) => [refKey(asset), asset]));
+        for (const origin of provenance.inputs) {
+          const source = assets.get(refKey(origin.source));
+          if (!source) throw new WeaverError("INVALID_INPUT", "来源必须是当前项目中的精确素材版本", origin.source);
+          if (origin.range) {
+            if (source.kind !== "audio" && source.kind !== "video")
+              throw new WeaverError("INVALID_INPUT", "只有音视频来源可指定时间窗", origin.source);
+            const fact = await probe(this.store.blobPath(source.digest));
+            if (origin.range.startUs + origin.range.durationUs > fact.durationUs)
+              throw new WeaverError("INVALID_INPUT", "来源时间窗超出素材范围", origin);
+          }
+        }
+      }
       const name = input.name || path.basename(input.file),
         kind = input.kind || inferKind(name),
         mime = input.mime || mimeFor(name);
@@ -161,6 +197,7 @@ export class Application {
             name,
             mime,
             bytes: fs.statSync(this.store.blobPath(content)).size,
+            ...(provenance ? { provenance } : {}),
           };
           const asset = MediaAssetVersion.parse({
             ...base,
@@ -307,8 +344,13 @@ export class Application {
     return importCaptions(body, locale, fps, source);
   }
   readArtifactJson(value: string) {
-    this.mediaFile(value);
-    return this.store.jsonBlob(value, z.unknown());
+    const key = Digest.parse(value);
+    const media = this.mediaFile(key);
+    if (media.mime !== "application/json")
+      throw new WeaverError("INVALID_INPUT", "此文件不是 JSON 产物", { digest: key });
+    if (!this.store.verifyBlob(key))
+      throw new WeaverError("INTEGRITY_FAILED", "JSON 产物摘要校验失败", { digest: key });
+    return this.store.jsonBlob(key, z.unknown());
   }
   previewEdit(id: string, raw: unknown) {
     const before = this.projects.read(id).document,

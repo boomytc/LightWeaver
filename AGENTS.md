@@ -14,7 +14,7 @@ LightWeaver 是后处理视频制作工具。外部 agent 负责创作和语义�
 
 ## 工作入口
 
-先读 `docs/conventions.md`。电影制作流程见 `skills/lightweaver-film/SKILL.md`，素材管理见 `skills/lightweaver-assets/SKILL.md`。模型功能确认记录在 `docs/acceptance-v2.md`。
+先读 `docs/conventions.md`。电影制作流程见 `.agents/skills/lightweaver-film/SKILL.md`，素材管理见 `.agents/skills/lightweaver-assets/SKILL.md`。模型功能确认记录在 `docs/acceptance-v2.md`。
 
 本仓采用 `confident-development-conventions`。按改动选择有限验收，临时脚本与合成媒体放系统临时目录，结束后清理。保留产品诊断、schema 校验和类型检查。
 
