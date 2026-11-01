@@ -2,6 +2,8 @@
 
 2026-11-01 的视频导出、素材来源和项目技能验收见 [Agent 制作与交付验收](acceptance-agent-delivery.md)。下文保留桌面基础能力和关窗流程的验收记录。
 
+冲突恢复、遮罩、场景引用和备份恢复的后续修复见[编辑与恢复边界验收](acceptance-editing-recovery.md)。
+
 2026-10-31，本轮修复后生成未签名 macOS arm64 应用：
 
 `products/desktop/release/mac-arm64/LightWeaver.app`

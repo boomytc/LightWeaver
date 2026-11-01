@@ -5,14 +5,56 @@ import { z, Digest } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { Store, now, newId, canonical } from "./index.ts";
 
+const BlobMetadataSchema = z.object({
+  digest: Digest,
+  bytes: z.number().int().nonnegative().safe(),
+  mime: z.string(),
+});
 const BackupReceipt = z.object({
   schemaVersion: z.literal(2),
   createdAt: z.string(),
   database: z.literal("state.sqlite3"),
-  blobs: z.array(
-    z.object({ digest: Digest, bytes: z.number(), mime: z.string() }),
-  ),
+  blobs: z.array(BlobMetadataSchema),
 });
+
+type BlobMetadata = z.infer<typeof BlobMetadataSchema>;
+
+function readReferencedBlobs(database: Database.Database): BlobMetadata[] {
+  try {
+    const missing = z
+      .array(z.object({ digest: Digest }))
+      .parse(
+        database
+          .prepare(
+            "SELECT DISTINCT r.digest FROM blob_refs r LEFT JOIN blobs b ON b.digest=r.digest WHERE b.digest IS NULL ORDER BY r.digest",
+          )
+          .all(),
+      );
+    if (missing.length)
+      throw new WeaverError(
+        "INTEGRITY_FAILED",
+        "数据库 blob 引用缺少元数据",
+        { digests: missing.map((row) => row.digest) },
+      );
+    return z
+      .array(BlobMetadataSchema)
+      .parse(
+        database
+          .prepare(
+            "SELECT DISTINCT r.digest AS digest,b.bytes,b.mime FROM blob_refs r JOIN blobs b ON b.digest=r.digest ORDER BY r.digest",
+          )
+          .all(),
+      );
+  } catch (error) {
+    if (error instanceof WeaverError) throw error;
+    throw new WeaverError(
+      "INTEGRITY_FAILED",
+      "无法读取数据库 blob 引用",
+      { cause: error instanceof Error ? error.message : String(error) },
+    );
+  }
+}
+
 export async function backup(store: Store, destination?: string) {
   const dest = path.resolve(
     destination || path.join(store.root, "backups", newId("backup")),
@@ -37,17 +79,7 @@ export async function backup(store: Store, destination?: string) {
     });
     let blobs: z.infer<typeof BackupReceipt>["blobs"];
     try {
-      blobs = z
-        .array(
-          z.object({ digest: Digest, bytes: z.number(), mime: z.string() }),
-        )
-        .parse(
-          snapshot
-            .prepare(
-              "SELECT DISTINCT b.* FROM blobs b JOIN blob_refs r ON r.digest=b.digest ORDER BY b.digest",
-            )
-            .all(),
-        );
+      blobs = readReferencedBlobs(snapshot);
     } finally {
       snapshot.close();
     }
@@ -92,21 +124,71 @@ export function restore(source: string, destination: string) {
   const receipt = BackupReceipt.parse(
     JSON.parse(fs.readFileSync(path.join(src, "backup.json"), "utf8")),
   );
-  const dbFile = path.join(src, receipt.database),
+  const dbFile = path.join(src, receipt.database);
+  let check: Database.Database;
+  try {
     check = new Database(dbFile, { readonly: true });
+  } catch (error) {
+    throw new WeaverError(
+      "INTEGRITY_FAILED",
+      "备份数据库无法读取",
+      { cause: error instanceof Error ? error.message : String(error) },
+    );
+  }
+  let databaseBlobs: BlobMetadata[];
   try {
     if (check.pragma("integrity_check", { simple: true }) !== "ok")
       throw new WeaverError("INTEGRITY_FAILED", "备份数据库损坏");
+    databaseBlobs = readReferencedBlobs(check);
+  } catch (error) {
+    if (error instanceof WeaverError) throw error;
+    throw new WeaverError(
+      "INTEGRITY_FAILED",
+      "备份数据库无法读取",
+      { cause: error instanceof Error ? error.message : String(error) },
+    );
   } finally {
     check.close();
   }
+  const manifest = new Map<BlobMetadata["digest"], BlobMetadata>();
+  for (const blob of receipt.blobs) {
+    if (manifest.has(blob.digest))
+      throw new WeaverError(
+        "INTEGRITY_FAILED",
+        "备份清单包含重复 blob",
+        { digest: blob.digest },
+      );
+    manifest.set(blob.digest, blob);
+  }
+  for (const blob of databaseBlobs) {
+    const declared = manifest.get(blob.digest);
+    if (!declared)
+      throw new WeaverError(
+        "INTEGRITY_FAILED",
+        "备份清单遗漏数据库引用的 blob",
+        { digest: blob.digest },
+      );
+    if (declared.bytes !== blob.bytes || declared.mime !== blob.mime)
+      throw new WeaverError(
+        "INTEGRITY_FAILED",
+        "备份清单 blob 元数据与数据库不符",
+        { manifest: declared, database: blob },
+      );
+    manifest.delete(blob.digest);
+  }
+  if (manifest.size)
+    throw new WeaverError(
+      "INTEGRITY_FAILED",
+      "备份清单包含数据库未引用的 blob",
+      { blobs: [...manifest.values()] },
+    );
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   const staging = fs.mkdtempSync(`${dest}.partial-`);
   try {
     fs.copyFileSync(dbFile, path.join(staging, "state.sqlite3"));
     const restored = new Store(staging);
     try {
-      for (const blob of receipt.blobs) {
+      for (const blob of databaseBlobs) {
         const file = path.join(
           src,
           "blobs",
@@ -115,9 +197,32 @@ export function restore(source: string, destination: string) {
         );
         const target = restored.blobPath(blob.digest);
         fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.copyFileSync(file, target);
-        if (!restored.verifyBlob(blob.digest))
-          throw new WeaverError("INTEGRITY_FAILED", "备份 blob 校验失败", blob);
+        try {
+          fs.copyFileSync(file, target, fs.constants.COPYFILE_EXCL);
+          const copied = fs.statSync(target);
+          if (!copied.isFile() || copied.size !== blob.bytes)
+            throw new WeaverError(
+              "INTEGRITY_FAILED",
+              "备份 blob 文件大小不符",
+              blob,
+            );
+          if (!restored.verifyBlob(blob.digest))
+            throw new WeaverError(
+              "INTEGRITY_FAILED",
+              "备份 blob 摘要不符",
+              blob,
+            );
+        } catch (error) {
+          if (error instanceof WeaverError) throw error;
+          throw new WeaverError(
+            "INTEGRITY_FAILED",
+            "备份 blob 文件缺失或无法读取",
+            {
+              digest: blob.digest,
+              cause: error instanceof Error ? error.message : String(error),
+            },
+          );
+        }
       }
       restored.releaseAbandonedOperations(true);
     } finally {
@@ -127,7 +232,7 @@ export function restore(source: string, destination: string) {
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });
   }
-  return { directory: dest, blobs: receipt.blobs.length };
+  return { directory: dest, blobs: databaseBlobs.length };
 }
 export function gc(store: Store, apply = false) {
   store.releaseAbandonedOperations();

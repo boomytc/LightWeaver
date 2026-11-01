@@ -11,6 +11,7 @@ import {
   WORKFLOWS,
   PROFILES,
   speechOf,
+  reconcileSceneReferences,
   AnalysisEntry,
   refKey,
 } from "../contracts/index.ts";
@@ -92,6 +93,24 @@ export class Projects {
       )
     )
       throw new WeaverError("INVALID_INPUT", "语言、输出规格或字幕标识重复");
+    const sceneIds = new Set(doc.scenes.map((scene) => scene.id));
+    const invalidSpeechCues = doc.captions.flatMap((track) =>
+      track.cues.flatMap((cue) =>
+        cue.time.kind === "speech" && !sceneIds.has(cue.time.sceneId)
+          ? [{ locale: track.locale, cueId: cue.id, sceneId: cue.time.sceneId }]
+          : [],
+      ),
+    );
+    const invalidMasks = doc.masks.flatMap((mask, index) =>
+      sceneIds.has(mask.sceneId)
+        ? []
+        : [{ index, sceneId: mask.sceneId }],
+    );
+    if (invalidSpeechCues.length || invalidMasks.length)
+      throw new WeaverError("INVALID_INPUT", "字幕或遮罩引用了不存在的场景", {
+        captions: invalidSpeechCues,
+        masks: invalidMasks,
+      });
     if (!WORKFLOWS.some((w) => w.id === doc.workflow))
       throw new WeaverError("INVALID_INPUT", "未注册 workflow");
     const sources = new Set(doc.assets.map(refKey));
@@ -260,7 +279,11 @@ export class Projects {
           throw new WeaverError("REVISION_CONFLICT", "修订冲突，请重读后提交", {
             current: parent,
           });
-        return this.insert(document, parent, input.requestId);
+        return this.insert(
+          reconcileSceneReferences(parent.document, document),
+          parent,
+          input.requestId,
+        );
       },
     );
   }
@@ -343,7 +366,10 @@ export class Projects {
           }
         }
         return this.insert(
-          ProjectDocument.parse(doc),
+          reconcileSceneReferences(
+            current.document,
+            ProjectDocument.parse(doc),
+          ),
           current,
           input.requestId,
         );

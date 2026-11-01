@@ -715,6 +715,32 @@ export type TimelineManifest = z.infer<typeof TimelineManifest>;
 export type Proposal = z.infer<typeof Proposal>;
 export type Issue = z.infer<typeof Issue>;
 
+export function reconcileSceneReferences(
+  previous: ProjectDocument,
+  next: ProjectDocument,
+): ProjectDocument {
+  const nextSceneIds = new Set(next.scenes.map((scene) => scene.id));
+  const removedSceneIds = new Set(
+    previous.scenes
+      .filter((scene) => !nextSceneIds.has(scene.id))
+      .map((scene) => scene.id),
+  );
+  if (!removedSceneIds.size) return next;
+
+  return {
+    ...next,
+    captions: next.captions.map((track) => ({
+      ...track,
+      cues: track.cues.filter(
+        (cue) =>
+          cue.time.kind !== "speech" ||
+          !removedSceneIds.has(cue.time.sceneId),
+      ),
+    })),
+    masks: next.masks.filter((mask) => !removedSceneIds.has(mask.sceneId)),
+  };
+}
+
 export const VlmProvider = z.enum(["modelbest-vlm", "deepseek-vlm"]);
 
 export const ProviderDescriptor = z.object({

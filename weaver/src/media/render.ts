@@ -16,7 +16,7 @@ import { frameUs, frameSamples } from "../timeline/clock.ts";
 import { toSrt, toAss } from "../timeline/captions.ts";
 import { currentRuntime } from "../runtime.ts";
 
-export const RENDER_ALGORITHM = "unified-ffmpeg-v6-caption-timing";
+export const RENDER_ALGORITHM = "unified-ffmpeg-v7-visual-masks";
 
 const seconds = (frames: number, manifest: TimelineManifest) =>
   (frames * manifest.output.fps.den) / manifest.output.fps.num;
@@ -136,6 +136,15 @@ export async function renderTimeline(input: {
       workDir,
       `segment-${String(i).padStart(5, "0")}.mp4`,
     );
+    const maskFilters = m.masks
+      .filter((mask) => mask.sceneId === visual.sceneId)
+      .map(
+        (mask) =>
+          `drawbox=x=${mask.x}*iw:y=${mask.y}*ih:w=${mask.width}*iw:h=${mask.height}*ih:color=${mask.color}:t=fill`,
+      );
+    const segmentArgs: string[] = [];
+    const filters: string[] = [];
+    const shouldEncode = visual.kind !== "card" || maskFilters.length > 0;
     if (visual.kind === "card") {
       const job = path.join(workDir, `card-${i}.json`);
       fs.writeFileSync(
@@ -172,18 +181,8 @@ export async function renderTimeline(input: {
         },
         signal,
       );
-      await ff([
-        "-i",
-        rawCard,
-        "-map",
-        "0:v:0",
-        "-an",
-        "-c:v",
-        "copy",
-        "-video_track_timescale",
-        String(p.fps.num),
-        dest,
-      ]);
+      segmentArgs.push("-i", rawCard);
+      filters.push("format=yuv420p");
     } else {
       const framing = visual.framing,
         source = asset(visual.kind === "still" ? visual.image : visual.source);
@@ -191,8 +190,6 @@ export async function renderTimeline(input: {
         framing.fit === "contain"
           ? `scale=${p.width}:${p.height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${p.width}:${p.height}:(ow-iw)/2:(oh-ih)/2:color=black`
           : `scale=${p.width}:${p.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${p.width}:${p.height}:(iw-ow)*${framing.focusX}:(ih-oh)*${framing.focusY}`;
-      const args: string[] = [];
-      let filters = "";
       if (visual.kind === "still") {
         const name =
           snapshot.assets.find(
@@ -205,10 +202,10 @@ export async function renderTimeline(input: {
           `still-${i}${path.extname(name) || ".png"}`,
         );
         fs.copyFileSync(source, linked);
-        args.push("-loop", "1", "-framerate", fps, "-i", linked);
-        filters = "setpts=PTS-STARTPTS";
+        segmentArgs.push("-loop", "1", "-framerate", fps, "-i", linked);
+        filters.push("setpts=PTS-STARTPTS");
       } else {
-        args.push(
+        segmentArgs.push(
           "-ss",
           String(visual.sourceRange.startUs / 1e6),
           "-t",
@@ -216,18 +213,24 @@ export async function renderTimeline(input: {
           "-i",
           source,
         );
-        filters = `trim=duration=${visual.sourceRange.durationUs / 1e6},setpts=(PTS-STARTPTS)/${visual.speed}`;
+        filters.push(
+          `trim=duration=${visual.sourceRange.durationUs / 1e6},setpts=(PTS-STARTPTS)/${visual.speed}`,
+        );
         if (visual.freezeFrames)
-          filters += `,tpad=stop_mode=clone:stop_duration=${seconds(visual.freezeFrames, m)}`;
+          filters.push(
+            `tpad=stop_mode=clone:stop_duration=${seconds(visual.freezeFrames, m)}`,
+          );
       }
-      filters += `,scale=trunc(iw*sar/2)*2:ih,setsar=1,${normalize},fps=${fps},format=yuv420p`;
-      for (const mask of m.masks.filter((x) => x.sceneId === visual.sceneId))
-        filters += `,drawbox=x=${mask.x}*iw:y=${mask.y}*ih:w=${mask.width}*iw:h=${mask.height}*ih:color=${mask.color}:t=fill`;
+      filters.push(
+        `scale=trunc(iw*sar/2)*2:ih,setsar=1,${normalize},fps=${fps},format=yuv420p`,
+      );
+    }
+    if (shouldEncode) {
       await ff([
-        ...args,
+        ...segmentArgs,
         "-an",
         "-vf",
-        filters,
+        [...filters, ...maskFilters].join(","),
         "-frames:v",
         String(visual.durationFrames),
         "-c:v",
@@ -244,6 +247,18 @@ export async function renderTimeline(input: {
         "bt709",
         "-colorspace",
         "bt709",
+        "-video_track_timescale",
+        String(p.fps.num),
+        dest,
+      ]);
+    } else {
+      await ff([
+        ...segmentArgs,
+        "-map",
+        "0:v:0",
+        "-an",
+        "-c:v",
+        "copy",
         "-video_track_timescale",
         String(p.fps.num),
         dest,

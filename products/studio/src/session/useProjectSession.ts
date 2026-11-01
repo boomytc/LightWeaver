@@ -10,6 +10,7 @@ import {
   ProviderDescriptor,
   RunRecord,
   Scene,
+  reconcileSceneReferences,
   refKey,
   z,
 } from "@lightweaver/weaver/contracts";
@@ -179,12 +180,13 @@ export function useProjectSession(client: ClientStore) {
 
   const clearNativeRecoveryThrough = async (projectId: string, throughUpdatedAt: string) => {
     if (!projectId || !throughUpdatedAt) return true;
+    const generation = epoch.current;
     let cleared = true;
     try {
       await desktop()?.clearRecoveryDraft?.({ projectId, throughUpdatedAt });
     } catch (reason) {
       cleared = false;
-      fail(reason);
+      if (generation === epoch.current && projectId === projectRef.current) fail(reason);
     }
     const current = recoveryDraft.current;
     if (
@@ -239,10 +241,13 @@ export function useProjectSession(client: ClientStore) {
   };
 
   const edit = (document: ProjectDocument) => {
+    const nextDocument = draftRef.current
+      ? reconcileSceneReferences(draftRef.current, document)
+      : document;
     draftSeq.current += 1;
-    draftRef.current = document;
+    draftRef.current = nextDocument;
     dirtyRef.current = true;
-    setDraft(document);
+    setDraft(nextDocument);
     setDirty(true);
     setPlan(null);
     persistRecoveryDraft();
@@ -620,20 +625,44 @@ export function useProjectSession(client: ClientStore) {
     });
 
   const loadServerKeepingDraft = async () => {
-    if (!conflict) return;
+    const revision = conflict;
+    const id = projectRef.current;
+    const generation = epoch.current;
+    const draftSequence = draftSeq.current;
+    const planSequence = planSeq.current;
+    const expectedBase = baseRef.current;
+    if (!revision || revision.projectId !== id) return;
+    const canLoad = () => {
+      const fate = saveFate({
+        requestProjectId: id,
+        currentProjectId: projectRef.current,
+        requestGeneration: generation,
+        currentGeneration: epoch.current,
+        requestDraftSeq: draftSequence,
+        currentDraftSeq: draftSeq.current,
+      });
+      if (fate === "ignore" || expectedBase !== baseRef.current) return false;
+      if (fate === "keep-local" || planSequence !== planSeq.current) {
+        setNotice("备份期间产生了新编辑，已保留当前草稿，请再次确认加载");
+        return false;
+      }
+      return true;
+    };
     const snap = snapshot();
     if (snap) {
       const stored = await clientRef.current.upsertDraft(snap);
+      if (!canLoad()) return;
       if (!stored) {
         setError("草稿备份保存失败，暂不加载服务器修订");
         return;
       }
       await clearNativeRecoveryThrough(snap.projectId, snap.updatedAt);
+      if (!canLoad()) return;
     }
-    acceptDraftRevision(conflict);
+    acceptDraftRevision(revision);
     planDirtyRef.current = false;
     setPlanDirty(false);
-    const nextPlan = conflict.document.creativePlan || null;
+    const nextPlan = revision.document.creativePlan || null;
     setPlanDraft(nextPlan);
     planDraftRef.current = nextPlan;
   };
