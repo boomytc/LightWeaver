@@ -15,6 +15,7 @@ out/
 *.local.yml
 __pycache__/
 .venv/
+/models/
 weaver/models/
 weaver/runtime/
 weaver/.speech-venv/

@@ -145,6 +145,8 @@ npx weaver capabilities --data-dir /absolute/desktop-data --config-file /absolut
 
 仓库根的 `config.yaml` 是源码环境的内置默认值，并随桌面包复制到 `resources/config.yaml`。其中 API Key 字段保持空字符串；私有凭据写入忽略的 `config.local.yaml` 或通过设置页保存，CLI 更新配置使用文件输入，避免把密钥写入命令参数。
 
+源码模式的默认模型下载目录是 monorepo 根目录下的 `models/`，该目录已忽略。源码桌面也使用这个下载目录；正式安装包使用用户模型目录。已有权重不会自动搬迁，可在设置中选择现有路径。
+
 配置值按 `config.local.yaml`、环境变量、内置 `config.yaml` 的顺序生效，空或纯空白值视为未设置。设置页保存密钥后立即生效，无需重启；清除本地配置中的密钥后，会回退到同名环境变量，未设置则显示未配置。绑定已有配置时，该文件继续作为私有本地配置，相对路径仍按它的所在目录解析。
 
 ## 修改实现与完成验收

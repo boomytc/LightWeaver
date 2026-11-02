@@ -12,7 +12,8 @@ tts_model: 'VoxCPM2'
 
 # Model files are downloaded only by an explicit `weaver models download`.
 # The Studio model page or `weaver models use --path` binds an existing directory.
-# model_download_root: '/absolute/lightweaver-models'
+# Source default is relative to the monorepo; installed desktop uses its user model directory.
+model_download_root: 'models'
 
 # Explicit local runtime. No implicit sibling checkout discovery or automatic download.
 # asr_model: '/absolute/runtime/qwen3-asr-0.6b-Q8_0.gguf'

@@ -183,11 +183,15 @@ export class Models {
         config.field(setting),
       ]),
     );
-    if (values.downloadRoot.source === "unset")
+    if (values.downloadRoot.source === "unset" || values.downloadRoot.source === "default") {
+      const runtime = currentRuntime();
       values.downloadRoot = {
-        value: currentRuntime().modelDir,
+        value: values.downloadRoot.source === "default" && runtime.mode === "development"
+          ? path.resolve(runtime.resourcesDir, values.downloadRoot.value)
+          : runtime.modelDir,
         source: "default",
       };
+    }
     const key = config.field({
       key: "modelbest_api_key",
       environment: "MODELBEST_API_KEY",
