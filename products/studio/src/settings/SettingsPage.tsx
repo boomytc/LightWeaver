@@ -162,7 +162,7 @@ function RuntimePanel() {
       setSettings(next);
       setFields((current) => current === submittedFields ? runtimeFieldValues(next) : current);
       window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
-      session.setNotice("运行时路径已保存，环境变量覆盖仍优先");
+      session.setNotice("运行时路径已保存，本地配置文件优先于环境变量和内置默认值");
     } catch (reason) {
       session.handleError(reason);
     }
@@ -178,8 +178,8 @@ function RuntimePanel() {
   return (
     <section className="panel-card flex flex-col gap-4 p-5">
       <h2 className="m-0">运行时与路径</h2>
-      <p>Python 模型环境是可选的，启动时不会自动安装。相对路径按配置基准目录解析。</p>
-      <p>绑定已有配置时，原文件保留，相对路径仍按该文件所在目录解析，重启后生效。</p>
+      <p>配置值按当前私有配置文件、环境变量、内置 config.yaml 默认值的顺序生效；空或纯空白值视为未设置。Python 模型环境是可选的，启动时不会自动安装。相对路径按配置基准目录解析。</p>
+      <p>绑定已有配置时，原文件保留，并继续按该文件所在目录解析相对路径；重启后生效。</p>
       <div className="grid gap-3 md:grid-cols-2">
         {runtimeFields.map(({ key, label, directory }) => (
           <InputWithActions

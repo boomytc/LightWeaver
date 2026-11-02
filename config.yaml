@@ -1,4 +1,5 @@
-# Copy to config.local.yaml (gitignored). Environment variables override these scalars.
+# Product defaults. Loaded after config.local.yaml and environment variables.
+# Save private credentials and overrides in config.local.yaml or desktop settings.
 modelbest_base_url: 'https://api.modelbest.cn/v1'
 modelbest_api_key: ''
 deepseek_base_url: 'https://api.deepseek.com'
@@ -19,15 +20,16 @@ tts_model: 'VoxCPM2'
 # asr_bindings: '/absolute/runtime/transcribe.cpp/bindings/python/src'
 # vad_library: '/absolute/runtime/ten_vad.framework/Versions/A/ten_vad'
 
-# Optional local capabilities. Paths are relative to this repository or absolute.
-# Install: uv venv --python 3.12 weaver/.venv
+# Optional local capabilities. Relative paths resolve from runtime configBase.
+# Packaged desktop: choose absolute paths in Settings > Runtime and paths.
+# Source checkout install (run in repository): uv venv --python 3.12 weaver/.venv
 #          uv pip install --python weaver/.venv/bin/python -r weaver/requirements.models.txt
 # Python defaults to weaver/.venv/Scripts/python.exe on Windows, bin/python elsewhere.
 # model_python: '/absolute/model-environment/python'
 # Official Torch weights are the cross-platform default. MLX remains explicit opt-in.
-# alignment_backend: 'torch'
+alignment_backend: 'torch'
 # alignment_model: 'weaver/models/qwen3-forced-aligner/<revision>'
-# alignment_device: 'cpu'  # torch only: cpu or cuda[:index]
+alignment_device: 'cpu'  # torch only: cpu or cuda[:index]
 # GGUF weights are loaded by a job-owned llama-server; no persistent service is needed.
 llama_server: 'llama-server'
 
@@ -40,4 +42,5 @@ llama_server: 'llama-server'
 # speech_python: '/absolute/speech-environment/python'
 # local_tts_model: 'weaver/models/VoxCPM2'
 # translation_model: 'weaver/models/Hy-MT2-1.8B-Q4_K_M.gguf'
-# translation_server: 'llama-server'
+translation_server: 'llama-server'
+diarization_backend: 'auto'

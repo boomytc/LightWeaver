@@ -239,7 +239,7 @@ export function ModelSettings({
 
   return (
     <section className="flex flex-col gap-5">
-      <div><h2 className="m-0">模型与供应商</h2><p className="hint mb-0 mt-1">供应商和本地权重分开配置。下载、校验、采用是三个显式操作。</p></div>
+      <div><h2 className="m-0">模型与供应商</h2><p className="hint mb-0 mt-1">配置值按本地配置文件、环境变量、内置默认值的顺序生效。供应商和本地权重分开配置，下载、校验、采用是三个显式操作。</p></div>
 
       <section className="panel-card flex flex-col gap-4 p-5">
         <div className="section-title">
@@ -303,8 +303,9 @@ export function ModelSettings({
               onChange={(event) => setApiKey(event.target.value)}
             />
             <small>
-              当前来源：{view.settings.apiKeys.modelbest.source}。环境变量{" "}
-              {provider.apiKeyEnv} 优先。密钥不会回显或写入浏览器存储。
+              当前来源：{view.settings.apiKeys.modelbest.source}。保存后立即生效；
+              清除本地配置中的密钥后，会回退到环境变量{" "}
+              {provider.apiKeyEnv}，未设置则为未配置。密钥不会回显或写入浏览器存储。
             </small>
           </label>
           <Button
@@ -324,7 +325,7 @@ export function ModelSettings({
               )
             }
           >
-            清除文件中的密钥
+            清除本地配置中的密钥
           </Button>
         </div>
       </section>

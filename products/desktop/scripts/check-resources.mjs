@@ -223,6 +223,7 @@ for (const relative of [
   "service/node_modules/playwright/package.json",
   "service/node_modules/playwright-core/package.json",
   "card/site/index.html",
+  "resources/config.yaml",
   "resources/weaver/requirements.txt",
   "resources/weaver/requirements.models.txt",
   "resources/weaver/requirements.models.mlx.txt",

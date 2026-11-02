@@ -3,7 +3,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { z, Digest, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
-import { localConfigValue } from "../config.ts";
+import { readConfig } from "../config.ts";
 import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { defaultModelPython, resolveExecutable } from "./executable.ts";
@@ -89,11 +89,7 @@ export class VisualModels {
   constructor(private readonly root: string) {}
 
   private value(environment: string, key: string, fallback = ""): string {
-    return (
-      process.env[environment]?.trim() ||
-      localConfigValue(key, this.root) ||
-      fallback
-    );
+    return readConfig({ root: this.root }).field({ key, environment, fallback }).value;
   }
 
   private localPath(value: string): string {

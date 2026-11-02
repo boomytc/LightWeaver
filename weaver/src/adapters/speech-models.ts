@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
-import { localConfigValue } from "../config.ts";
+import { readConfig } from "../config.ts";
 import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { defaultSpeechPython, resolveExecutable } from "./executable.ts";
@@ -92,9 +92,7 @@ export class SpeechModels {
   constructor(private readonly root: string) {}
 
   private value(env: string, key: string, fallback = "") {
-    return (
-      process.env[env]?.trim() || localConfigValue(key, this.root) || fallback
-    );
+    return readConfig({ root: this.root }).field({ key, environment: env, fallback }).value;
   }
 
   private localPath(value: string) {
@@ -183,7 +181,6 @@ export class SpeechModels {
         this.value(
           "LIGHTWEAVER_TRANSLATION_SERVER",
           "translation_server",
-          "llama-server",
         ),
         this.root,
       ),

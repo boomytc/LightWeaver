@@ -3,7 +3,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { z, Digest, Id, Locale, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
-import { localConfigValue } from "../config.ts";
+import { readConfig } from "../config.ts";
 import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { probe } from "../media/probe.ts";
@@ -106,11 +106,7 @@ export class SpeakerModels {
   constructor(private readonly root: string) {}
 
   private value(environment: string, key: string, fallback = ""): string {
-    return (
-      process.env[environment]?.trim() ||
-      localConfigValue(key, this.root) ||
-      fallback
-    );
+    return readConfig({ root: this.root }).field({ key, environment, fallback }).value;
   }
 
   private localPath(value: string): string {
@@ -166,7 +162,6 @@ export class SpeakerModels {
         this.value(
           "LIGHTWEAVER_DIARIZATION_BACKEND",
           "diarization_backend",
-          "auto",
         ),
       ),
     };

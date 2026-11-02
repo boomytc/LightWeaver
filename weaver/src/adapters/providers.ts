@@ -3,7 +3,7 @@ import path from "node:path";
 import { z, VlmProvider, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import {
-  localConfigValue,
+  readConfig,
   modelbestBackend,
   deepseekBackend,
 } from "../config.ts";
@@ -19,10 +19,6 @@ import {
   TEXT_EMBEDDING_PROVIDER,
 } from "./visual-models.ts";
 import { SpeakerModels, SPEAKER_PROVIDER } from "./speaker-models.ts";
-import {
-  MODELBEST_TTS_MODEL,
-  MODELBEST_VLM_MODEL,
-} from "../models/catalog.ts";
 import {
   LocalModels,
   ALIGNMENT_PROVIDER,
@@ -45,7 +41,7 @@ export function workspaceRoot(): string {
 }
 const scriptsDir = () => resourcePath("weaver", "scripts");
 const cfg = (env: string, key: string) =>
-  process.env[env]?.trim() || localConfigValue(key, currentRuntime().configBase);
+  readConfig().field({ key, environment: env }).value;
 const cfgPath = (env: string, key: string) => {
   const value = cfg(env, key);
   return value ? resolveConfiguredPath(value) : "";
@@ -102,8 +98,7 @@ export class Providers {
         id: "modelbest-voxcpm2",
         name: "ModelBest 语音协议",
         capabilities: ["tts", "voice-design"],
-        model:
-          cfg("LIGHTWEAVER_TTS_MODEL", "tts_model") || MODELBEST_TTS_MODEL,
+        model: cfg("LIGHTWEAVER_TTS_MODEL", "tts_model"),
         version: "speech-sse-wav-v2",
         endpoint: modelbest.base,
         ready: !!modelbest.key,
@@ -116,8 +111,7 @@ export class Providers {
         id: "modelbest-vlm",
         name: "ModelBest 画面观察",
         capabilities: ["describe"],
-        model:
-          cfg("LIGHTWEAVER_VLM_MODEL", "vlm_model") || MODELBEST_VLM_MODEL,
+        model: cfg("LIGHTWEAVER_VLM_MODEL", "vlm_model"),
         version: "chat-no-thinking-v2",
         endpoint: modelbest.base,
         ready: !!modelbest.key,
@@ -130,9 +124,7 @@ export class Providers {
         id: "deepseek-vlm",
         name: "DeepSeek 画面观察",
         capabilities: ["describe"],
-        model:
-          cfg("LIGHTWEAVER_DEEPSEEK_MODEL", "deepseek_model") ||
-          "deepseek-flash",
+        model: cfg("LIGHTWEAVER_DEEPSEEK_MODEL", "deepseek_model"),
         version: "chat-thinking-disabled-v1",
         endpoint: deepseek.base,
         ready: !!deepseek.key,
@@ -168,9 +160,7 @@ export class Providers {
   }
   selectedVlm(value?: string) {
     return VlmProvider.parse(
-      value ||
-        cfg("LIGHTWEAVER_VLM_PROVIDER", "vlm_provider") ||
-        "modelbest-vlm",
+      value || cfg("LIGHTWEAVER_VLM_PROVIDER", "vlm_provider"),
     );
   }
   binding(id: string): string {

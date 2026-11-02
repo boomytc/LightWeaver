@@ -64,6 +64,9 @@ const requirements = sourceRequirements();
 const requirementsSha256 = Object.fromEntries(
   Object.entries(requirements).map(([name, file]) => [name, sha256File(file)]),
 );
+const trackedConfig = path.join(repoRoot, "config.yaml");
+if (!fs.existsSync(trackedConfig))
+  throw new Error(`缺少内置配置默认值：${trackedConfig}`);
 const sidecarSource = path.join(desktopRoot, "packaging", "sidecar");
 const sidecarPackage = path.join(sidecarSource, "package.json");
 const sidecarLock = path.join(sidecarSource, "package-lock.json");
@@ -337,6 +340,7 @@ function copyResources() {
   fs.mkdirSync(path.join(resources, "docs"), { recursive: true });
   fs.copyFileSync(path.join(repoRoot, "AGENTS.md"), path.join(resources, "AGENTS.md"));
   fs.copyFileSync(path.join(repoRoot, "docs", "conventions.md"), path.join(resources, "docs", "conventions.md"));
+  fs.copyFileSync(trackedConfig, path.join(resources, "config.yaml"));
   copyTree(path.join(repoRoot, "library"), path.join(resources, "library"));
   copyTree(
     path.join(repoRoot, "weaver", "scripts"),

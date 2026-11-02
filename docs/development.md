@@ -143,7 +143,9 @@ npx weaver capabilities --data-dir /absolute/desktop-data --config-file /absolut
 
 制作完成后，用 `export --project ID --format video --dest /absolute/movie.mp4` 交付视频。先用 `artifacts --project ID` 查看交付，按需要传 `--delivery ID` 选择旧版本。用 `artifact show DIGEST` 读取 manifest 或 receipt，历史修订使用 `project show ID --revision REV`。这些命令均支持 `--json`。
 
-源码配置可从 `config.local.yaml.example` 复制到忽略的 `config.local.yaml`，保留已有配置。环境变量优先。密钥也可通过设置页保存，CLI 更新配置使用文件输入，避免把密钥写入命令参数。
+仓库根的 `config.yaml` 是源码环境的内置默认值，并随桌面包复制到 `resources/config.yaml`。其中 API Key 字段保持空字符串；私有凭据写入忽略的 `config.local.yaml` 或通过设置页保存，CLI 更新配置使用文件输入，避免把密钥写入命令参数。
+
+配置值按 `config.local.yaml`、环境变量、内置 `config.yaml` 的顺序生效，空或纯空白值视为未设置。设置页保存密钥后立即生效，无需重启；清除本地配置中的密钥后，会回退到同名环境变量，未设置则显示未配置。绑定已有配置时，该文件继续作为私有本地配置，相对路径仍按它的所在目录解析。
 
 ## 修改实现与完成验收
 

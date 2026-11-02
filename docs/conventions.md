@@ -161,11 +161,15 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页只检查目录元数据；`verify`、成功下载和采用已有路径才读取并哈希完整文件。Qwen ASR GGUF 与 TEN VAD 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 的目录绑定要求完整模型目录。下载不会复制到 CAS，也不会隐式写入配置。
 
-模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码环境默认以仓库为配置基准，桌面环境默认以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，环境变量覆盖保持可见。
+模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码环境默认以仓库为配置基准，桌面环境默认以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
+
+配置值按运行时 `configFile`（私有本地配置）、环境变量、内置 `config.yaml` 默认值的顺序解析。三者中的空字符串和纯空白值都视为未设置。`source=file` 表示私有本地配置，`source=environment` 表示环境变量，`source=default` 表示 `config.yaml` 或代码缺省值，`source=unset` 表示没有有效值。源码内置默认文件位于仓库根目录 `config.yaml`；桌面包内位于 `currentRuntime.resourcesDir/config.yaml`。私有覆盖继续写入 `runtime.configFile`，相对路径仍按 `runtime.configBase` 解析。
+
+`config.yaml` 的 API Key 字段必须保持空字符串，不得提交真实凭据。用户应通过设置页或私有本地配置文件提供凭据；在源码环境，该文件是忽略的 `config.local.yaml`。桌面设置保存密钥后立即采用新值，无需重启；清除私有本地配置中的密钥后，如果环境变量有非空值则立即回退到环境变量，否则回到未配置状态。
 
 配置写入、供应商预设和已有模型采用均需读取 `models settings get` 的 revision，写入时沿用该 expectedRevision 和稳定 requestId。响应丢失后重放原请求，不重新计算 expectedRevision。
 
-`config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置与私有请求收据注释一起同步并原子替换，权限为 `0600`。逻辑 revision 排除这些内部收据注释。收据保存请求指纹和不含明文密钥的首次结果。相同请求重放首次结果，不同参数复用 requestId 被拒绝。密钥空输入保持现值，清除必须显式请求；环境变量优先，SettingsView 只暴露是否配置和来源。
+`config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置与私有请求收据注释一起同步并原子替换，权限为 `0600`。逻辑 revision 排除这些内部收据注释。收据保存请求指纹和不含明文密钥的首次结果。相同请求重放首次结果，不同参数复用 requestId 被拒绝。密钥空输入保持现值，清除必须显式请求；私有本地文件优先于环境变量，清除本地密钥后回退到环境变量。SettingsView 只暴露是否配置和来源。
 
 | 能力 | 当前适配 | 配置 |
 | --- | --- | --- |

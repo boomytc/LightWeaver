@@ -37,6 +37,7 @@ Agent 从项目 **复制给 agent** 或 `project brief <id>` 取得完整调用�
 
 | 文档 | 范围 |
 | --- | --- |
+| [配置分层与凭证验收](acceptance-config.md) | 本地覆盖、环境兜底、默认配置与桌面凭证生效 |
 | [功能收尾验收](acceptance-completion.md) | Skill、桌面编辑、制作交付及异常恢复的最终闭环 |
 | [能力验收](acceptance-coverage.md) | 共享制作与媒体能力 |
 | [架构升级验收](acceptance-v2.md) | 混合场景、模型与制作链 |

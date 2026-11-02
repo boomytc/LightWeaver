@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
-import { z, Id } from "./contracts/index.ts";
+import { z, Id, ModelSettingsField } from "./contracts/index.ts";
 import { WeaverError } from "./contracts/errors.ts";
-import { currentRuntime, usesInstalledConfig } from "./runtime.ts";
+import { currentRuntime, resourcePath, usesInstalledConfig } from "./runtime.ts";
 const defaultRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 export function localConfigPath(root = defaultRoot): string {
@@ -22,7 +22,7 @@ export function configRevision(content: string): string {
     .digest("hex");
 }
 
-export function localConfigContentValue(content: string, name: string): string {
+function configContentValue(content: string, name: string): string {
   const line = content
     .split(/\r?\n/)
     .find((line) => line.startsWith(`${name}:`));
@@ -52,10 +52,46 @@ function scalarValue(rawValue: string, key: string): string {
   });
 }
 
-export function localConfigValue(name: string, root = defaultRoot): string {
+type ConfigSetting = {
+  key: string;
+  environment: string;
+  fallback?: string;
+};
+
+export function readConfig(
+  input: {
+    root?: string;
+    env?: NodeJS.ProcessEnv;
+    localContent?: string;
+  } = {},
+) {
+  const root = input.root ?? defaultRoot;
   const file = localConfigPath(root);
-  if (!fs.existsSync(file)) return "";
-  return localConfigContentValue(fs.readFileSync(file, "utf8"), name);
+  const local = input.localContent ??
+    (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "");
+  const defaultsFile = usesInstalledConfig(root)
+    ? resourcePath("config.yaml")
+    : path.join(path.resolve(root), "config.yaml");
+  if (!fs.existsSync(defaultsFile))
+    throw new WeaverError("CONFIG_MISSING", "缺少默认配置 config.yaml", {
+      file: defaultsFile,
+    });
+  const defaults = fs.readFileSync(defaultsFile, "utf8");
+  const env = input.env ?? process.env;
+  return {
+    field(setting: ConfigSetting): z.infer<typeof ModelSettingsField> {
+      const fromFile = configContentValue(local, setting.key).trim();
+      if (fromFile) return { value: fromFile, source: "file" };
+      const fromEnvironment = env[setting.environment]?.trim();
+      if (fromEnvironment)
+        return { value: fromEnvironment, source: "environment" };
+      const fromDefault = configContentValue(defaults, setting.key).trim() ||
+        setting.fallback?.trim();
+      return fromDefault
+        ? { value: fromDefault, source: "default" }
+        : { value: "", source: "unset" };
+    },
+  };
 }
 
 function quoteScalar(value: string): string {
@@ -386,16 +422,15 @@ function recoverStaleLock(lock: string): void {
 }
 function remoteBackend(
   provider: "modelbest" | "deepseek",
-  fallback: string,
   root: string,
   env: NodeJS.ProcessEnv,
 ): { base: string; key: string } {
   const prefix = provider.toUpperCase();
-  const base = (
-    env[`${prefix}_BASE_URL`] ||
-    localConfigValue(`${provider}_base_url`, root) ||
-    fallback
-  ).replace(/\/$/, "");
+  const config = readConfig({ root, env });
+  const base = config.field({
+    key: `${provider}_base_url`,
+    environment: `${prefix}_BASE_URL`,
+  }).value.replace(/\/$/, "");
   const url = new URL(base);
   if (
     !["https:", "http:"].includes(url.protocol) ||
@@ -410,19 +445,18 @@ function remoteBackend(
     );
   return {
     base,
-    key: (
-      env[`${prefix}_API_KEY`] ||
-      localConfigValue(`${provider}_api_key`, root) ||
-      ""
-    ).trim(),
+    key: config.field({
+      key: `${provider}_api_key`,
+      environment: `${prefix}_API_KEY`,
+    }).value,
   };
 }
 
 export const modelbestBackend = (
   root = defaultRoot,
   env: NodeJS.ProcessEnv = process.env,
-) => remoteBackend("modelbest", "https://api.modelbest.cn/v1", root, env);
+) => remoteBackend("modelbest", root, env);
 export const deepseekBackend = (
   root = defaultRoot,
   env: NodeJS.ProcessEnv = process.env,
-) => remoteBackend("deepseek", "https://api.deepseek.com", root, env);
+) => remoteBackend("deepseek", root, env);

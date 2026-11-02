@@ -17,7 +17,7 @@ import { WeaverError } from "../contracts/errors.ts";
 import {
   configRevision,
   localConfigPath,
-  localConfigContentValue,
+  readConfig,
   modelbestBackend,
   patchLocalConfig,
   replayConfigRequest,
@@ -39,11 +39,7 @@ import {
   type DownloadableLocalModel,
 } from "./catalog.ts";
 
-type Setting = {
-  key: string;
-  environment: string;
-  fallback?: string;
-};
+type Setting = Parameters<ReturnType<typeof readConfig>["field"]>[0];
 type CatalogFile = DownloadableLocalModel["catalog"]["files"][number];
 
 const SETTINGS: Record<string, Setting> = {
@@ -55,17 +51,14 @@ const SETTINGS: Record<string, Setting> = {
   vlmProvider: {
     key: "vlm_provider",
     environment: "LIGHTWEAVER_VLM_PROVIDER",
-    fallback: "modelbest-vlm",
   },
   vlmModel: {
     key: "vlm_model",
     environment: "LIGHTWEAVER_VLM_MODEL",
-    fallback: MODELBEST_VLM_MODEL,
   },
   ttsModel: {
     key: "tts_model",
     environment: "LIGHTWEAVER_TTS_MODEL",
-    fallback: MODELBEST_TTS_MODEL,
   },
   modelPython: {
     key: "model_python",
@@ -75,7 +68,6 @@ const SETTINGS: Record<string, Setting> = {
   llamaServer: {
     key: "llama_server",
     environment: "LIGHTWEAVER_LLAMA_SERVER",
-    fallback: "llama-server",
   },
   asrModel: { key: "asr_model", environment: "LIGHTWEAVER_ASR_MODEL" },
   asrLibrary: { key: "asr_library", environment: "TRANSCRIBE_LIBRARY" },
@@ -100,12 +92,10 @@ const SETTINGS: Record<string, Setting> = {
   alignmentBackend: {
     key: "alignment_backend",
     environment: "LIGHTWEAVER_ALIGNMENT_BACKEND",
-    fallback: "torch",
   },
   alignmentDevice: {
     key: "alignment_device",
     environment: "LIGHTWEAVER_ALIGNMENT_DEVICE",
-    fallback: "cpu",
   },
 };
 
@@ -114,25 +104,7 @@ function field(
   setting: Setting,
   env: NodeJS.ProcessEnv,
 ): z.infer<typeof ModelSettingsView>["values"][string] {
-  const content = fs.existsSync(localConfigPath(root))
-    ? fs.readFileSync(localConfigPath(root), "utf8")
-    : "";
-  return fieldFromContent(content, setting, env);
-}
-
-function fieldFromContent(
-  content: string,
-  setting: Setting,
-  env: NodeJS.ProcessEnv,
-): z.infer<typeof ModelSettingsView>["values"][string] {
-  const fromEnvironment = env[setting.environment]?.trim();
-  if (fromEnvironment)
-    return { value: fromEnvironment, source: "environment" };
-  const fromFile = localConfigContentValue(content, setting.key);
-  if (fromFile) return { value: fromFile, source: "file" };
-  if (setting.fallback !== undefined)
-    return { value: setting.fallback, source: "default" };
-  return { value: "", source: "unset" };
+  return readConfig({ root, env }).field(setting);
 }
 
 function resolvePath(root: string, value: string): string {
@@ -204,10 +176,11 @@ export class Models {
   }
 
   private settingsFromContent(content: string, env: NodeJS.ProcessEnv) {
+    const config = readConfig({ root: this.root, env, localContent: content });
     const values = Object.fromEntries(
       Object.entries(SETTINGS).map(([name, setting]) => [
         name,
-        fieldFromContent(content, setting, env),
+        config.field(setting),
       ]),
     );
     if (values.downloadRoot.source === "unset")
@@ -215,11 +188,10 @@ export class Models {
         value: currentRuntime().modelDir,
         source: "default",
       };
-    const keySource = env.MODELBEST_API_KEY?.trim()
-      ? "environment"
-      : localConfigContentValue(content, "modelbest_api_key")
-        ? "file"
-        : "unset";
+    const key = config.field({
+      key: "modelbest_api_key",
+      environment: "MODELBEST_API_KEY",
+    });
     return ModelSettingsView.parse({
       configPath: localConfigPath(this.root),
       revision: configRevision(content),
@@ -227,21 +199,16 @@ export class Models {
       values,
       apiKeys: {
         modelbest: {
-          configured: keySource !== "unset",
-          source: keySource,
+          configured: key.source !== "unset",
+          source: key.source,
         },
       },
     });
   }
 
   catalog() {
-    const configured = modelbestBackend(this.root),
-      settings = this.settings();
-    return catalog(
-      configured.key.length > 0,
-      settings.values.modelbestBaseUrl.value ||
-        "https://api.modelbest.cn/v1",
-    );
+    const configured = modelbestBackend(this.root);
+    return catalog(configured.key.length > 0, configured.base);
   }
 
   view(downloadRoot?: string) {

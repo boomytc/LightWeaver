@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z, ProviderDescriptor } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
-import { localConfigValue } from "../config.ts";
+import { readConfig } from "../config.ts";
 import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { defaultModelPython, resolveExecutable } from "./executable.ts";
@@ -76,9 +76,7 @@ type ModelInvocation =
 export class LocalModels {
   constructor(private readonly root: string) {}
   private value(env: string, key: string, fallback = "") {
-    return (
-      process.env[env]?.trim() || localConfigValue(key, this.root) || fallback
-    );
+    return readConfig({ root: this.root }).field({ key, environment: env, fallback }).value;
   }
   private localPath(value: string) {
     return value ? resolveConfiguredPath(value) : "";
@@ -94,7 +92,7 @@ export class LocalModels {
         this.root,
       ),
       server: resolveExecutable(
-        this.value("LIGHTWEAVER_LLAMA_SERVER", "llama_server", "llama-server"),
+        this.value("LIGHTWEAVER_LLAMA_SERVER", "llama_server"),
         this.root,
       ),
       ffmpeg: resolveExecutable("ffmpeg", this.root),
@@ -104,14 +102,13 @@ export class LocalModels {
           this.value(
             "LIGHTWEAVER_ALIGNMENT_BACKEND",
             "alignment_backend",
-            "torch",
           ),
         ),
       alignmentDevice: z
         .string()
         .regex(/^(cpu|cuda(?::\d+)?)$/)
         .parse(
-          this.value("LIGHTWEAVER_ALIGNMENT_DEVICE", "alignment_device", "cpu"),
+          this.value("LIGHTWEAVER_ALIGNMENT_DEVICE", "alignment_device"),
         ),
       alignmentModel: this.localPath(
         this.value("LIGHTWEAVER_ALIGNMENT_MODEL", "alignment_model"),
