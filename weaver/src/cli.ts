@@ -317,7 +317,16 @@ async function main(): Promise<void> {
       const engineId = parsed.words[2];
       const engineRoot = () =>
         option(parsed, "root") || app.engines.installRoot().value;
-      if (action === "list") result = app.engines.view(option(parsed, "root"));
+      if (action === "setup") {
+        const run = app.engines.setup({
+          root: option(parsed, "root"),
+          expectedRevision: required(parsed, "expected-revision"),
+          requestId,
+        });
+        result = booleanOption(parsed, "wait")
+          ? { run: await wait(run.id), nodes: app.jobs.nodes(run.id) }
+          : run;
+      } else if (action === "list") result = app.engines.view(option(parsed, "root"));
       else if (action === "install") {
         if (!engineId)
           throw new WeaverError("INVALID_INPUT", "缺少 engine-id");

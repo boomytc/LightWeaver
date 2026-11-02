@@ -643,6 +643,15 @@ export const COMMANDS: readonly CommandSpec[] = [
     examples: ["weaver models use-provider modelbest --expected-revision CONFIG_REV --json"],
   },
   {
+    path: ["engines", "setup"],
+    group: "模型与数据",
+    summary: "一键下载、校验并采用整套本地运行环境",
+    synopsis: "engines setup [--root /absolute/engine-root] --expected-revision CONFIG_REV [--wait]",
+    flags: ["root", ...WAIT_FLAGS, ...MUTATION_FLAGS],
+    requirements: [{ kind: "flag", name: "expected-revision" }],
+    examples: ["weaver engines setup --expected-revision CONFIG_REV --wait --progress --json"],
+  },
+  {
     path: ["engines", "list"],
     group: "模型与数据",
     summary: "列出引擎运行时组件、安装状态和当前绑定",

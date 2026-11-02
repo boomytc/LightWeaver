@@ -197,21 +197,22 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 Studio 的“运行时与路径”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及模型与语音 Python 环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
 
 ```bash
+npx weaver engines setup --expected-revision CONFIG_REV --wait --json
 npx weaver engines list --json
+# 高级或自动化：单独处理某个组件
 npx weaver engines install transcribe-native --wait --json
 npx weaver engines verify transcribe-native --json
 npx weaver engines use transcribe-native --expected-revision CONFIG_REV --json
-npx weaver engines install llama-server --wait --json
-npx weaver engines install python-model --wait --json
-npx weaver engines use python-model --expected-revision CONFIG_REV --json
 npx weaver schema engine-settings --json
 ```
+
+Studio 的“本地运行环境”只提供一个“一键下载并配置”主操作：依次安装 transcribe 运行库、Python bindings、TEN VAD、llama-server 和模型 Python 环境，最后一个作业节点一次写入配置。用户不需要指定路径，也不需要先理解“下载、校验、采用”的逐步操作；已安装且校验通过的部分会复用，中途失败时保留已下载组件，重试继续。语音 Python 环境体积大，单独按需创建。单个组件的安装、校验、采用和手动路径输入收在高级设置里，供自定义运行库或排障使用。
 
 `engines list` 返回解析后平台的 catalog。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
 
 引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`）。未显式配置时，源码入口使用仓库 `weaver/runtime/`（Git 忽略），正式桌面包使用数据目录下的 `runtime/`。显式相对路径按 `configBase` 解析。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
 
-`engines use` 先完整校验，再把绑定写入私有配置：transcribe 运行库写 `asr_library`，bindings 写 `asr_bindings`，TEN VAD 写 `vad_library`，llama-server 同时写 `visual_server`、`llama_server` 与 `translation_server`，Python 环境写 `model_python` 或 `speech_python`。采用沿用 `models settings get` 的 revision 与稳定 requestId，先校验后写配置；下载或安装本身不会隐式改写配置。
+`engines setup` 是上述单组件流程的组合：五个安装节点按顺序执行，最后一个 `engine-adopt` 节点重新校验全部组件后一次写入配置，写入继续受 expectedRevision 保护。`engines use`（高级）先完整校验单个引擎，再把绑定写入私有配置：transcribe 运行库写 `asr_library`，bindings 写 `asr_bindings`，TEN VAD 写 `vad_library`，llama-server 同时写 `visual_server`、`llama_server` 与 `translation_server`，Python 环境写 `model_python` 或 `speech_python`。采用沿用 `models settings get` 的 revision 与稳定 requestId，先校验后写配置；下载或安装本身不会隐式改写配置。
 
 Python 环境由 `python-model`、`python-speech` 两个引擎项创建：优先使用运行时 Python，否则从 PATH 找 Python 3.10 以上解释器，创建 venv 后按 `weaver/requirements.models.txt` 或 `weaver/requirements.speech.txt` 安装依赖，失败时删除本次新建的环境。作业使用六小时时限，取消会终止 pip。校验会读取已安装包版本与 requirements 的固定版本对比；语音环境的 torch/voxcpm 体积较大，安装时间取决于网络。
 

@@ -8,10 +8,14 @@
 - 安装走 Jobs：下载 → 解压 → 逐文件校验 → 发布。已校验的安装重复执行直接复用；文件缺失、大小或摘要不符时重装。目标目录没有本应用标记时拒绝覆盖并保留原件；取消后删除环境/暂存，不发布半成品。
 - 采用（use）前重新校验全部必需文件，通过后按 binding 写入 `asr_library`、`asr_bindings`、`vad_library`、`visual_server`、`llama_server`、`translation_server`、`model_python`、`speech_python`；写入受配置 revision 保护。
 - Python 环境按 requirements 清单创建 venv 并 pip 安装，环境版本取清单 SHA-256 前 12 位；安装后探测解释器与关键依赖。
-- 入口：CLI `weaver engines list|install|verify|use`；HTTP `GET /api/runtime`、`GET /api/engines`、`POST /api/engines/:id/{install,verify,use}`；Studio 设置页引擎分组。
+- 一键配置：CLI `weaver engines setup` 与 Studio“本地运行环境”的单个主按钮，按顺序安装全部必需组件并在最后一个作业节点一次写入配置，用户不需要指定路径；单组件安装/校验/采用与手动路径收在高级设置。
+- 入口：CLI `weaver engines setup|list|install|verify|use`；HTTP `GET /api/runtime`、`GET /api/engines`、`POST /api/engines/setup`、`POST /api/engines/:id/{install,verify,use}`；Studio 设置页“本地运行环境”与高级引擎分组。
 - TEN VAD 的下载项从模型清单移除（本地模型清单只剩 ASR、EmbeddingGemma、ForcedAligner），由引擎清单负责下载与校验；设置项 `vad_library` 语义不变。
 
 ## 实际验收
+
+- 一键配置（隔离环境、全新目录）：`weaver engines setup --expected-revision … --wait` 单个作业包含 5 个安装节点与 1 个采用节点，run succeeded，节点依次为 install-transcribe-native / install-transcribe-bindings / install-ten-vad / install-llama-server / install-python-model / adopt，全部 succeeded；最后 adopt 节点一次写入 `asr_library`、`asr_bindings`、`vad_library`、`visual_server`、`llama_server`、`translation_server`、`model_python` 七项。同一环境再次执行（新 revision）0.26 秒完成、节点全部 succeeded、配置 revision 不变且无重复下载。
+- Studio 一键流程：设置 → 运行时与路径 → 本地运行环境只显示一个“一键下载并配置”主操作与 5 个组件状态行；删除已安装的 llama-server 目录后点按钮，作业显示各组件“进行中/已完成”并自动补齐、刷新为“已安装/已配置”，按钮变为“重新检查并修复”，并给出“去选择模型权重”下一步；手动路径输入与单组件操作位于折叠的高级设置中。
 
 - 隔离环境（独立数据目录、配置文件与引擎根，未触碰用户配置、`models/`、`weaver/runtime/`）下列出 6 个引擎，本平台组件均 `available=true`；初始绑定为未设置，安装状态均为 missing。隔离配置写入后权限为 `0600`。
 - 真实安装全部成功：transcribe-native `run-8c723887…` succeeded，归档 1483992 字节、SHA-256 `c6252907…3d3c`，校验 verified/0.2.0，6 个文件摘要全对，占 3.7 MB；transcribe-bindings `run-5530fb72…` succeeded，34388 字节、`2b4ae07f…2443`，verified/0.2.0，安装目录内只有 `transcribe_cpp/`；ten-vad `run-b612bc35…` succeeded，744600 字节、`81b2de13…e715a`，verified/`d68ab71c8d5f`（macOS universal x86_64+arm64）；llama-server `run-6be94574…` succeeded，16513842 字节、`00468fe8…6382`，verified/b12032，探测输出 `version: 0.8.0-dev (build 12032, commit dde879bc4)`，11 个必需文件与 18 条符号链接落地，占 40 MB。
@@ -29,7 +33,7 @@
 
 - 只在 darwin-arm64（Apple Silicon M4 Pro，macOS 27.2）实机安装与运行；Windows、Linux、CUDA 产物只做清单与哈希固定，未做实机下载与推理验收，其中 Linux/Windows 的 llama.cpp 与 transcribe 包按微架构拆分子库，运行时选择未验证。
 - 语音 Python 环境未完整安装：torch 2.15、torchaudio、voxcpm 体积大，本轮只验证了清单版本、状态展示（missing）、目标冲突拒绝与取消/重试行为；本地 TTS 生成与整片语音链未运行。
-- Studio 引擎页只在 darwin-arm64 开发模式完成上述点击验收；未覆盖其它平台、断网重连与超长安装过程中的界面表现。
+- Studio 页面只在 darwin-arm64 开发模式完成上述点击验收；未覆盖其它平台、断网重连与超长安装过程中的界面表现。
 - 转写时间仍为 estimated（Qwen3-ASR 无时间戳，未接强制对齐）；未做真实整片制作、长语音或检索质量评测，不由有限样例推导整体质量。
 - 模型文件使用本机已有的 Qwen3-ASR、EmbeddingGemma 2、Qwen3-Reranker、Hy-MT2，未通过模型下载流程重新获取；隔离配置不含 ModelBest 密钥，未调用付费 API。
 

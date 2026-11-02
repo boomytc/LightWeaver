@@ -12,7 +12,7 @@ import type {
 } from "@lightweaver/weaver/contracts";
 import { api, ApiError, requestId } from "../api";
 import { openLink } from "../desktop";
-import { isActiveRun } from "../domain/run";
+import { isActiveRun, type RunDetail } from "../domain/run";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { useRunStream } from "../jobs/useRunStream";
 import { useSession } from "../session/context";
@@ -129,6 +129,21 @@ const settingLabel: Record<string, string> = {
   speech_python: "语音 Python",
 };
 
+const setupLabels: Record<string, string> = {
+  "transcribe-native": "transcribe 运行库",
+  "transcribe-bindings": "Python bindings",
+  "ten-vad": "TEN VAD",
+  "llama-server": "llama-server",
+  "python-model": "模型 Python 环境",
+  "python-speech": "语音 Python 环境",
+};
+
+function setupItems(view: EngineViewValue): EngineItem[] {
+  return view.setupComponents.flatMap(
+    (id) => view.catalog.items.find((item) => item.id === id) ?? [],
+  );
+}
+
 function sourceName(source: string) {
   return sourceLabel[source] || source;
 }
@@ -171,9 +186,9 @@ export function EngineSettings() {
 
   if (!view)
     return (
-      <section className="flex flex-col gap-3" aria-label="引擎运行时">
-        <h2 className="m-0">引擎运行时</h2>
-        <p>加载引擎运行时…</p>
+      <section className="flex flex-col gap-3" aria-label="本地运行环境">
+        <h2 className="m-0">本地运行环境</h2>
+        <p>加载本地运行环境…</p>
       </section>
     );
 
@@ -190,41 +205,320 @@ export function EngineSettings() {
     >,
   );
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="engine-settings-title">
-      <div>
-        <h2 id="engine-settings-title" className="m-0">引擎运行时</h2>
-        <p className="hint mb-0 mt-1">
-          引擎产物固定版本与 SHA-256，与模型权重分开。下载、校验、采用是三个显式操作；安装到引擎根目录，采用后写入当前配置，不复制或移动引擎目录。
-        </p>
-      </div>
-      <dl className="key-value-list panel-card px-4">
-        <div className="contents">
-          <dt>引擎根目录</dt>
-          <dd className="numeric">{view.installRoot.value}（{sourceName(view.installRoot.source)}）</dd>
+    <section className="flex flex-col gap-4" aria-label="本地运行环境">
+      <SetupPanel view={view} statuses={statuses} onRefresh={refresh} />
+      <details className="subtle-card p-4">
+        <summary className="font-medium">高级：单个引擎组件与手动操作</summary>
+        <div className="mt-3 flex flex-col gap-3">
+          <dl className="key-value-list">
+            <div className="contents">
+              <dt>引擎根目录</dt>
+              <dd className="numeric">{view.installRoot.value}（{sourceName(view.installRoot.source)}）</dd>
+            </div>
+          </dl>
+          <small>
+            本应用管理：已安装 {usageCounts.managed + usageCounts["managed-unused"]} /{" "}
+            {view.catalog.items.length} · 使用外部路径 {usageCounts.external} · 未使用{" "}
+            {usageCounts.unused + usageCounts.partial}
+          </small>
+          <p className="hint m-0">
+            通常不需要展开：一键配置会自动安装并采用下列组件。仅当需要单独重装、校验或使用自己的运行时路径时再操作。
+          </p>
+          <div className="model-inventory-grid">
+            {view.catalog.items.map((item) => {
+              const status = statuses.get(item.id);
+              return status ? (
+                <EngineCard
+                  key={item.id}
+                  item={item}
+                  itemStatus={status}
+                  revision={view.settings.revision}
+                  installRoot={view.installRoot.value}
+                  onRefresh={refresh}
+                />
+              ) : null;
+            })}
+          </div>
         </div>
-      </dl>
-      <small>
-        本应用管理：已安装 {usageCounts.managed + usageCounts["managed-unused"]} /{" "}
-        {view.catalog.items.length} · 使用外部路径 {usageCounts.external} · 未使用{" "}
-        {usageCounts.unused + usageCounts.partial}
-      </small>
-      <div className="model-inventory-grid">
-        {view.catalog.items.map((item) => {
-          const status = statuses.get(item.id);
-          return status ? (
-            <EngineCard
-              key={item.id}
-              item={item}
-              itemStatus={status}
-              revision={view.settings.revision}
-              installRoot={view.installRoot.value}
-              onRefresh={refresh}
-            />
-          ) : null;
-        })}
-      </div>
+      </details>
     </section>
   );
+}
+
+type RunDetailValue = z.infer<typeof RunDetail>;
+
+function SetupPanel({
+  view,
+  statuses,
+  onRefresh,
+}: {
+  view: EngineViewValue;
+  statuses: Map<string, EngineItemStatusValue>;
+  onRefresh: () => Promise<void>;
+}) {
+  const session = useSession();
+  const setup = useSetupRun(() => view.settings.revision, onRefresh);
+  const items = setupItems(view);
+  const rows = items.map((item) => {
+    const current = statuses.get(item.id);
+    return {
+      item,
+      status: current,
+      ready:
+        !!current &&
+        current.active.length > 0 &&
+        current.active.every((binding) => binding.ready),
+      managed: current?.status.state === "installed",
+    };
+  });
+  const ready = rows.length > 0 && rows.every((row) => row.ready);
+  const managedAll = rows.length > 0 && rows.every((row) => row.managed);
+  const busy = setup.active || setup.starting;
+  const label = busy
+    ? "配置中…"
+    : ready && managedAll
+      ? "重新检查并修复"
+      : "一键下载并配置";
+  const adoptNode = setup.detail?.nodes.find((node) => node.key === "adopt");
+
+  return (
+    <section className="panel-card flex flex-col gap-4 p-5" aria-labelledby="setup-title">
+      <div>
+        <h2 id="setup-title" className="m-0">本地运行环境</h2>
+        <p className="hint mb-0 mt-1">
+          一个操作完成本地转写、精确字幕、检索与字幕翻译需要的运行库和 Python 环境：
+          下载 → 校验 → 自动写入配置，不需要手动指定路径。
+        </p>
+      </div>
+      <div className="model-files">
+        {rows.map(({ item, status: current, ready: bindingReady, managed }) => (
+          <div className="flex flex-wrap items-center justify-between gap-2" key={item.id}>
+            <small>{setupLabels[item.id] || item.name}</small>
+            <span className="flex flex-wrap items-center gap-2">
+              {current && (
+                <Badge tone={engineStateTone[current.status.state]} dot>
+                  {engineStateLabel[current.status.state]}
+                </Badge>
+              )}
+              <Badge tone={bindingReady ? "ok" : "neutral"} dot>
+                {bindingReady ? "已配置" : "待配置"}
+              </Badge>
+              <small className="numeric">
+                {managed ? current?.status.version || item.version : `清单 ${item.version}`}
+              </small>
+            </span>
+          </div>
+        ))}
+      </div>
+      {setup.run && (
+        <div className="model-files" aria-live="polite">
+          <div className="section-title">
+            <b>配置作业 · {runStateLabel[setup.run.state]}</b>
+            {setup.active && (
+              <Button size="sm" type="button" onClick={() => void setup.cancel()}>
+                取消
+              </Button>
+            )}
+          </div>
+          {setup.detail?.nodes
+            .filter((node) => node.key !== "adopt")
+            .map((node) => (
+              <small key={node.key}>
+                {setupLabels[node.key.replace(/^install-/, "")] || node.key}：
+                {setupNodeStateLabel[node.state] || node.state}
+              </small>
+            ))}
+          {adoptNode && (
+            <small>写入配置：{setupNodeStateLabel[adoptNode.state] || adoptNode.state}</small>
+          )}
+          {setup.message && <small>{setup.message}</small>}
+          {setup.run.error && (
+            <small className="error" role="alert">
+              {setup.run.error.message}
+            </small>
+          )}
+          {setup.run.state === "succeeded" && <small>配置完成，绑定已刷新。</small>}
+          {setup.run.state === "cancelled" && (
+            <small>作业已取消，已安装的组件保留；可再次点击配置继续。</small>
+          )}
+        </div>
+      )}
+      <div className="actions">
+        <Button
+          variant="primary"
+          type="button"
+          disabled={busy}
+          aria-label={label}
+          onClick={() => void setup.start()}
+        >
+          {label}
+        </Button>
+        <span className="hint">
+          首次会下载并校验固定版本产物（约 1.7 GB）并写入当前配置；语音 Python 环境体积大，仍在高级中按需创建。
+        </span>
+      </div>
+      {ready && managedAll && !setup.run && (
+        <>
+          <small>本地运行环境已就绪；再次点击会重新校验并修复，不会重复下载。</small>
+          <div className="actions">
+            <Button
+              size="sm"
+              type="button"
+              onClick={() => void session.navigate("settings", "", "models")}
+            >
+              去选择模型权重
+            </Button>
+            <span className="hint">
+              模型权重在“模型与供应商”下载，下载后点“采用”即可，也不需要填写路径。
+            </span>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+const setupNodeStateLabel: Record<string, string> = {
+  queued: "等待",
+  running: "进行中",
+  succeeded: "已完成",
+  failed: "失败",
+  cancelled: "已取消",
+  interrupted: "已中断",
+};
+
+function useSetupRun(
+  revision: () => string,
+  onFinished: () => Promise<void>,
+) {
+  const session = useSession();
+  const [run, setRun] = useState<EngineRun | null>(null);
+  const [detail, setDetail] = useState<RunDetailValue | null>(null);
+  const [message, setMessage] = useState("");
+  const [starting, setStarting] = useState(false);
+  const settled = useRef("");
+  const finished = useRef(onFinished);
+  finished.current = onFinished;
+  const revisionRef = useRef(revision);
+  revisionRef.current = revision;
+
+  const settle = (next: EngineRun) => {
+    setRun(next);
+    if (isActiveRun(next.state) || settled.current === next.id) return;
+    settled.current = next.id;
+    notifyRunsChanged();
+    if (next.state === "succeeded") {
+      session.setNotice("本地运行环境已配置完成");
+      window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
+    }
+    void finished.current();
+  };
+
+  useRunStream({
+    runId: run?.id || "",
+    enabled: run !== null && isActiveRun(run.state),
+    onDetail: (value) => {
+      setDetail(value);
+      settle(value.run);
+    },
+    onEvent: (event) => {
+      if (
+        event.type !== "engine-install-progress" &&
+        event.type !== "engine-setup-progress"
+      )
+        return;
+      const data = z
+        .object({
+          engineId: z.string().optional(),
+          phase: z.string().optional(),
+          message: z.string().optional(),
+        })
+        .safeParse(event.data);
+      if (!data.success) return;
+      const who = data.data.engineId
+        ? setupLabels[data.data.engineId] || data.data.engineId
+        : "";
+      const what =
+        data.data.message ||
+        (data.data.phase ? phaseLabel[data.data.phase] || data.data.phase : "");
+      const next = [who, what].filter(Boolean).join(" · ");
+      if (next) setMessage(next);
+    },
+    onError: (reason) => session.handleError(reason),
+  });
+
+  return {
+    run,
+    detail,
+    message,
+    starting,
+    active: run !== null && isActiveRun(run.state),
+    start: async () => {
+      setStarting(true);
+      try {
+        const key = JSON.stringify(["engine-setup", revisionRef.current()]);
+        let attempt = session.stableRequest(key);
+        let next: EngineRun;
+        let retriedTransport = false;
+        let retriedReuse = false;
+        while (true) {
+          try {
+            next = await api("/engines/setup", RunRecord, {
+              method: "POST",
+              body: {
+                expectedRevision: revisionRef.current(),
+                requestId: attempt.requestId,
+              },
+            });
+            break;
+          } catch (reason) {
+            if (
+              reason instanceof ApiError &&
+              reason.protocol.code === "REQUEST_ID_REUSED" &&
+              !retriedReuse
+            ) {
+              retriedReuse = true;
+              attempt = session.rotateStableRequest(key, attempt);
+              continue;
+            }
+            if (!(reason instanceof ApiError) && !retriedTransport) {
+              retriedTransport = true;
+              continue;
+            }
+            if (reason instanceof ApiError) {
+              if (
+                reason.protocol.code === "CONFIG_CONFLICT" ||
+                reason.protocol.code === "REVISION_CONFLICT"
+              )
+                await finished.current();
+            }
+            throw reason;
+          }
+        }
+        session.completeStableRequest(key, attempt);
+        setMessage("");
+        setDetail(null);
+        settled.current = "";
+        settle(next);
+      } catch (reason) {
+        session.handleError(reason);
+      } finally {
+        setStarting(false);
+      }
+    },
+    cancel: async () => {
+      if (!run) return;
+      try {
+        settle(
+          await api(`/runs/${encodeURIComponent(run.id)}/cancel`, RunRecord, {
+            method: "POST",
+          }),
+        );
+      } catch (reason) {
+        session.handleError(reason);
+      }
+    },
+  };
 }
 
 function EngineCard({

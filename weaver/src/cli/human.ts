@@ -405,6 +405,7 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
   if (
     command === "models download" ||
     command === "engines install" ||
+    command === "engines setup" ||
     command === "captions translate" ||
     command === "speakers analyze" ||
     command === "run status" ||

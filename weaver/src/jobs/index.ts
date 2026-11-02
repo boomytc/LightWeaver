@@ -447,7 +447,9 @@ export class Jobs {
           .get(n.id, n.retry_base),
       );
     const limitMs =
-      n.spec.operation === "model-download" || n.spec.operation === "engine-install"
+      ["model-download", "engine-install", "engine-setup"].includes(
+        n.spec.operation,
+      )
         ? 6 * 60 * 60 * 1000
         : 30 * 60 * 1000;
     const remainingMs = Math.max(

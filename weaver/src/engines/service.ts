@@ -8,6 +8,7 @@ import {
   Digest,
   EngineCatalogItem,
   EngineInstallInput,
+  EngineSetupInput,
   EngineStatus,
   EngineVerifyResult,
   EngineView,
@@ -17,7 +18,7 @@ import {
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { readConfig } from "../config.ts";
-import { Jobs, type NodeContext } from "../jobs/index.ts";
+import { Jobs, type NodeContext, type NodeSpec } from "../jobs/index.ts";
 import { currentRuntime } from "../runtime.ts";
 import { fileDigest } from "../adapters/toolchain.ts";
 import {
@@ -43,6 +44,15 @@ type ActivePathState =
   | "wrong-type"
   | "unavailable"
   | "present";
+
+/** 一键配置包含的组件；语音 Python 环境体积大，保持单独按需创建。 */
+const SETUP_COMPONENTS = [
+  "transcribe-native",
+  "transcribe-bindings",
+  "ten-vad",
+  "llama-server",
+  "python-model",
+] as const;
 
 const MARKER = ".lightweaver-engine.json";
 const MARKER_SCHEMA = 1;
@@ -223,6 +233,7 @@ export class Engines {
     private readonly models: Models,
   ) {
     jobs.register("engine-install", (context) => this.installNode(context));
+    jobs.register("engine-adopt", (context) => this.adoptNode(context));
   }
 
   catalog() {
@@ -263,6 +274,7 @@ export class Engines {
       catalog,
       settings,
       installRoot: this.installRoot(),
+      setupComponents: [...SETUP_COMPONENTS],
       items: catalog.items.map((item) => ({
         id: item.id,
         status: this.status(item, base),
@@ -727,6 +739,95 @@ export class Engines {
         "引擎目录未通过完整性校验，未写入配置",
         verification,
       );
+    const identity = { operation: "engine-adopt", id: item.id, directory };
+    return this.models.writeSettingsPatch({
+      requestId: input.requestId,
+      expectedRevision: input.expectedRevision,
+      patch: this.bindingsPatch(item, directory),
+      identity,
+    });
+  }
+
+  /** 一键配置：按固定顺序安装全部必需引擎，最后一个节点一次写入配置。 */
+  setup(raw: unknown) {
+    const input = EngineSetupInput.parse(raw),
+      items = this.setupItems(),
+      ids = items.map((item) => item.id),
+      root = this.rootDirectory(input.root || this.installRoot().value),
+      prior = this.jobs.prior("engine-setup", input.requestId, {
+        root,
+        components: ids,
+        expectedRevision: input.expectedRevision,
+      });
+    if (prior) return prior;
+    const busy = ids.filter((id) => this.locks.has(`${root}:${id}`));
+    if (busy.length)
+      throw new WeaverError(
+        "ENGINE_BUSY",
+        "该引擎已有安装作业进行中",
+        { components: busy },
+        [],
+        true,
+      );
+    const nodes: z.input<typeof NodeSpec>[] = [];
+    let previous: string | undefined;
+    for (const item of items) {
+      const key = `install-${item.id}`;
+      nodes.push({
+        key,
+        operation: "engine-install",
+        input: { id: item.id, version: item.version, root },
+        ...(previous ? { dependencies: [previous] } : {}),
+      });
+      previous = key;
+    }
+    nodes.push({
+      key: "adopt",
+      operation: "engine-adopt",
+      input: { components: ids, root, expectedRevision: input.expectedRevision },
+      ...(previous ? { dependencies: [previous] } : {}),
+    });
+    return this.jobs.submit({
+      requestInput: { root, components: ids, expectedRevision: input.expectedRevision },
+      kind: "engine-setup",
+      snapshot: {
+        root,
+        components: ids,
+        expectedRevision: input.expectedRevision,
+      },
+      nodes,
+      requestId: input.requestId,
+    });
+  }
+
+  private setupItems(): EngineItem[] {
+    const missing: { id: string; reason: string }[] = [];
+    const items: EngineItem[] = [];
+    for (const id of SETUP_COMPONENTS) {
+      try {
+        items.push(this.item(id));
+      } catch (error) {
+        if (error instanceof WeaverError && error.code === "CAPABILITY_UNAVAILABLE") {
+          missing.push({ id, reason: error.message });
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (missing.length)
+      throw new WeaverError(
+        "CAPABILITY_UNAVAILABLE",
+        "当前平台缺少一键配置所需的引擎产物",
+        { components: missing },
+        ["可改为在高级设置中逐个安装当前平台可用的组件。"],
+      );
+    return items;
+  }
+
+  private bindingsPatch(
+    item: EngineItem,
+    directory: string,
+  ): Record<string, string> {
     const patch: Record<string, string> = {};
     for (const binding of item.bindings) {
       if (!SETTINGS[binding.setting])
@@ -736,12 +837,46 @@ export class Engines {
         });
       patch[binding.setting] = engineBindingValue(directory, binding);
     }
-    const identity = { operation: "engine-adopt", id: item.id, directory };
+    return patch;
+  }
+
+  private async adoptNode(context: NodeContext) {
+    const input = z
+      .object({
+        components: z.array(z.string()).min(1),
+        root: z.string(),
+        expectedRevision: z.string(),
+      })
+      .parse(context.input);
+    const root = path.resolve(input.root);
+    const patch: Record<string, string> = {};
+    for (const id of input.components) {
+      const item = this.item(id),
+        directory = installDirectory(root, id),
+        verification = await this.verifyDirectory(item, root, directory);
+      context.signal.throwIfAborted();
+      if (verification.state !== "verified")
+        throw new WeaverError(
+          "ENGINE_VERIFY_FAILED",
+          "引擎目录未通过完整性校验，未写入配置",
+          { id, verification },
+        );
+      Object.assign(patch, this.bindingsPatch(item, directory));
+    }
+    context.event("engine-setup-progress", {
+      phase: "adopt",
+      message: "写入运行时配置",
+      components: input.components.length,
+    });
     return this.models.writeSettingsPatch({
-      requestId: input.requestId,
+      requestId: `setup-${context.runId}`,
       expectedRevision: input.expectedRevision,
       patch,
-      identity,
+      identity: {
+        operation: "engine-setup-adopt",
+        components: input.components,
+        root,
+      },
     });
   }
 

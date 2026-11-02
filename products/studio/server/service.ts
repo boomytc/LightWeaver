@@ -232,6 +232,18 @@ export async function startStudioService(
   route("get", "/api/engines", (req) =>
     app.engines.view(z.string().min(1).optional().parse(req.query.root)),
   );
+  route("post", "/api/engines/setup", (req) =>
+    app.engines.setup({
+      ...z
+        .object({
+          root: z.string().min(1).optional(),
+          expectedRevision: z.string(),
+          requestId: z.string().min(1),
+        })
+        .strict()
+        .parse(req.body),
+    }),
+  );
   route("post", "/api/engines/:id/install", (req) =>
     app.engines.install({
       id: z.string().parse(req.params.id),

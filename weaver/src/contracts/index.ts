@@ -1092,6 +1092,8 @@ export const EngineView = z.strictObject({
   catalog: EngineCatalog,
   settings: ModelSettingsView,
   installRoot: ModelSettingsField,
+  /** 一键配置按顺序包含的引擎 ID；语音 Python 环境体积大，单独按需创建。 */
+  setupComponents: z.array(z.string()).min(1),
   items: z.array(EngineItemStatus),
   installs: z.array(z.lazy(() => RunRecord)),
 });
@@ -1109,6 +1111,11 @@ export const EngineVerifyResult = z.strictObject({
 export const EngineInstallInput = z.strictObject({
   id: z.string().min(1),
   root: z.string().min(1),
+  requestId: Id,
+});
+export const EngineSetupInput = z.strictObject({
+  root: z.string().min(1).optional(),
+  expectedRevision: Digest,
   requestId: Id,
 });
 export const EngineSettingsPatch = z.strictObject({

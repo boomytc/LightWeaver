@@ -81,8 +81,8 @@ export function SettingsPage() {
             </Tabs.Content>
             <Tabs.Content value="runtime">
               <div className="flex flex-col gap-4">
-                <RuntimePanel />
                 <EngineSettings />
+                <RuntimePanel />
               </div>
             </Tabs.Content>
             <Tabs.Content value="appearance">
@@ -210,8 +210,11 @@ function RuntimePanel() {
   return (
     <section className="panel-card flex flex-col gap-4 p-5">
       <h2 className="m-0">运行时与路径</h2>
-      <p>配置值按当前私有配置文件、环境变量、内置 config.yaml 默认值的顺序生效；空或纯空白值视为未设置。Python 模型环境是可选的，启动时不会自动安装。相对路径按配置基准目录解析。</p>
-      <p>绑定已有配置时，原文件保留，并继续按该文件所在目录解析相对路径；重启后生效。</p>
+      <p>模型 Python、transcribe 运行库、bindings 与 llama-server 的路径由上方“本地运行环境”一键下载并写入，通常不需要手动填写。这里显示当前数据、配置、引擎与工具位置。</p>
+      <p>需要沿用自己已有的运行库、GPU 构建或单独指定已有配置时，展开下面的高级设置。配置值按当前私有配置文件、环境变量、内置 config.yaml 默认值的顺序生效；相对路径按配置基准目录解析。</p>
+      <details className="subtle-card p-4">
+        <summary className="font-medium">高级：手动指定运行时路径</summary>
+        <div className="mt-3 flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2">
         {runtimeFields.map(({ key, label, directory }) => (
           <InputWithActions
@@ -264,9 +267,9 @@ function RuntimePanel() {
         )}
       </div>
       <details className="subtle-card p-4">
-        <summary className="font-medium">安装可选模型 Python 环境</summary>
+        <summary className="font-medium">手工创建模型 Python 环境（备用）</summary>
         <div className="mt-3 flex flex-col gap-3">
-          <p className="hint m-0">在应用目录外创建独立环境，安装后把上方“模型 Python”指定为该环境的解释器。ASR 的 transcribe native library 和 bindings 仍需单独获取并选择。下方“引擎运行时”可一键创建或更新环境；这里的命令保留为手工后备。</p>
+          <p className="hint m-0">一键配置失败或需要自定义环境时使用：在应用目录外创建独立环境，安装后把上方“模型 Python”指定为该环境的解释器。ASR 的 transcribe 运行库、bindings 与 TEN VAD 由“本地运行环境”安装。</p>
           <label className="field"><span>模型环境目标目录</span><input value={environment} onChange={(event) => setEnvironment(event.target.value)} /></label>
           <pre className="code-block">{modelEnvironmentCommands(runtime, environment).join("\n")}</pre>
           <p className="hint m-0">交接使用的 Python：{runtime.interchangePython || "由启动环境指定"}。它与可选模型环境分开。</p>
@@ -278,6 +281,8 @@ function RuntimePanel() {
               </div>
             ))}
           </div>
+        </div>
+      </details>
         </div>
       </details>
       <dl className="key-value-list panel-card px-4">

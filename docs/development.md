@@ -15,15 +15,11 @@ npm ci
 本地模型与引擎按需准备，不随源码或桌面包分发。引擎（transcribe 运行库、bindings、TEN VAD、llama-server、Python 环境）安装到默认的 `weaver/runtime/`，该目录不进入 Git：
 
 ```sh
-npx weaver engines list --human
-npx weaver engines install transcribe-native --wait --progress
-npx weaver engines install transcribe-bindings --wait
-npx weaver engines install ten-vad --wait
-npx weaver engines install llama-server --wait
-npx weaver engines install python-model --wait
+npx weaver models settings get --json   # 取当前 revision
+npx weaver engines setup --expected-revision CONFIG_REV --wait --progress
 ```
 
-安装后用 `npx weaver engines use ENGINE_ID --expected-revision CONFIG_REV` 采用，或在 **设置 → 运行时与路径 → 引擎运行时** 点击安装并采用。不同平台的引擎目录不同，迁移仓库时重新安装。
+`engines setup` 会按顺序下载、校验 transcribe 运行库、bindings、TEN VAD、llama-server 与模型 Python 环境，并一次写入配置；已校验的部分在重跑时复用。也可以在 **设置 → 运行时与路径 → 本地运行环境** 点击 **一键下载并配置**。语音 Python 环境体积大，在高级设置里按需单独创建。不同平台的引擎目录不同，迁移仓库时重新安装。
 
 媒体功能按用途准备工具：
 
