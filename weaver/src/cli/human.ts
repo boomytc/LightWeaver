@@ -81,6 +81,16 @@ const DoctorView = z.object({
     .object({
       ready: z.boolean(),
       coreReady: z.boolean(),
+      counts: z
+        .object({
+          total: z.number(),
+          installed: z.number(),
+          managed: z.number(),
+          external: z.number(),
+          unused: z.number(),
+          partial: z.number(),
+        })
+        .optional(),
       root: z.object({ value: z.string(), source: z.string() }),
       updates: z.array(z.string()),
       components: z.array(
@@ -419,7 +429,11 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
         ...(doctor.data.engines
           ? [
               "",
-              `Engines: ${doctor.data.engines.ready ? "ready" : doctor.data.engines.coreReady ? "core ready" : "incomplete"}  Root: ${doctor.data.engines.root.value} (${doctor.data.engines.root.source})`,
+              `Engines: ${doctor.data.engines.ready ? "ready" : doctor.data.engines.coreReady ? "core ready" : "incomplete"}${
+                doctor.data.engines.counts
+                  ? `  Install ${doctor.data.engines.counts.installed}/${doctor.data.engines.counts.total} · external ${doctor.data.engines.counts.external} · unused ${doctor.data.engines.counts.unused + doctor.data.engines.counts.partial}`
+                  : ""
+              }  Root: ${doctor.data.engines.root.value} (${doctor.data.engines.root.source})`,
               ...table(
                 ["Engine", "State", "Release", "Configured"],
                 doctor.data.engines.components.map((component) => [

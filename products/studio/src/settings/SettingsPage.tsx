@@ -409,6 +409,27 @@ function DiagnosticsPanel() {
       });
     return () => controller.abort();
   }, []);
+  const setupItems = engines
+    ? engines.setupComponents.flatMap((id) => {
+        const current = engines.items.find((item) => item.id === id);
+        return current ? [current] : [];
+      })
+    : [];
+  const usage = (value: string) =>
+    setupItems.filter((item) => item.usage === value).length;
+  const setupUsage = {
+    total: setupItems.length,
+    installed: usage("managed") + usage("managed-unused"),
+    external: usage("external"),
+    unresolved: usage("unused") + usage("partial"),
+  };
+  const speech = engines?.items.find((item) => item.id === "python-speech");
+  const speechUsage =
+    speech?.usage === "managed" || speech?.usage === "managed-unused"
+      ? "已安装"
+      : speech?.usage === "external"
+        ? "使用外部路径"
+        : "按需创建";
   return (
     <section className="panel-card flex flex-col gap-4 p-5">
       <div>
@@ -421,23 +442,18 @@ function DiagnosticsPanel() {
       {engines && (
         <div className="subtle-card flex flex-wrap items-center justify-between gap-2 p-3">
           <span>
-            本地运行环境：已安装{" "}
-            {engines.items.filter(
-              (item) =>
-                engines.setupComponents.includes(item.id) &&
-                item.status.state === "installed",
-            ).length}
-            /{engines.setupComponents.length} · 已配置{" "}
-            {engines.items.filter(
-              (item) =>
-                engines.setupComponents.includes(item.id) &&
-                item.active.length > 0 &&
-                item.active.every((binding) => binding.ready),
-            ).length}
-            /{engines.setupComponents.length}；语音环境按需创建
+            本地运行环境：本应用安装{" "}
+            {setupUsage.installed}/{setupUsage.total} · 使用外部路径{" "}
+            {setupUsage.external} · 未配置 {setupUsage.unresolved}；语音环境
+            {speechUsage}
           </span>
           <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "runtime")}>打开运行环境</Button>
         </div>
+      )}
+      {engines && setupUsage.installed === 0 && setupUsage.external > 0 && (
+        <small>
+          当前绑定来自手工配置或系统默认路径，不是本应用安装的副本；一键配置会安装受管理副本并切换配置。
+        </small>
       )}
       {!doctor && <p>正在读取诊断…</p>}
       {doctor && (

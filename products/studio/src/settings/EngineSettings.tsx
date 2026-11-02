@@ -49,12 +49,7 @@ const engineStateTone: Record<string, "neutral" | "ok" | "warn" | "danger"> = {
   unchecked: "warn",
   invalid: "danger",
 };
-type EngineUsage =
-  | "managed"
-  | "managed-unused"
-  | "external"
-  | "unused"
-  | "partial";
+type EngineUsage = EngineItemStatusValue["usage"];
 const usageBadge: Record<
   Exclude<EngineUsage, "unused">,
   { label: string; tone: "ok" | "warn" | "accent" | "neutral" }
@@ -64,22 +59,6 @@ const usageBadge: Record<
   external: { label: "使用外部路径", tone: "accent" },
   partial: { label: "部分绑定可用", tone: "warn" },
 };
-/**
- * 安装状态和当前绑定是两件事：状态徽标只看本应用管理的安装目录，
- * 使用徽标回答“当前实际用的是哪条路径”，避免出现“未安装 + 已就绪”的矛盾观感。
- */
-function usageOf(
-  state: string,
-  active: readonly { ready: boolean; state: string }[],
-): EngineUsage {
-  const ready = active.length > 0 && active.every((binding) => binding.ready);
-  const unset = active.length > 0 && active.every((binding) => binding.state === "unset");
-  if (state === "installed") return unset ? "managed-unused" : "managed";
-  if (ready) return "external";
-  if (unset) return "unused";
-  return "partial";
-}
-
 const runStateLabel: Record<string, string> = {
   queued: "排队中",
   running: "进行中",
@@ -231,10 +210,13 @@ export function EngineSettings() {
     );
 
   const statuses = new Map(view.items.map((item) => [item.id, item]));
-  const usageCounts = view.catalog.items.reduce(
-    (counts, item) => {
-      const current = statuses.get(item.id);
-      if (current) counts[usageOf(current.status.state, current.active)] += 1;
+  const setupStatuses = view.setupComponents.flatMap((id) => {
+    const current = statuses.get(id);
+    return current ? [current] : [];
+  });
+  const usageCounts = setupStatuses.reduce(
+    (counts, current) => {
+      counts[current.usage] += 1;
       return counts;
     },
     { managed: 0, "managed-unused": 0, external: 0, unused: 0, partial: 0 } as Record<
@@ -242,6 +224,13 @@ export function EngineSettings() {
       number
     >,
   );
+  const speechStatus = statuses.get("python-speech");
+  const speechUsage =
+    speechStatus?.usage === "managed" || speechStatus?.usage === "managed-unused"
+      ? "已安装"
+      : speechStatus?.usage === "external"
+        ? "使用外部路径"
+        : "按需创建";
   return (
     <section className="flex flex-col gap-4" aria-label="本地运行环境">
       <SetupPanel view={view} statuses={statuses} onRefresh={refresh} />
@@ -255,9 +244,9 @@ export function EngineSettings() {
             onRefresh={refresh}
           />
           <small>
-            本应用管理：已安装 {usageCounts.managed + usageCounts["managed-unused"]} /{" "}
-            {view.catalog.items.length} · 使用外部路径 {usageCounts.external} · 未使用{" "}
-            {usageCounts.unused + usageCounts.partial}
+            本应用安装 {usageCounts.managed + usageCounts["managed-unused"]}/
+            {setupStatuses.length} · 使用外部路径 {usageCounts.external} · 未配置{" "}
+            {usageCounts.unused + usageCounts.partial}；语音环境{speechUsage}
           </small>
           <p className="hint m-0">
             通常不需要展开：一键配置会自动安装并采用下列组件。仅当需要单独重装、校验或使用自己的运行时路径时再操作。
@@ -304,11 +293,9 @@ function SetupPanel({
     return {
       item,
       status: current,
-      ready:
-        !!current &&
-        current.active.length > 0 &&
-        current.active.every((binding) => binding.ready),
-      managed: current?.status.state === "installed",
+      ready: current?.usage === "managed" || current?.usage === "external",
+      managed:
+        current?.usage === "managed" || current?.usage === "managed-unused",
     };
   });
   const ready = rows.length > 0 && rows.every((row) => row.ready);
@@ -365,7 +352,7 @@ function SetupPanel({
         </p>
       </div>
       <div className="model-files">
-        {rows.map(({ item, status: current, ready: bindingReady, managed }) => (
+        {rows.map(({ item, status: current, managed }) => (
           <div className="flex flex-wrap items-center justify-between gap-2" key={item.id}>
             <small>{setupLabels[item.id] || item.name}</small>
             <span className="flex flex-wrap items-center gap-2">
@@ -374,9 +361,11 @@ function SetupPanel({
                   {engineStateLabel[current.status.state]}
                 </Badge>
               )}
-              <Badge tone={bindingReady ? "ok" : "neutral"} dot>
-                {bindingReady ? "已配置" : "待配置"}
-              </Badge>
+              {current && current.usage !== "unused" && (
+                <Badge tone={usageBadge[current.usage].tone} dot>
+                  {usageBadge[current.usage].label}
+                </Badge>
+              )}
               <small className="numeric">
                 {managed ? current?.status.version || item.version : `清单 ${item.version}`}
               </small>
@@ -812,7 +801,7 @@ function EngineCard({
   const status = itemStatus.status;
   const documentationUrl = item.documentationUrl;
   const pythonEnvironment = item.kind === "python-env";
-  const usage = usageOf(status.state, itemStatus.active);
+  const usage = itemStatus.usage;
   const usageInfo = usage === "unused" ? null : usageBadge[usage];
   const installing = install.active || install.starting;
   const blocked = !item.available || !!busy;

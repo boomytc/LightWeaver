@@ -9,6 +9,7 @@ import {
   EngineActiveBinding,
   EngineCatalogItem,
   EngineInstallInput,
+  EngineUsage,
   EngineSetupInput,
   EngineSetupResult,
   EngineStatus,
@@ -129,6 +130,20 @@ function inspectPath(
       resolvedPath: file,
     };
   }
+}
+
+/** 本应用安装状态与当前配置绑定的唯一合成规则。 */
+function engineUsage(
+  state: string,
+  active: readonly { ready: boolean; state: string }[],
+): z.infer<typeof EngineUsage> {
+  const ready = active.length > 0 && active.every((binding) => binding.ready),
+    unset =
+      active.length > 0 && active.every((binding) => binding.state === "unset");
+  if (state === "installed") return unset ? "managed-unused" : "managed";
+  if (ready) return "external";
+  if (unset) return "unused";
+  return "partial";
 }
 
 function readMarker(directory: string): Marker | undefined {
@@ -328,11 +343,15 @@ export class Engines {
         .planForSetup(LOCAL_SETUP_MODEL_IDS)
         .map((plan) => ({ id: plan.id, name: plan.name, bytes: plan.bytes })),
       diskFreeBytes: this.diskFreeBytes(base),
-      items: catalog.items.map((item, index) => ({
-        id: item.id,
-        status: statuses[index],
-        active: this.activeBindings(item),
-      })),
+      items: catalog.items.map((item, index) => {
+        const active = this.activeBindings(item);
+        return {
+          id: item.id,
+          status: statuses[index],
+          active,
+          usage: engineUsage(statuses[index].state, active),
+        };
+      }),
       installs: this.jobs
         .list()
         .filter(
@@ -348,12 +367,14 @@ export class Engines {
       catalog = engineCatalog();
     const components = catalog.items.map((item) => {
       const status = this.status(item, base),
-        active = this.activeBindings(item);
+        active = this.activeBindings(item),
+        usage = engineUsage(status.state, active);
       return {
         id: item.id,
         name: item.name,
         optional: item.optional,
         state: status.state,
+        usage,
         version: status.version,
         releaseVersion: item.version,
         configured: active.length > 0 && active.every((binding) => binding.ready),
@@ -365,11 +386,22 @@ export class Engines {
       ),
       usable = (component: { state: string; configured: boolean }) =>
         component.state === "installed" && component.configured;
+    const count = (usage: z.infer<typeof EngineUsage>) =>
+      setup.filter((component) => component.usage === usage).length;
     return {
       /** 本地转写、精确字幕、检索与翻译所需的全部组件都已安装并采用。 */
       ready: setup.every(usable),
       /** 只要求本地转写必需组件（transcribe 运行库、bindings、TEN VAD）就绪。 */
       coreReady: required.every(usable),
+      /** 本应用安装 / 外部路径 / 未配置的组件数量，供诊断与 CLI 直接展示。 */
+      counts: {
+        total: setup.length,
+        installed: count("managed") + count("managed-unused"),
+        managed: count("managed"),
+        external: count("external"),
+        unused: count("unused"),
+        partial: count("partial"),
+      },
       root: this.installRoot(),
       updates: components
         .filter(

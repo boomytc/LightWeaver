@@ -1088,10 +1088,22 @@ export const EngineActiveBinding = z.strictObject({
   state: ActivePathState,
   ready: z.boolean(),
 });
+/**
+ * 引擎的“使用状态”是单一计算者：本应用管理的安装目录状态（EngineStatus）
+ * 与当前配置绑定是否可用，合成一个用户可读的分类，避免页面各自拼装措辞。
+ */
+export const EngineUsage = z.enum([
+  "managed",
+  "managed-unused",
+  "external",
+  "unused",
+  "partial",
+]);
 export const EngineItemStatus = z.strictObject({
   id: z.string(),
   status: EngineStatus,
   active: z.array(EngineActiveBinding),
+  usage: EngineUsage,
 });
 export const EngineView = z.strictObject({
   catalog: EngineCatalog,
