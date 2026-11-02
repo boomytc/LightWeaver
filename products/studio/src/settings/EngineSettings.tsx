@@ -28,6 +28,22 @@ type EngineItemStatusValue = z.infer<typeof EngineItemStatus>;
 type EngineItem = z.infer<typeof EngineCatalogItem>;
 type EngineVerifyValue = z.infer<typeof EngineVerifyResult>;
 type EngineRun = z.infer<typeof RunRecord>;
+type EngineAction = "install" | "update" | "repair" | "adopt" | "none";
+
+function nextEngineAction({ item, current, verification }: {
+  item: EngineItem;
+  current: EngineItemStatusValue;
+  verification: EngineVerifyValue | null;
+}): EngineAction {
+  if (!item.available) return "none";
+  const { status, usage } = current;
+  if (status.version && status.version !== item.version) return "update";
+  if (status.state === "missing") return usage === "external" || usage === "bundled" ? "none" : "install";
+  if (status.state === "unchecked") return "none";
+  if (status.state === "invalid" || verification && verification.state !== "verified") return status.version ? "repair" : "none";
+  if (status.state === "installed" && usage !== "managed" && usage !== "bundled") return "adopt";
+  return "none";
+}
 
 const EngineProgress = z.object({
   engineId: z.string(),
@@ -809,17 +825,21 @@ function EngineCard({
   const usageInfo = usage === "unused" ? null : usageBadge[usage];
   const installing = install.active || install.starting;
   const blocked = !item.available || !!busy;
-  const updateAvailable =
-    status.version !== "" && status.version !== item.version;
-  const installLabel = pythonEnvironment
-    ? installing
-      ? "创建中…"
-      : "创建/更新环境"
-    : installing
-      ? "安装中…"
-      : updateAvailable
-        ? "更新"
-        : "安装";
+  const verification = verifyResult?.root === status.root && verifyResult.directory === status.directory &&
+    verifyResult.version === status.version ? verifyResult : null;
+  const state = verification && verification.state !== "verified" ? verification.state : status.state;
+  const action = nextEngineAction({ item, current: itemStatus, verification });
+  const actionLabels: Record<Exclude<EngineAction, "none">, string> = {
+    install: pythonEnvironment ? "创建环境" : "安装",
+    update: pythonEnvironment ? "更新环境" : "更新",
+    repair: pythonEnvironment ? "修复环境" : "修复",
+    adopt: usage === "external" ? "改用此组件" : "采用",
+  };
+  const actionLabel = busy === "adopt" ? "采用中…"
+    : installing ? pythonEnvironment ? "创建中…" : "安装中…"
+    : action === "none" ? "" : actionLabels[action];
+  const showStateBadge = state === "missing" && (usage === "external" || usage === "bundled") ? false
+    : state !== "installed" || !usageInfo || usage === "external" || usage === "partial";
 
   const act = async (label: string, run: () => Promise<void>) => {
     setBusy(label);
@@ -905,10 +925,10 @@ function EngineCard({
     <article className="panel-card model-inventory-card">
       <div className="model-inventory-head">
         <b title={item.name}>{item.name}</b>
-        <Badge tone={engineStateTone[status.state]} dot>
-          {engineStateLabel[status.state]}
-        </Badge>
-        {usageInfo && (
+        {showStateBadge && <Badge tone={engineStateTone[state]} dot>
+          {engineStateLabel[state]}
+        </Badge>}
+        {usageInfo && (state === "installed" || usage === "external" || usage === "partial") && (
           <Badge tone={usageInfo.tone} dot>
             {usageInfo.label}
           </Badge>
@@ -926,13 +946,7 @@ function EngineCard({
       </small>
       {status.reason && <small>状态说明：{status.reason}</small>}
       {usage === "external" && (
-        <small>
-          当前配置使用外部路径（手工配置或系统默认），本应用管理的安装目录未安装。
-          安装并通过校验后点“采用”，可把绑定切换到受管理副本。
-        </small>
-      )}
-      {usage === "managed-unused" && (
-        <small>已安装到本应用目录，尚未采用；点“采用”写入当前配置。</small>
+        <small>当前使用外部路径{status.state === "installed" ? "，可按需改用本应用的组件" : ""}。</small>
       )}
       {usage === "partial" && (
         <small>当前绑定部分可用，检查下面各设置的路径与来源。</small>
@@ -969,7 +983,7 @@ function EngineCard({
           {pythonEnvironment && <small>采用后写入对应 Python 环境路径。</small>}
         </div>
       </details>
-      {verifyResult && <VerifySummary result={verifyResult} />}
+      {verification && <VerifySummary result={verification} />}
       {install.run && (
         <InstallSummary
           run={install.run}
@@ -978,31 +992,26 @@ function EngineCard({
         />
       )}
       <div className="actions">
-        <Button
+        {(action !== "none" || installing) && <Button
           variant="primary"
           disabled={blocked || installing}
-          aria-label={`${installLabel} ${item.name}`}
+          aria-label={`${actionLabel} ${item.name}`}
           onClick={() => {
+            if (action === "none") return;
+            if (action === "adopt") { void adopt(); return; }
             setVerifyResult(null);
             void install.start(installRoot);
           }}
         >
-          {installLabel}
-        </Button>
-        <Button
+          {actionLabel}
+        </Button>}
+        {status.state !== "missing" && <Button
           disabled={blocked || installing}
           aria-label={`校验 ${item.name}`}
           onClick={() => void verify()}
         >
           {busy === "verify" ? "校验中…" : "校验"}
-        </Button>
-        <Button
-          disabled={blocked || installing || status.state === "missing"}
-          aria-label={`采用 ${item.name}`}
-          onClick={() => void adopt()}
-        >
-          {busy === "adopt" ? "采用中…" : "采用"}
-        </Button>
+        </Button>}
         {documentationUrl && (
           <Button
             size="sm"
@@ -1018,7 +1027,7 @@ function EngineCard({
           </Button>
         )}
       </div>
-      {pythonEnvironment && (
+      {pythonEnvironment && usage !== "external" && state !== "installed" && (
         <p className="hint m-0">
           {item.id === "python-model"
             ? "无法一键创建时，仍可按上方“安装可选模型 Python 环境”中的手工命令操作，再把解释器路径填入“模型 Python”。"
