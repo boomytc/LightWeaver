@@ -179,3 +179,31 @@
 - 未验证 Electron 打包产物；验收基于浏览器开发模式 + 生产 `vite build`。
 - 未新增自动化测试套件（遵循 `confident-development-conventions`，临时脚本与截图不入库）。
 - P2 剩余：页面内容宽仍按职责保留 1120/896/1440 三档；部分空态/历史卡仍用 `subtle-card`；字体改为系统栈，未自托管品牌字体；主题入口保留左下角一处，设置页"外观"只读说明。
+
+## 七、查漏补缺与回归修复（2026-11-02 第二轮）
+
+对批次 0–4 逐条对照计划复查后，补充提交 `0492448`（`补齐 UI 重构遗漏项并修复回归`）：
+
+| 计划项 | 现状 |
+| --- | --- |
+| 批次 2：`ViewHeader` | 新增 `ui/ViewHeader.tsx`，用于工作区字幕/声音/方案/交付四个标签页头，替换各自手写 h2+hint |
+| 批次 3：`AsyncRegion` | 新增 `ui/AsyncRegion.tsx`（loading/failed+retry/empty/ready），首页、库页、任务页列表统一使用 |
+| 批次 3：`useUndoable` | 新增 `ui/useUndoable.ts`，库项删除改为通用 5s 撤销窗口（乐观隐藏、撤销不落库） |
+| 批次 3：`RunStatus` | 新增 `ui/RunStatus.tsx`，任务页徽章统一复用，工作区任务面板改用同一组件 |
+| 批次 3：工作区保存/制作 pending | 两个按钮改为 per-action pending（`useAction`），不再共用全局 `busy` 文案 |
+| 批次 3：交付表单约束 | 至少保留一种输出语言/画幅（最后一项目禁用）；帧率 1–120、LUFS -36–-5、True peak -9–0 输入约束与 clamp |
+| 批次 3：覆盖草稿说明与会话回执 | 冲突横幅改为先弹确认（说明草稿会先备份为可恢复草稿）再加载；成功后提示草稿备份可在项目列表恢复 |
+| 批次 4：页面 CSS 拆分 | 页面/工作区专属样式迁入 `styles/pages.css`（459 行）；`components.css` 从 1192 行降到 742 行；`index.css` 仅保留入口导入 |
+| 批次 4：间距 token | 新增 `--space-field/--space-block/--space-section` 并用于表单栅格 |
+| S12/S13：搜索语义 | 搜索框补 `role=combobox`、`aria-expanded/controls/autocomplete/activedescendant`，结果区 `role=listbox`、项 `role=option`，无结果回显关键词 |
+| 布局细项 | `.section-title` 允许换行；`key-value-list` 标签列改 `max-content` + 24px 列距；去掉 Jobs 页 `!items-start` 的 utility 覆盖，改 `data-align` 变体；`.split-page` 补基类；`管理模型` 按钮 aria-label 与可见文案对齐；toast 改右下角避免压住 header 操作区 |
+
+**仍记录为偏差/后续项**（未在本轮实施，均有明确原因）：
+
+- 断点未做代码级统一：媒体查询仍为 1100/900 px + Tailwind 断点；已在 `tokens.css` 注释记录约定（1280/1100/900/960、容器 1000/640/760），因为 CSS 自定义媒体查询需构建期方案，收益低于风险。
+- `<900px` 未实现 off-canvas 导航：现以 64px 图标栏 + 弹层搜索覆盖；桌面窗口最小宽度 960，<900 仅浏览器缩放场景，待产品明确"是否支持窄窗"后再定。
+- 选择器分层（IF-10，30 处原生 `<select>`）未统一：不在已批准的批次计划内，属下一轮 R1（可先定 NativeSelect/UiSelect/Menu 规则再逐页替换）。
+- 成功提示降噪、消息中心留档、Dropzone 拖放校验、字幕协助状态行、全局 undo/redo 栈等 P2/R2 项未做，按审查报告标注的批次优先级留待后续。
+- Electron 打包产物未验证；真实数据下 deliveries/runs/失败/冲突/BGM/证据等分支仍以 mock/本地假状态验证。
+
+第二轮验收：`make typecheck`（含 UI 样式检查）、`npm run build -w @lightweaver/studio` 通过；Playwright 1512 明/暗、1024、960 全页无横向溢出与 console error；空项目 mock（完整引导+创建卡）、搜索 combobox/listbox 语义与无结果文案、设置模型详情/引擎展开、交付表单约束、库项菜单删除+撤销（0 次 DELETE）、工作区 tab 方向键与分隔条键盘、skip link 均实测通过。
