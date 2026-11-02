@@ -58,7 +58,7 @@ export function CreateProject({
         </div>
         <Badge tone="accent">快速开始</Badge>
       </div>
-      <div className="subtle-card mb-4 flex flex-col gap-3 p-3">
+      <div className="flex flex-col gap-2 border-b border-line pb-4">
         <div>
           <b className="text-sm">我的第一支视频</b>
           <p className="hint mb-0 mt-1 text-xs">
@@ -71,6 +71,7 @@ export function CreateProject({
           <Badge tone="ok">无需自备素材</Badge>
         </div>
         <Button
+          className="w-full"
           variant="primary"
           disabled={pending !== null}
           onClick={() => void create("starter")}
@@ -79,7 +80,7 @@ export function CreateProject({
         </Button>
       </div>
       <form
-        className="flex flex-col gap-4"
+        className="mt-4 flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
           if (!title.trim()) {
@@ -98,16 +99,15 @@ export function CreateProject({
             placeholder="输入片名"
           />
         </Field>
-        <Field label="工作流">
+        <Field
+          label="工作流"
+          hint={current ? `${current.name}：${current.guidance}` : "选择适合本次创作的工作流。"}
+        >
           <select value={workflow} onChange={(event) => setWorkflow(event.target.value)}>
             {WORKFLOWS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </Field>
-        <div className="subtle-card p-3">
-          <b className="text-xs">{current?.name || "当前工作流"}</b>
-          <p className="hint m-0 mt-1 text-xs">{current?.guidance || "选择适合本次创作的工作流。"}</p>
-        </div>
-        <Button type="submit" variant="primary" disabled={pending !== null || !title.trim()}>
+        <Button type="submit" disabled={pending !== null || !title.trim()}>
           <PlusIcon />
           {pending === "manual" ? "正在创建…" : "创建空白草稿"}
         </Button>

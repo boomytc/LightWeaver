@@ -1,16 +1,17 @@
-import { useState } from "react";
-import { PROFILES, z } from "@lightweaver/weaver/contracts";
+import { useRef, useState } from "react";
+import { Delivery, PROFILES, z } from "@lightweaver/weaver/contracts";
 import { api, ApiError, mediaUrl, requestId } from "../api";
 import { desktop } from "../desktop";
 import { labels } from "../domain/format";
 import { useSession } from "../session/context";
 import { Field } from "../ui/Field";
 import { Modal } from "../ui/Modal";
+import { Menu, MenuItem } from "../ui/Menu";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 
-const exportKinds = ["file", "otio", "jianying", "bundle"] as const;
-type ExportKind = (typeof exportKinds)[number];
+type ExportKind = "file" | "otio" | "jianying" | "bundle";
+type DeliveryRecord = z.infer<typeof Delivery> & { state: string };
 type DeliveryChoice = {
   projectId: string;
   deliveryId: string;
@@ -23,6 +24,19 @@ const kindLabel: Record<ExportKind, string> = {
   jianying: "剪映草稿",
   bundle: "bundle",
 };
+
+const artifactKeys = ["srt", "ass", "manifest", "receipt", "audio"] as const;
+
+const deliveryGroups = [
+  { state: "current", label: "当前", tone: "ok", hint: "与当前修订一致，可直接导出" },
+  { state: "stale", label: "已过期", tone: "warn", hint: "仍是当前发布版本，但作者内容已更新，需重新制作" },
+  { state: "historical", label: "历史", tone: "neutral", hint: "同目标的旧发布版本，保留用于核对" },
+  { state: "missing", label: "缺失", tone: "danger", hint: "文件缺失或摘要不符，不能用于导出" },
+] as const;
+
+function deliveryTone(state: string): "ok" | "warn" | "neutral" | "danger" {
+  return state === "current" ? "ok" : state === "stale" ? "warn" : state === "missing" ? "danger" : "neutral";
+}
 
 export function DeliveryPanel() {
   const session = useSession();
@@ -38,6 +52,17 @@ export function DeliveryPanel() {
     ctx.deliveries.some((delivery) => delivery.id === deliveryChoice.deliveryId)
       ? deliveryChoice.deliveryId
       : ctx.deliveries.find((delivery) => delivery.state === "current")?.id || "";
+  const chosen = ctx.deliveries.find((delivery) => delivery.id === deliveryId);
+  const knownStates = new Set<string>(deliveryGroups.map((group) => group.state));
+  const otherDeliveries = ctx.deliveries.filter((delivery) => !knownStates.has(delivery.state));
+  const groups = [
+    ...deliveryGroups
+      .map((group) => ({ ...group, items: ctx.deliveries.filter((delivery) => delivery.state === group.state) }))
+      .filter((group) => group.items.length > 0),
+    ...(otherDeliveries.length
+      ? [{ state: "other", label: "其他", tone: "neutral" as const, hint: "未识别的交付状态", items: otherDeliveries }]
+      : []),
+  ];
 
   const send = async (kind: ExportKind, target: string, selectedDelivery = deliveryId) => {
     if (exporting) return;
@@ -116,6 +141,34 @@ export function DeliveryPanel() {
   return (
     <div className="narrow-content flex min-w-0 flex-col gap-5">
       <div><h2 className="m-0">交付规格</h2><p className="hint mb-0 mt-1 text-xs">选择输出语言与画幅，逐项确认帧率、字幕和响度目标。</p></div>
+      <div className="sticky -top-5 z-10 flex flex-wrap items-center gap-2 border-b border-line bg-panel py-3">
+        <Button variant="primary" type="button" disabled={exporting !== null} onClick={() => void start("file")}>
+          {exporting === "file" ? "正在导出视频…" : "导出视频"}
+        </Button>
+        <Menu label="更多导出">
+          <MenuItem disabled={exporting !== null} onSelect={() => void start("otio")}>导出 OTIO 时间线</MenuItem>
+          <MenuItem disabled={exporting !== null} onSelect={() => void start("jianying")}>导出剪映草稿</MenuItem>
+          <MenuItem disabled={exporting !== null} onSelect={() => void start("bundle")}>导出 bundle 压缩包</MenuItem>
+        </Menu>
+        <Button
+          type="button"
+          disabled={session.dirty || exporting !== null}
+          onClick={() => void session.act(() => session.showPlan(`/projects/${draft.id}/plan`, { requestId: requestId() }))}
+        >
+          检查制作计划
+        </Button>
+        <div className="ml-auto flex min-w-0 flex-col items-end gap-0.5">
+          {exporting && exporting !== "file" && <small className="hint text-xs">正在导出{kindLabel[exporting]}…</small>}
+          <small className="hint text-right text-xs">
+            {chosen
+              ? `交付来源：选中的 ${chosen.target} · 修订 ${chosen.revisionId.slice(0, 12)}`
+              : ctx.deliveries.length
+                ? "交付来源：未选历史版本，使用当前交付"
+                : "交付来源：尚未有交付，先制作再导出"}
+          </small>
+          {session.dirty && <small className="hint text-xs">先保存修订，再检查制作计划。</small>}
+        </div>
+      </div>
       <section className="panel-card flex flex-col gap-4 p-4">
         <Field label="片名">
           <input value={draft.title} onChange={(event) => session.edit({ ...draft, title: event.target.value })} />
@@ -244,25 +297,13 @@ export function DeliveryPanel() {
           </div>
         </article>
       ))}
-      <div className="actions panel-card p-3">
-        <Button
-          type="button"
-          disabled={session.dirty}
-          onClick={() => void session.act(() => session.showPlan(`/projects/${draft.id}/plan`, { requestId: requestId() }))}
-        >
-          检查制作计划
-        </Button>
-        {exportKinds.map((kind) => (
-          <Button key={kind} type="button" disabled={exporting !== null} onClick={() => void start(kind)}>
-            {exporting === kind ? "正在导出…" : `导出${kindLabel[kind]}`}
-          </Button>
-        ))}
-      </div>
-      {session.dirty && <small>先保存修订，再提交制作。</small>}
       <section className="flex flex-col gap-3">
         <div className="section-title">
-          <h2 className="m-0">交付与历史</h2>
-          <Badge>{ctx.deliveries.length}</Badge>
+          <div>
+            <h2 className="m-0">交付与历史</h2>
+            <Badge>{ctx.deliveries.length}</Badge>
+          </div>
+          <small className="hint text-xs">按状态分组；每份都可作为导出输入。</small>
         </div>
         {ctx.deliveries.length === 0 && (
           <div className="subtle-card p-6 text-center">
@@ -270,75 +311,25 @@ export function DeliveryPanel() {
             <p className="hint mx-auto mt-1 mb-0 text-xs">点击右上角“制作”生成成片后，可在此核验画面并导出。</p>
           </div>
         )}
-        {ctx.deliveries.map((delivery) => (
-          <article className="panel-card flex flex-col gap-3 p-4" key={delivery.id}>
-            <div className="section-title">
-              <div>
-                <h3 className="m-0 text-sm">{delivery.target}</h3>
-                <Badge tone="ok" dot>{labels[delivery.state] || delivery.state}</Badge>
-              </div>
-              <small className="numeric">
-                修订 {delivery.revisionId.slice(0, 12)} · {delivery.createdAt}
-              </small>
+        {groups.map((group) => (
+          <section className="flex flex-col" aria-label={`${group.label}交付`} key={group.state}>
+            <div className="flex flex-wrap items-baseline gap-2 border-b border-line pb-1.5">
+              <h3 className="m-0 text-sm">{group.label}</h3>
+              <Badge tone={group.tone}>{group.items.length}</Badge>
+              <small className="hint text-xs">{group.hint}</small>
             </div>
-            {delivery.artifacts.video && <video className="max-h-96 rounded-md bg-black" controls src={mediaUrl(delivery.artifacts.video)} />}
-            <div className="actions">
-              <Button
-                size="sm"
-                emphasized={deliveryId === delivery.id}
-                type="button"
-                onClick={() => setDeliveryChoice({ projectId: draft.id, deliveryId: delivery.id })}
-              >
-                {deliveryId === delivery.id ? "将用这份交付导出" : "导出时使用这份"}
-              </Button>
-              {["srt", "ass", "manifest", "receipt", "audio"]
-                .filter((key) => delivery.artifacts[key])
-                .map((key) => (
-                  <a
-                    key={key}
-                    className="ui-button no-underline"
-                    data-variant="secondary"
-                    data-size="sm"
-                    href={mediaUrl(delivery.artifacts[key] || "")}
-                  >
-                    {key}
-                  </a>
-                ))}
+            <div className="flex flex-col">
+              {group.items.map((delivery) => (
+                <DeliveryRow
+                  key={delivery.id}
+                  delivery={delivery}
+                  scenes={draft.scenes}
+                  selected={deliveryId === delivery.id}
+                  onSelect={() => setDeliveryChoice({ projectId: draft.id, deliveryId: delivery.id })}
+                />
+              ))}
             </div>
-            {draft.scenes.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <small>按场景定位：</small>
-                {draft.scenes.map((scene, index) => (
-                  <Button
-                    key={scene.id}
-                    size="sm"
-                    variant="ghost"
-                    className="numeric"
-                    type="button"
-                    onClick={() =>
-                      void session.act(async () => {
-                        const manifest = await api(
-                          `/artifacts/${delivery.timelineDigest}`,
-                          z.object({
-                            visuals: z.array(z.object({ sceneId: z.string(), startFrame: z.number() })),
-                            output: z.object({ fps: z.object({ num: z.number(), den: z.number() }) }),
-                          }),
-                        );
-                        const visual = manifest.visuals.find((item) => item.sceneId === scene.id);
-                        const video = document.querySelector<HTMLVideoElement>(`video[src="${mediaUrl(delivery.artifacts.video || "")}"]`);
-                        if (visual && video) {
-                          video.currentTime = (visual.startFrame * manifest.output.fps.den) / manifest.output.fps.num;
-                          await video.play();
-                        }
-                      })
-                    }
-                  >
-                    {index + 1}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </article>
+          </section>
         ))}
       </section>
       <Modal open={pendingKind !== null} title="导出目标" onOpenChange={(open) => !open && setPendingKind(null)}>
@@ -364,5 +355,88 @@ export function DeliveryPanel() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+function DeliveryRow({
+  delivery,
+  scenes,
+  selected,
+  onSelect,
+}: {
+  delivery: DeliveryRecord;
+  scenes: { id: string }[];
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const session = useSession();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  return (
+    <article className="flex flex-col gap-1.5 border-b border-line py-2.5 last:border-b-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <b className="numeric text-sm">{delivery.target}</b>
+        <Badge tone={deliveryTone(delivery.state)} dot>{labels[delivery.state] || delivery.state}</Badge>
+        <small className="numeric text-xs">修订 {delivery.revisionId.slice(0, 12)} · {delivery.createdAt}</small>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {artifactKeys
+            .filter((key) => delivery.artifacts[key])
+            .map((key) => (
+              <a
+                key={key}
+                className="ui-button no-underline"
+                data-variant="secondary"
+                data-size="sm"
+                href={mediaUrl(delivery.artifacts[key] || "")}
+              >
+                {key}
+              </a>
+            ))}
+          <Button size="sm" emphasized={selected} type="button" onClick={onSelect}>
+            {selected ? "将用这份导出" : "导出时使用这份"}
+          </Button>
+        </div>
+      </div>
+      {delivery.artifacts.video && (
+        <details>
+          <summary className="hint w-fit text-xs">画面核验与按场景定位</summary>
+          <div className="mt-2 flex flex-col gap-2">
+            <video ref={videoRef} className="max-h-80 w-full rounded-md bg-black" controls src={mediaUrl(delivery.artifacts.video)} />
+            {scenes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <small>按场景定位：</small>
+                {scenes.map((scene, index) => (
+                  <Button
+                    key={scene.id}
+                    size="sm"
+                    variant="ghost"
+                    className="numeric"
+                    type="button"
+                    onClick={() =>
+                      void session.act(async () => {
+                        const manifest = await api(
+                          `/artifacts/${delivery.timelineDigest}`,
+                          z.object({
+                            visuals: z.array(z.object({ sceneId: z.string(), startFrame: z.number() })),
+                            output: z.object({ fps: z.object({ num: z.number(), den: z.number() }) }),
+                          }),
+                        );
+                        const visual = manifest.visuals.find((item) => item.sceneId === scene.id);
+                        const video = videoRef.current;
+                        if (visual && video) {
+                          video.currentTime = (visual.startFrame * manifest.output.fps.den) / manifest.output.fps.num;
+                          await video.play();
+                        }
+                      })
+                    }
+                  >
+                    {index + 1}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+    </article>
   );
 }

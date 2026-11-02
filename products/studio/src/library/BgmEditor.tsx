@@ -1,6 +1,9 @@
 import { MediaAssetVersion, ProjectDocument, refKey, z } from "@lightweaver/weaver/contracts";
 import { Field } from "../ui/Field";
-import { AudioIcon } from "../ui/Icons";
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
 export function BgmEditor({ draft, assets, edit }: { draft: ProjectDocument; assets: z.infer<typeof MediaAssetVersion>[]; edit: (project: ProjectDocument) => void }) {
   const bgm = draft.bgm;
@@ -8,11 +11,24 @@ export function BgmEditor({ draft, assets, edit }: { draft: ProjectDocument; ass
     const parsed = ProjectDocument.shape.bgm.safeParse(raw);
     if (parsed.success) edit({ ...draft, bgm: parsed.data });
   };
+  const updateRange = (key: "startUs" | "durationUs", seconds: number) => {
+    if (!bgm || !Number.isFinite(seconds)) return;
+    const min = key === "startUs" ? 0 : 0.1;
+    update({ ...bgm, range: { ...bgm.range, [key]: Math.round(clamp(seconds, min, 3600) * 1e6) } });
+  };
+  const updateNumber = (
+    key: "gainDb" | "fadeInFrames" | "fadeOutFrames",
+    value: number,
+    min: number,
+    max: number,
+    integer = false,
+  ) => {
+    if (!bgm || !Number.isFinite(value)) return;
+    const next = clamp(value, min, max);
+    update({ ...bgm, [key]: integer ? Math.round(next) : next });
+  };
   return (
-    <section className="panel-card p-5">
-      <div className="section-title mb-5">
-        <div><span className="dropzone-icon size-9"><AudioIcon /></span><div><h2 className="m-0">背景音乐混音</h2><small>裁剪、增益与旁白驱动压低</small></div></div>
-      </div>
+    <div className="flex flex-col gap-3">
       <Field label="音频源">
         <select value={bgm ? refKey(bgm.source) : ""} onChange={(event) => {
           const asset = assets.find((item) => refKey(item) === event.target.value);
@@ -23,22 +39,52 @@ export function BgmEditor({ draft, assets, edit }: { draft: ProjectDocument; ass
         </select>
       </Field>
       {bgm && (
-        <div className="mt-5 flex flex-col gap-5">
-          <div className="form-grid md:grid-cols-3">
-            {([["startUs", "音乐入点（秒）"], ["durationUs", "音乐裁剪时长（秒）"]] as const).map(([key, label]) => (
-              <Field key={key} label={label}><input className="numeric" type="number" min="0" step="0.1" value={bgm.range[key] / 1e6} onChange={(event) => update({ ...bgm, range: { ...bgm.range, [key]: Math.round(Number(event.target.value) * 1e6) } })} /></Field>
+        <>
+          <div className="grid grid-cols-1 gap-3 border-t border-line pt-3 md:grid-cols-3">
+            {([["startUs", "音乐入点（秒）", 0, 3600], ["durationUs", "音乐裁剪时长（秒）", 0.1, 3600]] as const).map(([key, label, min, max]) => (
+              <Field key={key} label={label}>
+                <input
+                  className="numeric"
+                  type="number"
+                  min={min}
+                  max={max}
+                  step="0.1"
+                  value={bgm.range[key] / 1e6}
+                  onChange={(event) => updateRange(key, Number(event.target.value))}
+                />
+              </Field>
             ))}
-            <Field label="增益（dB）"><input className="numeric" type="number" value={bgm.gainDb} onChange={(event) => update({ ...bgm, gainDb: Number(event.target.value) })} /></Field>
+            <Field label="增益（dB）">
+              <input
+                className="numeric"
+                type="number"
+                min={-90}
+                max={24}
+                step="0.5"
+                value={bgm.gainDb}
+                onChange={(event) => updateNumber("gainDb", Number(event.target.value), -90, 24)}
+              />
+            </Field>
             {([["fadeInFrames", "淡入帧数"], ["fadeOutFrames", "淡出帧数"]] as const).map(([key, label]) => (
-              <Field key={key} label={label}><input className="numeric" type="number" value={bgm[key]} onChange={(event) => update({ ...bgm, [key]: Number(event.target.value) })} /></Field>
+              <Field key={key} label={label}>
+                <input
+                  className="numeric"
+                  type="number"
+                  min={0}
+                  max={3600}
+                  step="1"
+                  value={bgm[key]}
+                  onChange={(event) => updateNumber(key, Number(event.target.value), 0, 3600, true)}
+                />
+              </Field>
             ))}
           </div>
-          <div className="flex flex-wrap gap-6 border-t border-line pt-4">
+          <div className="flex flex-wrap gap-6 border-t border-line pt-3">
             <label className="check"><input type="checkbox" checked={bgm.loop} onChange={(event) => update({ ...bgm, loop: event.target.checked })} />循环裁剪段</label>
             <label className="check"><input type="checkbox" checked={bgm.ducking} onChange={(event) => update({ ...bgm, ducking: event.target.checked })} />旁白驱动音乐压低</label>
           </div>
-        </div>
+        </>
       )}
-    </section>
+    </div>
   );
 }

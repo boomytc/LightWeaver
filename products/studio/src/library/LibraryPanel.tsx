@@ -11,7 +11,29 @@ import { ListSkeleton } from "../ui/Skeleton";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Dropzone } from "../ui/Dropzone";
+import { Menu, MenuItem } from "../ui/Menu";
 import { useAction } from "../ui/useAction";
+
+const kindMeta = {
+  voice: {
+    title: "音色",
+    description: "上传参考音频、转写参考文本并试听后收下音色。项目绑定精确版本；删除只隐藏当前库项，历史引用继续有效。",
+    emptyTitle: "尚无音色",
+    emptyHint: "在右侧上传参考音频并保存，即可发布首个可复用音色版本。",
+  },
+  method: {
+    title: "方法",
+    description: "记录可复用的创作方法：适用条件、需要的证据与片段声音约束。项目绑定精确版本；删除只隐藏当前库项，历史引用继续有效。",
+    emptyTitle: "尚无方法",
+    emptyHint: "在右侧填写方法说明并保存，即可发布首个可复用方法版本。",
+  },
+  material: {
+    title: "素材库",
+    description: "管理可复用的素材文件，项目绑定精确版本；删除只隐藏当前库项，历史引用继续有效。",
+    emptyTitle: "尚无素材",
+    emptyHint: "在右侧上传素材文件并保存，即可发布首个可复用素材版本。",
+  },
+} as const;
 
 export function LibraryPanel({
   kind,
@@ -217,11 +239,20 @@ export function LibraryPanel({
     setDescription("");
     setFile(null);
   };
+  const cancelEdit = () => {
+    formEpoch.current++;
+    setSelected(null);
+    setName("");
+    setReferenceText("");
+    setDescription("");
+    setFile(null);
+  };
   const items = library.filter((v) => v.payload.kind === kind && !hiddenItems.includes(v.itemId));
+  const meta = kindMeta[kind];
   return (
     <PageFrame
-      title={kind === "voice" ? "音色" : kind === "method" ? "方法" : "素材库"}
-      description="项目绑定精确版本。编辑发布新版本；删除只隐藏当前库项，历史引用继续有效。"
+      title={meta.title}
+      description={meta.description}
       actions={<Badge tone="accent">{items.length} 个库项</Badge>}
       scroll={false}
     >
@@ -239,15 +270,15 @@ export function LibraryPanel({
           )}
           {session.listsStatus === "ready" && items.length === 0 && (
             <div className="subtle-card p-6 text-center">
-              <b>尚无库项</b>
-              <p className="hint mx-auto mt-1 mb-0 text-xs">在右侧填写信息并保存，即可发布首个可复用版本。</p>
+              <b>{meta.emptyTitle}</b>
+              <p className="hint mx-auto mt-1 mb-0 text-xs">{meta.emptyHint}</p>
             </div>
           )}
           {items.map((v) => (
             <article className={`panel-card mb-2 p-3 ${selected?.itemId === v.itemId ? "border-accent bg-accent-soft" : ""}`} key={v.itemId}>
               <div className="section-title">
                 <b className="min-w-0 truncate">{v.payload.name}</b>
-                <div>
+                <div className="flex items-center gap-1">
                   <Button
                     size="sm"
                     onClick={() => {
@@ -287,13 +318,9 @@ export function LibraryPanel({
                   >
                     编辑
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => removeItem(v)}
-                  >
-                    删除
-                  </Button>
+                  <Menu label="更多">
+                    <MenuItem onSelect={() => removeItem(v)}>删除…</MenuItem>
+                  </Menu>
                 </div>
               </div>
               <small className="numeric mt-1 block">版本 {v.version.slice(0, 12)}</small>
@@ -303,7 +330,8 @@ export function LibraryPanel({
             </article>
           ))}
         </section>
-        <section className="scroll-region p-5">
+        <section className="flex min-h-0 min-w-0 flex-col">
+          <div className="scroll-region flex-1 p-5">
           <div className="narrow-content flex flex-col gap-5">
             <div className="panel-card flex flex-col gap-4 p-5">
               <div className="section-title">
@@ -442,30 +470,6 @@ export function LibraryPanel({
               />
             </Field>
           )}
-          <div className="actions">
-            <Button
-              variant="primary"
-              disabled={saveAction.isPending("save") || ["提交中", "排队", "运行中"].includes(status)}
-              onClick={() => void saveAction.run("save", async () => { await save().catch(fail); })}
-            >
-              {saveAction.isPending("save") ? "保存中…" : "保存版本"}
-            </Button>
-            {selected && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  formEpoch.current++;
-                  setSelected(null);
-                  setName("");
-                  setReferenceText("");
-                  setDescription("");
-                  setFile(null);
-                }}
-              >
-                取消编辑
-              </Button>
-            )}
-          </div>
           </div>
           {kind === "voice" && (
             <div className="panel-card flex flex-col gap-4 p-5">
@@ -530,6 +534,26 @@ export function LibraryPanel({
               )}
             </div>
           )}
+          </div>
+          </div>
+          <div className="shrink-0 border-t border-line bg-panel px-5 py-3">
+            <div className="narrow-content flex flex-wrap items-center justify-end gap-2">
+              {["提交中", "排队", "运行中"].includes(status) && (
+                <small className="hint mr-auto text-xs">试听或转写作业运行中，完成前不能保存。</small>
+              )}
+              {selected && (
+                <Button variant="ghost" onClick={cancelEdit}>
+                  取消编辑
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                disabled={saveAction.isPending("save") || ["提交中", "排队", "运行中"].includes(status)}
+                onClick={() => void saveAction.run("save", async () => { await save().catch(fail); })}
+              >
+                {saveAction.isPending("save") ? "保存中…" : "保存版本"}
+              </Button>
+            </div>
           </div>
         </section>
       </div>

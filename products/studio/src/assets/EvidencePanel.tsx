@@ -9,6 +9,8 @@ import { Field } from "../ui/Field";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 
+type AnalysisKind = "transcribe" | "align" | "describe";
+
 function findMedia(assets: MediaAssetVersion[], key: string) {
   return assets.find((asset) => refKey(asset) === key);
 }
@@ -18,6 +20,7 @@ export function EvidencePanel() {
   const draft = session.draft;
   const ctx = session.ctx;
   const [analysisSource, setAnalysisSource] = useState("");
+  const [analysisKind, setAnalysisKind] = useState<AnalysisKind>("transcribe");
   const [vlmProvider, setVlmProvider] = useState(session.defaultVlm);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("text");
@@ -30,14 +33,48 @@ export function EvidencePanel() {
   const alignmentReady = session.providers.some(
     (provider) => provider.capabilities.includes("alignment") && provider.ready,
   );
+  const describeProviders = session.providers.filter((provider) => provider.capabilities.includes("describe"));
   const manual = ctx.analysis.filter((entry) => entry.kind === "manual");
   const observed = ctx.analysis.filter((entry) => entry.kind !== "manual");
-  const missing = !source ? "先选择源素材。" : !asrReady ? "缺少已就绪的 ASR。" : !alignmentReady ? "缺少已就绪的精确对齐，不会退回估算时间。" : "";
+  const missing = analysisKind === "describe"
+    ? ""
+    : !source
+      ? "先选择源素材。"
+      : !asrReady
+        ? "缺少已就绪的 ASR。"
+        : analysisKind === "align" && !alignmentReady
+          ? "缺少已就绪的精确对齐，不会退回估算时间。"
+          : "";
+  const canStart = analysisKind === "describe"
+    ? !session.busy
+    : !session.busy && !!source && asrReady && (analysisKind !== "align" || alignmentReady);
+  const startAnalysis = () => {
+    if (analysisKind === "describe") {
+      void session.act(() =>
+        session.submitJob(`/projects/${draft.id}/analyze`, {
+          kinds: ["describe"],
+          ...(source ? { sourceId: source } : {}),
+          vlmProvider,
+          requestId: requestId(),
+        }),
+      );
+      return;
+    }
+    void session.act(() =>
+      session.submitJob(`/projects/${draft.id}/analyze`, {
+        kinds: ["asr"],
+        sourceId: source,
+        align: analysisKind === "align",
+        locale: session.locale,
+        requestId: requestId(),
+      }),
+    );
+  };
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="section-title">
-        <h3 className="m-0 text-sm">分析作业控制</h3>
+      <div className="section-title flex-wrap">
+        <h3 className="m-0 text-[13px] font-semibold text-ink">分析作业控制</h3>
         <Badge tone={asrReady ? "ok" : "warn"} dot>{asrReady ? "转写已就绪" : "需要模型配置"}</Badge>
       </div>
       <div className="subtle-card flex flex-col gap-3 p-3">
@@ -51,141 +88,114 @@ export function EvidencePanel() {
             ))}
           </select>
         </Field>
-        <div className="actions">
-          <Button
-            size="sm"
-            type="button"
-            disabled={session.busy || !source || !asrReady}
-            onClick={() =>
-              void session.act(() =>
-                session.submitJob(`/projects/${draft.id}/analyze`, {
-                  kinds: ["asr"],
-                  sourceId: source,
-                  align: false,
-                  locale: session.locale,
-                  requestId: requestId(),
-                }),
-              )
-            }
+        <Field label="分析类型">
+          <select
+            aria-label="分析类型"
+            value={analysisKind}
+            onChange={(event) => setAnalysisKind(event.target.value as AnalysisKind)}
           >
-            仅转写
-          </Button>
-          <Button
-            size="sm"
-            type="button"
-            disabled={session.busy || !source || !asrReady || !alignmentReady}
-            onClick={() =>
-              void session.act(() =>
-                session.submitJob(`/projects/${draft.id}/analyze`, {
-                  kinds: ["asr"],
-                  sourceId: source,
-                  align: true,
-                  locale: session.locale,
-                  requestId: requestId(),
-                }),
-              )
-            }
-          >
-            转写并精确对齐
-          </Button>
-        </div>
-        <Field label="画面观察模型">
-          <select aria-label="画面观察模型" value={vlmProvider} onChange={(event) => setVlmProvider(event.target.value)}>
-            {session.providers
-              .filter((provider) => provider.capabilities.includes("describe"))
-              .map((provider) => (
+            <option value="transcribe" disabled={!asrReady}>仅转写文字</option>
+            <option value="align" disabled={!asrReady || !alignmentReady}>转写并精确对齐</option>
+            <option value="describe">观察画面</option>
+          </select>
+        </Field>
+        {analysisKind === "describe" && (
+          <Field label="画面观察模型">
+            <select aria-label="画面观察模型" value={vlmProvider} onChange={(event) => setVlmProvider(event.target.value)}>
+              {describeProviders.map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.model}
                   {provider.ready ? "" : " · 未配置"}
                 </option>
               ))}
-          </select>
-        </Field>
-        <div>
+            </select>
+          </Field>
+        )}
+        <div className="actions">
           <Button
             size="sm"
+            variant="primary"
             type="button"
-            disabled={session.busy}
-            onClick={() =>
-              void session.act(() =>
-                session.submitJob(`/projects/${draft.id}/analyze`, {
-                  kinds: ["describe"],
-                  ...(source ? { sourceId: source } : {}),
-                  vlmProvider,
-                  requestId: requestId(),
-                }),
-              )
-            }
+            disabled={!canStart}
+            onClick={startAnalysis}
           >
-            观察画面
+            开始分析
           </Button>
         </div>
-      </div>
-      {missing && (
-        <div className="subtle-card flex flex-col gap-2 p-3">
-          <p className="hint m-0 text-xs">{missing}</p>
-          <div className="actions">
-            <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "models")}>
-              打开模型设置
-            </Button>
-            {!alignmentReady && source && asrReady && (
-              <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "runtime")}>
-                查看运行时
+        {missing && (
+          <div className="flex flex-col gap-2">
+            <p className="hint m-0 text-xs">{missing}</p>
+            <div className="actions">
+              <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "models")}>
+                打开模型设置
               </Button>
-            )}
-          </div>
-        </div>
-      )}
-      <p className="hint m-0 text-xs">观察和候选不会自动改写场景或字幕。采用是单独的动作。</p>
-      <div className="flex flex-col gap-2">
-        <h3 className="m-0 text-xs font-semibold text-muted">人工证据</h3>
-        {manual.length === 0 && <p className="hint m-0 text-xs">没有人工证据。</p>}
-        {manual.map((entry) => (
-          <article className="panel-card p-3" key={entry.id}>
-            <small className="numeric">
-              {entry.kind} · {entry.state} · {entry.timingQuality}
-            </small>
-            <p className="m-0 mt-1 text-xs">{entry.text}</p>
-          </article>
-        ))}
-      </div>
-      <div className="flex flex-col gap-2">
-        <h3 className="m-0 text-xs font-semibold text-muted">观察</h3>
-        {observed.length === 0 && <p className="hint m-0 text-xs">尚无观察记录。</p>}
-        {observed.map((entry) => (
-          <article className="panel-card flex flex-col gap-2 p-3" key={entry.id}>
-            <small className="numeric">
-              {entry.kind} · {(entry.range.startUs / 1e6).toFixed(2)}–
-              {((entry.range.startUs + entry.range.durationUs) / 1e6).toFixed(2)} 秒 · {entry.state} · {entry.timingQuality}
-            </small>
-            <p className="m-0 text-xs">{entry.text}</p>
-            {entry.sourceText && entry.sourceText !== entry.text && (
-              <div className="source-copy">
-                <small>原始转写</small>
-                <p className="m-0 mt-1 text-xs">{entry.sourceText}</p>
-              </div>
-            )}
-            {entry.kind === "asr" &&
-              entry.state === "current" &&
-              entry.timingQuality === "aligned" &&
-              (entry.locale === undefined || entry.locale === session.locale) && (
-                <div>
-                  <Button
-                    size="sm"
-                    type="button"
-                    disabled={session.busy || session.dirty}
-                    onClick={() => void session.adoptAnalysisCaptions({ sourceId: entry.source.assetId, locale: session.locale })}
-                  >
-                    采用为{localeName(session.locale)}字幕
-                  </Button>
-                </div>
+              {analysisKind === "align" && !alignmentReady && source && asrReady && (
+                <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "runtime")}>
+                  查看运行时
+                </Button>
               )}
-          </article>
-        ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <p className="hint m-0 text-xs">观察和候选不会自动改写场景或字幕。采用是单独的动作。</p>
+      <div className="flex flex-col gap-1">
+        <h3 className="m-0 text-[13px] font-semibold text-ink">人工证据</h3>
+        {manual.length === 0 && <p className="hint m-0 text-xs">没有人工证据。</p>}
+        {manual.length > 0 && (
+          <ul className="m-0 flex list-none flex-col p-0">
+            {manual.map((entry) => (
+              <li className="border-b border-line py-2 last:border-0" key={entry.id}>
+                <small className="numeric">
+                  {entry.kind} · {entry.state} · {entry.timingQuality}
+                </small>
+                <p className="m-0 mt-1 text-xs">{entry.text}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="flex flex-col gap-1">
+        <h3 className="m-0 text-[13px] font-semibold text-ink">观察</h3>
+        {observed.length === 0 && <p className="hint m-0 text-xs">尚无观察记录。</p>}
+        {observed.length > 0 && (
+          <ul className="m-0 flex list-none flex-col p-0">
+            {observed.map((entry) => (
+              <li className="flex flex-col gap-2 border-b border-line py-2 last:border-0" key={entry.id}>
+                <small className="numeric">
+                  {entry.kind} · {(entry.range.startUs / 1e6).toFixed(2)}–
+                  {((entry.range.startUs + entry.range.durationUs) / 1e6).toFixed(2)} 秒 · {entry.state} · {entry.timingQuality}
+                </small>
+                <p className="m-0 text-xs">{entry.text}</p>
+                {entry.sourceText && entry.sourceText !== entry.text && (
+                  <div className="source-copy">
+                    <small>原始转写</small>
+                    <p className="m-0 mt-1 text-xs">{entry.sourceText}</p>
+                  </div>
+                )}
+                {entry.kind === "asr" &&
+                  entry.state === "current" &&
+                  entry.timingQuality === "aligned" &&
+                  (entry.locale === undefined || entry.locale === session.locale) && (
+                    <div>
+                      <Button
+                        size="sm"
+                        type="button"
+                        disabled={session.busy || session.dirty}
+                        onClick={() => void session.adoptAnalysisCaptions({ sourceId: entry.source.assetId, locale: session.locale })}
+                      >
+                        采用为{localeName(session.locale)}字幕
+                      </Button>
+                    </div>
+                  )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div className="flex flex-col gap-2">
-        <h3 className="m-0 text-xs font-semibold text-muted">建议</h3>
-        <div className="subtle-card flex flex-col gap-2 p-3">
+        <h3 className="m-0 text-[13px] font-semibold text-ink">建议</h3>
+        <div className="flex flex-col gap-2 border-t border-line pt-3">
           <input
             data-lw-find=""
             aria-label="候选查询"
@@ -230,7 +240,7 @@ export function EvidencePanel() {
         const suggested = proposal.candidates.filter((candidate) => !proposal.selections.includes(candidate.id));
         const adopted = proposal.candidates.filter((candidate) => proposal.selections.includes(candidate.id));
         return (
-          <details key={proposal.id} className="panel-card p-3" open>
+          <details key={proposal.id} className="border-t border-line pt-3" open>
             <summary className="text-xs font-medium">
               {proposal.query} · 建议 {suggested.length} · 已采用 {adopted.length} {proposal.warnings.join("；")}
               {stale && " · 基于旧修订，仅可查看"}
@@ -240,7 +250,7 @@ export function EvidencePanel() {
                 此候选基于修订 {proposal.revision.slice(0, 16)}，当前修订是 {session.base.slice(0, 16)}。重新查询后才能应用。
               </p>
             )}
-            <h4 className="mt-3 mb-2 text-xs font-semibold text-muted">建议</h4>
+            <h4 className="mt-3 mb-1 text-xs font-semibold text-ink">建议</h4>
             {suggested.map((candidate) => (
               <Candidate
                 key={candidate.id}
@@ -253,10 +263,10 @@ export function EvidencePanel() {
                 setAllowReuse={setAllowReuse}
               />
             ))}
-            <h4 className="mt-3 mb-1 text-xs font-semibold text-muted">已采用</h4>
+            <h4 className="mt-3 mb-1 text-xs font-semibold text-ink">已采用</h4>
             {adopted.length === 0 && <p className="hint m-0 text-xs">这条建议里还没有写入项目的候选。</p>}
             {adopted.map((candidate) => (
-              <p className="m-0 text-xs" key={candidate.id}>{candidate.evidence[0] || candidate.id}</p>
+              <p className="m-0 border-b border-line py-1.5 text-xs last:border-0" key={candidate.id}>{candidate.evidence[0] || candidate.id}</p>
             ))}
           </details>
         );
@@ -290,7 +300,7 @@ function Candidate({
   const range = ranges[rangeKey] || candidate.range;
   const asset = findMedia(ctx.assets, refKey(candidate.source));
   return (
-    <article className="panel-card mb-3 flex flex-col gap-2 p-3">
+    <article className="flex flex-col gap-2 border-b border-line py-3 last:border-0">
       <p className="m-0">{candidate.evidence[0]}</p>
       <small>
         {(candidate.range.startUs / 1e6).toFixed(2)} 秒起 · 文本 {candidate.scores.text.toFixed(2)} / 画面{" "}

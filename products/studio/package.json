@@ -10,7 +10,7 @@
     "start:api": "tsx server/listen.ts",
     "preview": "vite preview --host 127.0.0.1 --port 4175",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false && node ../../scripts/check-ui-css.mjs"
   },
   "dependencies": {
     "@lightweaver/weaver": "*",

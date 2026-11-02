@@ -133,25 +133,26 @@ export function JobsPage() {
       title="任务"
       description="查看本地制作、分析、模型与运行环境作业，取消或恢复未完成的步骤。"
       scroll={false}
-      actions={<>
-        <Segmented
-          mode="toggle"
-          label="作业状态筛选"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "all", label: "全部" },
-            { value: "active", label: "运行中" },
-            { value: "resumable", label: "可恢复" },
-            { value: "completed", label: "已完成" },
-          ]}
-        />
-        <Button size="icon" variant="ghost" aria-label="刷新作业" onClick={() => void refresh()}><RefreshIcon /></Button>
-      </>}
+      actions={<Button size="icon" variant="ghost" aria-label="刷新作业" onClick={() => void refresh()}><RefreshIcon /></Button>}
     >
       <div className="split-page grid min-h-0 flex-1 grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
         <aside className="scroll-region border-r border-line p-3">
-          <div className="mb-2 flex items-center justify-between px-1"><small>{visibleRuns.length} 个作业</small>{isActiveRun(selectedRun?.state || "") && <Badge tone="accent" dot pulse>实时更新</Badge>}</div>
+          <div className="mb-2 flex flex-col gap-2">
+            <Segmented
+              className="self-start"
+              mode="toggle"
+              label="作业状态筛选"
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: "all", label: "全部" },
+                { value: "active", label: "运行中" },
+                { value: "resumable", label: "可恢复" },
+                { value: "completed", label: "已完成" },
+              ]}
+            />
+            <div className="flex items-center justify-between px-1"><small>{visibleRuns.length} 个作业</small>{isActiveRun(selectedRun?.state || "") && <Badge tone="accent" dot pulse>实时更新</Badge>}</div>
+          </div>
           <div className="flex flex-col gap-1">
             {runsStatus === "loading" && <ListSkeleton rows={3} />}
             {runsStatus === "failed" && (
@@ -183,7 +184,7 @@ export function JobsPage() {
                   <div className="flex flex-wrap items-center gap-2"><h2 className="m-0">{kindLabel(selectedRun.kind)}</h2><RunBadge state={selectedRun.state} /></div>
                   <small className="numeric">作业 {selectedRun.id}</small>
                 </div>
-                <div>
+                <div className="flex flex-wrap justify-end gap-1.5">
                   {selectedRun.projectId && <Button size="sm" variant="ghost" onClick={() => void session.navigate("projects", selectedRun.projectId || "")}><ProjectIcon />打开项目</Button>}
                   {["engine-setup", "engine-install"].includes(selectedRun.kind) && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "diagnostics")}>打开诊断与修复</Button>}
                   {selectedRun.kind === "model-setup" && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "models")}>打开模型</Button>}
@@ -206,17 +207,24 @@ export function JobsPage() {
                 <dt>所属项目</dt><dd>{selectedRun.projectId || "无项目"}</dd>
                 <dt>更新时间</dt><dd className="numeric">{selectedRun.updatedAt}</dd>
               </dl>
-              <section className="panel-card p-4">
-                <div className="section-title mb-3"><h3 className="m-0 text-sm">节点执行步骤</h3>{detail && <Badge>{detail.nodes.filter((node) => node.state === "succeeded").length}/{detail.nodes.length} 完成</Badge>}</div>
+              <section className="flex flex-col gap-2">
+                <div className="section-title"><h3 className="m-0 text-sm">节点执行步骤</h3>{detail && <Badge>{detail.nodes.filter((node) => node.state === "succeeded").length}/{detail.nodes.length} 完成</Badge>}</div>
                 {!detail && <p className="hint">正在读取作业详情…</p>}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col">
                   {detail?.nodes.map((node, index) => (
-                    <div className="subtle-card flex items-start gap-3 p-3" key={node.key}>
-                      <span className="storyboard-index mt-1">{String(index + 1).padStart(2, "0")}</span>
+                    <div className="flex items-start gap-3 border-t border-line py-2.5" key={node.key}>
+                      <span className="storyboard-index mt-0.5">{String(index + 1).padStart(2, "0")}</span>
                       <div className="min-w-0 flex-1">
-                        <b className="text-xs">{nodeLabel(node.key)}</b>
-                        <small className="numeric block">{node.key} · 尝试 {node.attempts} 次</small>
-                        {node.error != null && <p className="error mb-0 mt-1 text-xs">{JSON.stringify(node.error)}</p>}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <b className="text-xs">{nodeLabel(node.key)}</b>
+                          <small className="numeric text-xs">{node.key} · 尝试 {node.attempts} 次</small>
+                        </div>
+                        {node.error != null && (
+                          <details className="mt-1">
+                            <summary className="error w-fit text-xs">查看错误详情</summary>
+                            <pre className="code-block mt-1 max-h-40">{JSON.stringify(node.error, null, 2)}</pre>
+                          </details>
+                        )}
                         {selectedRun.kind === "engine-setup" && node.key === "adopt" &&
                           skippedMessages(node.result).map((skip) => (
                             <p className="error mb-0 mt-1 text-xs" role="alert" key={skip.id}>
@@ -231,7 +239,7 @@ export function JobsPage() {
               </section>
               {detail && <details className="panel-card p-4"><summary className="font-medium">原始诊断数据</summary><pre className="code-block mt-3 max-h-[420px]">{JSON.stringify(detail, null, 2)}</pre></details>}
             </div>
-          ) : <div className="subtle-card flex h-full min-h-64 flex-col items-center justify-center p-8 text-center"><JobsIcon className="mb-3 size-6" /><b>选择一个作业查看详情</b><p className="hint mx-auto mt-1 mb-0">状态、错误、节点步骤和原始诊断会显示在右侧。</p></div>}
+          ) : <div className="flex h-full min-h-64 flex-col items-center justify-center p-8 text-center"><JobsIcon className="mb-3 size-6" /><b>选择一个作业查看详情</b><p className="hint mx-auto mt-1 mb-0">状态、错误、节点步骤和原始诊断会显示在右侧。</p></div>}
         </section>
       </div>
     </PageFrame>

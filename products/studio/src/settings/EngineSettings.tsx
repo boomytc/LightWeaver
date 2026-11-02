@@ -21,6 +21,7 @@ import { useSession } from "../session/context";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { InputWithActions } from "../ui/InputWithActions";
+import { ProgressBar } from "../ui/ProgressBar";
 
 type EngineViewValue = z.infer<typeof EngineView>;
 type EngineItemStatusValue = z.infer<typeof EngineItemStatus>;
@@ -204,8 +205,8 @@ export function EngineSettings() {
 
   if (!view)
     return (
-      <section className="flex flex-col gap-3" aria-label="本地运行环境">
-        <h2 className="m-0">本地运行环境</h2>
+      <section className="flex flex-col gap-3 p-5" aria-label="本地运行环境">
+        <h2 className="m-0">运行组件检查与修复</h2>
         <p>加载本地运行环境…</p>
       </section>
     );
@@ -233,10 +234,10 @@ export function EngineSettings() {
         ? "使用外部路径"
         : "按需创建";
   return (
-    <section className="flex flex-col gap-4" aria-label="本地运行环境">
+    <section className="flex flex-col gap-4 p-5" aria-label="本地运行环境">
       <SetupPanel view={view} statuses={statuses} onRefresh={refresh} />
-      <details className="subtle-card p-4">
-        <summary className="font-medium">高级：单个引擎组件与手动操作</summary>
+      <details className="border-t border-line pt-4">
+        <summary className="font-medium">组件清单与高级手动操作</summary>
         <div className="mt-3 flex flex-col gap-3">
           <InstallRootEditor
             value={view.installRoot.value}
@@ -342,38 +343,49 @@ function SetupPanel({
           : failed
             ? "重试配置"
             : "检查并修复";
+  const readyCount = rows.filter((row) => row.ready).length;
+  const externalCount = rows.filter((row) => row.status?.usage === "external").length;
+  const missingCount = rows.filter(
+    (row) => row.status?.usage === "unused" || row.status?.usage === "partial",
+  ).length;
+  const runNodes = setup.detail?.nodes.filter((node) => node.key !== "adopt") ?? [];
+  const runSucceeded = runNodes.filter((node) => node.state === "succeeded").length;
+  const progress = runNodes.length > 0 ? Math.round((runSucceeded / runNodes.length) * 100) : undefined;
 
   return (
-    <section className="panel-card flex flex-col gap-4 p-5" aria-labelledby="setup-title">
-      <div>
-        <h2 id="setup-title" className="m-0">运行组件检查与修复</h2>
-        <p className="hint mb-0 mt-1">
-          正式安装包自带基础组件，模型所需依赖会自动准备。
-          出现组件缺失或损坏时，可在这里检查并修复。
-        </p>
+    <section className="flex flex-col gap-4" aria-labelledby="setup-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 id="setup-title" className="m-0">运行组件检查与修复</h2>
+          <p className="hint m-0 mt-1">
+            正式安装包自带基础组件，模型所需依赖会自动准备；出现组件缺失或损坏时，在这里检查并修复。
+          </p>
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {setup.active ? (
+            <Button type="button" onClick={() => void setup.cancel()}>取消配置</Button>
+          ) : (
+            <Button
+              variant="primary"
+              type="button"
+              disabled={setup.starting || insufficient}
+              aria-label={label}
+              onClick={() => void setup.start({ includeSpeech, includeModels })}
+            >
+              {label}
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="model-files">
-        {rows.map(({ item, status: current, managed }) => (
-          <div className="flex flex-wrap items-center justify-between gap-2" key={item.id}>
-            <small>{setupLabels[item.id] || item.name}</small>
-            <span className="flex flex-wrap items-center gap-2">
-              {current && (
-                <Badge tone={engineStateTone[current.status.state]} dot>
-                  {engineStateLabel[current.status.state]}
-                </Badge>
-              )}
-              {current && current.usage !== "unused" && (
-                <Badge tone={usageBadge[current.usage].tone} dot>
-                  {usageBadge[current.usage].label}
-                </Badge>
-              )}
-              <small className="numeric">
-                {managed ? current?.status.version || item.version : `清单 ${item.version}`}
-              </small>
-            </span>
-          </div>
-        ))}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Badge tone={ready ? "ok" : "warn"} dot>已就绪 {readyCount}/{rows.length}</Badge>
+        {externalCount > 0 && <small>外部路径 {externalCount}</small>}
+        {missingCount > 0 && <small>未配置 {missingCount}</small>}
+        {view.updates.length > 0 && <small>可更新 {view.updates.length}</small>}
       </div>
+      <p className="hint m-0">
+        一键配置会下载并校验固定版本产物、自动写入配置；勾选项会额外占用磁盘空间，语音环境体积大、默认关闭。
+      </p>
       <div className="flex flex-col gap-2">
         {speech && (
           <label className="check">
@@ -429,29 +441,21 @@ function SetupPanel({
         </small>
       )}
       {setup.run && (
-        <div className="model-files" aria-live="polite">
-          <div className="section-title">
-            <b>配置作业 · {runStateLabel[setup.run.state]}</b>
-            {setup.active && (
-              <Button size="sm" type="button" onClick={() => void setup.cancel()}>
-                取消
-              </Button>
-            )}
-          </div>
-          {setup.detail?.nodes
-            .filter((node) => node.key !== "adopt")
-            .map((node) => (
-              <small key={node.key}>
-                {setupNodeLabel(node.key, view)}：
-                {skippedNodeLabel(node) ||
-                  setupNodeStateLabel[node.state] ||
-                  node.state}
-              </small>
-            ))}
-          {adoptNode && (
-            <small>写入配置：{setupNodeStateLabel[adoptNode.state] || adoptNode.state}</small>
+        <div className="flex flex-col gap-2 border-t border-line pt-4" aria-live="polite">
+          <small>配置作业 · {runStateLabel[setup.run.state]}</small>
+          {setup.active && (
+            <ProgressBar
+              value={progress}
+              label="配置进度"
+              stage={
+                setup.message ||
+                (runNodes.length > 0
+                  ? `${runSucceeded}/${runNodes.length} 个步骤完成`
+                  : "等待步骤开始")
+              }
+            />
           )}
-          {setup.message && <small>{setup.message}</small>}
+          {setup.message && !setup.active && <small>{setup.message}</small>}
           {setup.run.error && (
             <small className="error" role="alert">
               {setup.run.error.message}
@@ -473,38 +477,37 @@ function SetupPanel({
           {setup.run.state === "cancelled" && (
             <small>作业已取消，已安装的组件保留；可再次点击配置继续。</small>
           )}
+          {runNodes.length > 0 && (
+            <details>
+              <summary className="text-xs">查看作业步骤</summary>
+              <div className="model-files mt-2">
+                {runNodes.map((node) => (
+                  <small key={node.key}>
+                    {setupNodeLabel(node.key, view)}：
+                    {skippedNodeLabel(node) ||
+                      setupNodeStateLabel[node.state] ||
+                      node.state}
+                  </small>
+                ))}
+                {adoptNode && (
+                  <small>写入配置：{setupNodeStateLabel[adoptNode.state] || adoptNode.state}</small>
+                )}
+              </div>
+            </details>
+          )}
         </div>
       )}
-      <div className="actions">
-        <Button
-          variant="primary"
-          type="button"
-          disabled={busy || insufficient}
-          aria-label={label}
-          onClick={() => void setup.start({ includeSpeech, includeModels })}
-        >
-          {label}
-        </Button>
-        <span className="hint">
-          一键配置会下载并校验固定版本产物、自动写入配置；勾选项会额外占用磁盘空间，语音环境体积大、默认关闭。
-        </span>
-      </div>
       {ready && managedAll && !setup.run && (
-        <>
+        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
           <small>本地运行环境已就绪；再次点击会重新校验并修复，不会重复下载。</small>
-          <div className="actions">
-            <Button
-              size="sm"
-              type="button"
-              onClick={() => void session.navigate("settings", "", "models")}
-            >
-              去选择模型权重
-            </Button>
-            <span className="hint">
-              在“模型与供应商”选择模型，点击“下载并启用”即可使用。
-            </span>
-          </div>
-        </>
+          <Button
+            size="sm"
+            type="button"
+            onClick={() => void session.navigate("settings", "", "models")}
+          >
+            去选择模型权重
+          </Button>
+        </div>
       )}
     </section>
   );

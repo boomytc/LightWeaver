@@ -48,7 +48,7 @@ import {
 } from "../ui/Icons";
 
 type Focus = "edit" | "captions" | "sound" | "plan" | "delivery";
-type LeftMode = "assets" | "evidence" | "scenes";
+type LeftMode = "assets" | "evidence";
 type PreviewMode = "scene" | "asset";
 type BottomMode = "storyboard" | "run";
 
@@ -122,7 +122,7 @@ export function ProjectWorkspace() {
   const draft = session.draft;
   const ctx = session.ctx;
   const [focus, setFocus] = useState<Focus>("edit");
-  const [leftMode, setLeftMode] = useState<LeftMode>("scenes");
+  const [leftMode, setLeftMode] = useState<LeftMode>("assets");
   const [sceneId, setSceneId] = useState("");
   const [assetKey, setAssetKey] = useState("");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("scene");
@@ -242,11 +242,16 @@ export function ProjectWorkspace() {
     }
   };
   const navigateGuidance = (target: GuidanceTarget) => {
-    if (target === "assets" || target === "scenes" || target === "evidence") {
-      showLeft(target);
+    if (target === "assets") {
+      showLeft("assets");
       return;
     }
-    setFocus(target);
+    if (target === "storyboard") {
+      setFocus("edit");
+      showBottom("storyboard");
+      return;
+    }
+    setFocus("delivery");
   };
   const addSceneFromUi = (kind: Scene["kind"]) => {
     const hasAsset =
@@ -433,7 +438,13 @@ export function ProjectWorkspace() {
           </Button>
         </div>
       </header>
-      <ProjectGuidance workflowId={draft.workflow} onNavigate={navigateGuidance} />
+      <ProjectGuidance
+        workflowId={draft.workflow}
+        scenes={draft.scenes.length}
+        assets={ctx.assets.length}
+        deliveries={ctx.deliveries.length}
+        onNavigate={navigateGuidance}
+      />
       {completedBuild && (
         <div
           className="flex flex-wrap items-center gap-2 border-b border-ok/30 bg-ok/10 px-3 py-2 text-xs text-ok"
@@ -486,35 +497,18 @@ export function ProjectWorkspace() {
                 </div>
                 <div className="scroll-region min-h-0 flex-1 p-2">
                   <Segmented
-                    className="mb-3 grid w-full grid-cols-3"
+                    className="mb-3 grid w-full grid-cols-2"
                     mode="toggle"
                     label="创作资源视图"
                     value={leftMode}
                     onChange={setLeftMode}
                     options={[
-                      { value: "scenes", label: "场景" },
                       { value: "assets", label: "素材" },
                       { value: "evidence", label: "证据" },
                     ]}
                   />
                   {leftMode === "assets" && <AssetPanel selectedKey={assetKey} onSelect={selectAsset} />}
                   {leftMode === "evidence" && <EvidencePanel />}
-                  {leftMode === "scenes" && (
-                    <div className="flex flex-col gap-2">
-                      <div className="actions">
-                        {(["card", "still", "clip"] as const).map((kind) => (
-                          <Button key={kind} size="sm" variant="ghost" onClick={() => addSceneFromUi(kind)}><PlusIcon />{labels[kind]}</Button>
-                        ))}
-                      </div>
-                      {draft.scenes.map((item, index) => (
-                        <button key={item.id} type="button" className={`row-item ${item.id === sceneId ? "is-on" : ""}`} onClick={() => selectScene(item.id)}>
-                          <span className="storyboard-index">{String(index + 1).padStart(2, "0")}</span>
-                          <SceneKindIcon kind={item.kind} />
-                          <span className="row-item-copy"><b>{item.label || labels[item.kind]}</b><small>{sceneSummary(item, session.locale)}</small></span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </>
             )}
@@ -536,7 +530,13 @@ export function ProjectWorkspace() {
           id="workspace-tab-panel"
           role="tabpanel"
           aria-labelledby={`workspace-tab-${focus}`}
-          className={focus === "edit" ? "flex min-w-0 flex-1 flex-col overflow-hidden bg-panel" : "scroll-region min-w-0 flex-1 bg-panel p-5"}
+          className={
+            focus === "edit"
+              ? "flex min-w-0 flex-1 flex-col overflow-hidden bg-panel"
+              : focus === "plan"
+                ? "scroll-region min-w-0 flex-1 bg-panel"
+                : "scroll-region min-w-0 flex-1 bg-panel p-5"
+          }
         >
           {focus === "edit" && (
             <>
@@ -558,7 +558,7 @@ export function ProjectWorkspace() {
               </div>
             </>
           )}
-          {focus !== "edit" && <div className="mx-auto w-full max-w-[1440px]">
+          {focus !== "edit" && <div className={focus === "plan" ? "mx-auto w-full max-w-[1440px] p-5" : "mx-auto w-full max-w-[1440px]"}>
             {focus === "captions" && <CaptionWorkspace />}
             {focus === "sound" && <SoundWorkspace sceneId={sceneId} onSelect={setSceneId} />}
             {focus === "plan" && profile && (
@@ -599,22 +599,25 @@ export function ProjectWorkspace() {
             ) : (
               <>
                 <div className="panel-header"><span>属性检视器</span><PanelButton side="right" collapsed={false} onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, right: true } })} /></div>
-                <div className="scroll-region min-h-0 flex-1 p-3">
-                  {scene && profile ? (
-                    <SceneEditor
-                      scene={scene}
-                      locale={session.locale}
-                      assets={ctx.assets}
-                      profile={profile}
-                      voices={voices}
-                      masks={draft.masks.filter((mask) => mask.sceneId === scene.id)}
-                      preview={false}
-                      onMasksChange={(masks) => session.edit({ ...draft, masks: [...draft.masks.filter((mask) => mask.sceneId !== scene.id), ...masks] })}
-                      onChange={(next) => session.edit({ ...draft, scenes: draft.scenes.map((item, index) => index === sceneIndex ? next : item) })}
-                    />
-                  ) : asset ? (
-                    <div className="subtle-card p-3"><b>{asset.name}</b><small className="numeric mt-1 block">{asset.kind} · 版本 {asset.version.slice(0, 12)}</small></div>
-                  ) : <p className="hint text-xs">选择一个场景以编辑视觉、声音、时长与遮罩。</p>}
+                <div className="scroll-region min-h-0 flex-1">
+                  <div className="p-3">
+                    {scene && profile ? (
+                      <SceneEditor
+                        scene={scene}
+                        locale={session.locale}
+                        assets={ctx.assets}
+                        profile={profile}
+                        voices={voices}
+                        masks={draft.masks.filter((mask) => mask.sceneId === scene.id)}
+                        preview={false}
+                        stickySections
+                        onMasksChange={(masks) => session.edit({ ...draft, masks: [...draft.masks.filter((mask) => mask.sceneId !== scene.id), ...masks] })}
+                        onChange={(next) => session.edit({ ...draft, scenes: draft.scenes.map((item, index) => index === sceneIndex ? next : item) })}
+                      />
+                    ) : asset ? (
+                      <div className="subtle-card p-3"><b>{asset.name}</b><small className="numeric mt-1 block">{asset.kind} · 版本 {asset.version.slice(0, 12)}</small></div>
+                    ) : <p className="hint text-xs">选择一个场景以编辑视觉、声音、时长与遮罩。</p>}
+                  </div>
                 </div>
               </>
             )}

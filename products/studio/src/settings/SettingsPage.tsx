@@ -4,7 +4,6 @@ import { ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@l
 import { api, ApiError } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
-import { UiSelect } from "../ui/UiSelect";
 import { PageFrame } from "../ui/PageFrame";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
@@ -76,6 +75,12 @@ const legacySections: Record<string, string> = {
   runtime: "diagnostics",
 };
 
+const themeLabel: Record<string, string> = {
+  system: "跟随系统",
+  light: "浅色",
+  dark: "深色",
+};
+
 export function SettingsPage() {
   const session = useSession();
   const requested = legacySections[session.route.section] || session.route.section;
@@ -100,32 +105,25 @@ export function SettingsPage() {
             </Tabs.Content>
             <Tabs.Content value="storage"><StoragePanel /></Tabs.Content>
             <Tabs.Content value="diagnostics">
-              <div className="flex flex-col gap-4">
-                <DiagnosticsPanel />
-                <details className="panel-card p-5">
-                  <summary className="font-medium">运行组件与修复</summary>
-                  <div className="mt-4"><EngineSettings /></div>
-                </details>
-                <details className="panel-card p-5">
-                  <summary className="font-medium">高级：自定义运行路径与配置</summary>
-                  <div className="mt-4"><RuntimePanel /></div>
-                </details>
-              </div>
+              <section className="panel-card flex flex-col divide-y divide-line" aria-label="诊断与修复">
+                <EngineSettings />
+                <DiagnosticsSection />
+                <RuntimeSection />
+              </section>
             </Tabs.Content>
             <Tabs.Content value="appearance">
-              <section className="panel-card flex flex-col gap-3 p-5">
-                <div className="flex items-center gap-3">
-                  <h2 className="m-0">外观</h2>
-                  <UiSelect
-                    label="主题"
-                    value={session.client.theme}
-                    onValueChange={(value) => {
-                      if (value === "system" || value === "light" || value === "dark") session.client.setTheme(value);
-                    }}
-                    options={[{ value: "system", label: "跟随系统" }, { value: "light", label: "浅色" }, { value: "dark", label: "深色" }]}
-                  />
+              <section className="panel-card flex flex-col gap-4 p-5" aria-labelledby="appearance-title">
+                <div>
+                  <h2 id="appearance-title" className="m-0">外观</h2>
+                  <p className="hint m-0 mt-1">
+                    主题由左下角的浅色、跟随系统与深色切换控制；这里只显示当前选择。
+                  </p>
                 </div>
-                <p className="hint m-0">主题写在客户端状态里。有桌面桥时同时写入桌面偏好。</p>
+                <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
+                  <span className="text-xs font-medium text-muted">当前主题</span>
+                  <Badge tone="accent" dot>{themeLabel[session.client.theme]}</Badge>
+                  <small className="hint">在左下角切换，选择会立即生效并保存在本机客户端状态与桌面偏好。</small>
+                </div>
               </section>
             </Tabs.Content>
           </div>
@@ -146,27 +144,31 @@ function StoragePanel() {
     return () => controller.abort();
   }, []);
   if (!runtime) return <p>加载存储位置…</p>;
-  return <section className="panel-card flex flex-col gap-4 p-5">
-    <h2 className="m-0">存储</h2>
-    <p className="hint m-0">项目与模型保存在本机。更换工作区会重启服务，原目录中的内容会保留。</p>
-    <dl className="key-value-list panel-card px-4">
+  return <section className="panel-card flex flex-col gap-5 p-5" aria-labelledby="storage-title">
+    <div>
+      <h2 id="storage-title" className="m-0">存储</h2>
+      <p className="hint m-0 mt-1">项目与模型保存在本机。更换工作区会重启服务，原目录中的内容会保留。</p>
+    </div>
+    <dl className="key-value-list">
       {[["项目数据", runtime.dataDir], ["模型默认位置", runtime.modelDir], ["日志", runtime.logDir]].map(([label, value]) =>
         <div className="contents" key={label}><dt>{label}</dt><dd className="numeric">{value}</dd></div>)}
     </dl>
-    {desktop()?.pickDirectory && desktop()?.setPreferences && desktop()?.restartRuntime ?
-      <Button type="button" onClick={() => void (async () => {
-        const bridge = desktop();
-        const picked = await bridge?.pickDirectory?.();
-        if (!picked || !bridge?.setPreferences || !bridge.restartRuntime) return;
-        await bridge.setPreferences({ dataDir: picked });
-        await bridge.restartRuntime();
-      })().catch((reason) => session.handleError(reason))}>更换工作区并重启</Button>
-      : <small className="hint">浏览器中的存储位置由启动命令决定。</small>}
-    <p className="hint m-0">模型的下载位置可在“模型与供应商”中选择。</p>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+      <small className="hint">模型的下载位置可在“模型与供应商”中选择。</small>
+      {desktop()?.pickDirectory && desktop()?.setPreferences && desktop()?.restartRuntime ?
+        <Button type="button" onClick={() => void (async () => {
+          const bridge = desktop();
+          const picked = await bridge?.pickDirectory?.();
+          if (!picked || !bridge?.setPreferences || !bridge.restartRuntime) return;
+          await bridge.setPreferences({ dataDir: picked });
+          await bridge.restartRuntime();
+        })().catch((reason) => session.handleError(reason))}>更换工作区并重启</Button>
+        : <small className="hint">浏览器中的存储位置由启动命令决定。</small>}
+    </div>
   </section>;
 }
 
-function RuntimePanel() {
+function RuntimeSection() {
   const session = useSession();
   const [runtime, setRuntime] = useState<z.infer<typeof RuntimeView> | null>(null);
   const [settings, setSettings] = useState<z.infer<typeof ModelSettingsView> | null>(null);
@@ -264,123 +266,129 @@ function RuntimePanel() {
     ["日志目录", runtime.logDir],
   ];
   return (
-    <section className="panel-card flex flex-col gap-4 p-5">
-      <h2 className="m-0">存储与路径</h2>
-      <p>正式安装包自带基础运行组件；选择模型时会自动准备所需依赖。这里的路径覆盖仅用于已有环境或特殊构建。</p>
-      <p>需要沿用自己已有的运行库、GPU 构建或单独指定已有配置时，展开下面的高级设置。配置值按当前私有配置文件、环境变量、内置 config.yaml 默认值的顺序生效；相对路径按配置基准目录解析。</p>
-      <details className="subtle-card p-4">
-        <summary className="font-medium">高级：手动指定运行时路径</summary>
-        <div className="mt-3 flex flex-col gap-4">
-      <div className="grid gap-3 md:grid-cols-2">
-        {runtimeFields.map(({ key, label, directory }) => (
-          <InputWithActions
-            key={key}
-            label={label}
-            aria-label={label}
-            value={fields[key] || ""}
-            disabled={saving}
-            hint={`当前来源：${settings.values[key]?.source || "unset"}`}
-            onChange={(event) => {
-              dirtyFields.current.add(key);
-              setFields((current) => ({ ...current, [key]: event.target.value }));
-            }}
-            actions={desktop() && <Button type="button" disabled={saving} onClick={() => void (async () => {
-              try {
-                const bridge = desktop();
-                const picked = directory ? await bridge?.pickDirectory?.() : await bridge?.pickModelFile?.();
-                if (picked) {
+    <details className="p-5">
+      <summary className="font-medium">高级：自定义运行路径与配置</summary>
+      <div className="mt-3 flex flex-col gap-4">
+        <p className="hint m-0">
+          正式安装包自带基础运行组件；选择模型时会自动准备所需依赖。以下路径覆盖仅用于已有环境或特殊构建：配置值按当前私有配置文件、环境变量、内置默认值的顺序生效，相对路径按配置基准目录解析。
+        </p>
+        <dl className="key-value-list">
+          {rows.map(([label, value]) => (
+            <div className="contents" key={label}><dt>{label}</dt><dd className="numeric">{value}</dd></div>
+          ))}
+        </dl>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <small className="hint">更换数据目录会停止当前作业并重启服务；正在使用的数据库不会被替换，原来的目录保留。</small>
+          {desktop()?.pickDirectory && desktop()?.setPreferences && desktop()?.restartRuntime ? (
+            <Button
+              type="button"
+              onClick={() =>
+                void desktop()?.pickDirectory?.().then(async (picked) => {
+                  const bridge = desktop();
+                  if (!picked || !bridge?.setPreferences || !bridge.restartRuntime) return;
+                  await bridge.setPreferences({ dataDir: picked });
+                  await bridge.restartRuntime();
+                }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)))
+              }
+            >
+              选择数据目录并重启
+            </Button>
+          ) : (
+            <small className="hint">浏览器里的数据目录由启动命令决定。</small>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
+          <small className="font-medium">运行组件</small>
+          {Object.entries(runtime.tools).map(([name, ready]) => (
+            <span className="inline-flex items-center gap-1.5 text-xs" key={name}>
+              <span className="text-muted">{name}</span>
+              <Badge tone={ready ? "ok" : "warn"} dot>{ready ? "已找到" : "未找到"}</Badge>
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-col gap-4 border-t border-line pt-4">
+          <div>
+            <h3 className="m-0 text-sm">手动指定运行时路径</h3>
+            <p className="hint m-0 mt-1">需要沿用已有运行库、GPU 构建或单独指定已有配置时填写；保存后对下一次作业生效。</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {runtimeFields.map(({ key, label, directory }) => (
+              <InputWithActions
+                key={key}
+                label={label}
+                aria-label={label}
+                value={fields[key] || ""}
+                disabled={saving}
+                hint={`当前来源：${settings.values[key]?.source || "unset"}`}
+                onChange={(event) => {
                   dirtyFields.current.add(key);
-                  setFields((current) => ({ ...current, [key]: picked }));
-                }
-              } catch (reason) { session.setError(String(reason)); }
-            })()}>选择{directory ? "目录" : "文件"}</Button>}
-          />
-        ))}
-      </div>
-      <label className="field">
-        <span>对齐设备</span>
-        <input value={fields.alignmentDevice || "cpu"} placeholder="cpu 或 cuda:0" disabled={saving} onChange={(event) => {
-          dirtyFields.current.add("alignmentDevice");
-          setFields((current) => ({ ...current, alignmentDevice: event.target.value }));
-        }} />
-      </label>
-      <div className="actions">
-        <Button variant="primary" type="button" disabled={saving} onClick={() => void save()}>{saving ? "保存中…" : "保存运行时路径"}</Button>
-        {desktop()?.pickModelFile && desktop()?.setPreferences && desktop()?.restartRuntime && (
-          <Button
-            type="button"
-            onClick={() => {
-              const bridge = desktop();
-              void bridge?.pickModelFile?.().then(async (file) => {
-                if (!file || !bridge?.setPreferences || !bridge.restartRuntime) return;
-                await bridge.setPreferences({ configFile: file, configBase: parentDir(file) });
-                await bridge.restartRuntime();
-              }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)));
-            }}
-          >
-            绑定已有配置并重启
-          </Button>
-        )}
-      </div>
-      <details className="subtle-card p-4">
-        <summary className="font-medium">手工创建模型 Python 环境（备用）</summary>
-        <div className="mt-3 flex flex-col gap-3">
-          <p className="hint m-0">一键配置失败或需要自定义环境时使用：在应用目录外创建独立环境，安装后把上方“模型 Python”指定为该环境的解释器。ASR 的 transcribe 运行库、bindings 与 TEN VAD 由“本地运行环境”安装。</p>
-          <label className="field"><span>模型环境目标目录</span><input value={environment} onChange={(event) => setEnvironment(event.target.value)} /></label>
-          <pre className="code-block">{modelEnvironmentCommands(runtime, environment).join("\n")}</pre>
-          <p className="hint m-0">交接使用的 Python：{runtime.interchangePython || "由启动环境指定"}。它与可选模型环境分开。</p>
-          <div className="flex flex-col gap-2">
-            {runtime.requirements.map((item) => (
-              <div className="panel-card flex flex-wrap items-center justify-between gap-2 px-3 py-2" key={item.name}>
-                <small className="numeric break-all">{item.file}</small>
-                <a className="ui-button no-underline" data-variant="secondary" data-size="sm" download href={`/api/runtime/requirements/${encodeURIComponent(item.name)}`}>下载 {item.name}</a>
-              </div>
+                  setFields((current) => ({ ...current, [key]: event.target.value }));
+                }}
+                actions={desktop() && <Button type="button" disabled={saving} onClick={() => void (async () => {
+                  try {
+                    const bridge = desktop();
+                    const picked = directory ? await bridge?.pickDirectory?.() : await bridge?.pickModelFile?.();
+                    if (picked) {
+                      dirtyFields.current.add(key);
+                      setFields((current) => ({ ...current, [key]: picked }));
+                    }
+                  } catch (reason) { session.setError(String(reason)); }
+                })()}>选择{directory ? "目录" : "文件"}</Button>}
+              />
             ))}
           </div>
+          <label className="field">
+            <span>对齐设备</span>
+            <input value={fields.alignmentDevice || "cpu"} placeholder="cpu 或 cuda:0" disabled={saving} onChange={(event) => {
+              dirtyFields.current.add("alignmentDevice");
+              setFields((current) => ({ ...current, alignmentDevice: event.target.value }));
+            }} />
+          </label>
+          <div className="actions">
+            <Button variant="primary" type="button" disabled={saving} onClick={() => void save()}>{saving ? "保存中…" : "保存运行时路径"}</Button>
+            {desktop()?.pickModelFile && desktop()?.setPreferences && desktop()?.restartRuntime && (
+              <Button
+                type="button"
+                onClick={() => {
+                  const bridge = desktop();
+                  void bridge?.pickModelFile?.().then(async (file) => {
+                    if (!file || !bridge?.setPreferences || !bridge.restartRuntime) return;
+                    await bridge.setPreferences({ configFile: file, configBase: parentDir(file) });
+                    await bridge.restartRuntime();
+                  }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)));
+                }}
+              >
+                绑定已有配置并重启
+              </Button>
+            )}
+          </div>
         </div>
-      </details>
-        </div>
-      </details>
-      <dl className="key-value-list panel-card px-4">
-        {rows.map(([label, value]) => (
-          <div className="contents" key={label}><dt>{label}</dt><dd className="numeric">{value}</dd></div>
-        ))}
-      </dl>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <small className="hint">更换数据目录会停止当前作业并重启服务；正在使用的数据库不会被替换，原来的目录保留。</small>
-        {desktop()?.pickDirectory && desktop()?.setPreferences && desktop()?.restartRuntime ? (
-          <Button
-            type="button"
-            onClick={() =>
-              void desktop()?.pickDirectory?.().then(async (picked) => {
-                const bridge = desktop();
-                if (!picked || !bridge?.setPreferences || !bridge.restartRuntime) return;
-                await bridge.setPreferences({ dataDir: picked });
-                await bridge.restartRuntime();
-              }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)))
-            }
-          >
-            选择数据目录并重启
-          </Button>
-        ) : (
-          <small className="hint">浏览器里的数据目录由启动命令决定。</small>
+        <details className="border-t border-line pt-4">
+          <summary className="font-medium">手工创建模型 Python 环境（备用）</summary>
+          <div className="mt-3 flex flex-col gap-3">
+            <p className="hint m-0">一键配置失败或需要自定义环境时使用：在应用目录外创建独立环境，安装后把上方“模型 Python”指定为该环境的解释器。ASR 的 transcribe 运行库、bindings 与 TEN VAD 由“本地运行环境”安装。</p>
+            <label className="field"><span>模型环境目标目录</span><input value={environment} onChange={(event) => setEnvironment(event.target.value)} /></label>
+            <pre className="code-block">{modelEnvironmentCommands(runtime, environment).join("\n")}</pre>
+            <p className="hint m-0">交接使用的 Python：{runtime.interchangePython || "由启动环境指定"}。它与可选模型环境分开。</p>
+            <div className="flex flex-col">
+              {runtime.requirements.map((item) => (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line py-2 last:border-0" key={item.name}>
+                  <small className="numeric break-all">{item.file}</small>
+                  <a className="ui-button no-underline" data-variant="secondary" data-size="sm" download href={`/api/runtime/requirements/${encodeURIComponent(item.name)}`}>下载 {item.name}</a>
+                </div>
+              ))}
+            </div>
+          </div>
+        </details>
+        {runtime.cli && (
+          <details className="border-t border-line pt-4">
+            <summary className="font-medium">外部 agent 与命令行</summary>
+            <p className="hint mt-2 mb-3">在 {runtime.cli.shell} 中运行。命令已指定当前数据目录和配置；进入项目后也可从“更多”复制给 agent。</p>
+            <pre className="code-block">{`${runtime.cli.command} capabilities --json`}</pre>
+          </details>
         )}
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {Object.entries(runtime.tools).map(([name, ready]) => (
-          <div className="subtle-card flex items-center justify-between gap-2 p-3" key={name}>
-            <span>{name}</span><Badge tone={ready ? "ok" : "warn"} dot>{ready ? "已找到" : "未找到"}</Badge>
-          </div>
-        ))}
-      </div>
-      {runtime.cli && (
-        <details className="subtle-card p-4">
-          <summary className="font-medium">外部 agent 与命令行</summary>
-          <p className="hint mt-2 mb-3">在 {runtime.cli.shell} 中运行。命令已指定当前数据目录和配置；进入项目后也可从“更多”复制给 agent。</p>
-          <pre className="code-block">{`${runtime.cli.command} capabilities --json`}</pre>
-        </details>
-      )}
-    </section>
+    </details>
   );
 }
 
@@ -427,7 +435,7 @@ function parentDir(file: string) {
   return index > 0 ? file.slice(0, index) : file;
 }
 
-function DiagnosticsPanel() {
+function DiagnosticsSection() {
   const session = useSession();
   const [doctor, setDoctor] = useState<z.infer<typeof DoctorView> | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -436,7 +444,7 @@ function DiagnosticsPanel() {
   }, []);
   const counts = doctor?.engines?.counts;
   return (
-    <details className="panel-card p-4">
+    <details className="p-5">
       <summary className="font-medium">诊断及应用信息</summary>
       <div className="mt-3 flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -452,25 +460,25 @@ function DiagnosticsPanel() {
           </small>
         )}
         {!doctor && <p>正在读取诊断…</p>}
-      {doctor && (
-        <>
-          <dl className="key-value-list"><dt>Node</dt><dd className="numeric">{doctor.node}</dd><dt>SQLite</dt><dd className="numeric">{doctor.sqlite}</dd></dl>
-          <div className="grid items-start gap-2 sm:grid-cols-2">
-            {doctor.checks.map((check) => {
-              const status = toolStatus(check);
-              return (
-                <div className="subtle-card flex min-w-0 flex-col gap-2 p-3" key={check.tool}>
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <span className="font-medium">{check.tool}</span>
-                    <Badge tone={check.ok ? "ok" : "warn"} dot>{status.badge}</Badge>
+        {doctor && (
+          <>
+            <dl className="key-value-list"><dt>Node</dt><dd className="numeric">{doctor.node}</dd><dt>SQLite</dt><dd className="numeric">{doctor.sqlite}</dd></dl>
+            <div className="flex flex-col">
+              {doctor.checks.map((check) => {
+                const status = toolStatus(check);
+                return (
+                  <div className="flex min-w-0 items-center justify-between gap-3 border-b border-line py-2 last:border-0" key={check.tool}>
+                    <span className="min-w-0 font-medium">{check.tool}</span>
+                    <span className="flex min-w-0 items-center gap-3">
+                      {status.detail && <small className="truncate" title={status.detail}>{status.detail}</small>}
+                      <Badge tone={check.ok ? "ok" : "warn"} dot>{status.badge}</Badge>
+                    </span>
                   </div>
-                  {status.detail && <p className="hint m-0 break-words text-xs leading-5">{status.detail}</p>}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
+                );
+              })}
+            </div>
+          </>
+        )}
         <Modal open={detailOpen && doctor !== null} title="诊断详情" onOpenChange={setDetailOpen}>
           <pre className="code-block max-h-[min(32rem,calc(100vh-8rem))]">{doctor ? JSON.stringify(doctor, null, 2) : ""}</pre>
         </Modal>

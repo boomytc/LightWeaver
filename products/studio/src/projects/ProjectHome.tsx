@@ -9,7 +9,25 @@ import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Dropzone } from "../ui/Dropzone";
 import { ListSkeleton } from "../ui/Skeleton";
-import { FolderIcon, ProjectIcon } from "../ui/Icons";
+import { ChevronDownIcon, FolderIcon, ProjectIcon } from "../ui/Icons";
+
+const startSteps = [
+  {
+    label: "建立项目",
+    title: "选择空白草稿或示例",
+    hint: "片名和工作流只描述创作意图，之后仍可自由搭配卡片、静帧和视频。",
+  },
+  {
+    label: "编排内容",
+    title: "添加画面、旁白或原声",
+    hint: "卡片不需要素材；静帧和视频会直接提示去对应素材区导入。",
+  },
+  {
+    label: "制作交付",
+    title: "保存并制作",
+    hint: "制作完成后从固定横幅进入交付，失败原因和建议会留在任务面板。",
+  },
+];
 
 export function ProjectHome() {
   const session = useSession();
@@ -73,42 +91,83 @@ export function ProjectHome() {
     const rightRecent = recent.has(right.projectId) ? session.client.recentProjectIds.indexOf(right.projectId) : 99;
     return leftRecent - rightRecent;
   });
+  const showFullGuidance = session.listsStatus === "ready" && ordered.length === 0;
   return (
     <PageFrame title="项目" description="继续最近的创作，或从草稿与项目包开始一部新片。">
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.7fr)]">
-          <section className="panel-card p-5 xl:col-span-2" aria-labelledby="start-project-title">
-            <div className="section-title mb-3">
-              <div>
-                <h2 id="start-project-title" className="m-0">从想做到看到成片</h2>
-                <small>新项目可以按这个顺序开始。已有项目可以直接从列表继续。</small>
+          {showFullGuidance ? (
+            <section className="panel-card p-5 xl:col-span-2" aria-labelledby="start-project-title">
+              <div className="section-title mb-3">
+                <div>
+                  <h2 id="start-project-title" className="m-0">从想做到看到成片</h2>
+                  <small>新项目可以按这个顺序开始。已有项目可以直接从列表继续。</small>
+                </div>
               </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="subtle-card p-4">
-                <Badge tone="accent">1 · 建立项目</Badge>
-                <b className="mt-2 block">选择空白草稿或示例</b>
-                <p className="hint mb-0 mt-1 text-xs">片名和工作流只描述创作意图，之后仍可自由搭配卡片、静帧和视频。</p>
+              <div className="grid gap-3 md:grid-cols-3">
+                {startSteps.map((step, index) => (
+                  <div className="subtle-card p-4" key={step.label}>
+                    <Badge tone="accent">{index + 1} · {step.label}</Badge>
+                    <b className="mt-2 block">{step.title}</b>
+                    <p className="hint mb-0 mt-1 text-xs">{step.hint}</p>
+                  </div>
+                ))}
               </div>
-              <div className="subtle-card p-4">
-                <Badge tone="accent">2 · 编排内容</Badge>
-                <b className="mt-2 block">添加画面、旁白或原声</b>
-                <p className="hint mb-0 mt-1 text-xs">卡片不需要素材；静帧和视频会直接提示去对应素材区导入。</p>
+            </section>
+          ) : (
+            <details className="panel-card px-4 py-3 xl:col-span-2">
+              <summary className="flex flex-wrap items-center gap-2">
+                <b>从想做到看到成片</b>
+                {startSteps.map((step) => (
+                  <small className="hint flex items-center gap-1" key={step.label}>
+                    <span aria-hidden="true">·</span>{step.label}
+                  </small>
+                ))}
+                <small className="hint ml-auto">展开三步说明</small>
+                <ChevronDownIcon className="size-3.5" />
+              </summary>
+              <div className="mt-3 grid gap-3 border-t border-line pt-3 md:grid-cols-3">
+                {startSteps.map((step, index) => (
+                  <div className="flex flex-col gap-1" key={step.label}>
+                    <small className="hint text-xs">{index + 1} · {step.label}</small>
+                    <b className="text-sm">{step.title}</b>
+                    <p className="hint mb-0 text-xs">{step.hint}</p>
+                  </div>
+                ))}
               </div>
-              <div className="subtle-card p-4">
-                <Badge tone="accent">3 · 制作交付</Badge>
-                <b className="mt-2 block">保存并制作</b>
-                <p className="hint mb-0 mt-1 text-xs">制作完成后从固定横幅进入交付，失败原因和建议会留在任务面板。</p>
-              </div>
-            </div>
-          </section>
-          <section aria-labelledby="project-list-title">
-            <div className="section-title mb-3">
+            </details>
+          )}
+          <section aria-labelledby="project-list-title" className="flex flex-col gap-2">
+            <div className="section-title mb-1">
               <div>
                 <h2 id="project-list-title" className="m-0">最近与全部项目</h2>
                 <Badge>{ordered.length}</Badge>
               </div>
             </div>
-            <div className="flex flex-col gap-2">
+            <details>
+              <summary className="flex w-fit items-center gap-1.5 text-xs text-muted">
+                <FolderIcon className="size-3.5" />
+                打开已有项目包…
+                <ChevronDownIcon className="size-3.5" />
+              </summary>
+              <div className="mt-3 flex flex-col gap-2">
+                <Dropzone
+                  inputAriaLabel="导入项目包 ZIP"
+                  accept=".zip"
+                  disabled={session.busy}
+                  onFiles={importFiles}
+                  title="拖入项目包 ZIP"
+                  description="原项目与媒体保持不变"
+                  browseLabel={desktop() ? "选择 ZIP" : "选择文件"}
+                  onBrowse={desktop() ? () => void importPath("file") : undefined}
+                />
+                {desktop() && (
+                  <Button disabled={session.busy} onClick={() => void importPath("directory")}>
+                    <FolderIcon />选择项目包目录
+                  </Button>
+                )}
+              </div>
+            </details>
+            <div className="flex flex-col">
               {session.listsStatus === "loading" && <ListSkeleton rows={3} />}
               {ordered.map((project) => {
                 const draft = session.client.drafts.find((item) => item.projectId === project.projectId);
@@ -116,7 +175,7 @@ export function ProjectHome() {
                   <button
                     key={project.projectId}
                     type="button"
-                    className="row-item surface-card p-4"
+                    className="row-item items-start rounded-none border-x-0 border-t-0 border-b border-line p-3"
                     onClick={() => void session.navigate("projects", project.projectId)}
                   >
                     <span className="dropzone-icon size-10"><ProjectIcon /></span>
@@ -135,7 +194,7 @@ export function ProjectHome() {
                 );
               })}
               {session.listsStatus === "failed" && (
-                <div className="subtle-card flex flex-col gap-2 p-4">
+                <div className="subtle-card my-2 flex flex-col gap-2 p-4">
                   <b>项目列表读取失败</b>
                   <small className="hint">{session.listsError || "无法读取项目列表，请重试。"}</small>
                   <div className="actions">
@@ -144,7 +203,7 @@ export function ProjectHome() {
                 </div>
               )}
               {session.listsStatus === "ready" && ordered.length === 0 && (
-                <div className="subtle-card flex flex-col items-center px-6 py-12 text-center">
+                <div className="flex flex-col items-center px-6 py-12 text-center">
                   <span className="dropzone-icon mb-3 size-12"><ProjectIcon /></span>
                   <b>还没有项目</b>
                   <p className="hint mb-0 mt-1 text-xs">创建空白草稿或从示例开始，也可以打开已有的 LightWeaver 项目包。</p>
@@ -160,27 +219,6 @@ export function ProjectHome() {
               }}
               fail={(reason) => { if (mounted.current) session.setError(reason instanceof Error ? reason.message : String(reason)); }}
             />
-            <section className="panel-card p-5" aria-labelledby="import-project-title">
-              <div className="mb-4">
-                <h2 id="import-project-title" className="m-0">打开已有项目包</h2>
-                <p className="hint mb-0 mt-1 text-xs">导入 bundle ZIP 或完整目录，创建独立项目并校验媒体摘要。</p>
-              </div>
-              <Dropzone
-                inputAriaLabel="导入项目包 ZIP"
-                accept=".zip"
-                disabled={session.busy}
-                onFiles={importFiles}
-                title="拖入项目包 ZIP"
-                description="原项目与媒体保持不变"
-                browseLabel={desktop() ? "选择 ZIP" : "选择文件"}
-                onBrowse={desktop() ? () => void importPath("file") : undefined}
-              />
-              {desktop() && (
-                <Button className="mt-3 w-full" disabled={session.busy} onClick={() => void importPath("directory")}>
-                  <FolderIcon />选择项目包目录
-                </Button>
-              )}
-            </section>
           </div>
         </div>
     </PageFrame>

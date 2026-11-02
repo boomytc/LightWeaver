@@ -20,7 +20,7 @@ export type ToastItem = {
 export function ToastStack({ items, onDismiss }: { items: ToastItem[]; onDismiss: (id: string) => void }) {
   if (items.length === 0) return null;
   return (
-    <div className="pointer-events-none fixed top-[68px] right-5 z-40 flex w-80 flex-col gap-2" aria-live="polite">
+    <div className="pointer-events-none fixed right-5 bottom-5 z-40 flex w-80 flex-col gap-2" aria-live="polite">
       {items.map((item) => (
         <ToastCard key={item.id} item={item} onDismiss={() => onDismiss(item.id)} />
       ))}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   z,
   ActiveModelBinding,
@@ -75,6 +75,165 @@ function modelLocation(paths: ModelPath[], downloaded: string) {
   return { path: configured[0].resolvedPath, otherPaths: configured.slice(1).map((binding) => binding.resolvedPath) };
 }
 
+/** 就绪摘要只读取 capabilities 中的全局引擎状态，不复制诊断页的完整视图。 */
+const ReadinessView = z.object({
+  engines: z
+    .object({
+      ready: z.boolean().optional(),
+      coreReady: z.boolean().optional(),
+      counts: z
+        .object({
+          total: z.number(),
+          installed: z.number(),
+          external: z.number(),
+          unused: z.number(),
+          partial: z.number(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+type Readiness = z.infer<typeof ReadinessView>;
+
+function readinessWithPlan(
+  listed: keyof typeof readinessLabel,
+  plan: z.infer<typeof ModelInstallPlan> | null,
+): keyof typeof readinessLabel {
+  if (!plan) return listed;
+  if ((listed === "enabled" || listed === "configured") && plan.source.kind !== "configured")
+    return "attention";
+  if (listed === "missing" || listed === "downloaded")
+    return plan.source.kind === "download" ? "missing" : "downloaded";
+  return listed;
+}
+
+const shortTime = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+};
+
+/** 列表 → 详情：返回、标题与状态固定在该滚动区顶部。 */
+function DetailHeader({
+  title,
+  subtitle,
+  status,
+  onBack,
+}: {
+  title: string;
+  subtitle: string;
+  status: ReactNode;
+  onBack: () => void;
+}) {
+  return (
+    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-line bg-panel pb-3">
+      <Button size="sm" variant="ghost" onClick={onBack}><ArrowLeftIcon />返回模型列表</Button>
+      <div className="min-w-0 flex-1">
+        <h2 className="m-0 truncate text-base" title={title}>{title}</h2>
+        <small>{subtitle}</small>
+      </div>
+      {status}
+    </div>
+  );
+}
+
+function ReadinessSummary({
+  local,
+  provider,
+  view,
+  readiness,
+  readinessFailed,
+  onOpenDiagnostics,
+  onOpenJobs,
+}: {
+  local: { enabled: boolean; readiness: keyof typeof readinessLabel }[];
+  provider: z.infer<typeof ModelsView>["catalog"]["providers"][number];
+  view: z.infer<typeof ModelsView>;
+  readiness: Readiness | null;
+  readinessFailed: boolean;
+  onOpenDiagnostics: () => void;
+  onOpenJobs: () => void;
+}) {
+  const enabledCount = local.filter((item) => item.enabled).length;
+  const attentionCount = local.filter((item) => item.readiness === "attention").length;
+  const engines = readiness?.engines;
+  const counts = engines?.counts;
+  const engineParts = [
+    counts?.installed ? `应用提供 ${counts.installed}` : "",
+    counts?.external ? `外部路径 ${counts.external}` : "",
+    counts && counts.unused + counts.partial > 0 ? `未配置 ${counts.unused + counts.partial}` : "",
+  ].filter(Boolean);
+  const lastFailure = view.downloads.find((run) =>
+    ["failed", "partial", "interrupted"].includes(run.state));
+  return (
+    <section className="panel-card flex flex-col gap-3 p-4" aria-labelledby="model-readiness-title">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 id="model-readiness-title" className="m-0">就绪摘要</h2>
+          <p className="hint m-0 mt-1 text-xs">先看整体状态，再展开下方列表处理具体模型、密钥或运行组件。</p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onOpenDiagnostics}>运行组件与诊断</Button>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="text-xs font-medium text-muted">本地模型</dt>
+          <dd className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Badge tone={local.length > 0 && enabledCount === local.length ? "ok" : "neutral"} dot>
+              {enabledCount}/{local.length} 已启用
+            </Badge>
+            {attentionCount > 0 && <small className="text-warn">{attentionCount} 项需处理</small>}
+          </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="text-xs font-medium text-muted">云端密钥</dt>
+          <dd className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Badge tone={provider.apiKeyConfigured ? "ok" : "warn"} dot>
+              {provider.apiKeyConfigured ? "已配置" : "未配置"}
+            </Badge>
+            <small>来源 {view.settings.apiKeys.modelbest?.source || "unset"}</small>
+          </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="text-xs font-medium text-muted">运行组件</dt>
+          <dd className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {!readiness ? (
+              <Badge tone={readinessFailed ? "warn" : "neutral"} dot>
+                {readinessFailed ? "读取失败" : "检查中…"}
+              </Badge>
+            ) : !engines ? (
+              <Badge tone="neutral" dot>未提供</Badge>
+            ) : (
+              <Badge tone={engines.ready ? "ok" : "warn"} dot>
+                {engines.ready ? "已就绪" : engines.coreReady ? "核心可用" : "未就绪"}
+              </Badge>
+            )}
+            {engines && <small>{engineParts.join(" · ") || "状态未提供"}</small>}
+          </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="text-xs font-medium text-muted">最近失败</dt>
+          <dd className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {lastFailure ? (
+              <>
+                <Badge tone="danger" dot>{stateLabel[lastFailure.state] || "失败"}</Badge>
+                <Button size="sm" variant="ghost" onClick={onOpenJobs}>查看任务</Button>
+                <small className="line-clamp-2 w-full" title={lastFailure.error?.message || undefined}>
+                  {shortTime(lastFailure.updatedAt)}
+                  {lastFailure.error?.message ? ` · ${lastFailure.error.message}` : ""}
+                </small>
+              </>
+            ) : (
+              <>
+                <Badge tone="ok" dot>无</Badge>
+                <small>最近模型准备均已完成</small>
+              </>
+            )}
+          </dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 function ProgressEvent({ event }: { event: unknown }) {
   const parsed = z
     .object({
@@ -134,6 +293,28 @@ export function ModelSettings({
   const planKey = JSON.stringify([selectedModel, root, view?.settings.revision,
     view?.local.find((item) => item.id === selectedModel)]);
   const currentPlan = installPlan?.key === planKey ? installPlan.value : null;
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [readinessFailed, setReadinessFailed] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = () =>
+      api("/capabilities", ReadinessView, { signal: controller.signal })
+        .then((value) => {
+          if (controller.signal.aborted) return;
+          setReadiness(value);
+          setReadinessFailed(false);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setReadinessFailed(true);
+        });
+    void load();
+    const onCapabilitiesChanged = () => void load();
+    window.addEventListener("lightweaver-capabilities-changed", onCapabilitiesChanged);
+    return () => {
+      controller.abort();
+      window.removeEventListener("lightweaver-capabilities-changed", onCapabilitiesChanged);
+    };
+  }, []);
   useEffect(() => {
     if (!selectedModel || !root || !view) return;
     const controller = new AbortController();
@@ -178,6 +359,7 @@ export function ModelSettings({
     rootDirty = useRef(false),
     refreshGeneration = useRef(0),
     sectionRef = useRef<HTMLElement>(null),
+    listScroll = useRef(0),
     mutationPending = useRef(false);
 
   const refreshModels = async (resetRoot: boolean, signal?: AbortSignal) => {
@@ -384,8 +566,10 @@ export function ModelSettings({
   });
 
   const select = (next: ModelSelection) => {
+    const container = sectionRef.current?.closest<HTMLElement>(".scroll-region") ?? null;
+    if (!selection && next) listScroll.current = container?.scrollTop ?? 0;
     setSelection(next);
-    sectionRef.current?.scrollIntoView({ block: "start" });
+    requestAnimationFrame(() => container?.scrollTo({ top: next ? 0 : listScroll.current }));
   };
 
   if (!view) return <section className="flex flex-col gap-5"><p>加载模型设置…</p></section>;
@@ -393,239 +577,249 @@ export function ModelSettings({
     progress = [...events].reverse().find((event) =>
       event.runId === runId && ["model-download-progress", "engine-install-progress", "model-setup-progress"].includes(event.type),
     ),
-    activeRun = view.downloads.find((item) => ["queued", "running", "cancelling"].includes(item.state)),
-    lastRun = view.downloads[0];
+    activeRun = view.downloads.find((item) => ["queued", "running", "cancelling"].includes(item.state));
+  const selectedLocal = selection?.kind === "local"
+    ? local.find((item) => item.model.id === selectedModel)
+    : undefined;
+  const detailReadiness = selectedLocal
+    ? readinessWithPlan(selectedLocal.readiness, currentPlan)
+    : null;
+  const activeStatus = activeRun ? (
+    <div className="subtle-card flex items-center gap-3 p-3" role="status">
+      <div className="min-w-0 flex-1">
+        <small>模型{stateLabel[activeRun.state]}</small>
+        {activeRun.id === runId && progress && <ProgressEvent event={progress.data} />}
+      </div>
+      <Button size="sm" variant="ghost" onClick={onOpenJobs}>查看任务</Button>
+    </div>
+  ) : null;
 
   return (
     <section ref={sectionRef} className="flex flex-col gap-5">
-      {!selection && <h2 className="m-0">模型与供应商</h2>}
-
-      {selection && (
-        <div>
-          <Button size="sm" variant="ghost" onClick={() => select(null)}><ArrowLeftIcon />返回模型列表</Button>
-        </div>
-      )}
-
       {!selection && (
-        <section className="flex flex-col gap-3" aria-label="供应商">
-          <div className="section-title"><h3 className="m-0">供应商</h3><small>云端模型与密钥</small></div>
-          <div className="model-inventory-grid">
-            <article className="panel-card model-inventory-card">
-              <div className="model-inventory-head">
-                <b>{provider.name}</b>
-                <Badge tone={provider.apiKeyConfigured ? "ok" : "warn"} dot>{provider.apiKeyConfigured ? "密钥已配置" : "密钥未配置"}</Badge>
-                <Button size="sm" aria-label={`配置 ${provider.name}`} onClick={() => select({ kind: "provider" })}>配置</Button>
-              </div>
-              <details className="model-inventory-details">
-                <summary>查看模型与密钥来源</summary>
-                <div className="model-inventory-meta">
-                  <small>模型：{provider.models.map((model) => model.name).join(" · ")}</small>
-                  <small>密钥来源：{view.settings.apiKeys.modelbest.source}</small>
+        <>
+          <h2 className="sr-only">模型与供应商</h2>
+          <ReadinessSummary
+            local={local}
+            provider={provider}
+            view={view}
+            readiness={readiness}
+            readinessFailed={readinessFailed}
+            onOpenDiagnostics={() => void session.navigate("settings", "", "diagnostics")}
+            onOpenJobs={onOpenJobs}
+          />
+          <section className="flex flex-col gap-3" aria-label="供应商">
+            <div className="section-title"><h3 className="m-0">供应商</h3><small>云端模型与密钥</small></div>
+            <div className="model-inventory-grid">
+              <article className="panel-card model-inventory-card">
+                <div className="model-inventory-head">
+                  <b>{provider.name}</b>
+                  <Badge tone={provider.apiKeyConfigured ? "ok" : "warn"} dot>{provider.apiKeyConfigured ? "密钥已配置" : "密钥未配置"}</Badge>
+                  <Button size="sm" aria-label={`配置 ${provider.name}`} onClick={() => select({ kind: "provider" })}>配置</Button>
                 </div>
-              </details>
-            </article>
-          </div>
-        </section>
+                <details className="model-inventory-details">
+                  <summary>查看模型与密钥来源</summary>
+                  <div className="model-inventory-meta">
+                    <small>模型：{provider.models.map((model) => model.name).join(" · ")}</small>
+                    <small>密钥来源：{view.settings.apiKeys.modelbest.source}</small>
+                  </div>
+                </details>
+              </article>
+            </div>
+          </section>
+          <section className="flex flex-col gap-3" aria-label="本地模型">
+            <div className="section-title"><h3 className="m-0">本地模型</h3><small>按需准备，在本机处理</small></div>
+            <details className="panel-card model-root">
+              <summary><b>下载根目录</b><small className="numeric" title={root}>{root || "未设置"}{rootDirty.current ? " · 未保存" : ""}</small></summary>
+              <div className="inline-fields">
+                <label className="field">
+                  <span>下载根目录</span>
+                  <input
+                    value={root}
+                    disabled={!!busy}
+                    onBlur={() => refreshModels(false).catch(fail)}
+                    onChange={(event) => {
+                      rootDirty.current = true;
+                      rootRef.current = event.target.value;
+                      setRoot(event.target.value);
+                    }}
+                  />
+                  <small>
+                    {rootDirty.current
+                      ? "未保存，离开输入框后刷新文件状态"
+                      : `来源：${view.settings.downloadRoot.source}`}
+                  </small>
+                </label>
+                <Button
+                  type="button"
+                  disabled={!!busy}
+                  onClick={() =>
+                    void desktop()?.pickDirectory?.().then((picked) => {
+                      if (!picked) return;
+                      rootDirty.current = true;
+                      rootRef.current = picked;
+                      setRoot(picked);
+                      void refreshModels(false).catch(fail);
+                    }).catch(fail)
+                  }
+                >
+                  选择目录
+                </Button>
+                <Button
+                  disabled={!root || !!busy}
+                  onClick={() =>
+                    act("保存路径", () => saveSettings({ downloadRoot: root }))
+                  }
+                >
+                  保存下载路径
+                </Button>
+              </div>
+            </details>
+            <div className="model-inventory-grid">
+              {local.map(({ model, enabled, readiness, check }) => (
+                <article key={model.id} className="panel-card model-inventory-card">
+                  <div className="model-inventory-head">
+                    <b title={model.name}>{model.name}</b>
+                    <Badge tone={check?.state === "checking" ? "accent" : enabled ? "ok" : readiness === "attention" ? "warn" : "neutral"} dot>{check?.state === "checking" ? "检查中…" : readinessLabel[readiness]}</Badge>
+                    <Button size="sm" aria-label={`选择 ${model.name}`} onClick={() => select({ kind: "local", id: model.id })}>管理模型</Button>
+                  </div>
+                  <small className="hint">{capabilityLabel[model.capability]} · 模型文件 {formatBytes(model.files.reduce((sum, file) => sum + file.size, 0))}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+          {activeStatus}
+        </>
       )}
 
-      {selection?.kind === "provider" && <section className="panel-card flex flex-col gap-4 p-5">
-        <div className="section-title">
-          <div>
-            <h3 className="m-0">{provider.name}</h3>
-            <Badge tone={provider.apiKeyConfigured ? "ok" : "warn"} dot>
-              {provider.apiKeyConfigured ? "密钥已配置" : "密钥未配置"}
-            </Badge>
-          </div>
-          <div>
-            <Button type="button" onClick={() => void openLink(provider.keyUrl)}>获取 Key</Button>
-            <Button type="button" onClick={() => void openLink(provider.docsUrl)}>查看文档</Button>
-          </div>
-        </div>
-        <div className="auto-card-grid">
-          {provider.models.map((model) => (
-            <article className="subtle-card flex flex-col gap-1 p-3" key={model.id}>
-              <b>{model.name}</b>
-              <small>{model.capabilities.join(" · ")}</small>
-            </article>
-          ))}
-        </div>
-        <div className="preset-effective">
-          {[
-            ["vlmProvider", "VLM 提供方"],
-            ["vlmModel", "VLM 型号"],
-            ["ttsModel", "TTS 型号"],
-          ].map(([key, label]) => {
-            const value = view.settings.values[key];
-            return (
-              <small key={key}>
-                {label}：{value.value || "未设置"} · 来源 {value.source}
-              </small>
-            );
-          })}
-        </div>
-        <Button
-          disabled={!!busy}
-          onClick={() =>
-            act("采用 ModelBest 预设", async () => {
-              await writeSettings(
-                `/models/providers/modelbest/adopt`,
-                "POST",
-                { expectedRevision: view.settings.revision },
-              );
-              await refreshModels(false);
-              window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
-            })
-          }
-        >
-          采用 ModelBest 预设
-        </Button>
-        <div className="inline-fields">
-          <label className="field">
-            <span>ModelBest API Key</span>
-            <input
-              type="password"
-              autoComplete="off"
-              value={apiKey}
-              placeholder={provider.apiKeyConfigured ? "已配置，留空保持不变" : "粘贴密钥"}
-              onChange={(event) => setApiKey(event.target.value)}
-            />
-            <small>
-              当前来源：{view.settings.apiKeys.modelbest.source}。保存后立即生效；
-              清除本地配置中的密钥后，会回退到环境变量{" "}
-              {provider.apiKeyEnv}，未设置则为未配置。密钥不会回显或写入浏览器存储。
-            </small>
-          </label>
-          <Button
-            variant="primary"
-            disabled={!apiKey || !!busy}
-            onClick={() =>
-              act("保存密钥", () => saveSettings({ modelbestApiKey: apiKey }))
-            }
-          >
-            保存密钥
-          </Button>
-          <Button
-            disabled={!provider.apiKeyConfigured || !!busy}
-            onClick={() =>
-              act("清除密钥", () =>
-                saveSettings({ clearModelbestApiKey: true }),
-              )
-            }
-          >
-            清除本地配置中的密钥
-          </Button>
-        </div>
-      </section>}
-
-      {selection?.kind !== "provider" && <section className="flex flex-col gap-3">
-        {!selection && <div className="section-title"><h3 className="m-0">本地模型</h3><small>按需准备，在本机处理</small></div>}
-        {!selection && <details className="panel-card model-root">
-          <summary><b>下载根目录</b><small className="numeric" title={root}>{root || "未设置"}{rootDirty.current ? " · 未保存" : ""}</small></summary>
-          <div className="inline-fields">
-            <label className="field">
-              <span>下载根目录</span>
-              <input
-                value={root}
-                disabled={!!busy}
-                onBlur={() => refreshModels(false).catch(fail)}
-                onChange={(event) => {
-                  rootDirty.current = true;
-                  rootRef.current = event.target.value;
-                  setRoot(event.target.value);
-                }}
-              />
-              <small>
-                {rootDirty.current
-                  ? "未保存，离开输入框后刷新文件状态"
-                  : `来源：${view.settings.downloadRoot.source}`}
-              </small>
-            </label>
-            <Button
-              type="button"
-              disabled={!!busy}
-              onClick={() =>
-                void desktop()?.pickDirectory?.().then((picked) => {
-                  if (!picked) return;
-                  rootDirty.current = true;
-                  rootRef.current = picked;
-                  setRoot(picked);
-                  void refreshModels(false).catch(fail);
-                }).catch(fail)
-              }
-            >
-              选择目录
-            </Button>
-            <Button
-              disabled={!root || !!busy}
-              onClick={() =>
-                act("保存路径", () => saveSettings({ downloadRoot: root }))
-              }
-            >
-              保存下载路径
-            </Button>
-          </div>
-        </details>}
-
-        {!selection && <div className="model-inventory-grid">
-          {local.map(({ model, enabled, readiness, check }) => (
-            <article key={model.id} className="panel-card model-inventory-card">
-              <div className="model-inventory-head">
-                <b title={model.name}>{model.name}</b>
-                <Badge tone={check?.state === "checking" ? "accent" : enabled ? "ok" : readiness === "attention" ? "warn" : "neutral"} dot>{check?.state === "checking" ? "检查中…" : readinessLabel[readiness]}</Badge>
-                <Button size="sm" aria-label={`选择 ${model.name}`} onClick={() => select({ kind: "local", id: model.id })}>管理模型</Button>
+      {selection?.kind === "provider" && (
+        <>
+          <DetailHeader
+            title={provider.name}
+            subtitle="云端模型与密钥"
+            status={<Badge tone={provider.apiKeyConfigured ? "ok" : "warn"} dot>{provider.apiKeyConfigured ? "密钥已配置" : "密钥未配置"}</Badge>}
+            onBack={() => select(null)}
+          />
+          <section className="panel-card flex flex-col gap-4 p-5" aria-label={`${provider.name} 供应商设置`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="hint m-0">云端模型与密钥保存后立即生效；密钥不会回显或写入浏览器存储。</p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={() => void openLink(provider.keyUrl)}>获取 Key</Button>
+                <Button type="button" onClick={() => void openLink(provider.docsUrl)}>查看文档</Button>
               </div>
-              <small className="hint">{capabilityLabel[model.capability]} · 模型文件 {formatBytes(model.files.reduce((sum, file) => sum + file.size, 0))}</small>
-            </article>
-          ))}
-        </div>}
-
-        {selection?.kind === "local" && <div className="flex flex-col gap-4">
-          {local.filter(({ model }) => model.id === selection.id).map(({ model, location, check, readiness: listedReadiness }) => {
-            const readiness = !currentPlan ? listedReadiness
-              : (listedReadiness === "enabled" || listedReadiness === "configured") && currentPlan.source.kind !== "configured" ? "attention"
-              : listedReadiness === "missing" || listedReadiness === "downloaded"
-                ? currentPlan.source.kind === "download" ? "missing" : "downloaded"
-                : listedReadiness;
-            const bridge = desktop();
-            return (
-              <article key={model.id} className="panel-card flex flex-col gap-4 p-5">
-                <div className="section-title items-start">
-                  <div className="flex-col !items-start gap-1">
-                    <b>{model.name}</b>
-                    <small>{capabilityLabel[model.capability]}</small>
-                  </div>
-                  <Badge tone={check?.state === "checking" ? "accent" : readiness === "enabled" ? "ok" : readiness === "attention" ? "warn" : "neutral"} dot>{check?.state === "checking" ? "检查中…" : readinessLabel[readiness]}</Badge>
+            </div>
+            <div className="auto-card-grid">
+              {provider.models.map((model) => (
+                <div className="min-w-0 border-l-2 border-line pl-3" key={model.id}>
+                  <b>{model.name}</b>
+                  <small className="block">{model.capabilities.join(" · ")}</small>
                 </div>
-                <ModelPathField
-                  value={location.path}
-                  disabled={!!busy || !!activeRun}
-                  pickFile={bridge?.pickModelFile}
-                  pickDirectory={bridge?.pickDirectory}
-                  onAdopt={(path) => adoptModel(model.id, path)}
+              ))}
+            </div>
+            <div className="flex flex-col gap-1">
+              {[
+                ["vlmProvider", "VLM 提供方"],
+                ["vlmModel", "VLM 型号"],
+                ["ttsModel", "TTS 型号"],
+              ].map(([key, label]) => {
+                const value = view.settings.values[key];
+                return (
+                  <small key={key}>
+                    {label}：{value.value || "未设置"} · 来源 {value.source}
+                  </small>
+                );
+              })}
+            </div>
+            <div className="border-t border-line pt-4">
+              <Button
+                disabled={!!busy}
+                onClick={() =>
+                  act("采用 ModelBest 预设", async () => {
+                    await writeSettings(
+                      `/models/providers/modelbest/adopt`,
+                      "POST",
+                      { expectedRevision: view.settings.revision },
+                    );
+                    await refreshModels(false);
+                    window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
+                  })
+                }
+              >
+                采用 ModelBest 预设
+              </Button>
+            </div>
+            <div className="inline-fields border-t border-line pt-4">
+              <label className="field">
+                <span>ModelBest API Key</span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={apiKey}
+                  placeholder={provider.apiKeyConfigured ? "已配置，留空保持不变" : "粘贴密钥"}
+                  onChange={(event) => setApiKey(event.target.value)}
                 />
-                {location.otherPaths.map((path) => <small className="numeric break-all" key={path}>{path}</small>)}
-                {readiness === "attention" && <small className="error">{check?.state === "error" ? "暂时无法检查模型，请重新选择路径。" : "模型路径不可用或文件不完整，请重新选择。"}</small>}
-                {readiness !== "enabled" && readiness !== "attention" && <div className="flex flex-wrap items-center gap-3">
-                  <Button variant="primary" disabled={!currentPlan?.available || check?.state === "checking" || !!busy || !!activeRun}
-                    onClick={() => void installModel(model.id)}>{readiness === "missing" ? "下载并启用" : "启用"}</Button>
-                  {!currentPlan ? <small className="hint">检查中…</small>
-                    : !currentPlan.available ? <small className="error">{currentPlan.reason}</small>
-                    : currentPlan.modelBytes + currentPlan.dependencyBytes > 0 && <small className="hint">需下载约 {formatBytes(currentPlan.modelBytes + currentPlan.dependencyBytes)}</small>}
-                </div>}
-              </article>
-            );
-          })}
-        </div>}
-      </section>}
+                <small>
+                  当前来源：{view.settings.apiKeys.modelbest.source}。保存后立即生效；
+                  清除本地配置中的密钥后，会回退到环境变量{" "}
+                  {provider.apiKeyEnv}，未设置则为未配置。密钥不会回显或写入浏览器存储。
+                </small>
+              </label>
+              <Button
+                variant="primary"
+                disabled={!apiKey || !!busy}
+                onClick={() =>
+                  act("保存密钥", () => saveSettings({ modelbestApiKey: apiKey }))
+                }
+              >
+                保存密钥
+              </Button>
+              <Button
+                disabled={!provider.apiKeyConfigured || !!busy}
+                onClick={() =>
+                  act("清除密钥", () =>
+                    saveSettings({ clearModelbestApiKey: true }),
+                  )
+                }
+              >
+                清除本地配置中的密钥
+              </Button>
+            </div>
+          </section>
+        </>
+      )}
 
-      {selection?.kind !== "provider" && (activeRun || lastRun && ["failed", "partial", "interrupted"].includes(lastRun.state)) && (
-        <div className="subtle-card flex items-center gap-3 p-3" role="status">
-          <div className="min-w-0 flex-1">
-            <small>{activeRun ? `模型${stateLabel[activeRun.state]}` : "上次模型准备未完成"}</small>
-            {activeRun?.id === runId && progress && <ProgressEvent event={progress.data} />}
-          </div>
-          <Button size="sm" variant="ghost" onClick={onOpenJobs}>查看任务</Button>
-        </div>
+      {selection?.kind === "local" && selectedLocal && (
+        <>
+          <DetailHeader
+            title={selectedLocal.model.name}
+            subtitle={capabilityLabel[selectedLocal.model.capability]}
+            status={
+              <Badge tone={selectedLocal.check?.state === "checking" ? "accent" : detailReadiness === "enabled" ? "ok" : detailReadiness === "attention" ? "warn" : "neutral"} dot>
+                {selectedLocal.check?.state === "checking" ? "检查中…" : readinessLabel[detailReadiness ?? "missing"]}
+              </Badge>
+            }
+            onBack={() => select(null)}
+          />
+          <article className="panel-card flex flex-col gap-4 p-5" aria-label={`${selectedLocal.model.name} 设置`}>
+            <ModelPathField
+              value={selectedLocal.location.path}
+              disabled={!!busy || !!activeRun}
+              pickFile={desktop()?.pickModelFile}
+              pickDirectory={desktop()?.pickDirectory}
+              onAdopt={(path) => adoptModel(selectedLocal.model.id, path)}
+            />
+            {selectedLocal.location.otherPaths.map((path) => <small className="numeric break-all" key={path}>{path}</small>)}
+            {detailReadiness === "attention" && <small className="error">{selectedLocal.check?.state === "error" ? "暂时无法检查模型，请重新选择路径。" : "模型路径不可用或文件不完整，请重新选择。"}</small>}
+            {detailReadiness !== "enabled" && detailReadiness !== "attention" && <div className="flex flex-wrap items-center gap-3">
+              <Button variant="primary" disabled={!currentPlan?.available || selectedLocal.check?.state === "checking" || !!busy || !!activeRun}
+                onClick={() => void installModel(selectedLocal.model.id)}>{detailReadiness === "missing" ? "下载并启用" : "启用"}</Button>
+              {!currentPlan ? <small className="hint">检查中…</small>
+                : !currentPlan.available ? <small className="error">{currentPlan.reason}</small>
+                : currentPlan.modelBytes + currentPlan.dependencyBytes > 0 && <small className="hint">需下载约 {formatBytes(currentPlan.modelBytes + currentPlan.dependencyBytes)}</small>}
+            </div>}
+          </article>
+          {activeStatus}
+        </>
       )}
     </section>
   );

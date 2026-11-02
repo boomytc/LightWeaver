@@ -596,7 +596,7 @@ export function CaptionTrackEditor({
               <Button size="sm" variant="ghost" disabled={page >= pageCount} onClick={() => setRequestedPage(page + 1)}>下一页</Button>
             </div>
           </div>
-          <div className="scroll-region max-h-[620px] flex flex-col gap-1 pr-1">
+          <div className="scroll-region max-h-[clamp(320px,60vh,620px)] flex flex-col gap-1 pr-1">
             {pageCues.map((cue, index) => (
               <button
                 key={cue.id}
@@ -616,7 +616,7 @@ export function CaptionTrackEditor({
             {pageCues.length === 0 && <p className="hint px-2 text-xs">{cues.length ? "没有匹配当前检索或重叠筛选的字幕。" : "当前字幕轨没有 cue。"}</p>}
           </div>
         </div>
-        <div className="min-w-0 border-t border-line pt-3 @min-[760px]:border-t-0 @min-[760px]:border-l @min-[760px]:pt-0 @min-[760px]:pl-4">
+        <div className="caption-detail-pane min-w-0">
           {selectedCue ? (
             <div className="flex flex-col gap-3">
               <div className="section-title">

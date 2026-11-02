@@ -73,15 +73,21 @@ export function ConflictReviewDialog({
 }) {
   const localRows = local ? summarizeDocument(local) : [];
   const serverRows = server ? summarizeDocument(server) : [];
-  const comparedLocalRows = localRows.map((row) => {
-    const other = serverRows.find((candidate) => candidate.label === row.label);
-    return { ...row, changed: other ? row.signature !== other.signature : true };
+  const mergedLabels = [
+    ...localRows.map((row) => row.label),
+    ...serverRows.map((row) => row.label).filter((label) => !localRows.some((row) => row.label === label)),
+  ];
+  const rows = mergedLabels.map((label) => {
+    const localRow = localRows.find((row) => row.label === label);
+    const serverRow = serverRows.find((row) => row.label === label);
+    return {
+      label,
+      localValue: localRow?.value ?? "—",
+      serverValue: serverRow?.value ?? "—",
+      changed: !localRow || !serverRow || localRow.signature !== serverRow.signature,
+    };
   });
-  const comparedServerRows = serverRows.map((row) => {
-    const other = localRows.find((candidate) => candidate.label === row.label);
-    return { ...row, changed: other ? row.signature !== other.signature : true };
-  });
-  const changedCount = comparedLocalRows.filter((row) => row.changed).length;
+  const changedCount = rows.filter((row) => row.changed).length;
   return (
     <Modal open={open} title="对照我的草稿与服务器内容" onOpenChange={onOpenChange}>
       <div className="scroll-region min-h-0 max-h-[70vh] overflow-auto pr-1">
@@ -93,10 +99,32 @@ export function ConflictReviewDialog({
             {changedCount ? `${changedCount} 个部分有变化` : "没有可摘要的差异"}
           </Badge>
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <DocumentColumn title="我的本地草稿" rows={comparedLocalRows} />
-          <DocumentColumn title="服务器当前内容" rows={comparedServerRows} />
-        </div>
+        <section className="panel-card mt-3 overflow-hidden" aria-label="草稿与服务器内容对照">
+          <div className="grid grid-cols-2 border-b border-line bg-subtle-bg">
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <b className="text-xs">我的本地草稿</b>
+              <small className="numeric">{localRows.length}</small>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-l border-line px-3 py-2">
+              <b className="text-xs">服务器当前内容</b>
+              <small className="numeric">{serverRows.length}</small>
+            </div>
+          </div>
+          <dl className="m-0">
+            {rows.map((row) => (
+              <div className="border-b border-line last:border-0" key={row.label}>
+                <dt className="flex items-center justify-between gap-2 px-3 pt-2">
+                  <span className="text-xs font-semibold">{row.label}</span>
+                  {row.changed ? <Badge tone="warn">已变化</Badge> : <Badge>相同</Badge>}
+                </dt>
+                <dd className="m-0 grid grid-cols-2">
+                  <span className="whitespace-pre-line break-words px-3 pb-2 pt-1 text-xs text-muted">{row.localValue}</span>
+                  <span className="whitespace-pre-line break-words border-l border-line px-3 pb-2 pt-1 text-xs text-muted">{row.serverValue}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
         <details className="mt-4">
           <summary>展开原始诊断详情</summary>
           <div className="mt-2 grid gap-2 md:grid-cols-2">
@@ -139,34 +167,6 @@ export function ProjectReviewDialog({
         </details>
       </div>
     </Modal>
-  );
-}
-
-function DocumentColumn({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: SummaryRow[];
-}) {
-  return (
-    <section className="panel-card p-3" aria-label={title}>
-      <div className="section-title mb-2">
-        <b>{title}</b>
-        <Badge>{rows.length}</Badge>
-      </div>
-      <dl className="m-0 flex flex-col gap-2">
-        {rows.map((row) => (
-          <div key={row.label} className="border-b border-line pb-2 last:border-0 last:pb-0">
-            <dt className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold">{row.label}</span>
-              {row.changed ? <Badge tone="warn">已变化</Badge> : <Badge>相同</Badge>}
-            </dt>
-            <dd className="mt-1 whitespace-pre-line break-words text-xs text-muted">{row.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
   );
 }
 

@@ -164,21 +164,19 @@ export function CreativePlanEditor({
   return (
     <div className="flex flex-col gap-4">
       <div className="section-title">
-        <div><h2 className="m-0">创作方案蓝图</h2>{plan && <Badge tone={planDirty ? "warn" : "ok"} dot>{planDirty ? "方案未保存" : "蓝图已保存"}</Badge>}</div>
+        <div><h2 className="m-0">创作方案蓝图</h2></div>
         <small>建立 / 导入 → 保存蓝图 → 应用到场景</small>
       </div>
       <p className="hint m-0">
         方案是随项目修订保存的创作草案。只有点击“应用到当前场景”后，方案节拍才会成为可独立编辑的场景，之后不会自动同步。
       </p>
-      <div className="actions panel-card p-3">
-        <Button
-          disabled={busy || projectDirty || !projectScenes.length}
-          onClick={createFromScenes}
-        >
-          从当前场景建立方案
-        </Button>
-        {plan && (
-          <>
+      {plan && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-y border-line bg-panel px-5 py-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Badge tone={planDirty ? "warn" : "ok"} dot>{planDirty ? "方案未保存" : "蓝图已保存"}</Badge>
+            {projectDirty && <small>先保存项目草稿，再保存或应用方案。</small>}
+          </div>
+          <div className="actions">
             <Button
               variant="primary"
               disabled={busy || projectDirty || !planDirty}
@@ -194,66 +192,76 @@ export function CreativePlanEditor({
             >
               应用到当前场景
             </Button>
-          </>
-        )}
-      </div>
-      {projectDirty && <small>先保存当前项目草稿，再保存或应用方案。</small>}
-      <details className="panel-card p-4" open={!plan}>
-        <summary className="font-medium">从 agent 导入方案</summary>
-        <div className="mt-3 flex flex-col gap-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            className="sr-only"
-            aria-label="导入创作方案 JSON 文件"
-            disabled={busy || projectDirty}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) void importFile(file);
-            }}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              disabled={busy || projectDirty || importingFile}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {importingFile ? "正在读取文件…" : "选择 JSON 文件"}
-            </Button>
-            <small className="text-muted">
+          </div>
+        </div>
+      )}
+      <details className="border-t border-line pt-3" open={!plan}>
+        <summary className="text-[13px] font-semibold text-ink">建立或导入方案</summary>
+        {projectDirty && <p className="hint mb-0 mt-1 text-xs">先保存当前项目草稿，再建立或导入方案。</p>}
+        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <b className="text-xs">从当前场景建立</b>
+            <p className="hint m-0 text-xs">
+              用项目现有 {projectScenes.length} 个场景建立草案，保留画面与旁白，再逐节拍审核。
+            </p>
+            <div className="actions">
+              <Button
+                disabled={busy || projectDirty || !projectScenes.length}
+                onClick={createFromScenes}
+              >
+                从当前场景建立方案
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <b className="text-xs">从 agent 导入</b>
+            <p className="hint m-0 text-xs">
               文件会按当前方案合同校验，并且只载入到当前项目。
-            </small>
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="sr-only"
+              aria-label="导入创作方案 JSON 文件"
+              disabled={busy || projectDirty}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void importFile(file);
+              }}
+            />
+            <div className="actions">
+              <Button
+                disabled={busy || projectDirty || importingFile}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {importingFile ? "正在读取文件…" : "选择 JSON 文件"}
+              </Button>
+            </div>
+            <details>
+              <summary>粘贴 JSON 高级方式</summary>
+              <textarea
+                name={`creative-plan-import-${projectId}`}
+                className="code-input"
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+                placeholder='{"title":"…","summary":"…","beats":[…] }'
+              />
+              <div className="actions">
+                <Button
+                  disabled={busy || projectDirty || !importText.trim()}
+                  onClick={importPlan}
+                >
+                  校验并载入
+                </Button>
+              </div>
+            </details>
           </div>
-          <details>
-            <summary>粘贴 JSON 高级方式</summary>
-          <textarea
-            name={`creative-plan-import-${projectId}`}
-            className="code-input"
-            value={importText}
-            onChange={(event) => setImportText(event.target.value)}
-            placeholder='{"title":"…","summary":"…","beats":[…] }'
-          />
-          <div className="actions">
-            <Button
-              disabled={busy || projectDirty || !importText.trim()}
-              onClick={importPlan}
-            >
-              校验并载入
-            </Button>
-          </div>
-          </details>
-          {importError && <p className="error m-0 whitespace-pre-line">{importError}</p>}
         </div>
+        {importError && <p className="error m-0 whitespace-pre-line">{importError}</p>}
       </details>
-      {!plan ? (
-        <div className="subtle-card p-6 text-center">
-          <b>尚无方案</b>
-          <p className="hint mx-auto mt-1 mb-0 text-xs">
-            可从现有场景建立草案，或导入外部 agent 生成的方案。载入后仍可逐项审核和编辑。
-          </p>
-        </div>
-      ) : (
+      {plan && (
         <section className="creative-plan flex flex-col gap-4">
           <div className="panel-card flex flex-col gap-4 p-4">
             <div className="inline-fields">

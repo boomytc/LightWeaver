@@ -1,75 +1,70 @@
+import { useState } from "react";
 import { WORKFLOWS } from "@lightweaver/weaver/contracts";
 import { Button } from "../ui/Button";
+import { CheckIcon, ChevronRightIcon, CloseIcon } from "../ui/Icons";
 
-export type GuidanceTarget =
-  | "assets"
-  | "evidence"
-  | "scenes"
-  | "edit"
-  | "captions"
-  | "sound"
-  | "plan"
-  | "delivery";
+export type GuidanceTarget = "assets" | "storyboard" | "delivery";
 
-const workflowSteps: Record<string, GuidanceTarget[]> = {
-  "study-explainer": ["scenes", "sound", "delivery"],
-  "footage-narration": ["assets", "evidence", "scenes", "plan"],
-  "observe-narrate": ["assets", "evidence", "scenes", "sound"],
-  "script-search": ["assets", "evidence", "scenes", "plan"],
-  "highlight-mix": ["assets", "scenes", "sound"],
-  "reference-match": ["assets", "evidence", "scenes", "plan"],
-};
-const defaultWorkflowSteps: GuidanceTarget[] = ["scenes", "sound", "delivery"];
-
-const targetLabels: Record<GuidanceTarget, string> = {
-  assets: "导入素材",
-  evidence: "查看证据",
-  scenes: "添加场景",
-  edit: "编辑画面",
-  captions: "检查字幕",
-  sound: "配音与音乐（可选）",
-  plan: "审阅方案",
-  delivery: "查看交付",
+type GuidanceStep = {
+  target: GuidanceTarget;
+  label: string;
+  count: number;
+  done: boolean;
 };
 
 export function ProjectGuidance({
   workflowId,
+  scenes,
+  assets,
+  deliveries,
   onNavigate,
 }: {
   workflowId: string;
+  scenes: number;
+  assets: number;
+  deliveries: number;
   onNavigate: (target: GuidanceTarget) => void;
 }) {
+  const [dismissed, setDismissed] = useState(false);
   const workflow = WORKFLOWS.find((item) => item.id === workflowId);
-  const steps = workflowSteps[workflowId] || defaultWorkflowSteps;
+  const steps: GuidanceStep[] = [
+    { target: "storyboard", label: "场景", count: scenes, done: scenes > 0 },
+    { target: "assets", label: "素材", count: assets, done: assets > 0 },
+    { target: "delivery", label: "交付", count: deliveries, done: deliveries > 0 },
+  ];
+  const next = steps.find((step) => !step.done);
+  if (dismissed || !next) return null;
+  const nextLabel = next.target === "storyboard" ? "添加第一个场景" : next.target === "assets" ? "导入素材" : "查看交付";
   return (
     <section
-      className="flex flex-wrap items-center gap-2 border-b border-line bg-subtle-bg px-3 py-2"
-      aria-labelledby="workflow-guidance-title"
+      className="flex items-center gap-3 border-b border-line bg-subtle-bg px-3 py-1.5"
+      aria-label="创作引导"
     >
-      <div className="min-w-48 flex-1">
-        <b id="workflow-guidance-title" className="text-xs">
-          {workflow?.name || "当前工作流"}
-        </b>
-        <small className="ml-2 text-muted">
-          {workflow?.guidance || "按素材、场景和交付顺序完成作品。"}
-        </small>
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5" aria-label="推荐步骤">
-        {steps.map((target, index) => (
-          <Button
-            key={target}
-            size="sm"
-            variant="ghost"
-            onClick={() => onNavigate(target)}
-          >
-            <span className="numeric text-muted">{index + 1}</span>
-            {targetLabels[target]}
-          </Button>
+      <span className="shrink-0 text-xs font-semibold text-ink">{workflow?.name || "创作引导"}</span>
+      <ul className="m-0 flex min-w-0 flex-wrap items-center gap-3 p-0" aria-label="完成度">
+        {steps.map((step) => (
+          <li key={step.target}>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs text-muted hover:text-ink"
+              onClick={() => onNavigate(step.target)}
+            >
+              {step.done ? <CheckIcon className="size-3.5 text-ok" /> : <span className="size-3.5 rounded-full border border-line-strong" aria-hidden="true" />}
+              <span className={step.done ? "text-ink" : undefined}>{step.label}</span>
+              <b className="numeric font-normal text-muted">{step.count}</b>
+              <span className="sr-only">{step.done ? "已完成" : "未完成"}</span>
+            </button>
+          </li>
         ))}
-      </div>
-      <small className="basis-full text-muted">
-        这些步骤只提供创作顺序，不限制你添加卡片、静帧或视频片段。
-      </small>
+      </ul>
+      <span className="min-w-2 flex-1" />
+      <Button size="sm" onClick={() => onNavigate(next.target)}>
+        下一步：{nextLabel}
+        <ChevronRightIcon />
+      </Button>
+      <Button size="icon" compact variant="ghost" aria-label="关闭创作引导" onClick={() => setDismissed(true)}>
+        <CloseIcon />
+      </Button>
     </section>
   );
 }

@@ -29,6 +29,7 @@ export function SceneEditor({
   onChange,
   preview = true,
   section = "all",
+  stickySections = false,
 }: {
   scene: Scene;
   locale: string;
@@ -40,6 +41,7 @@ export function SceneEditor({
   onChange: (s: Scene) => void;
   preview?: boolean;
   section?: "all" | "sound";
+  stickySections?: boolean;
 }) {
   const speech = speechOf(s),
     [localError, setLocalError] = useState("");
@@ -106,11 +108,22 @@ export function SceneEditor({
   const selectedNarrationAsset = selectedNarrationRef
     ? selectAsset(refKey(selectedNarrationRef))
     : undefined;
+  const sectionTitle = (text: string) => (
+    <h3
+      className={
+        stickySections
+          ? "sticky top-0 z-10 -mx-1 m-0 border-b border-line bg-panel px-1 py-2 text-[13px] font-semibold text-ink"
+          : "m-0 text-[13px] font-semibold text-ink"
+      }
+    >
+      {text}
+    </h3>
+  );
   return (
     <div className="flex flex-col gap-4">
       {localError && <p className="error">{localError}</p>}
       {section === "all" && <section className="flex flex-col gap-3 border-b border-line pb-5">
-        <h3 className="m-0 text-xs font-semibold text-muted">01 · 视觉源与画幅裁剪</h3>
+        {sectionTitle("01 · 视觉源与画幅裁剪")}
       {s.kind === "card" ? (
         <>
           <Field label="卡片样式">
@@ -294,9 +307,7 @@ export function SceneEditor({
       )}
       </section>}
       <section className="flex flex-col gap-3 border-b border-line pb-5">
-        <h3 className="m-0 text-xs font-semibold text-muted">
-          {section === "all" ? "02 · 声音策略与旁白" : "声音策略与旁白"}
-        </h3>
+        {sectionTitle(section === "all" ? "02 · 声音策略与旁白" : "声音策略与旁白")}
       {s.kind === "clip" && (
         <Field label="声音策略">
           <select
@@ -504,9 +515,7 @@ export function SceneEditor({
       )}
       </section>
       <section className="flex flex-col gap-3 border-b border-line pb-5">
-        <h3 className="m-0 text-xs font-semibold text-muted">
-          {section === "all" ? "03 · 时长与超窗处理" : "画面时长与声音超出处理"}
-        </h3>
+        {sectionTitle(section === "all" ? "03 · 时长与超窗处理" : "画面时长与声音超出处理")}
       {s.kind !== "clip" ? (
         <div className="actions">
           <Field label="时长策略">
@@ -762,7 +771,7 @@ export function SceneEditor({
       </section>
       {section === "all" && onMasksChange && (
         <section className="flex flex-col gap-3">
-          <h3 className="m-0 text-xs font-semibold text-muted">04 · 遮罩编辑器</h3>
+          {sectionTitle("04 · 遮罩编辑器")}
           <MaskEditor
             sceneId={s.id}
             masks={masks}
