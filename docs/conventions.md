@@ -161,7 +161,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页只检查目录元数据；`verify`、成功下载和采用已有路径才读取并哈希完整文件。Qwen ASR GGUF 与 TEN VAD 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 的目录绑定要求完整模型目录。下载不会复制到 CAS，也不会隐式写入配置。
 
-模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码环境默认以仓库为配置基准，桌面环境默认以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
+模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码入口（仓库 CLI、浏览器 Studio、源码桌面）默认以仓库为配置基准，正式桌面包以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
 
 内置 `model_download_root: 'models'` 在源码模式按 monorepo 根目录解析，因此 CLI、浏览器 Studio 和源码桌面默认下载到根目录的 `models/`，与私有配置文件位置无关。正式桌面包没有 monorepo，默认使用运行时的用户模型目录。私有配置或环境变量显式指定的下载根目录仍按 `configBase` 解析，优先级保持不变；根目录 `models/` 不进入 Git。
 
@@ -249,7 +249,7 @@ Studio 的“保存”一次写入文档与待审创作方案；“保存并制�
 
 冲突界面保留本地草稿并展示内容差异。加载服务器内容前先备份、重新读取 head；服务器又更新时要求重新查看差异。备份、读取及恢复的回调绑定项目、会话代次和草稿序号，不能清除期间的新编辑，也不能向新项目展示旧项目的恢复 journal 错误。
 
-`make studio` 继续使用仓库 `data/.weaver` 与 Vite。桌面开发包和正式包默认把数据库写到用户目录，不写安装目录或仓库数据。`LIGHTWEAVER_USER_DATA` 可隔离整个桌面配置。正式服务和 CLI 使用随包 Node；bundle 内的 `bin/weaver`（Windows 为 `bin/weaver.cmd`）默认读取同一桌面偏好，也可用 `--data-dir`、`--config-file`、`--config-base` 显式覆盖。
+`make studio` 继续使用仓库 `data/.weaver` 与 Vite。桌面开发包和正式包默认把数据库写到用户目录，不写安装目录或仓库数据；源码桌面的私有配置与仓库 CLI、浏览器 Studio 共用仓库根 `config.local.yaml`。`LIGHTWEAVER_USER_DATA` 可隔离桌面的数据目录与偏好。正式服务和 CLI 使用随包 Node；bundle 内的 `bin/weaver`（Windows 为 `bin/weaver.cmd`）默认读取同一桌面偏好，也可用 `--data-dir`、`--config-file`、`--config-base` 显式覆盖。
 
 打包支持 `darwin-arm64`、`darwin-x64`、`linux-x64`、`win32-x64`，需在对应宿主执行 `npm run package -w @lightweaver/desktop -- --target=目标`。普通 package 生成可运行目录，`--dist` 再生成安装分发包；不支持的目标或跨宿主构建在修改 staging 前失败。Node、FFmpeg、Chrome、交接 Python 和 sidecar 依赖随包固定，最终 Resources 按 SHA-256 与原生架构核验。签名和公证不在这些命令里。
 

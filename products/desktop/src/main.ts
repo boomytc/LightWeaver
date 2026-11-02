@@ -237,8 +237,10 @@ function dataDirForPreferences(prefs: DesktopPreferences): string {
 
 function runtimePaths(prefs: DesktopPreferences) {
   const dataDir = dataDirForPreferences(prefs);
+  // 源码桌面与仓库 CLI、浏览器 Studio 共用仓库根的私有配置；正式包写入用户目录。
   const configFile = path.resolve(
-    prefs.configFile || path.join(userDataDir(), "config.local.yaml"),
+    prefs.configFile ||
+      path.join(dev ? repoRoot : userDataDir(), "config.local.yaml"),
   );
   const configBase = path.resolve(prefs.configBase || path.dirname(configFile));
   const bundleRoot = path.join(process.resourcesPath, "lightweaver");

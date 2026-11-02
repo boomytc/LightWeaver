@@ -63,7 +63,7 @@ npm run dev -w @lightweaver/studio
 
 浏览器访问 `http://127.0.0.1:5175/`。在启动终端按 Ctrl+C 结束浏览器服务。运行源码桌面时保留启动终端，通过应用菜单退出，或关闭窗口后选择 **停止后台并退出**。选择 **后台运行** 会保留服务，可从系统托盘恢复窗口。
 
-浏览器模式默认使用仓库 `data/.weaver/`。桌面模式默认使用系统用户目录，实际位置在设置页可查。
+浏览器模式默认使用仓库 `data/.weaver/`。桌面模式默认使用系统用户目录，实际位置在设置页可查。源码桌面的私有配置默认是仓库根 `config.local.yaml`，与仓库 CLI、浏览器 Studio 相同；正式包使用用户目录中的 `config.local.yaml`。
 
 桌面数据目录默认如下：
 
@@ -133,17 +133,17 @@ npx weaver build --project demo --plan --json
 
 先用所选入口执行 `capabilities --json`，核对 `runtime.dataDir` 和 `runtime.configFile`。返回的 `agentSkills` 提供与该运行时配套的技能文件，`runtime.resourcesDir` 下包含 AGENTS.md 和命令参考。正式包内的技能可按路径交给 agent 读取，不会自动写入个人技能目录。
 
-`npm start` 启动的源码桌面也使用系统用户目录。若用仓库 CLI 协作源码桌面，在仓库根目录显式指定设置页中的数据、配置文件和配置基准目录：
+`npm start` 启动的源码桌面默认读取仓库根 `config.local.yaml`，配置基准同为仓库根，与浏览器 Studio 和仓库 CLI 一致；数据目录仍使用系统用户目录。若用仓库 CLI 协作源码桌面，显式指定设置页中的数据目录：
 
 ```sh
-npx weaver capabilities --data-dir /absolute/desktop-data --config-file /absolute/config.local.yaml --config-base /absolute/config-base --json
+npx weaver capabilities --data-dir /absolute/desktop-data --json
 ```
 
-后续命令保持这些参数，并沿用启动桌面时的工具环境。浏览器开发模式与未覆盖配置的仓库 CLI 才默认使用 `data/.weaver/`。
+在设置页绑定过其它配置文件后，再按设置页显示的路径补上 `--config-file`、`--config-base`。后续命令保持这些参数，并沿用启动桌面时的工具环境。浏览器开发模式与仓库 CLI 默认使用 `data/.weaver/` 作为数据目录。
 
 制作完成后，用 `export --project ID --format video --dest /absolute/movie.mp4` 交付视频。先用 `artifacts --project ID` 查看交付，按需要传 `--delivery ID` 选择旧版本。用 `artifact show DIGEST` 读取 manifest 或 receipt，历史修订使用 `project show ID --revision REV`。这些命令均支持 `--json`。
 
-仓库根的 `config.yaml` 是源码环境的内置默认值，并随桌面包复制到 `resources/config.yaml`。其中 API Key 字段保持空字符串；私有凭据写入忽略的 `config.local.yaml` 或通过设置页保存，CLI 更新配置使用文件输入，避免把密钥写入命令参数。
+仓库根的 `config.yaml` 是源码环境的内置默认值，并随桌面包复制到 `resources/config.yaml`。其中 API Key 字段保持空字符串；私有凭据写入忽略的 `config.local.yaml` 或通过设置页保存，CLI 更新配置使用文件输入，避免把密钥写入命令参数。源码入口（仓库 CLI、浏览器 Studio、源码桌面）共用仓库根这份 `config.local.yaml`；正式包的私有配置位于系统用户配置目录中的 `LightWeaver/config.local.yaml`。
 
 源码模式的默认模型下载目录是 monorepo 根目录下的 `models/`，该目录已忽略。源码桌面也使用这个下载目录；正式安装包使用用户模型目录。已有权重不会自动搬迁，可在设置中选择现有路径。
 
