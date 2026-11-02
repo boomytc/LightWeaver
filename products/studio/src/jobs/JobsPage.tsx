@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { RunRecord, z } from "@lightweaver/weaver/contracts";
+import { EngineSetupResult, RunRecord, z } from "@lightweaver/weaver/contracts";
 import { api } from "../api";
 import { runLabel } from "../domain/format";
 import { isActiveRun, RESUMABLE_RUN_STATES, RunDetail } from "../domain/run";
@@ -47,6 +47,16 @@ function nodeLabel(key: string): string {
 
 function kindLabel(kind: string): string {
   return kindLabels[kind] || kind;
+}
+
+function skippedMessages(result: unknown) {
+  const parsed = EngineSetupResult.safeParse(result);
+  return parsed.success ? parsed.data.skipped : [];
+}
+
+function skippedLabel(id: string) {
+  if (id.startsWith("model:")) return `模型 ${id.slice("model:".length)}`;
+  return engineRoleLabels[id] || id;
 }
 
 function errorMessage(reason: unknown) {
@@ -159,7 +169,17 @@ export function JobsPage() {
                   {detail?.nodes.map((node, index) => (
                     <div className="subtle-card flex items-start gap-3 p-3" key={node.key}>
                       <span className="storyboard-index mt-1">{String(index + 1).padStart(2, "0")}</span>
-                      <div className="min-w-0 flex-1"><b className="text-xs">{nodeLabel(node.key)}</b><small className="numeric block">{node.key} · 尝试 {node.attempts} 次</small>{node.error != null && <p className="error mb-0 mt-1 text-xs">{JSON.stringify(node.error)}</p>}</div>
+                      <div className="min-w-0 flex-1">
+                        <b className="text-xs">{nodeLabel(node.key)}</b>
+                        <small className="numeric block">{node.key} · 尝试 {node.attempts} 次</small>
+                        {node.error != null && <p className="error mb-0 mt-1 text-xs">{JSON.stringify(node.error)}</p>}
+                        {selectedRun.kind === "engine-setup" && node.key === "adopt" &&
+                          skippedMessages(node.result).map((skip) => (
+                            <p className="error mb-0 mt-1 text-xs" role="alert" key={skip.id}>
+                              {skippedLabel(skip.id)}：{skip.message}
+                            </p>
+                          ))}
+                      </div>
                       <RunBadge state={node.state} />
                     </div>
                   ))}

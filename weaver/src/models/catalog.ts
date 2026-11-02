@@ -220,6 +220,13 @@ const asrModel: DownloadableLocalModel = {
   },
 };
 
+/** 一键配置可选“同时下载权重”的本地模型。 */
+export const LOCAL_SETUP_MODEL_IDS = [
+  "qwen3-asr",
+  "embeddinggemma-2",
+  "qwen3-forced-aligner",
+] as const;
+
 export function localModels(): DownloadableLocalModel[] {
   return [asrModel, embeddingModel, alignmentModel];
 }

@@ -77,6 +77,25 @@ const DoctorView = z.object({
       version: z.string(),
     }),
   ),
+  engines: z
+    .object({
+      ready: z.boolean(),
+      coreReady: z.boolean(),
+      root: z.object({ value: z.string(), source: z.string() }),
+      updates: z.array(z.string()),
+      components: z.array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          optional: z.boolean(),
+          state: z.string(),
+          version: z.string(),
+          releaseVersion: z.string(),
+          configured: z.boolean(),
+        }),
+      ),
+    })
+    .optional(),
   providers: z.array(
     z.object({
       id: z.string(),
@@ -224,20 +243,48 @@ function renderModels(view: z.infer<typeof ModelsView>): string[] {
 }
 
 function renderEngines(view: z.infer<typeof EngineView>): string[] {
+  const updates = new Set(view.updates),
+    release = new Map(view.catalog.items.map((item) => [item.id, item.version]));
   return [
     `Engines: ${view.catalog.items.length}  Root: ${view.installRoot.value} (${view.installRoot.source})`,
+    ...(updates.size
+      ? [`Updates: ${[...updates].join(", ")}（重新安装或一键配置可更新）`]
+      : []),
     ...table(
-      ["Engine", "State", "Version", "Bindings"],
+      ["Engine", "State", "Installed", "Release", "Bindings"],
       view.items.map((item) => [
         item.id,
         item.status.state,
         item.status.version || "-",
+        updates.has(item.id)
+          ? `${release.get(item.id) || "?"} *`
+          : release.get(item.id) || "-",
         item.active
           .map((binding) => `${binding.setting}=${binding.value.value || "(unset)"}`)
           .join(", ") || "(none)",
       ]),
     ),
   ];
+}
+
+const runKindLabels: Record<string, string> = {
+  build: "影片制作",
+  analyze: "素材分析",
+  "reference-match": "参考成片匹配",
+  "semantic-search": "语义检索",
+  "visual-search": "画面检索",
+  capture: "网页捕获",
+  "import-proposal": "导入候选方案",
+  "import-analysis": "导入分析结果",
+  "model-download": "模型下载",
+  "engine-install": "引擎安装",
+  "engine-setup": "本地运行环境配置",
+  "caption-translate": "字幕翻译",
+  "caption-speakers": "说话人分段",
+};
+
+function runKindLabel(kind: string): string {
+  return runKindLabels[kind] || kind;
 }
 
 function renderEngineVerify(
@@ -369,6 +416,21 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
             provider.ready ? "-" : provider.hint,
           ]),
         ),
+        ...(doctor.data.engines
+          ? [
+              "",
+              `Engines: ${doctor.data.engines.ready ? "ready" : doctor.data.engines.coreReady ? "core ready" : "incomplete"}  Root: ${doctor.data.engines.root.value} (${doctor.data.engines.root.source})`,
+              ...table(
+                ["Engine", "State", "Release", "Configured"],
+                doctor.data.engines.components.map((component) => [
+                  component.id,
+                  component.state,
+                  component.releaseVersion,
+                  bool(component.configured),
+                ]),
+              ),
+            ]
+          : []),
       ];
   }
   if (command === "models list") {
@@ -395,7 +457,7 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
             ["Run", "Kind", "State", "Project"],
             runs.data.map((run) => [
               short(run.id, 20),
-              run.kind,
+              runKindLabel(run.kind),
               run.state,
               run.projectId || "-",
             ]),

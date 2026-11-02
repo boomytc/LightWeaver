@@ -272,6 +272,16 @@ const FLAG_LIST = [
     description: "等待作业到达终态",
   },
   {
+    name: "with-speech",
+    value: "none",
+    description: "一键配置时同时创建语音 Python 环境（体积大）",
+  },
+  {
+    name: "with-models",
+    value: "none",
+    description: "一键配置时同时下载并采用本地模型权重",
+  },
+  {
     name: "progress",
     value: "none",
     description: "等待时向 stderr 输出进度；非 TTY 必须显式传入",
@@ -646,8 +656,8 @@ export const COMMANDS: readonly CommandSpec[] = [
     path: ["engines", "setup"],
     group: "模型与数据",
     summary: "一键下载、校验并采用整套本地运行环境",
-    synopsis: "engines setup [--root /absolute/engine-root] --expected-revision CONFIG_REV [--wait]",
-    flags: ["root", ...WAIT_FLAGS, ...MUTATION_FLAGS],
+    synopsis: "engines setup [--root /absolute/engine-root] --expected-revision CONFIG_REV [--with-speech] [--with-models] [--wait]",
+    flags: ["root", "with-speech", "with-models", ...WAIT_FLAGS, ...MUTATION_FLAGS],
     requirements: [{ kind: "flag", name: "expected-revision" }],
     examples: ["weaver engines setup --expected-revision CONFIG_REV --wait --progress --json"],
   },

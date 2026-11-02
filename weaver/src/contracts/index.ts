@@ -984,6 +984,7 @@ export const ModelSettingsPatch = z
     visualMmproj: z.string().optional(),
     visualServer: z.string().optional(),
     speechPython: z.string().optional(),
+    engineInstallRoot: z.string().optional(),
     alignmentModel: z.string().optional(),
     alignmentBackend: z.enum(["torch", "mlx"]).optional(),
     alignmentDevice: z.string().optional(),
@@ -1051,6 +1052,10 @@ export const EngineCatalogItem = z.strictObject({
   bindings: z.array(EngineBinding).min(1),
   files: z.array(ModelReleaseFile),
   source: EngineSource,
+  /** 一键配置允许失败并继续采用其它组件的可选引擎。 */
+  optional: z.boolean(),
+  /** 安装后大致需要占用的磁盘字节数，用于下载前空间预检。 */
+  estimatedBytes: z.number().int().positive().safe(),
   /** 可执行引擎的就绪探测参数（如 llama-server --version）。 */
   probe: z.array(z.string()).optional(),
 });
@@ -1092,8 +1097,20 @@ export const EngineView = z.strictObject({
   catalog: EngineCatalog,
   settings: ModelSettingsView,
   installRoot: ModelSettingsField,
-  /** 一键配置按顺序包含的引擎 ID；语音 Python 环境体积大，单独按需创建。 */
+  /** 一键配置按顺序包含的引擎 ID；语音 Python 环境体积大，默认单独按需创建。 */
   setupComponents: z.array(z.string()).min(1),
+  /** 已安装版本与当前发布不同的引擎 ID。 */
+  updates: z.array(z.string()),
+  /** 可选“同时下载权重”的本地模型与下载字节数。 */
+  models: z.array(
+    z.strictObject({
+      id: z.string(),
+      name: z.string(),
+      bytes: z.number().int().nonnegative().safe(),
+    }),
+  ),
+  /** 引擎根目录所在卷的可用字节数；读取失败时为 null。 */
+  diskFreeBytes: z.number().int().nonnegative().safe().nullable(),
   items: z.array(EngineItemStatus),
   installs: z.array(z.lazy(() => RunRecord)),
 });
@@ -1117,6 +1134,16 @@ export const EngineSetupInput = z.strictObject({
   root: z.string().min(1).optional(),
   expectedRevision: Digest,
   requestId: Id,
+  /** 同时配置语音 Python 环境（体积大，默认关闭）。 */
+  includeSpeech: z.boolean().default(false),
+  /** 同时下载并采用本地模型权重（ASR、EmbeddingGemma、ForcedAligner）。 */
+  includeModels: z.boolean().default(false),
+});
+export const EngineSetupResult = z.strictObject({
+  adopted: z.array(z.string()),
+  skipped: z.array(
+    z.strictObject({ id: z.string(), message: z.string() }),
+  ),
 });
 export const EngineSettingsPatch = z.strictObject({
   expectedRevision: Digest,

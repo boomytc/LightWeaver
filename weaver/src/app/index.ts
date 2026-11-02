@@ -153,6 +153,7 @@ export class Application {
         ),
       ),
       providers: this.providers.descriptors(),
+      engines: this.engines.summary(),
     };
   }
   async addAsset(input: {

@@ -74,6 +74,10 @@ const SETTINGS: Record<string, Setting> = {
     environment: "LIGHTWEAVER_SPEECH_PYTHON",
     fallback: defaultSpeechPython(),
   },
+  engineInstallRoot: {
+    key: "engine_install_root",
+    environment: "LIGHTWEAVER_ENGINE_ROOT",
+  },
   llamaServer: {
     key: "llama_server",
     environment: "LIGHTWEAVER_LLAMA_SERVER",
@@ -255,6 +259,60 @@ export class Models {
   catalog() {
     const configured = modelbestBackend(this.root);
     return catalog(configured.key.length > 0, configured.base);
+  }
+
+  /** 一键配置可选的本地模型下载计划。 */
+  planForSetup(ids: readonly string[]) {
+    return ids.map((id) => {
+      const item = this.model(id);
+      return {
+        id: item.catalog.id,
+        name: item.catalog.name,
+        revision: item.catalog.revision,
+        bytes: item.catalog.files.reduce((sum, file) => sum + file.size, 0),
+      };
+    });
+  }
+
+  /** 估算仍需下载的模型字节数；已存在且大小匹配的文件不算。 */
+  setupMissingBytes(ids: readonly string[], root: string): number {
+    const base = path.resolve(root);
+    let bytes = 0;
+    for (const plan of this.planForSetup(ids)) {
+      const item = this.model(plan.id),
+        directory = path.join(base, item.catalog.id, item.catalog.revision),
+        complete = item.catalog.files.every((file) => {
+          try {
+            const stat = fs.statSync(path.join(directory, file.path));
+            return stat.isFile() && stat.size === file.size;
+          } catch {
+            return false;
+          }
+        });
+      if (!complete) bytes += plan.bytes;
+    }
+    return bytes;
+  }
+
+  /** 校验已下载模型并返回配置绑定，供一键配置的采用节点一次写入。 */
+  async bindingsForSetup(
+    id: string,
+    root: string,
+  ): Promise<Record<string, string>> {
+    const item = this.model(id),
+      base = path.resolve(root),
+      directory = path.join(base, item.catalog.id, item.catalog.revision),
+      verification = await this.verifyDirectory(item, base, directory);
+    if (verification.state !== "verified")
+      throw new WeaverError(
+        "MODEL_VERIFY_FAILED",
+        "本地模型未通过完整性校验",
+        verification,
+      );
+    const patch: Record<string, string> = {};
+    for (const binding of item.catalog.bindings)
+      patch[binding.setting] = modelBindingValue(item, directory, binding);
+    return patch;
   }
 
   view(downloadRoot?: string) {

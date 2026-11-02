@@ -17,9 +17,10 @@ npm ci
 ```sh
 npx weaver models settings get --json   # 取当前 revision
 npx weaver engines setup --expected-revision CONFIG_REV --wait --progress
+npx weaver engines setup --with-models --expected-revision CONFIG_REV --wait --progress
 ```
 
-`engines setup` 会按顺序下载、校验 transcribe 运行库、bindings、TEN VAD、llama-server 与模型 Python 环境，并一次写入配置；已校验的部分在重跑时复用。也可以在 **设置 → 运行时与路径 → 本地运行环境** 点击 **一键下载并配置**。语音 Python 环境体积大，在高级设置里按需单独创建。不同平台的引擎目录不同，迁移仓库时重新安装。
+`engines setup` 会按顺序下载、校验 transcribe 运行库、bindings、TEN VAD、llama-server 与模型 Python 环境，并一次写入配置；已校验的部分在重跑时复用。必需组件失败即作业失败，可选组件失败会在采用结果里列在 `skipped` 并继续写配置。`--with-speech` 额外创建语音 Python 环境，`--with-models` 额外下载并采用本地模型权重。空间不足时在开始前返回 `DISK_SPACE_INSUFFICIENT`。也可以在 **设置 → 运行时与路径 → 本地运行环境** 点击 **一键下载并配置**。不同平台的引擎目录不同，迁移仓库时重新安装；引擎根目录可在高级设置或 `engine_install_root` 中修改。
 
 媒体功能按用途准备工具：
 

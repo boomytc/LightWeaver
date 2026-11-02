@@ -192,7 +192,10 @@ export async function startStudioService(
   route("get", "/api/client/state", () => clientState.read());
   route("put", "/api/client/state", (req) => clientState.write(req.body));
   route("get", "/api/capabilities", () => app.capabilities());
-  route("get", "/api/doctor", () => app.providers.doctor());
+  route("get", "/api/doctor", async () => ({
+    ...(await app.providers.doctor()),
+    engines: app.engines.summary(),
+  }));
   route("get", "/api/models", (req) =>
     app.models.view(z.string().min(1).optional().parse(req.query.root)),
   );
@@ -239,6 +242,8 @@ export async function startStudioService(
           root: z.string().min(1).optional(),
           expectedRevision: z.string(),
           requestId: z.string().min(1),
+          includeSpeech: z.boolean().optional(),
+          includeModels: z.boolean().optional(),
         })
         .strict()
         .parse(req.body),

@@ -257,7 +257,11 @@ async function main(): Promise<void> {
         for (const event of events)
           process.stdout.write(JSON.stringify(event) + "\n");
       }
-    } else if (command === "doctor") result = await app.providers.doctor();
+    } else if (command === "doctor")
+      result = {
+        ...(await app.providers.doctor()),
+        engines: app.engines.summary(),
+      };
     else if (command === "models") {
       if (action === "settings") {
         if (arg === "get") result = app.models.settings();
@@ -322,6 +326,8 @@ async function main(): Promise<void> {
           root: option(parsed, "root"),
           expectedRevision: required(parsed, "expected-revision"),
           requestId,
+          includeSpeech: booleanOption(parsed, "with-speech"),
+          includeModels: booleanOption(parsed, "with-models"),
         });
         result = booleanOption(parsed, "wait")
           ? { run: await wait(run.id), nodes: app.jobs.nodes(run.id) }

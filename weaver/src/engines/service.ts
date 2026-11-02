@@ -6,9 +6,11 @@ import { spawn } from "node:child_process";
 import {
   z,
   Digest,
+  EngineActiveBinding,
   EngineCatalogItem,
   EngineInstallInput,
   EngineSetupInput,
+  EngineSetupResult,
   EngineStatus,
   EngineVerifyResult,
   EngineView,
@@ -26,6 +28,7 @@ import {
   defaultSpeechPython,
   resolveExecutable,
 } from "../adapters/executable.ts";
+import { LOCAL_SETUP_MODEL_IDS } from "../models/catalog.ts";
 import type { Models } from "../models/service.ts";
 import { extractArchive } from "./archive.ts";
 import { downloadArtifact } from "./download.ts";
@@ -45,7 +48,7 @@ type ActivePathState =
   | "unavailable"
   | "present";
 
-/** 一键配置包含的组件；语音 Python 环境体积大，保持单独按需创建。 */
+/** 一键配置默认包含的组件；语音 Python 环境体积大，按需显式开启。 */
 const SETUP_COMPONENTS = [
   "transcribe-native",
   "transcribe-bindings",
@@ -53,6 +56,12 @@ const SETUP_COMPONENTS = [
   "llama-server",
   "python-model",
 ] as const;
+const REQUIRED_SETUP_COMPONENTS = new Set([
+  "transcribe-native",
+  "transcribe-bindings",
+  "ten-vad",
+]);
+const SPACE_MARGIN_BYTES = 256 * 1024 * 1024;
 
 const MARKER = ".lightweaver-engine.json";
 const MARKER_SCHEMA = 1;
@@ -233,6 +242,9 @@ export class Engines {
     private readonly models: Models,
   ) {
     jobs.register("engine-install", (context) => this.installNode(context));
+    jobs.register("engine-install-optional", (context) =>
+      this.installOptionalNode(context),
+    );
     jobs.register("engine-adopt", (context) => this.adoptNode(context));
   }
 
@@ -266,51 +278,151 @@ export class Engines {
     return found;
   }
 
+  private activeBindings(item: EngineItem): z.infer<typeof EngineActiveBinding>[] {
+    return item.bindings.map((binding) => {
+      const setting = SETTINGS[binding.setting];
+      const value = setting
+        ? readConfig({ root: this.root, env: process.env }).field(setting)
+        : { value: "", source: "unset" as const };
+      const target =
+        binding.target === "directory"
+          ? resolvePath(this.root, value.value)
+          : binding.target === "executable"
+            ? value.value
+              ? resolveExecutable(value.value, this.root)
+              : ""
+            : resolvePath(this.root, value.value);
+      const inspected =
+        target || !value.value
+          ? inspectPath(target, binding.target)
+          : { state: "missing" as const, resolvedPath: "" };
+      return {
+        setting: binding.setting,
+        target: binding.target,
+        ...(binding.target === "directory" ? {} : { file: binding.file }),
+        value,
+        resolvedPath: inspected.resolvedPath,
+        state: inspected.state,
+        ready: inspected.state === "present",
+      };
+    });
+  }
+
   view(root?: string) {
     const settings = this.models.settings(),
       base = this.rootDirectory(root || this.installRoot().value),
-      catalog = engineCatalog();
+      catalog = engineCatalog(),
+      statuses = catalog.items.map((item) => this.status(item, base));
     return EngineView.parse({
       catalog,
       settings,
       installRoot: this.installRoot(),
       setupComponents: [...SETUP_COMPONENTS],
-      items: catalog.items.map((item) => ({
+      updates: catalog.items
+        .filter((item, index) => {
+          const version = statuses[index].version;
+          return version !== "" && version !== item.version;
+        })
+        .map((item) => item.id),
+      models: this.models
+        .planForSetup(LOCAL_SETUP_MODEL_IDS)
+        .map((plan) => ({ id: plan.id, name: plan.name, bytes: plan.bytes })),
+      diskFreeBytes: this.diskFreeBytes(base),
+      items: catalog.items.map((item, index) => ({
         id: item.id,
-        status: this.status(item, base),
-        active: item.bindings.map((binding) => {
-          const setting = SETTINGS[binding.setting];
-          const value = setting
-            ? readConfig({ root: this.root, env: process.env }).field(setting)
-            : { value: "", source: "unset" as const };
-          const target =
-            binding.target === "directory"
-              ? resolvePath(this.root, value.value)
-              : binding.target === "executable"
-                ? value.value
-                  ? resolveExecutable(value.value, this.root)
-                  : ""
-                : resolvePath(this.root, value.value);
-          const inspected =
-            target || !value.value
-              ? inspectPath(target, binding.target)
-              : { state: "missing" as const, resolvedPath: "" };
-          return {
-            setting: binding.setting,
-            target: binding.target,
-            ...(binding.target === "directory" ? {} : { file: binding.file }),
-            value,
-            resolvedPath: inspected.resolvedPath,
-            state: inspected.state,
-            ready: inspected.state === "present",
-          };
-        }),
+        status: statuses[index],
+        active: this.activeBindings(item),
       })),
       installs: this.jobs
         .list()
-        .filter((run) => run.kind === "engine-install")
+        .filter(
+          (run) => run.kind === "engine-install" || run.kind === "engine-setup",
+        )
         .slice(0, 20),
     });
+  }
+
+  /** 引擎就绪摘要，供 capabilities 与 doctor 使用；只读元数据，不哈希文件。 */
+  summary() {
+    const base = this.rootDirectory(),
+      catalog = engineCatalog();
+    const components = catalog.items.map((item) => {
+      const status = this.status(item, base),
+        active = this.activeBindings(item);
+      return {
+        id: item.id,
+        name: item.name,
+        optional: item.optional,
+        state: status.state,
+        version: status.version,
+        releaseVersion: item.version,
+        configured: active.length > 0 && active.every((binding) => binding.ready),
+      };
+    });
+    const setup = components.filter((component) => component.id !== "python-speech"),
+      required = components.filter((component) =>
+        REQUIRED_SETUP_COMPONENTS.has(component.id),
+      ),
+      usable = (component: { state: string; configured: boolean }) =>
+        component.state === "installed" && component.configured;
+    return {
+      /** 本地转写、精确字幕、检索与翻译所需的全部组件都已安装并采用。 */
+      ready: setup.every(usable),
+      /** 只要求本地转写必需组件（transcribe 运行库、bindings、TEN VAD）就绪。 */
+      coreReady: required.every(usable),
+      root: this.installRoot(),
+      updates: components
+        .filter(
+          (component) =>
+            component.version !== "" &&
+            component.version !== component.releaseVersion,
+        )
+        .map((component) => component.id),
+      components,
+    };
+  }
+
+  private requiredBytes(items: EngineItem[], root: string): number {
+    return items.reduce(
+      (total, item) =>
+        this.status(item, root).state === "installed"
+          ? total
+          : total + item.estimatedBytes,
+      0,
+    );
+  }
+
+  private diskFreeBytes(directory: string): number | null {
+    try {
+      const stats = fs.statfsSync(this.existingAncestor(directory));
+      return Number(stats.bavail) * Number(stats.bsize);
+    } catch {
+      return null;
+    }
+  }
+
+  private existingAncestor(directory: string): string {
+    let current = path.resolve(directory);
+    while (!fs.existsSync(current) && path.dirname(current) !== current)
+      current = path.dirname(current);
+    return current;
+  }
+
+  private assertDiskSpace(directory: string, requiredBytes: number): void {
+    if (requiredBytes <= 0) return;
+    const free = this.diskFreeBytes(directory);
+    if (free === null || free >= requiredBytes + SPACE_MARGIN_BYTES) return;
+    throw new WeaverError(
+      "DISK_SPACE_INSUFFICIENT",
+      "磁盘可用空间不足，无法完成本地运行环境配置",
+      {
+        root: path.resolve(directory),
+        requiredBytes,
+        freeBytes: free,
+        marginBytes: SPACE_MARGIN_BYTES,
+      },
+      ["释放磁盘空间或更换引擎安装目录后重试。"],
+    );
   }
 
   private status(item: EngineItem, root: string): z.infer<typeof EngineStatus> {
@@ -699,6 +811,7 @@ export class Engines {
         [],
         true,
       );
+    this.assertDiskSpace(root, this.requiredBytes([item], root));
     return this.jobs.submit({
       requestInput: { id: input.id, root },
       kind: "engine-install",
@@ -748,17 +861,34 @@ export class Engines {
     });
   }
 
-  /** 一键配置：按固定顺序安装全部必需引擎，最后一个节点一次写入配置。 */
+  /**
+   * 一键配置：必需组件失败则作业失败；可选组件失败只记录并继续，
+   * 采用节点一次校验成功的组件并写入配置。
+   */
   setup(raw: unknown) {
     const input = EngineSetupInput.parse(raw),
-      items = this.setupItems(),
+      items = this.setupItems(input.includeSpeech),
       ids = items.map((item) => item.id),
+      optionalIds = items
+        .filter((item) => !REQUIRED_SETUP_COMPONENTS.has(item.id))
+        .map((item) => item.id),
       root = this.rootDirectory(input.root || this.installRoot().value),
-      prior = this.jobs.prior("engine-setup", input.requestId, {
+      modelPlans = input.includeModels
+        ? this.models.planForSetup(LOCAL_SETUP_MODEL_IDS)
+        : [],
+      modelRoot = input.includeModels
+        ? path.resolve(this.root, this.models.settings().downloadRoot.value)
+        : "",
+      modelIds = modelPlans.map((plan) => plan.id),
+      requestInput = {
         root,
         components: ids,
+        optionalComponents: optionalIds,
+        modelIds,
+        modelRoot,
         expectedRevision: input.expectedRevision,
-      });
+      };
+    const prior = this.jobs.prior("engine-setup", input.requestId, requestInput);
     if (prior) return prior;
     const active = this.jobs
       .list()
@@ -784,14 +914,34 @@ export class Engines {
         [],
         true,
       );
+    fs.mkdirSync(root, { recursive: true });
+    this.assertDiskSpace(
+      root,
+      this.requiredBytes(items, root) +
+        (input.includeModels
+          ? this.models.setupMissingBytes(modelIds, modelRoot)
+          : 0),
+    );
     const nodes: z.input<typeof NodeSpec>[] = [];
     let previous: string | undefined;
     for (const item of items) {
       const key = `install-${item.id}`;
       nodes.push({
         key,
-        operation: "engine-install",
+        operation: REQUIRED_SETUP_COMPONENTS.has(item.id)
+          ? "engine-install"
+          : "engine-install-optional",
         input: { id: item.id, version: item.version, root },
+        ...(previous ? { dependencies: [previous] } : {}),
+      });
+      previous = key;
+    }
+    for (const plan of modelPlans) {
+      const key = `model-${plan.id}`;
+      nodes.push({
+        key,
+        operation: "model-download",
+        input: { id: plan.id, revision: plan.revision, root: modelRoot },
         ...(previous ? { dependencies: [previous] } : {}),
       });
       previous = key;
@@ -799,34 +949,55 @@ export class Engines {
     nodes.push({
       key: "adopt",
       operation: "engine-adopt",
-      input: { components: ids, root, expectedRevision: input.expectedRevision },
+      input: {
+        components: ids,
+        optionalComponents: optionalIds,
+        modelIds,
+        modelRoot,
+        root,
+        expectedRevision: input.expectedRevision,
+      },
       ...(previous ? { dependencies: [previous] } : {}),
     });
     return this.jobs.submit({
-      requestInput: { root, components: ids, expectedRevision: input.expectedRevision },
+      requestInput,
       kind: "engine-setup",
       snapshot: {
-        root,
-        components: ids,
-        expectedRevision: input.expectedRevision,
+        ...requestInput,
+        includeSpeech: input.includeSpeech,
+        includeModels: input.includeModels,
+        items: items.map((item) => ({
+          id: item.id,
+          version: item.version,
+          platform: item.platform,
+          optional: !REQUIRED_SETUP_COMPONENTS.has(item.id),
+        })),
+        models: modelPlans,
       },
       nodes,
       requestId: input.requestId,
     });
   }
 
-  private setupItems(): EngineItem[] {
+  private setupItems(includeSpeech: boolean): EngineItem[] {
+    const ids: string[] = includeSpeech
+      ? [...SETUP_COMPONENTS, "python-speech"]
+      : [...SETUP_COMPONENTS];
     const missing: { id: string; reason: string }[] = [];
     const items: EngineItem[] = [];
-    for (const id of SETUP_COMPONENTS) {
+    for (const id of ids) {
       try {
         items.push(this.item(id));
       } catch (error) {
-        if (error instanceof WeaverError && error.code === "CAPABILITY_UNAVAILABLE") {
-          missing.push({ id, reason: error.message });
-          continue;
-        }
-        throw error;
+        if (
+          !(error instanceof WeaverError) ||
+          error.code !== "CAPABILITY_UNAVAILABLE"
+        )
+          throw error;
+        const required =
+          REQUIRED_SETUP_COMPONENTS.has(id) ||
+          (includeSpeech && id === "python-speech");
+        if (required) missing.push({ id, reason: error.message });
       }
     }
     if (missing.length)
@@ -859,40 +1030,111 @@ export class Engines {
     const input = z
       .object({
         components: z.array(z.string()).min(1),
+        optionalComponents: z.array(z.string()).default([]),
+        modelIds: z.array(z.string()).default([]),
+        modelRoot: z.string().default(""),
         root: z.string(),
         expectedRevision: z.string(),
       })
       .parse(context.input);
-    const root = path.resolve(input.root);
-    const patch: Record<string, string> = {};
+    const root = path.resolve(input.root),
+      optional = new Set(input.optionalComponents),
+      patch: Record<string, string> = {},
+      adopted: string[] = [],
+      skipped: { id: string; message: string }[] = [];
     for (const id of input.components) {
       const item = this.item(id),
-        directory = installDirectory(root, id),
-        verification = await this.verifyDirectory(item, root, directory);
-      context.signal.throwIfAborted();
-      if (verification.state !== "verified")
-        throw new WeaverError(
-          "ENGINE_VERIFY_FAILED",
-          "引擎目录未通过完整性校验，未写入配置",
-          { id, verification },
+        directory = installDirectory(root, id);
+      try {
+        const verification = await this.verifyDirectory(item, root, directory);
+        context.signal.throwIfAborted();
+        if (verification.state !== "verified")
+          throw new WeaverError(
+            "ENGINE_VERIFY_FAILED",
+            `引擎目录未通过完整性校验：${
+              verification.state === "missing"
+                ? "未安装"
+                : verification.reason || "内容与发布清单不一致"
+            }`,
+            {
+              id,
+              state: verification.state,
+              reason: verification.reason,
+              directory,
+            },
+          );
+        Object.assign(patch, this.bindingsPatch(item, directory));
+        adopted.push(id);
+      } catch (error) {
+        if (
+          !optional.has(id) ||
+          (error instanceof WeaverError && error.code === "CANCELLED")
+        )
+          throw error;
+        skipped.push({
+          id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    for (const id of input.modelIds) {
+      try {
+        Object.assign(
+          patch,
+          await this.models.bindingsForSetup(id, input.modelRoot),
         );
-      Object.assign(patch, this.bindingsPatch(item, directory));
+        adopted.push(`model:${id}`);
+      } catch (error) {
+        if (error instanceof WeaverError && error.code === "CANCELLED")
+          throw error;
+        skipped.push({
+          id: `model:${id}`,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
     context.event("engine-setup-progress", {
       phase: "adopt",
       message: "写入运行时配置",
-      components: input.components.length,
+      components: adopted.length,
+      skipped: skipped.length,
     });
-    return this.models.writeSettingsPatch({
+    await this.models.writeSettingsPatch({
       requestId: `setup-${context.runId}`,
       expectedRevision: input.expectedRevision,
       patch,
       identity: {
         operation: "engine-setup-adopt",
         components: input.components,
+        models: input.modelIds,
         root,
+        modelRoot: input.modelRoot,
       },
     });
+    return EngineSetupResult.parse({ adopted, skipped });
+  }
+
+  private async installOptionalNode(context: NodeContext) {
+    try {
+      return await this.installNode(context);
+    } catch (error) {
+      if (
+        !(error instanceof WeaverError) ||
+        ["CANCELLED", "DEADLINE_EXCEEDED"].includes(error.code)
+      )
+        throw error;
+      const id =
+        (context.input as { id?: unknown } | null)?.id &&
+        typeof (context.input as { id?: unknown }).id === "string"
+          ? ((context.input as { id: string }).id as string)
+          : "";
+      context.event("engine-setup-progress", {
+        phase: "skipped",
+        ...(id ? { engineId: id } : {}),
+        message: error.message,
+      });
+      return { skipped: true, id, message: error.message };
+    }
   }
 
   private async installNode(context: NodeContext) {

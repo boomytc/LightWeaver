@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  EngineSetupResult,
   EngineVerifyResult,
   EngineView,
+  ModelSettingsPatch,
   ModelSettingsView,
   RunRecord,
   z,
@@ -18,6 +20,7 @@ import { useRunStream } from "../jobs/useRunStream";
 import { useSession } from "../session/context";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
+import { InputWithActions } from "../ui/InputWithActions";
 
 type EngineViewValue = z.infer<typeof EngineView>;
 type EngineItemStatusValue = z.infer<typeof EngineItemStatus>;
@@ -144,6 +147,41 @@ function setupItems(view: EngineViewValue): EngineItem[] {
   );
 }
 
+const GIB = 1024 ** 3;
+/** 与后端一致的下载余量。 */
+const SPACE_MARGIN_BYTES = 256 * 1024 * 1024;
+
+function formatBytes(bytes: number) {
+  if (bytes >= GIB) return `${(bytes / GIB).toFixed(1)} GB`;
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
+  return `${bytes} B`;
+}
+
+/** 勾选项的粗略体积，按整数 GB 展示。 */
+function approxGb(bytes: number) {
+  return `${Math.max(1, Math.round(bytes / GIB))} GB`;
+}
+
+function skippedLabel(id: string, view: EngineViewValue) {
+  if (id.startsWith("model:")) {
+    const modelId = id.slice("model:".length);
+    return view.models.find((model) => model.id === modelId)?.name || modelId;
+  }
+  return setupLabels[id] || id;
+}
+
+function setupNodeLabel(key: string, view: EngineViewValue) {
+  if (key.startsWith("install-")) {
+    const id = key.slice("install-".length);
+    return setupLabels[id] || id;
+  }
+  if (key.startsWith("model-")) {
+    const id = key.slice("model-".length);
+    return view.models.find((model) => model.id === id)?.name || id;
+  }
+  return key;
+}
+
 function sourceName(source: string) {
   return sourceLabel[source] || source;
 }
@@ -210,12 +248,12 @@ export function EngineSettings() {
       <details className="subtle-card p-4">
         <summary className="font-medium">高级：单个引擎组件与手动操作</summary>
         <div className="mt-3 flex flex-col gap-3">
-          <dl className="key-value-list">
-            <div className="contents">
-              <dt>引擎根目录</dt>
-              <dd className="numeric">{view.installRoot.value}（{sourceName(view.installRoot.source)}）</dd>
-            </div>
-          </dl>
+          <InstallRootEditor
+            value={view.installRoot.value}
+            source={view.installRoot.source}
+            revision={view.settings.revision}
+            onRefresh={refresh}
+          />
           <small>
             本应用管理：已安装 {usageCounts.managed + usageCounts["managed-unused"]} /{" "}
             {view.catalog.items.length} · 使用外部路径 {usageCounts.external} · 未使用{" "}
@@ -257,6 +295,8 @@ function SetupPanel({
   onRefresh: () => Promise<void>;
 }) {
   const session = useSession();
+  const [includeSpeech, setIncludeSpeech] = useState(false);
+  const [includeModels, setIncludeModels] = useState(false);
   const setup = useSetupRun(() => view.settings.revision, onRefresh);
   const items = setupItems(view);
   const rows = items.map((item) => {
@@ -278,14 +318,42 @@ function SetupPanel({
     setup.run !== null &&
     !setup.active &&
     setup.run.state !== "succeeded";
+  const catalog = new Map(view.catalog.items.map((item) => [item.id, item]));
+  const speech = catalog.get("python-speech");
+  const speechInstalled =
+    statuses.get("python-speech")?.status.state === "installed";
+  const modelBytes = view.models.reduce((total, model) => total + model.bytes, 0);
+  const missingEngineBytes = items.reduce((total, item) => {
+    const installed = statuses.get(item.id)?.status.state === "installed";
+    return installed ? total : total + item.estimatedBytes;
+  }, 0);
+  const requiredBytes =
+    missingEngineBytes +
+    (includeSpeech && !speechInstalled ? speech?.estimatedBytes || 0 : 0) +
+    (includeModels ? modelBytes : 0) +
+    SPACE_MARGIN_BYTES;
+  const diskFree = view.diskFreeBytes;
+  const insufficient = diskFree !== null && requiredBytes > diskFree;
+  const updateNames = view.updates.map(
+    (id) => catalog.get(id)?.name || setupLabels[id] || id,
+  );
+  const adoptNode = setup.detail?.nodes.find((node) => node.key === "adopt");
+  const setupResult = adoptNode
+    ? EngineSetupResult.safeParse(adoptNode.result)
+    : null;
+  const skipped = setupResult?.success ? setupResult.data.skipped : [];
+  const partial = setup.run?.state === "succeeded" && skipped.length > 0;
   const label = busy
     ? "配置中…"
-    : ready && managedAll
-      ? "重新检查并修复"
-      : failed
-        ? "重试配置"
-        : "一键下载并配置";
-  const adoptNode = setup.detail?.nodes.find((node) => node.key === "adopt");
+    : partial
+      ? "继续配置"
+      : view.updates.length > 0
+        ? "更新并配置"
+        : ready && managedAll
+          ? "重新检查并修复"
+          : failed
+            ? "重试配置"
+            : "一键下载并配置";
 
   return (
     <section className="panel-card flex flex-col gap-4 p-5" aria-labelledby="setup-title">
@@ -316,6 +384,60 @@ function SetupPanel({
           </div>
         ))}
       </div>
+      <div className="flex flex-col gap-2">
+        {speech && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={includeSpeech}
+              disabled={busy || !speech.available}
+              onChange={(event) => setIncludeSpeech(event.target.checked)}
+            />
+            <span>
+              同时创建语音 Python 环境（约 {approxGb(speech.estimatedBytes)}）
+              {!speech.available
+                ? "：当前平台不可用"
+                : speechInstalled
+                  ? "，已安装，勾选会重新校验并更新"
+                  : ""}
+            </span>
+          </label>
+        )}
+        {view.models.length > 0 && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={includeModels}
+              disabled={busy}
+              onChange={(event) => setIncludeModels(event.target.checked)}
+            />
+            <span>
+              同时下载并采用本地模型权重（
+              {view.models.map((model) => model.name).join("、")}，约{" "}
+              {formatBytes(modelBytes)}）
+            </span>
+          </label>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {diskFree !== null && <small>引擎目录可用 {formatBytes(diskFree)}</small>}
+        {requiredBytes > SPACE_MARGIN_BYTES ? (
+          <small>本次预计需要 {formatBytes(requiredBytes)}（含 256 MB 余量）</small>
+        ) : (
+          <small>无需额外下载空间（仍预留 256 MB 余量）。</small>
+        )}
+      </div>
+      {insufficient && diskFree !== null && (
+        <small className="error" role="alert">
+          磁盘空间不足：预计需要 {formatBytes(requiredBytes)}，引擎目录可用{" "}
+          {formatBytes(diskFree)}。清理空间或取消勾选后重试。
+        </small>
+      )}
+      {updateNames.length > 0 && (
+        <small>
+          可更新组件：{updateNames.join("、")}；更新会重新下载并采用这些组件。
+        </small>
+      )}
       {setup.run && (
         <div className="model-files" aria-live="polite">
           <div className="section-title">
@@ -330,8 +452,10 @@ function SetupPanel({
             .filter((node) => node.key !== "adopt")
             .map((node) => (
               <small key={node.key}>
-                {setupLabels[node.key.replace(/^install-/, "")] || node.key}：
-                {setupNodeStateLabel[node.state] || node.state}
+                {setupNodeLabel(node.key, view)}：
+                {skippedNodeLabel(node) ||
+                  setupNodeStateLabel[node.state] ||
+                  node.state}
               </small>
             ))}
           {adoptNode && (
@@ -343,7 +467,19 @@ function SetupPanel({
               {setup.run.error.message}
             </small>
           )}
-          {setup.run.state === "succeeded" && <small>配置完成，绑定已刷新。</small>}
+          {setup.run.state === "succeeded" && !partial && (
+            <small>配置完成，绑定已刷新。</small>
+          )}
+          {partial && (
+            <>
+              <small className="error">配置完成，部分组件未完成，可重试：</small>
+              {skipped.map((skip) => (
+                <small className="error" key={skip.id}>
+                  {skippedLabel(skip.id, view)}：{skip.message}
+                </small>
+              ))}
+            </>
+          )}
           {setup.run.state === "cancelled" && (
             <small>作业已取消，已安装的组件保留；可再次点击配置继续。</small>
           )}
@@ -353,14 +489,14 @@ function SetupPanel({
         <Button
           variant="primary"
           type="button"
-          disabled={busy}
+          disabled={busy || insufficient}
           aria-label={label}
-          onClick={() => void setup.start()}
+          onClick={() => void setup.start({ includeSpeech, includeModels })}
         >
           {label}
         </Button>
         <span className="hint">
-          首次会下载并校验固定版本产物（约 1.7 GB）并写入当前配置；语音 Python 环境体积大，仍在高级中按需创建。
+          一键配置会下载并校验固定版本产物、自动写入配置；勾选项会额外占用磁盘空间，语音环境体积大、默认关闭。
         </span>
       </div>
       {ready && managedAll && !setup.run && (
@@ -382,6 +518,17 @@ function SetupPanel({
       )}
     </section>
   );
+}
+
+/** 可选组件的安装节点成功但实际跳过时，不要显示“已完成”。 */
+function skippedNodeLabel(node: { result: unknown }): string {
+  const result = node.result;
+  return result &&
+    typeof result === "object" &&
+    "skipped" in result &&
+    (result as { skipped?: unknown }).skipped === true
+    ? "已跳过（可重试）"
+    : "";
 }
 
 const setupNodeStateLabel: Record<string, string> = {
@@ -408,13 +555,20 @@ function useSetupRun(
   const revisionRef = useRef(revision);
   revisionRef.current = revision;
 
-  const settle = (next: EngineRun) => {
+  const settle = (next: EngineRun, value?: RunDetailValue) => {
     setRun(next);
     if (isActiveRun(next.state) || settled.current === next.id) return;
     settled.current = next.id;
     notifyRunsChanged();
     if (next.state === "succeeded") {
-      session.setNotice("本地运行环境已配置完成");
+      const adopt = value?.nodes.find((node) => node.key === "adopt");
+      const result = adopt ? EngineSetupResult.safeParse(adopt.result) : null;
+      const skipped = result?.success ? result.data.skipped.length : 0;
+      session.setNotice(
+        skipped > 0
+          ? "本地运行环境已配置，部分组件未完成，可重试"
+          : "本地运行环境已配置完成",
+      );
       window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
     }
     void finished.current();
@@ -425,7 +579,7 @@ function useSetupRun(
     enabled: run !== null && isActiveRun(run.state),
     onDetail: (value) => {
       setDetail(value);
-      settle(value.run);
+      settle(value.run, value);
     },
     onEvent: (event) => {
       if (
@@ -459,10 +613,18 @@ function useSetupRun(
     message,
     starting,
     active: run !== null && isActiveRun(run.state),
-    start: async () => {
+    start: async (options: {
+      includeSpeech: boolean;
+      includeModels: boolean;
+    }) => {
       setStarting(true);
       try {
-        const key = JSON.stringify(["engine-setup", revisionRef.current()]);
+        const key = JSON.stringify([
+          "engine-setup",
+          revisionRef.current(),
+          options.includeSpeech,
+          options.includeModels,
+        ]);
         let attempt = session.stableRequest(key);
         let next: EngineRun;
         let retriedTransport = false;
@@ -474,6 +636,8 @@ function useSetupRun(
               body: {
                 expectedRevision: revisionRef.current(),
                 requestId: attempt.requestId,
+                includeSpeech: options.includeSpeech,
+                includeModels: options.includeModels,
               },
             });
             break;
@@ -527,6 +691,107 @@ function useSetupRun(
   };
 }
 
+function InstallRootEditor({
+  value,
+  source,
+  revision,
+  onRefresh,
+}: {
+  value: string;
+  source: string;
+  revision: string;
+  onRefresh: () => Promise<void>;
+}) {
+  const session = useSession();
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+
+  const save = async (input: string) => {
+    const next = input.trim();
+    if (/[\u0000-\u001f\u007f-\u009f]/.test(next)) {
+      session.setError("引擎根目录不能包含控制字符");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = ModelSettingsPatch.parse({
+        expectedRevision: revision,
+        engineInstallRoot: next,
+      });
+      const key = JSON.stringify(["engine-install-root", payload]);
+      let attempt = session.stableRequest(key);
+      let saved: z.infer<typeof ModelSettingsView>;
+      let retriedTransport = false;
+      let retriedReuse = false;
+      while (true) {
+        try {
+          saved = await api("/models/settings", ModelSettingsView, {
+            method: "PUT",
+            body: { ...payload, requestId: attempt.requestId },
+          });
+          break;
+        } catch (reason) {
+          if (
+            reason instanceof ApiError &&
+            reason.protocol.code === "REQUEST_ID_REUSED" &&
+            !retriedReuse
+          ) {
+            retriedReuse = true;
+            attempt = session.rotateStableRequest(key, attempt);
+            continue;
+          }
+          if (!(reason instanceof ApiError) && !retriedTransport) {
+            retriedTransport = true;
+            continue;
+          }
+          if (reason instanceof ApiError) {
+            if (
+              reason.protocol.code === "CONFIG_CONFLICT" ||
+              reason.protocol.code === "REVISION_CONFLICT"
+            )
+              await onRefresh();
+          }
+          throw reason;
+        }
+      }
+      session.completeStableRequest(key, attempt);
+      setDraft(saved.values.engineInstallRoot?.value || "");
+      await onRefresh();
+      window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
+      session.setNotice(
+        "引擎根目录已更新；已有引擎目录不会自动移动，下一次一键配置会安装到新目录",
+      );
+    } catch (reason) {
+      session.handleError(reason);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <InputWithActions
+      label="引擎根目录"
+      aria-label="引擎根目录"
+      value={draft}
+      disabled={saving}
+      placeholder="留空使用内置默认目录"
+      hint={`当前生效：${value}（${sourceName(source)}）。留空保存会恢复内置默认；已有引擎目录不会自动移动。`}
+      onChange={(event) => setDraft(event.target.value)}
+      actions={
+        <>
+          <Button type="button" disabled={saving} onClick={() => void save(draft)}>
+            {saving ? "保存中…" : "保存"}
+          </Button>
+          <Button type="button" disabled={saving} onClick={() => void save("")}>
+            恢复默认
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
 function EngineCard({
   item,
   itemStatus,
@@ -551,13 +816,17 @@ function EngineCard({
   const usageInfo = usage === "unused" ? null : usageBadge[usage];
   const installing = install.active || install.starting;
   const blocked = !item.available || !!busy;
+  const updateAvailable =
+    status.version !== "" && status.version !== item.version;
   const installLabel = pythonEnvironment
     ? installing
       ? "创建中…"
       : "创建/更新环境"
     : installing
       ? "安装中…"
-      : "安装";
+      : updateAvailable
+        ? "更新"
+        : "安装";
 
   const act = async (label: string, run: () => Promise<void>) => {
     setBusy(label);

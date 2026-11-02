@@ -132,6 +132,14 @@ const TRANSCRIBE_ARCHIVES: Record<
   },
 };
 
+const TRANSCRIBE_ESTIMATES: Record<string, number> = {
+  "darwin-arm64": 5_000_000,
+  "darwin-x64": 4_500_000,
+  "linux-x64": 90_000_000,
+  "linux-arm64": 79_000_000,
+  "win32-x64": 78_500_000,
+};
+
 const BINDINGS_WHEEL = {
   url: "https://files.pythonhosted.org/packages/06/26/5565715135317dbad5d3e9c9a0721e273f4877513e75355096a873e40335/transcribe_cpp-0.2.0-py3-none-any.whl",
   size: 34388,
@@ -209,6 +217,13 @@ const LLAMA_ARCHIVES: Record<
     stripPrefix: "",
     binary: "llama-server.exe",
   },
+};
+
+const LLAMA_ESTIMATES: Record<string, number> = {
+  "darwin-arm64": 40_000_000,
+  "darwin-x64": 30_000_000,
+  "linux-x64": 55_000_000,
+  "win32-x64": 60_000_000,
 };
 
 const LLAMA_FILES: Record<string, FileSpec[]> = {
@@ -311,6 +326,7 @@ function unavailable(
   documentationUrl: string,
   reason: string,
   bindings: BindingSpec[],
+  optional = false,
 ): z.input<typeof EngineCatalogItem> {
   return {
     id,
@@ -324,6 +340,8 @@ function unavailable(
     documentationUrl,
     bindings,
     files: [],
+    optional,
+    estimatedBytes: 1,
     source: {
       kind: "archive",
       url: "https://example.invalid/unavailable",
@@ -363,6 +381,8 @@ function transcribeNative(platform: string): z.input<typeof EngineCatalogItem> {
     documentationUrl: TRANSCRIBE_DOC,
     bindings: [{ setting: "asr_library", target: "file", file: library }],
     files,
+    optional: false,
+    estimatedBytes: TRANSCRIBE_ESTIMATES[platform] || archive.size * 3,
     source: { kind: "archive", format: "tar.gz", ...archive },
   };
 }
@@ -379,6 +399,8 @@ function transcribeBindings(): z.input<typeof EngineCatalogItem> {
     documentationUrl: TRANSCRIBE_DOC,
     bindings: [{ setting: "asr_bindings", target: "directory" }],
     files: BINDINGS_FILES,
+    optional: false,
+    estimatedBytes: 200_000,
     source: {
       kind: "archive",
       url: BINDINGS_WHEEL.url,
@@ -402,6 +424,8 @@ function tenVad(platform: string): z.input<typeof EngineCatalogItem> {
     available: true,
     summary: "语音活动检测原生运行库",
     documentationUrl: TEN_VAD_DOC,
+    optional: false,
+    estimatedBytes: 1_200_000,
   };
   if (!pin)
     return {
@@ -456,6 +480,7 @@ function llamaServer(platform: string): z.input<typeof EngineCatalogItem> {
         { setting: "llama_server", target: "executable", file: binary },
         { setting: "translation_server", target: "executable", file: binary },
       ],
+      true,
     );
   return {
     id: "llama-server",
@@ -472,6 +497,8 @@ function llamaServer(platform: string): z.input<typeof EngineCatalogItem> {
       { setting: "translation_server", target: "executable", file: binary },
     ],
     files,
+    optional: true,
+    estimatedBytes: LLAMA_ESTIMATES[platform] || archive.size * 3,
     probe: ["--version"],
     source: {
       kind: "archive",
@@ -490,6 +517,7 @@ function pythonEnvironment(
   setting: "model_python" | "speech_python",
   requirements: string,
   summary: string,
+  estimatedBytes: number,
 ): z.input<typeof EngineCatalogItem> {
   const platform = currentPlatform();
   const version = requirementsVersion(requirements);
@@ -505,6 +533,8 @@ function pythonEnvironment(
     summary,
     bindings: [{ setting, target: "executable" as const, file: python }],
     files: [],
+    optional: true,
+    estimatedBytes,
   };
   if (!version)
     return {
@@ -550,6 +580,7 @@ export function engineCatalog(): z.infer<typeof EngineCatalog> {
         "model_python",
         "requirements.models.txt",
         "强制对齐与视觉检索使用的独立 Python 环境",
+        1_800_000_000,
       ),
       pythonEnvironment(
         "python-speech",
@@ -557,6 +588,7 @@ export function engineCatalog(): z.infer<typeof EngineCatalog> {
         "speech_python",
         "requirements.speech.txt",
         "本地语音合成使用的独立 Python 环境",
+        4_200_000_000,
       ),
     ],
   });

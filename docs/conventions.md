@@ -198,6 +198,7 @@ Studio 的“运行时与路径”和 `weaver engines` 管理本地引擎：tran
 
 ```bash
 npx weaver engines setup --expected-revision CONFIG_REV --wait --json
+npx weaver engines setup --with-models --with-speech --expected-revision CONFIG_REV --wait --json
 npx weaver engines list --json
 # 高级或自动化：单独处理某个组件
 npx weaver engines install transcribe-native --wait --json
@@ -206,9 +207,13 @@ npx weaver engines use transcribe-native --expected-revision CONFIG_REV --json
 npx weaver schema engine-settings --json
 ```
 
-Studio 的“本地运行环境”只提供一个“一键下载并配置”主操作：依次安装 transcribe 运行库、Python bindings、TEN VAD、llama-server 和模型 Python 环境，最后一个作业节点一次写入配置。用户不需要指定路径，也不需要先理解“下载、校验、采用”的逐步操作；已安装且校验通过的部分会复用，中途失败时保留已下载组件，重试继续。语音 Python 环境体积大，单独按需创建。单个组件的安装、校验、采用和手动路径输入收在高级设置里，供自定义运行库或排障使用。
+Studio 的“本地运行环境”只提供一个“一键下载并配置”主操作：依次安装 transcribe 运行库、Python bindings、TEN VAD（必需），llama-server 和模型 Python 环境（可选），最后一个作业节点一次写入配置。用户不需要指定路径，也不需要先理解“下载、校验、采用”的逐步操作；已安装且校验通过的部分会复用。
 
-`engines list` 返回解析后平台的 catalog。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
+必需组件失败时作业失败且不写配置；可选组件失败只记录在采用节点的 `skipped` 里并继续写配置，界面显示“部分组件未完成，可重试”。两个默认关闭的选项可以把语音 Python 环境和本地模型权重一并纳入：`includeSpeech`（约 4 GB）与 `includeModels`（ASR、EmbeddingGemma、ForcedAligner 权重，约 3.7 GB，CLI 为 `--with-speech`、`--with-models`）。单个组件的安装、校验、采用、更新和手动路径收在高级设置里。
+
+开始前按未安装组件的 `estimatedBytes` 与模型剩余字节估算所需空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。已安装版本与当前发布不同时 `engines list` 的 `updates` 会列出该组件，`engines setup` 会下载新版本、替换本应用管理的目录并重新采用。引擎安装根目录可在高级设置中修改（写 `engine_install_root`）；已安装目录不会自动搬迁，下一次一键配置会安装到新目录。可用空间与更新列表通过 `GET /api/engines` 返回。
+
+`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
 
 引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`）。未显式配置时，源码入口使用仓库 `weaver/runtime/`（Git 忽略），正式桌面包使用数据目录下的 `runtime/`。显式相对路径按 `configBase` 解析。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
 
