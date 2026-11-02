@@ -56,6 +56,7 @@ export function httpStatus(code: string): number {
     "REVISION_CONFLICT",
     "REQUEST_ID_REUSED",
     "CONFIG_CONFLICT",
+    "MODEL_FILES_CHANGED",
     "CONFIG_LOCKED",
     "CLIENT_STATE_CONFLICT",
   ].includes(code)

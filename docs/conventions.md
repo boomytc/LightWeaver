@@ -198,9 +198,9 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 正式桌面包预装 transcribe 运行库、Python bindings、TEN VAD 与 llama-server，构建时沿用同一 catalog、安装作业和完整性校验。`resources/bundled-engines.json` 记录平台、版本及相对应用资源根的绑定路径；实际默认路径按当前应用位置解析，私有配置和环境变量仍优先。基础 Python 随包交付，完整模型与语音环境保持按需安装。
 
-普通模型操作使用 `weaver models install ID --expected-revision CONFIG_REV --wait` 或 `POST /api/models/:id/install`。`GET /api/models/:id/install-plan` 返回兼容情况、模型剩余下载量和依赖预计体积。该操作按模型的运行条件选择缺失组件，通过单个 `model-setup` 作业依次准备依赖、下载权重、完整校验，最后一个 `model-activate` 节点一次写入模型及缺失组件的绑定。已有有效外部路径保留。依赖失败、取消或配置冲突不会启用模型；失败沿完整依赖链传播，成功的独立步骤可在重试时复用。仅下载文件仍使用 `models download`。
+普通模型操作使用 `weaver models install ID --expected-revision CONFIG_REV --wait` 或 `POST /api/models/:id/install`。`GET /api/models/:id/install-plan` 返回兼容情况、模型剩余下载量、依赖预计体积和文件来源。`source.kind` 优先为 `configured`（当前配置的完整模型，附冻结路径与文件快照），其次为 `downloaded`（下载目录内已有完整文件），缺文件时为 `download`。已有模型不创建下载节点；单个 `model-setup` 作业只准备缺失组件并完整校验已有文件，`model-activate` 最后一次写入配置。采用当前模型时保留全部模型绑定，路径或文件快照变化会拒绝启用；采用下载目录时写入对应模型绑定。依赖失败、取消或配置冲突不会启用模型；失败沿完整依赖链传播，成功的独立步骤可在重试时复用。仅下载文件仍使用 CLI `models download`。
 
-Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复 / 外观”。模型页提供“下载并启用”，高级文件操作默认折叠；组件维护和手工路径位于“诊断与修复”。旧 `runtime` 路由映射到诊断页。
+Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复 / 外观”。模型页按状态提供操作：未下载时“下载并启用”，已有下载文件时“启用”，已配置但缺组件时“准备运行组件”，路径或文件异常时“检查配置”或“检查文件”；已启用模型不再显示准备按钮。提交时携带所见的 `source`，服务端在创建作业前重新核对；来源变化返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新选择操作，不把启用静默改为下载。高级区保留路径采用和校验，不重复提供下载按钮。组件维护和手工路径位于“诊断与修复”。旧 `runtime` 路由映射到诊断页。
 
 Studio 的“诊断与修复 → 运行组件与修复”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及模型与语音 Python 环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
 

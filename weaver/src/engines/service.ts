@@ -20,6 +20,7 @@ import {
   ModelSettingsField,
   ModelInstallInput,
   ModelInstallPlan,
+  ModelInstallSource,
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { readConfig } from "../config.ts";
@@ -925,6 +926,12 @@ export class Engines {
   modelPlan(id: string, root = this.models.settings().downloadRoot.value) {
     const model = this.models.catalog().localModels.find((item) => item.id === id);
     if (!model) throw new WeaverError("INVALID_INPUT", "未知本地模型", { id });
+    const current = this.models.view(root).local.find((item) => item.id === id);
+    const paths = current?.activeBindings.filter((binding) => binding.target !== "literal") || [];
+    const source = current && paths.length > 0 && paths.every((binding) => binding.state === "present") &&
+      current.activeFiles.length > 0 && current.activeFiles.every((file) => file.state === "metadata-match")
+      ? { kind: "configured", snapshot: { bindings: current.activeBindings, files: current.activeFiles } }
+      : { kind: current?.status.state === "unchecked" ? "downloaded" : "download" };
     const missing = this.models.runtimeStatus(id).filter((requirement) => !requirement.ready);
     const catalog = engineCatalog();
     const components = catalog.items.filter((item) => item.bindings.some((binding) =>
@@ -938,7 +945,8 @@ export class Engines {
       .filter(Boolean).join("；");
     return ModelInstallPlan.parse({
       id,
-      modelBytes: this.models.setupMissingBytes([id], path.resolve(this.root, root)),
+      source,
+      modelBytes: source.kind === "download" ? this.models.setupMissingBytes([id], path.resolve(this.root, root)) : 0,
       dependencyBytes: this.requiredBytes(components, this.rootDirectory()),
       components: components.map(({ id, name }) => ({ id, name })),
       available: !reason,
@@ -949,12 +957,15 @@ export class Engines {
   installModel(raw: unknown) {
     const input = ModelInstallInput.parse(raw);
     const root = path.resolve(this.root, input.root);
-    const requestInput = { id: input.id, root, expectedRevision: input.expectedRevision };
+    const requestInput = { id: input.id, root, expectedRevision: input.expectedRevision,
+      ...(input.source ? { source: input.source } : {}) };
     const prior = this.jobs.prior("model-setup", input.requestId, requestInput);
     if (prior) return prior;
     if (this.models.settings().revision !== input.expectedRevision)
       throw new WeaverError("CONFIG_CONFLICT", "模型设置已变化，请刷新后重试");
     const plan = this.modelPlan(input.id, root);
+    if (input.source && JSON.stringify(input.source) !== JSON.stringify(plan.source))
+      throw new WeaverError("MODEL_FILES_CHANGED", "模型文件或路径已变化，请按刷新后的状态重新选择操作");
     if (!plan.available)
       throw new WeaverError("CAPABILITY_UNAVAILABLE", plan.reason || "当前平台不能准备此模型");
     const active = this.jobs.list().find((run) =>
@@ -978,15 +989,17 @@ export class Engines {
         ...(nodes.length ? { dependencies: [nodes[nodes.length - 1].key] } : {}),
       });
     }
-    nodes.push({
-      key: `download-${input.id}`, operation: "model-download",
-      input: { id: input.id, revision: model.revision, root },
-      ...(nodes.length ? { dependencies: [nodes[nodes.length - 1].key] } : {}),
-    });
+    if (plan.source.kind === "download")
+      nodes.push({
+        key: `download-${input.id}`, operation: "model-download",
+        input: { id: input.id, revision: model.revision, root },
+        ...(nodes.length ? { dependencies: [nodes[nodes.length - 1].key] } : {}),
+      });
     nodes.push({
       key: "activate", operation: "model-activate",
-      dependencies: [`download-${input.id}`],
-      input: { ...requestInput, revision: model.revision, engineRoot,
+      dependencies: nodes.length ? [nodes[nodes.length - 1].key] : [],
+      input: { id: input.id, root, expectedRevision: input.expectedRevision,
+        revision: model.revision, engineRoot, source: plan.source,
         components: components.map(({ id, version }) => ({ id, version })),
         settings: this.models.runtimeStatus(input.id).filter((item) => !item.ready).map((item) => item.setting) },
     });
@@ -1000,6 +1013,7 @@ export class Engines {
       expectedRevision: Digest,
       components: z.array(z.strictObject({ id: z.string(), version: z.string() })),
       settings: z.array(z.string()),
+      source: ModelInstallSource.optional(),
     }).parse(context.input);
     const patch: Record<string, string> = {};
     for (const component of input.components) {
@@ -1016,7 +1030,14 @@ export class Engines {
     const model = this.models.planForSetup([input.id])[0];
     if (model.revision !== input.revision)
       throw new WeaverError("MODEL_RELEASE_CHANGED", "模型版本已变化，请重新准备模型");
-    Object.assign(patch, await this.models.bindingsForSetup(input.id, input.root));
+    if (input.source?.kind === "configured") {
+      const verification = await this.models.verifyActive(input.id);
+      context.signal.throwIfAborted();
+      if (JSON.stringify(verification.snapshot) !== JSON.stringify(input.source.snapshot))
+        throw new WeaverError("CONFIG_CONFLICT", "模型路径或文件已变化，请重新准备模型");
+      if (verification.state !== "verified")
+        throw new WeaverError("MODEL_VERIFY_FAILED", "当前模型未通过完整性校验，未修改配置", verification);
+    } else Object.assign(patch, await this.models.bindingsForSetup(input.id, input.root));
     context.signal.throwIfAborted();
     const missing = this.models.runtimeStatus(input.id, patch).filter((item) => !item.ready);
     if (missing.length)

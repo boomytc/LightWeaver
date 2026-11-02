@@ -20,6 +20,7 @@ import {
   MediaProvenance,
   MediaRef,
   SourceRange,
+  ModelInstallInput,
 } from "@lightweaver/weaver/contracts";
 import { ClientStateStore } from "./client-state.ts";
 
@@ -221,7 +222,7 @@ export async function startStudioService(
   );
   route("post", "/api/models/:id/install", (req) =>
     app.engines.installModel({
-      ...z.object({ root: z.string(), expectedRevision: z.string(), requestId: z.string() }).strict().parse(req.body),
+      ...ModelInstallInput.omit({ id: true }).parse(req.body),
       id: z.string().parse(req.params.id),
     }),
   );

@@ -965,11 +965,18 @@ export const DownloadInput = z.strictObject({
   root: z.string().min(1),
   requestId: Id,
 });
+export const ModelInstallSource = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("configured"), snapshot: ActiveModelSnapshot }),
+  z.strictObject({ kind: z.literal("downloaded") }),
+  z.strictObject({ kind: z.literal("download") }),
+]);
 export const ModelInstallInput = DownloadInput.extend({
   expectedRevision: Digest,
+  source: ModelInstallSource.optional(),
 });
 const ModelInstallEstimate = z.strictObject({
   id: z.string(),
+  source: ModelInstallSource,
   modelBytes: z.number().int().nonnegative().safe(),
   dependencyBytes: z.number().int().nonnegative().safe(),
   components: z.array(z.strictObject({ id: z.string(), name: z.string() })),
