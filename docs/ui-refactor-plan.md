@@ -149,3 +149,33 @@
 4. `统一页面框架并补齐响应式与可及性`（批次 2）
 5. `补齐反馈状态原语与确认撤销阶梯`（批次 3）
 6. `调整设置交付库与任务页面信息架构`（批次 4）
+
+---
+
+## 六、实施记录（2026-11-02）
+
+### 提交
+
+| 批次 | 提交 | 内容 |
+| --- | --- | --- |
+| 文档 | `887522b` | 补充 Studio UI 审查与重构方案 |
+| 批次 0 | `4c7f401` | 修复窄屏布局与项目加载失败反馈（`.grid` 冲突、工作区派生折叠与中心最小宽、加载骨架/失败重试、错误横幅、列表 loading/failed、toast 去重与动作、对比度与 focus-visible 快修） |
+| 批次 1 | `426521a` | 收敛设计令牌并拆分样式层（`styles/{tokens,base,components,responsive}.css`、令牌 27/27 映射、共享 popover/dialog/overlay/toast 视觉层、stage 局部令牌、字号/尺寸/间距档位、系统字体栈、`ui-input--bare`） |
+| 批次 2 | `6b713c1` | 统一页面框架并补齐响应式与可及性（`PageFrame`/`Segmented`/`useTabs`、工作区 header h1、底部非 edit 自动折叠、分隔条键盘与 `role=separator`、窄窗 icon rail + popover 搜索、skip link 与路由聚焦、mask/source 控件布局） |
+| 批次 3 | `faff04d` | 补齐反馈状态原语与确认撤销阶梯（`ProgressBar`、`useAction`、`ConfirmDialog v2`、`Popconfirm`、库项乐观删除 + 5s 撤销、场景删除 Popconfirm、单调作业进度、`FormField` 必填/错误、交付/库 pending、退出对话框文案与焦点） |
+| 批次 4 | `6271d85` | 调整设置交付库与任务页面信息架构（模型就绪摘要、设置去卡片嵌套、EngineSettings 拆分与顶部主按钮、模型二级视图；工作区左栏去重与引导单行可关、证据单列、BGM 去卡、方案/对比整改；交付主操作 + 状态分组、任务筛选与节点行、首页引导/导入/行列表、库按 kind 文案 + sticky 动作条；UI 样式 CI 检查） |
+
+### 验收结果
+
+- `make typecheck` 通过（含 `scripts/check-ui-css.mjs`：同名组件类、UI/壳层硬编码色、arbitrary 圆角、非 reduced-motion `!important` 检查）。
+- `npm run build -w @lightweaver/studio` 通过。
+- Playwright 真实运行 Studio（`make studio`）截图矩阵：1512 浅/暗、1024、960；首页/工作区/设置/任务/方法/音色/交付/字幕/声音/方案；**无横向溢出、无 console/pageerror**。
+- 关键交互实测：项目上下文失败 → 错误卡 → 重试恢复；工作区 tab 方向键切换并更新 `aria-selected`；分隔条方向键/Home/End/双击复位；960/1024 导航 icon rail 与 popover 搜索；skip link 首个 Tab；库项删除乐观隐藏 + 撤销（拦截断言 0 次 DELETE）；场景删除 Popconfirm 焦点落在取消且取消不丢场景；CreateProject 片名为空时提交禁用。
+- 数据安全：验收期间未做保存/制作/删除/导出/导入等写操作；删除与撤销路径在拦截网络请求下验证，未改动真实项目数据。
+
+### 未覆盖 / 已知限制
+
+- 真实数据没有 deliveries、runs、模型失败、BGM、证据、冲突等状态，相关 UI 分支用临时本地状态或 `page.route` mock 验证后已还原，未在真实服务端触发。
+- 未验证 Electron 打包产物；验收基于浏览器开发模式 + 生产 `vite build`。
+- 未新增自动化测试套件（遵循 `confident-development-conventions`，临时脚本与截图不入库）。
+- P2 剩余：页面内容宽仍按职责保留 1120/896/1440 三档；部分空态/历史卡仍用 `subtle-card`；字体改为系统栈，未自托管品牌字体；主题入口保留左下角一处，设置页"外观"只读说明。
