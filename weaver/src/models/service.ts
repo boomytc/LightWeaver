@@ -504,15 +504,21 @@ export class Models {
     } catch {
       isFile = false;
     }
-    if (isFile && item.catalog.files.length !== 1)
-      throw new WeaverError(
-        "INVALID_INPUT",
-        "多文件模型必须采用完整目录",
-        { id: input.id },
-      );
-    const verification = isFile
+    const singleFile = isFile && item.catalog.files.length === 1;
+    let directory = resolved;
+    if (isFile && !singleFile) {
+      const matches = item.catalog.files.filter((file) => path.basename(file.path) === path.basename(resolved));
+      if (matches.length !== 1)
+        throw new WeaverError("INVALID_INPUT", "请选择此模型的文件或完整目录", { id: input.id });
+      const selected = matches[0];
+      safeRelative(selected.path);
+      for (const _ of selected.path.split("/")) directory = path.dirname(directory);
+      if (path.resolve(directory, selected.path) !== resolved)
+        throw new WeaverError("INVALID_INPUT", "所选文件不在此模型的目录结构中", { id: input.id });
+    }
+    const verification = singleFile
       ? this.verifySingleFile(item, resolved)
-      : this.verifyDirectory(item, path.dirname(resolved), resolved);
+      : this.verifyDirectory(item, path.dirname(directory), directory);
     return verification.then(
       async (verified) => {
         if (verified.state !== "verified")
@@ -523,7 +529,7 @@ export class Models {
           );
         const patch: Record<string, string> = {};
         for (const binding of item.catalog.bindings) {
-          if (isFile) {
+          if (singleFile) {
             if (binding.target !== "file")
               throw new WeaverError(
                 "INVALID_INPUT",
@@ -534,7 +540,7 @@ export class Models {
             continue;
           }
           safeRelative(binding.target === "file" ? binding.file : "");
-          patch[binding.setting] = modelBindingValue(item, resolved, binding);
+          patch[binding.setting] = modelBindingValue(item, directory, binding);
         }
         return this.writeSettings({
           root: this.root,

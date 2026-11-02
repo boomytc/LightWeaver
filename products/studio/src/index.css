@@ -977,8 +977,7 @@
     margin-top: 8px;
   }
   .model-inventory-details > summary,
-  .model-root > summary,
-  .model-downloads > summary {
+  .model-root > summary {
     display: flex;
     min-width: 0;
     align-items: center;
@@ -986,20 +985,17 @@
     list-style: none;
   }
   .model-inventory-details > summary::-webkit-details-marker,
-  .model-root > summary::-webkit-details-marker,
-  .model-downloads > summary::-webkit-details-marker {
+  .model-root > summary::-webkit-details-marker {
     display: none;
   }
   .model-inventory-details > summary::before,
-  .model-root > summary::before,
-  .model-downloads > summary::before {
+  .model-root > summary::before {
     color: var(--lw-muted);
     content: "▸";
     transition: transform 150ms ease;
   }
   .model-inventory-details[open] > summary::before,
-  .model-root[open] > summary::before,
-  .model-downloads[open] > summary::before {
+  .model-root[open] > summary::before {
     transform: rotate(90deg);
   }
   .model-inventory-details > summary {
@@ -1015,8 +1011,7 @@
     padding-top: 8px;
     overflow-wrap: anywhere;
   }
-  .model-root,
-  .model-downloads {
+  .model-root {
     padding: 12px 14px;
   }
   .model-root > summary small {
@@ -1024,38 +1019,15 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .model-root > .inline-fields,
-  .model-downloads > div {
+  .model-root > .inline-fields {
     margin-top: 12px;
   }
   .model-files,
-  .preset-effective,
-  .download-row {
+  .preset-effective {
     border: 1px solid var(--lw-line);
     border-radius: var(--radius-md);
     background: var(--lw-subtle-bg);
     padding: 10px;
-  }
-  .download-row,
-  .runtime-list {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .runtime-list span {
-    border-radius: var(--radius-sm);
-    padding: 3px 7px;
-    font-size: 12px;
-  }
-  .runtime-list .ok {
-    background: var(--lw-ok-bg);
-    color: var(--lw-ok);
-  }
-  .runtime-list .missing {
-    background: var(--lw-warn-bg);
-    color: var(--lw-warn);
   }
   .caption-container {
     container-type: inline-size;

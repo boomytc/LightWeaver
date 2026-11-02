@@ -101,6 +101,12 @@ export function JobsPage() {
   };
   const changeRun = async (kind: "cancel" | "resume", runId: string) => {
     try {
+      const run = runs.find((item) => item.id === runId);
+      if (kind === "resume" && run?.kind === "model-setup" && run.error?.code === "CONFIG_CONFLICT") {
+        session.setNotice("模型设置已变化，请重新启用；已有文件会复用。");
+        await session.navigate("settings", "", "models");
+        return;
+      }
       await api(`/runs/${runId}/${kind}`, RunRecord, { method: "POST", body: {} });
       setSelected(runId);
       if (kind === "resume") setDetail(null);
@@ -155,7 +161,7 @@ export function JobsPage() {
                   {["engine-setup", "engine-install"].includes(selectedRun.kind) && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "diagnostics")}>打开诊断与修复</Button>}
                   {selectedRun.kind === "model-setup" && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "models")}>打开模型</Button>}
                   <Button size="sm" disabled={!isActiveRun(selectedRun.state)} onClick={() => void changeRun("cancel", selectedRun.id)}>取消</Button>
-                  <Button size="sm" disabled={!RESUMABLE_RUN_STATES.has(selectedRun.state)} onClick={() => void changeRun("resume", selectedRun.id)}>恢复</Button>
+                  <Button size="sm" disabled={!RESUMABLE_RUN_STATES.has(selectedRun.state)} onClick={() => void changeRun("resume", selectedRun.id)}>{selectedRun.kind === "model-setup" && selectedRun.error?.code === "CONFIG_CONFLICT" ? "重新启用" : "恢复"}</Button>
                 </div>
               </div>
               {stream.error && <p className="error m-0">{stream.error}</p>}
