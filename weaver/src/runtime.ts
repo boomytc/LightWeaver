@@ -13,6 +13,7 @@ export const RuntimeContext = z
     configBase: z.string().min(1),
     dataDir: z.string().min(1),
     modelDir: z.string().min(1),
+    engineDir: z.string().min(1),
     tempDir: z.string().min(1),
     logDir: z.string().min(1),
     tools: z
@@ -40,6 +41,11 @@ function absoluteDir(file: string, label: string): string {
   return resolved;
 }
 
+/** 当前平台的稳定标识，例如 darwin-arm64。模型与引擎 catalog 共用。 */
+export function currentPlatform(): string {
+  return `${process.platform}-${process.arch}`;
+}
+
 export function developmentRuntime(
   env: NodeJS.ProcessEnv = process.env,
 ): RuntimeContext {
@@ -58,6 +64,10 @@ export function developmentRuntime(
     dataDir,
     modelDir: path.resolve(
       env.LIGHTWEAVER_MODEL_DOWNLOAD_ROOT?.trim() || path.join(devRoot, "models"),
+    ),
+    engineDir: path.resolve(
+      env.LIGHTWEAVER_ENGINE_ROOT?.trim() ||
+        path.join(devRoot, "weaver", "runtime"),
     ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),
@@ -85,6 +95,7 @@ export function installRuntime(input: RuntimeContext): RuntimeContext {
     configBase: absoluteDir(parsed.configBase, "配置基准"),
     dataDir: absoluteDir(parsed.dataDir, "数据目录"),
     modelDir: absoluteDir(parsed.modelDir, "模型目录"),
+    engineDir: absoluteDir(parsed.engineDir, "引擎目录"),
     tempDir: absoluteDir(parsed.tempDir, "临时目录"),
     logDir: absoluteDir(parsed.logDir, "日志目录"),
     tools: {
@@ -99,7 +110,13 @@ export function installRuntime(input: RuntimeContext): RuntimeContext {
   const nodeName = path.basename(context.tools.node).toLowerCase();
   if (nodeName !== "node" && nodeName !== "node.exe")
     throw new Error("服务运行时必须是 Node，不能是 Electron 或其他可执行文件");
-  for (const dir of [context.dataDir, context.modelDir, context.tempDir, context.logDir])
+  for (const dir of [
+    context.dataDir,
+    context.modelDir,
+    context.engineDir,
+    context.tempDir,
+    context.logDir,
+  ])
     fs.mkdirSync(dir, { recursive: true });
   fs.mkdirSync(path.dirname(context.configFile), { recursive: true });
   active = context;

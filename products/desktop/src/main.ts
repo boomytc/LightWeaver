@@ -276,6 +276,9 @@ function runtimePaths(prefs: DesktopPreferences) {
     modelDir: path.resolve(
       prefs.modelDir || path.join(dev ? repoRoot : dataDir, "models"),
     ),
+    engineDir: path.resolve(
+      dev ? path.join(repoRoot, "weaver", "runtime") : path.join(dataDir, "runtime"),
+    ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),
     tools,

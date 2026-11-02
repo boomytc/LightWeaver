@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
 import { api, ApiError } from "../api";
@@ -11,6 +11,7 @@ import { Modal } from "../ui/Modal";
 import { Badge } from "../ui/Badge";
 import { InputWithActions } from "../ui/InputWithActions";
 import { ModelSettings } from "./ModelSettings";
+import { EngineSettings } from "./EngineSettings";
 
 const RuntimeView = z.object({
   platform: z.string(),
@@ -19,6 +20,7 @@ const RuntimeView = z.object({
   configFile: z.string(),
   configBase: z.string(),
   modelDir: z.string(),
+  engineDir: z.string(),
   logDir: z.string(),
   resourcesDir: z.string().optional(),
   interchangePython: z.string(),
@@ -59,7 +61,7 @@ export function SettingsPage() {
   const section = sections.some((item) => item[0] === session.route.section) ? session.route.section : "models";
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="设置" description="管理模型与供应商、运行时路径、外观、存储和应用诊断。" />
+      <PageHeader title="设置" description="管理模型与供应商、运行时与引擎安装、外观、存储和应用诊断。" />
       <Tabs.Root className="split-page grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)]" value={section} onValueChange={(value) => void session.navigate("settings", "", value)}>
         <Tabs.List className="flex flex-col gap-1 border-r border-line p-3" aria-label="设置分区">
           {sections.map(([value, label]) => (
@@ -77,7 +79,12 @@ export function SettingsPage() {
                 onOpenJobs={() => void session.navigate("jobs")}
               />
             </Tabs.Content>
-            <Tabs.Content value="runtime"><RuntimePanel /></Tabs.Content>
+            <Tabs.Content value="runtime">
+              <div className="flex flex-col gap-4">
+                <RuntimePanel />
+                <EngineSettings />
+              </div>
+            </Tabs.Content>
             <Tabs.Content value="appearance">
               <section className="panel-card flex flex-col gap-3 p-5">
                 <div className="flex items-center gap-3">
@@ -110,6 +117,9 @@ function RuntimePanel() {
   const [fields, setFields] = useState<Partial<Record<RuntimeField, string>>>({});
   const [environment, setEnvironment] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirtyFields = useRef(new Set<RuntimeField>());
+  const fieldsRef = useRef(fields);
+  fieldsRef.current = fields;
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([
@@ -122,7 +132,24 @@ function RuntimePanel() {
       setEnvironment(`${nextRuntime.modelDir.replace(/[/\\]+$/, "")}/python-env`);
       setFields(runtimeFieldValues(nextSettings));
     }).catch((reason) => { if (!controller.signal.aborted) session.setError(String(reason)); });
-    return () => controller.abort();
+    const onCapabilitiesChanged = () => {
+      api("/models/settings", ModelSettingsView, { signal: controller.signal })
+        .then((nextSettings) => {
+          if (controller.signal.aborted) return;
+          setSettings(nextSettings);
+          setFields((current) => {
+            const next = runtimeFieldValues(nextSettings);
+            for (const key of dirtyFields.current) next[key] = current[key] ?? "";
+            return next;
+          });
+        })
+        .catch((reason) => { if (!controller.signal.aborted) session.setError(String(reason)); });
+    };
+    window.addEventListener("lightweaver-capabilities-changed", onCapabilitiesChanged);
+    return () => {
+      controller.abort();
+      window.removeEventListener("lightweaver-capabilities-changed", onCapabilitiesChanged);
+    };
   }, []);
   if (!runtime || !settings) return <p>加载运行时…</p>;
   const save = async () => {
@@ -164,6 +191,7 @@ function RuntimePanel() {
       session.completeStableRequest(key, attempt);
       setSettings(next);
       setFields((current) => current === submittedFields ? runtimeFieldValues(next) : current);
+      if (fieldsRef.current === submittedFields) dirtyFields.current.clear();
       window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
       session.setNotice("运行时路径已保存，本地配置文件优先于环境变量和内置默认值");
     } catch (reason) {
@@ -176,6 +204,7 @@ function RuntimePanel() {
     ["配置文件", runtime.configFile],
     ["配置基准", runtime.configBase],
     ["模型目录", runtime.modelDir],
+    ["引擎目录", runtime.engineDir],
     ["日志目录", runtime.logDir],
   ];
   return (
@@ -192,12 +221,18 @@ function RuntimePanel() {
             value={fields[key] || ""}
             disabled={saving}
             hint={`当前来源：${settings.values[key]?.source || "unset"}`}
-            onChange={(event) => setFields((current) => ({ ...current, [key]: event.target.value }))}
+            onChange={(event) => {
+              dirtyFields.current.add(key);
+              setFields((current) => ({ ...current, [key]: event.target.value }));
+            }}
             actions={desktop() && <Button type="button" disabled={saving} onClick={() => void (async () => {
               try {
                 const bridge = desktop();
                 const picked = directory ? await bridge?.pickDirectory?.() : await bridge?.pickModelFile?.();
-                if (picked) setFields((current) => ({ ...current, [key]: picked }));
+                if (picked) {
+                  dirtyFields.current.add(key);
+                  setFields((current) => ({ ...current, [key]: picked }));
+                }
               } catch (reason) { session.setError(String(reason)); }
             })()}>选择{directory ? "目录" : "文件"}</Button>}
           />
@@ -205,7 +240,10 @@ function RuntimePanel() {
       </div>
       <label className="field">
         <span>对齐设备</span>
-        <input value={fields.alignmentDevice || "cpu"} placeholder="cpu 或 cuda:0" disabled={saving} onChange={(event) => setFields((current) => ({ ...current, alignmentDevice: event.target.value }))} />
+        <input value={fields.alignmentDevice || "cpu"} placeholder="cpu 或 cuda:0" disabled={saving} onChange={(event) => {
+          dirtyFields.current.add("alignmentDevice");
+          setFields((current) => ({ ...current, alignmentDevice: event.target.value }));
+        }} />
       </label>
       <div className="actions">
         <Button variant="primary" type="button" disabled={saving} onClick={() => void save()}>{saving ? "保存中…" : "保存运行时路径"}</Button>
@@ -228,7 +266,7 @@ function RuntimePanel() {
       <details className="subtle-card p-4">
         <summary className="font-medium">安装可选模型 Python 环境</summary>
         <div className="mt-3 flex flex-col gap-3">
-          <p className="hint m-0">在应用目录外创建独立环境，安装后把上方“模型 Python”指定为该环境的解释器。ASR 的 transcribe native library 和 bindings 仍需单独获取并选择。</p>
+          <p className="hint m-0">在应用目录外创建独立环境，安装后把上方“模型 Python”指定为该环境的解释器。ASR 的 transcribe native library 和 bindings 仍需单独获取并选择。下方“引擎运行时”可一键创建或更新环境；这里的命令保留为手工后备。</p>
           <label className="field"><span>模型环境目标目录</span><input value={environment} onChange={(event) => setEnvironment(event.target.value)} /></label>
           <pre className="code-block">{modelEnvironmentCommands(runtime, environment).join("\n")}</pre>
           <p className="hint m-0">交接使用的 Python：{runtime.interchangePython || "由启动环境指定"}。它与可选模型环境分开。</p>
@@ -265,17 +303,25 @@ function RuntimePanel() {
   );
 }
 
-type RuntimeField = "modelPython" | "asrLibrary" | "asrBindings" | "visualServer" | "alignmentDevice";
+type RuntimeField = "modelPython" | "speechPython" | "asrLibrary" | "asrBindings" | "visualServer" | "alignmentDevice";
 const runtimeFields: { key: Exclude<RuntimeField, "alignmentDevice">; label: string; directory?: boolean }[] = [
   { key: "modelPython", label: "模型 Python" },
+  { key: "speechPython", label: "语音 Python" },
   { key: "asrLibrary", label: "ASR transcribe native library" },
   { key: "asrBindings", label: "ASR transcribe Python bindings", directory: true },
   { key: "visualServer", label: "EmbeddingGemma llama-server" },
 ];
 
-function runtimeFieldValues(settings: z.infer<typeof ModelSettingsView>) {
+type RuntimeFieldValues = Record<Exclude<RuntimeField, "alignmentDevice">, string> & {
+  alignmentDevice: string;
+};
+
+function runtimeFieldValues(settings: z.infer<typeof ModelSettingsView>): RuntimeFieldValues {
+  const fields = Object.fromEntries(
+    runtimeFields.map(({ key }) => [key, settings.values[key]?.value || ""]),
+  ) as Record<Exclude<RuntimeField, "alignmentDevice">, string>;
   return {
-    ...Object.fromEntries(runtimeFields.map(({ key }) => [key, settings.values[key]?.value || ""])),
+    ...fields,
     alignmentDevice: settings.values.alignmentDevice?.value || "cpu",
   };
 }

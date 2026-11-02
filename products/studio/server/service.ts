@@ -161,6 +161,7 @@ export async function startStudioService(
     configFile: runtime.configFile,
     configBase: runtime.configBase,
     modelDir: runtime.modelDir,
+    engineDir: runtime.engineDir,
     logDir: runtime.logDir,
     resourcesDir: runtime.resourcesDir,
     requirements: ["requirements.txt", "requirements.models.txt", "requirements.models.mlx.txt", "requirements.speech.txt"]
@@ -226,6 +227,39 @@ export async function startStudioService(
       id: z.string().parse(req.params.id),
       directory: z.object({ path: z.string() }).parse(req.body).path,
       ...z.object({ expectedRevision: z.string(), requestId: z.string() }).parse(req.body),
+    }),
+  );
+  route("get", "/api/engines", (req) =>
+    app.engines.view(z.string().min(1).optional().parse(req.query.root)),
+  );
+  route("post", "/api/engines/:id/install", (req) =>
+    app.engines.install({
+      id: z.string().parse(req.params.id),
+      root: z.object({ root: z.string().min(1) }).parse(req.body).root,
+      requestId: z.object({ requestId: z.string().min(1) }).passthrough().parse(req.body)
+        .requestId,
+    }),
+  );
+  route("post", "/api/engines/:id/verify", (req) =>
+    app.engines.verify(
+      z.string().parse(req.params.id),
+      z
+        .object({ root: z.string().min(1).optional() })
+        .parse(req.body || {})
+        .root,
+    ),
+  );
+  route("post", "/api/engines/:id/use", (req) =>
+    app.engines.adopt({
+      id: z.string().parse(req.params.id),
+      directory: z
+        .object({ path: z.string().min(1).optional() })
+        .parse(req.body)
+        .path,
+      expectedRevision: z.object({ expectedRevision: z.string() }).parse(req.body)
+        .expectedRevision,
+      requestId: z.object({ requestId: z.string().min(1) }).parse(req.body)
+        .requestId,
     }),
   );
   route("get", "/api/projects", () => app.projects.list());

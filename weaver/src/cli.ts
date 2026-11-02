@@ -15,6 +15,7 @@ import {
   MediaAssetVersion,
   MediaProvenance,
   MediaRef,
+  EngineSettingsPatch,
   ModelSettingsPatch,
   OutputProfile,
   ProjectDocument,
@@ -312,6 +313,37 @@ async function main(): Promise<void> {
         });
       } else
         throw new WeaverError("INVALID_INPUT", "未知 models 操作");
+    } else if (command === "engines") {
+      const engineId = parsed.words[2];
+      const engineRoot = () =>
+        option(parsed, "root") || app.engines.installRoot().value;
+      if (action === "list") result = app.engines.view(option(parsed, "root"));
+      else if (action === "install") {
+        if (!engineId)
+          throw new WeaverError("INVALID_INPUT", "缺少 engine-id");
+        const run = app.engines.install({
+          id: engineId,
+          root: engineRoot(),
+          requestId,
+        });
+        result = booleanOption(parsed, "wait")
+          ? { run: await wait(run.id), nodes: app.jobs.nodes(run.id) }
+          : run;
+      } else if (action === "verify") {
+        if (!engineId)
+          throw new WeaverError("INVALID_INPUT", "缺少 engine-id");
+        result = await app.engines.verify(engineId, engineRoot());
+      } else if (action === "use") {
+        if (!engineId)
+          throw new WeaverError("INVALID_INPUT", "缺少 engine-id");
+        result = await app.engines.adopt({
+          id: engineId,
+          directory: option(parsed, "path"),
+          expectedRevision: required(parsed, "expected-revision"),
+          requestId,
+        });
+      } else
+        throw new WeaverError("INVALID_INPUT", "未知 engines 操作");
     } else if (command === "schema") {
       const schemas = {
         project: ProjectDocument,
@@ -328,6 +360,7 @@ async function main(): Promise<void> {
         proposal: Proposal,
         timeline: TimelineManifest,
         "model-settings": ModelSettingsPatch,
+        "engine-settings": EngineSettingsPatch,
         error: ErrorProtocol,
       };
       const schema = Object.entries(schemas).find(

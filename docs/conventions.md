@@ -153,13 +153,12 @@ npx weaver schema model-settings --json
 npx weaver models download qwen3-asr --wait --json
 npx weaver models verify qwen3-asr --json
 npx weaver models use qwen3-asr --path /absolute/qwen3-asr --expected-revision CONFIG_REV --json
-npx weaver models use ten-vad-darwin-arm64 --path /absolute/ten_vad --expected-revision CONFIG_REV --json
 npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 ```
 
 本地目录由 TypeScript 声明式 catalog 提供。每条发布固定 repository、revision、文件路径、大小和 SHA-256；不接受任意下载 URL。下载输入只接受 catalog 模型 ID 和根目录，路径拒绝绝对文件项、`..` 与控制字符。下载作业沿用现有 Jobs 取消、恢复、重试和事件，模型下载单独使用六小时时限。
 
-下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页分别检查当前生效路径和下载目录的元数据；Studio 可分别校验当前模型或下载目录，CLI `verify` 校验下载目录。校验与采用按目录清单对比，其他模型版本可能不同；只有显式校验、成功下载和采用已有路径才读取并哈希完整文件。Qwen ASR GGUF 与 TEN VAD 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 的目录绑定要求完整模型目录。下载不会复制到 CAS，也不会隐式写入配置。
+下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页分别检查当前生效路径和下载目录的元数据；Studio 可分别校验当前模型或下载目录，CLI `verify` 校验下载目录。校验与采用按目录清单对比，其他模型版本可能不同；只有显式校验、成功下载和采用已有路径才读取并哈希完整文件。Qwen ASR GGUF 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 的目录绑定要求完整模型目录。TEN VAD 与其它原生运行库由引擎安装管理。下载不会复制到 CAS，也不会隐式写入配置。
 
 模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码入口（仓库 CLI、浏览器 Studio、源码桌面）默认以仓库为配置基准，正式桌面包以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
 
@@ -185,13 +184,38 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 | 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL、LIGHTWEAVER_TRANSLATION_SERVER |
 | 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
-本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认路径相对 `configBase`，Windows 为 `weaver/.venv/Scripts/python.exe`，其他平台为 `weaver/.venv/bin/python`。正式包建议在设置页指定已创建环境的绝对路径。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径按运行时配置基准解析，不读取相邻仓库配置或 Python 环境。默认 `requirements.models.txt` 在所有平台安装 `qwen-asr`；MLX 只在显式安装 `requirements.models.mlx.txt` 后可用。权重路径需要显式设置，不自动下载。
+本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认路径相对 `configBase`，Windows 为 `weaver/.venv/Scripts/python.exe`，其他平台为 `weaver/.venv/bin/python`。推荐用 `weaver engines install python-model` 创建独立环境并采用；也可在设置页指定已有环境的绝对路径。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径按运行时配置基准解析，不读取相邻仓库配置或 Python 环境。默认 `requirements.models.txt` 在所有平台安装 `qwen-asr`；MLX 只在显式安装 `requirements.models.mlx.txt` 后可用。权重路径需要显式设置，不自动下载。
 
 每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。模型 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 
 本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。本轮模型预设与安装的验收证据和限制见[模型预设与本地安装验收](acceptance-model-setup.md)。
 
 `weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)、[能力落地验收](acceptance-coverage.md)、[连续影视素材验收](acceptance-long-form.md)与[全片精确对齐根因与验收](acceptance-alignment-root-cause.md)。
+
+## 引擎运行时
+
+Studio 的“运行时与路径”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及模型与语音 Python 环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
+
+```bash
+npx weaver engines list --json
+npx weaver engines install transcribe-native --wait --json
+npx weaver engines verify transcribe-native --json
+npx weaver engines use transcribe-native --expected-revision CONFIG_REV --json
+npx weaver engines install llama-server --wait --json
+npx weaver engines install python-model --wait --json
+npx weaver engines use python-model --expected-revision CONFIG_REV --json
+npx weaver schema engine-settings --json
+```
+
+`engines list` 返回解析后平台的 catalog。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
+
+引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`）。未显式配置时，源码入口使用仓库 `weaver/runtime/`（Git 忽略），正式桌面包使用数据目录下的 `runtime/`。显式相对路径按 `configBase` 解析。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
+
+`engines use` 先完整校验，再把绑定写入私有配置：transcribe 运行库写 `asr_library`，bindings 写 `asr_bindings`，TEN VAD 写 `vad_library`，llama-server 同时写 `visual_server`、`llama_server` 与 `translation_server`，Python 环境写 `model_python` 或 `speech_python`。采用沿用 `models settings get` 的 revision 与稳定 requestId，先校验后写配置；下载或安装本身不会隐式改写配置。
+
+Python 环境由 `python-model`、`python-speech` 两个引擎项创建：优先使用运行时 Python，否则从 PATH 找 Python 3.10 以上解释器，创建 venv 后按 `weaver/requirements.models.txt` 或 `weaver/requirements.speech.txt` 安装依赖，失败时删除本次新建的环境。作业使用六小时时限，取消会终止 pip。校验会读取已安装包版本与 requirements 的固定版本对比；语音环境的 torch/voxcpm 体积较大，安装时间取决于网络。
+
+TEN VAD 已从模型目录迁入引擎。旧配置中的 `vad_library` 路径继续有效；`models use ten-vad-*` 不再是模型命令，改用 `engines use ten-vad` 或设置页直接填写路径。引擎安装与采用的实际证据和平台范围见[引擎运行时安装验收](acceptance-engine-setup.md)。
 
 ## 库与交接
 

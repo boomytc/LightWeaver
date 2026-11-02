@@ -38,10 +38,8 @@ export type DownloadableLocalModel = {
 const ALIGNMENT_REVISION = "c7cbfc2048c462b0d63a45797104fc9db3ad62b7";
 const EMBEDDING_REVISION = "031f0d4b35536f69ab3509d4893c923264fcf253";
 const ASR_REVISION = "7e7c69a577fa2725dfedbe34b5e999336e30a19b";
-const TEN_REVISION = "d68ab71c8d5fbd8f98e97ae7c9986af76b5d72b1";
 const LLAMA_SERVER_DOC = "https://github.com/ggml-org/llama.cpp";
 const TRANSCRIBE_DOC = "https://github.com/ggml-org/transcribe.cpp";
-const TEN_VAD_DOC = "https://github.com/TEN-framework/ten-vad";
 export const MODELBEST_VLM_MODEL = "MiniCPM-V-4.7-35B-A3B";
 export const MODELBEST_TTS_MODEL = "VoxCPM2";
 
@@ -216,181 +214,14 @@ const asrModel: DownloadableLocalModel = {
         setting: "vad_library",
         label: "TEN VAD native library",
         kind: "file",
-        documentationUrl: TEN_VAD_DOC,
+        documentationUrl: "https://github.com/TEN-framework/ten-vad",
       },
     ],
   },
 };
 
-const tenModels: Record<string, DownloadableLocalModel> = {
-  "darwin-arm64": {
-    source: {
-      kind: "raw-github",
-      repository: "TEN-framework/ten-vad",
-      revision: TEN_REVISION,
-    },
-    catalog: {
-      id: "ten-vad-darwin-arm64",
-      name: "TEN VAD native library",
-      capability: "vad",
-      version: TEN_REVISION,
-      repository: "TEN-framework/ten-vad",
-      revision: TEN_REVISION,
-      platform: "darwin-arm64",
-      available: true,
-      files: [
-        file(
-          "lib/macOS/ten_vad.framework/Versions/A/ten_vad",
-          744600,
-          "81b2de13710670bb94fef315ab50fedc903a21c04c4290c6c2ac28d8b42e715a",
-          true,
-        ),
-      ],
-      bindings: [
-        {
-          setting: "vad_library",
-          target: "file",
-          file: "lib/macOS/ten_vad.framework/Versions/A/ten_vad",
-        },
-      ],
-      runtimeRequirements: [],
-    },
-  },
-  "darwin-x64": {
-    source: {
-      kind: "raw-github",
-      repository: "TEN-framework/ten-vad",
-      revision: TEN_REVISION,
-    },
-    catalog: {
-      id: "ten-vad-darwin-x64",
-      name: "TEN VAD native library",
-      capability: "vad",
-      version: TEN_REVISION,
-      repository: "TEN-framework/ten-vad",
-      revision: TEN_REVISION,
-      platform: "darwin-x64",
-      available: true,
-      files: [
-        file(
-          "lib/macOS/ten_vad.framework/Versions/A/ten_vad",
-          744600,
-          "81b2de13710670bb94fef315ab50fedc903a21c04c4290c6c2ac28d8b42e715a",
-          true,
-        ),
-      ],
-      bindings: [
-        {
-          setting: "vad_library",
-          target: "file",
-          file: "lib/macOS/ten_vad.framework/Versions/A/ten_vad",
-        },
-      ],
-      runtimeRequirements: [],
-    },
-  },
-  "linux-x64": {
-    source: {
-      kind: "raw-github",
-      repository: "TEN-framework/ten-vad",
-      revision: TEN_REVISION,
-    },
-    catalog: {
-      id: "ten-vad-linux-x64",
-      name: "TEN VAD native library",
-      capability: "vad",
-      version: TEN_REVISION,
-      repository: "TEN-framework/ten-vad",
-      revision: TEN_REVISION,
-      platform: "linux-x64",
-      available: true,
-      files: [
-        file(
-          "lib/Linux/x64/libten_vad.so",
-          313240,
-          "5abfe6bf6e9a4fcea6b440240f0a9a0f431ab5006e48a4e16465ebe681ffd90f",
-          true,
-        ),
-      ],
-      bindings: [
-        {
-          setting: "vad_library",
-          target: "file",
-          file: "lib/Linux/x64/libten_vad.so",
-        },
-      ],
-      runtimeRequirements: [],
-    },
-  },
-  "win32-x64": {
-    source: {
-      kind: "raw-github",
-      repository: "TEN-framework/ten-vad",
-      revision: TEN_REVISION,
-    },
-    catalog: {
-      id: "ten-vad-win32-x64",
-      name: "TEN VAD native library",
-      capability: "vad",
-      version: TEN_REVISION,
-      repository: "TEN-framework/ten-vad",
-      revision: TEN_REVISION,
-      platform: "win32-x64",
-      available: true,
-      files: [
-        file(
-          "lib/Windows/x64/ten_vad.dll",
-          510464,
-          "38937f5604fa93a7941db7b9326992b792fa3731ebf9353973b3234457c6064b",
-          true,
-        ),
-      ],
-      bindings: [
-        {
-          setting: "vad_library",
-          target: "file",
-          file: "lib/Windows/x64/ten_vad.dll",
-        },
-      ],
-      runtimeRequirements: [],
-    },
-  },
-};
-
-export function currentPlatform(): string {
-  return `${process.platform}-${process.arch}`;
-}
-
 export function localModels(): DownloadableLocalModel[] {
-  const platform = currentPlatform(),
-    ten = tenModels[platform] || {
-      source: {
-        kind: "raw-github" as const,
-        repository: "TEN-framework/ten-vad",
-        revision: TEN_REVISION,
-      },
-      catalog: {
-        id: "ten-vad-unsupported",
-        name: "TEN VAD native library",
-        capability: "vad" as const,
-        version: TEN_REVISION,
-        repository: "TEN-framework/ten-vad",
-        revision: TEN_REVISION,
-        platform,
-        available: false,
-        unavailableReason: `当前平台 ${platform} 没有已核验的 TEN VAD 二进制`,
-        files: [],
-        bindings: [
-          {
-            setting: "vad_library",
-            target: "file" as const,
-            file: "unavailable",
-          },
-        ],
-        runtimeRequirements: [],
-      },
-    };
-  return [asrModel, embeddingModel, alignmentModel, ten];
+  return [asrModel, embeddingModel, alignmentModel];
 }
 
 export function catalog(apiKeyConfigured: boolean, baseUrl: string) {

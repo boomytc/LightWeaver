@@ -1,5 +1,7 @@
 import {
   Delivery,
+  EngineVerifyResult,
+  EngineView,
   ErrorProtocol,
   Issue,
   MediaAssetVersion,
@@ -221,6 +223,43 @@ function renderModels(view: z.infer<typeof ModelsView>): string[] {
   ];
 }
 
+function renderEngines(view: z.infer<typeof EngineView>): string[] {
+  return [
+    `Engines: ${view.catalog.items.length}  Root: ${view.installRoot.value} (${view.installRoot.source})`,
+    ...table(
+      ["Engine", "State", "Version", "Bindings"],
+      view.items.map((item) => [
+        item.id,
+        item.status.state,
+        item.status.version || "-",
+        item.active
+          .map((binding) => `${binding.setting}=${binding.value.value || "(unset)"}`)
+          .join(", ") || "(none)",
+      ]),
+    ),
+  ];
+}
+
+function renderEngineVerify(
+  result: z.infer<typeof EngineVerifyResult>,
+): string[] {
+  return [
+    `Engine: ${result.id}  State: ${result.state}`,
+    `Directory: ${result.directory}`,
+    `Version: ${result.version || "-"}${result.detail ? `  Detail: ${result.detail}` : ""}`,
+    ...(result.reason ? [`Reason: ${result.reason}`] : []),
+    ...table(
+      ["File", "Expected", "Actual", "State"],
+      result.files.map((file) => [
+        file.path,
+        String(file.expectedSize),
+        file.actualSize === undefined ? "-" : String(file.actualSize),
+        file.state,
+      ]),
+    ),
+  ];
+}
+
 function renderModelSettings(
   view: z.infer<typeof ModelSettingsView>,
 ): string[] {
@@ -336,6 +375,14 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
     const models = ModelsView.safeParse(result);
     if (models.success) return renderModels(models.data);
   }
+  if (command === "engines list") {
+    const engines = EngineView.safeParse(result);
+    if (engines.success) return renderEngines(engines.data);
+  }
+  if (command === "engines verify") {
+    const verified = EngineVerifyResult.safeParse(result);
+    if (verified.success) return renderEngineVerify(verified.data);
+  }
   if (command === "models settings get") {
     const settings = ModelSettingsView.safeParse(result);
     if (settings.success) return renderModelSettings(settings.data);
@@ -357,6 +404,7 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
   }
   if (
     command === "models download" ||
+    command === "engines install" ||
     command === "captions translate" ||
     command === "speakers analyze" ||
     command === "run status" ||

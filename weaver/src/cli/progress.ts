@@ -8,6 +8,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 const SAFE_EVENT_FIELDS: readonly string[] = [
   "key",
   "modelId",
+  "engineId",
+  "phase",
+  "message",
   "file",
   "fileIndex",
   "completedFiles",

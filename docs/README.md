@@ -44,6 +44,7 @@ Agent 从项目 **复制给 agent** 或 `project brief <id>` 取得完整调用�
 | [Agent 制作与交付验收](acceptance-agent-delivery.md) | 外部 agent 制作、交付与复盘 |
 | [桌面客户端验收](acceptance-desktop.md) | 桌面运行与平台范围 |
 | [模型预设与本地安装验收](acceptance-model-setup.md) | 模型安装、配置与运行条件 |
+| [引擎运行时安装验收](acceptance-engine-setup.md) | 原生运行库、llama-server 与 Python 环境的下载校验与采用 |
 | [强制对齐和检索验收](acceptance-alignment-search.md) | 对齐、检索与重排 |
 | [连续影视素材验收](acceptance-long-form.md) | 长素材、取消和恢复 |
 | [全片精确对齐根因与验收](acceptance-alignment-root-cause.md) | 全片对齐缺陷与修复证据 |

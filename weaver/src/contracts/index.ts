@@ -983,6 +983,7 @@ export const ModelSettingsPatch = z
     visualModel: z.string().optional(),
     visualMmproj: z.string().optional(),
     visualServer: z.string().optional(),
+    speechPython: z.string().optional(),
     alignmentModel: z.string().optional(),
     alignmentBackend: z.enum(["torch", "mlx"]).optional(),
     alignmentDevice: z.string().optional(),
@@ -992,3 +993,132 @@ export const ModelSettingsPatch = z
       !(value.modelbestApiKey !== undefined && value.clearModelbestApiKey),
     "API key 设置与清除不能同时进行",
   );
+
+/**
+ * 引擎（运行时）安装边界：原生运行库、llama-server 与 Python 环境。
+ * 与模型权重分离：引擎产物固定版本和摘要，安装到引擎根目录，采用后写配置。
+ */
+export const EngineBinding = z.discriminatedUnion("target", [
+  z.strictObject({
+    setting: z.string().min(1),
+    target: z.literal("file"),
+    file: z.string().min(1),
+  }),
+  z.strictObject({
+    setting: z.string().min(1),
+    target: z.literal("executable"),
+    file: z.string().min(1),
+  }),
+  z.strictObject({
+    setting: z.string().min(1),
+    target: z.literal("directory"),
+  }),
+]);
+export const EngineSource = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("archive"),
+    url: z.string().url(),
+    size: z.number().int().positive().safe(),
+    sha256: Digest,
+    format: z.enum(["tar.gz", "zip"]),
+    /** 归档内部顶层目录；空字符串表示成员直接在归档根部。 */
+    stripPrefix: z.string(),
+    /** 只发布这些前缀的归档成员（如 wheel 只取 transcribe_cpp/）。 */
+    include: z.array(z.string().min(1)).optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("file"),
+    url: z.string().url(),
+    size: z.number().int().positive().safe(),
+    sha256: Digest,
+    executable: z.boolean(),
+  }),
+  z.strictObject({
+    kind: z.literal("python-env"),
+    requirements: z.string().min(1),
+  }),
+]);
+export const EngineCatalogItem = z.strictObject({
+  id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+  name: z.string().min(1),
+  version: z.string().min(1),
+  kind: z.enum(["archive", "file", "python-env"]),
+  platform: z.string().min(1),
+  available: z.boolean(),
+  unavailableReason: z.string().optional(),
+  summary: z.string().min(1),
+  documentationUrl: z.string().url().optional(),
+  bindings: z.array(EngineBinding).min(1),
+  files: z.array(ModelReleaseFile),
+  source: EngineSource,
+  /** 可执行引擎的就绪探测参数（如 llama-server --version）。 */
+  probe: z.array(z.string()).optional(),
+});
+export const EngineCatalog = z.strictObject({
+  schemaVersion: z.literal(1),
+  items: z.array(EngineCatalogItem),
+});
+export const EngineStatus = z.strictObject({
+  id: z.string(),
+  root: z.string(),
+  directory: z.string(),
+  state: z.enum(["missing", "invalid", "unchecked", "installed"]),
+  version: z.string(),
+  files: z.array(
+    z.strictObject({
+      path: z.string(),
+      expectedSize: z.number().int().nonnegative().safe(),
+      actualSize: z.number().int().nonnegative().safe().optional(),
+      state: z.enum(["missing", "invalid", "metadata-match"]),
+    }),
+  ),
+  reason: z.string().optional(),
+});
+export const EngineActiveBinding = z.strictObject({
+  setting: z.string(),
+  target: z.enum(["file", "executable", "directory"]),
+  file: z.string().optional(),
+  value: ModelSettingsField,
+  resolvedPath: z.string(),
+  state: ActivePathState,
+  ready: z.boolean(),
+});
+export const EngineItemStatus = z.strictObject({
+  id: z.string(),
+  status: EngineStatus,
+  active: z.array(EngineActiveBinding),
+});
+export const EngineView = z.strictObject({
+  catalog: EngineCatalog,
+  settings: ModelSettingsView,
+  installRoot: ModelSettingsField,
+  items: z.array(EngineItemStatus),
+  installs: z.array(z.lazy(() => RunRecord)),
+});
+export const EngineVerifyResult = z.strictObject({
+  id: z.string(),
+  root: z.string(),
+  directory: z.string(),
+  state: z.enum(["missing", "invalid", "verified"]),
+  version: z.string(),
+  files: z.array(ModelFileState),
+  detail: z.string().optional(),
+  reason: z.string().optional(),
+  verifiedAt: z.string(),
+});
+export const EngineInstallInput = z.strictObject({
+  id: z.string().min(1),
+  root: z.string().min(1),
+  requestId: Id,
+});
+export const EngineSettingsPatch = z.strictObject({
+  expectedRevision: Digest,
+  asrLibrary: z.string().optional(),
+  asrBindings: z.string().optional(),
+  vadLibrary: z.string().optional(),
+  visualServer: z.string().optional(),
+  llamaServer: z.string().optional(),
+  translationServer: z.string().optional(),
+  modelPython: z.string().optional(),
+  speechPython: z.string().optional(),
+});

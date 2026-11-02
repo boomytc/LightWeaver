@@ -16,6 +16,12 @@ tts_model: 'VoxCPM2'
 # weaver/models/ is a legacy location and is neither read nor written.
 model_download_root: 'models'
 
+# Engine runtime (native libraries, llama-server, Python environments) installs into
+# the engine root below only on an explicit `weaver engines install`.
+# Source checkout defaults to weaver/runtime (ignored); installed desktop defaults to
+# <data directory>/runtime. An explicit engine_install_root follows configBase.
+# engine_install_root: 'weaver/runtime'
+
 # Explicit local runtime. No implicit sibling checkout discovery or automatic download.
 # asr_model: '/absolute/runtime/qwen3-asr-0.6b-Q8_0.gguf'
 # asr_library: '/absolute/runtime/libtranscribe.dylib'

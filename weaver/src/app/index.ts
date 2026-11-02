@@ -40,6 +40,7 @@ import { CaptionAssistance } from "../captions/assistance.ts";
 import { VisualSearch } from "../search/visual.ts";
 import { SpeakerAssistance } from "../captions/speakers.ts";
 import { Models } from "../models/service.ts";
+import { Engines } from "../engines/service.ts";
 import { probe } from "../media/probe.ts";
 import { ExportVideoResultSchema } from "./export-video.ts";
 import { DeliveryExports, type ExportOptions } from "./exports.ts";
@@ -60,6 +61,7 @@ export class Application {
   readonly library: Library;
   readonly jobs: Jobs;
   readonly models: Models;
+  readonly engines: Engines;
   readonly providers: Providers;
   readonly builds: Builds;
   readonly analysis: Analysis;
@@ -83,6 +85,10 @@ export class Application {
               path.isAbsolute(path.relative(base.dataDir, base.modelDir))
               ? base.modelDir
               : path.join(dataDir, path.relative(base.dataDir, base.modelDir)),
+            engineDir: path.relative(base.dataDir, base.engineDir).startsWith("..") ||
+              path.isAbsolute(path.relative(base.dataDir, base.engineDir))
+              ? base.engineDir
+              : path.join(dataDir, path.relative(base.dataDir, base.engineDir)),
             tempDir: path.join(dataDir, "tmp"),
             logDir: path.join(dataDir, "logs"),
           }
@@ -93,6 +99,7 @@ export class Application {
     this.library = new Library(this.store);
     this.jobs = new Jobs(this.store);
     this.models = new Models(this.runtime.configBase, this.jobs);
+    this.engines = new Engines(this.runtime.configBase, this.jobs, this.models);
     this.providers = new Providers(this.store);
     this.builds = new Builds(
       this.store,

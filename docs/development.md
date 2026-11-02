@@ -12,6 +12,19 @@ npm ci
 
 拉取代码后如果依赖发生变化，重新运行 `npm ci`。切换 Node 主版本后也重新安装，使原生依赖匹配当前 Node。
 
+本地模型与引擎按需准备，不随源码或桌面包分发。引擎（transcribe 运行库、bindings、TEN VAD、llama-server、Python 环境）安装到默认的 `weaver/runtime/`，该目录不进入 Git：
+
+```sh
+npx weaver engines list --human
+npx weaver engines install transcribe-native --wait --progress
+npx weaver engines install transcribe-bindings --wait
+npx weaver engines install ten-vad --wait
+npx weaver engines install llama-server --wait
+npx weaver engines install python-model --wait
+```
+
+安装后用 `npx weaver engines use ENGINE_ID --expected-revision CONFIG_REV` 采用，或在 **设置 → 运行时与路径 → 引擎运行时** 点击安装并采用。不同平台的引擎目录不同，迁移仓库时重新安装。
+
 媒体功能按用途准备工具：
 
 - 普通视频制作需要 PATH 中的 FFmpeg 与 ffprobe，也可通过 `LIGHTWEAVER_FFMPEG`、`LIGHTWEAVER_FFPROBE` 指定绝对路径。
@@ -83,7 +96,7 @@ Linux 设置了 `XDG_CONFIG_HOME` 时，使用该目录下的 `LightWeaver/weave
 npm run package -w @lightweaver/desktop
 ```
 
-首次构建下载固定版本的 Node、FFmpeg、Chrome 和交接 Python，并安装独立 sidecar 依赖。构建不下载模型权重。资源缓存在 `products/desktop/staging/`，产物位于 `products/desktop/release/`。
+首次构建下载固定版本的 Node、FFmpeg、Chrome 和交接 Python，并安装独立 sidecar 依赖。构建不下载模型权重或引擎；正式包首次使用引擎时按用户操作下载到数据目录的 `runtime/`。资源缓存在 `products/desktop/staging/`，产物位于 `products/desktop/release/`。
 
 打包会重新生成对应目标的应用目录。打包前保存草稿，并退出运行在该目录中的应用。
 

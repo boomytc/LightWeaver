@@ -27,6 +27,7 @@ import {
 import { Jobs, type NodeContext } from "../jobs/index.ts";
 import {
   defaultModelPython,
+  defaultSpeechPython,
   resolveExecutable,
 } from "../adapters/executable.ts";
 import { currentRuntime } from "../runtime.ts";
@@ -67,6 +68,11 @@ const SETTINGS: Record<string, Setting> = {
     key: "model_python",
     environment: "LIGHTWEAVER_MODEL_PYTHON",
     fallback: defaultModelPython(),
+  },
+  speechPython: {
+    key: "speech_python",
+    environment: "LIGHTWEAVER_SPEECH_PYTHON",
+    fallback: defaultSpeechPython(),
   },
   llamaServer: {
     key: "llama_server",
@@ -201,6 +207,21 @@ export class Models {
       ? fs.readFileSync(localConfigPath(this.root), "utf8")
       : "";
     return this.settingsFromContent(content, env);
+  }
+
+  writeSettingsPatch(input: {
+    requestId: string;
+    expectedRevision: string;
+    patch: Record<string, string | undefined>;
+    identity?: unknown;
+  }) {
+    return this.writeSettings({
+      root: this.root,
+      requestId: input.requestId,
+      expectedRevision: input.expectedRevision,
+      patch: input.patch,
+      identity: input.identity,
+    });
   }
 
   private settingsFromContent(content: string, env: NodeJS.ProcessEnv) {
