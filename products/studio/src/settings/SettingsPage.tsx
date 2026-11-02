@@ -67,14 +67,13 @@ const DoctorView = z.object({
 
 const sections = [
   ["models", "模型与供应商"],
-  ["runtime", "运行环境"],
+  ["storage", "存储"],
+  ["diagnostics", "诊断与修复"],
   ["appearance", "外观"],
 ] as const;
 
-/** 旧路由兼容：存储位置与诊断已并入“运行环境”。 */
 const legacySections: Record<string, string> = {
-  storage: "runtime",
-  diagnostics: "runtime",
+  runtime: "diagnostics",
 };
 
 export function SettingsPage() {
@@ -83,7 +82,7 @@ export function SettingsPage() {
   const section = sections.some((item) => item[0] === requested) ? requested : "models";
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="设置" description="管理模型与供应商、运行环境（引擎、存储与诊断）和外观。" />
+      <PageHeader title="设置" description="选择模型与供应商，管理存储、应用维护和外观。" />
       <Tabs.Root className="split-page grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)]" value={section} onValueChange={(value) => void session.navigate("settings", "", value)}>
         <Tabs.List className="flex flex-col gap-1 border-r border-line p-3" aria-label="设置分区">
           {sections.map(([value, label]) => (
@@ -97,15 +96,21 @@ export function SettingsPage() {
             <Tabs.Content value="models">
               <ModelSettings
                 fail={(reason) => session.setError(reason instanceof Error ? reason.message : String(reason))}
-                onOpenRuntime={() => void session.navigate("settings", "", "runtime")}
                 onOpenJobs={() => void session.navigate("jobs")}
               />
             </Tabs.Content>
-            <Tabs.Content value="runtime">
+            <Tabs.Content value="storage"><StoragePanel /></Tabs.Content>
+            <Tabs.Content value="diagnostics">
               <div className="flex flex-col gap-4">
-                <EngineSettings />
-                <RuntimePanel />
                 <DiagnosticsPanel />
+                <details className="panel-card p-5">
+                  <summary className="font-medium">运行组件与修复</summary>
+                  <div className="mt-4"><EngineSettings /></div>
+                </details>
+                <details className="panel-card p-5">
+                  <summary className="font-medium">高级：自定义运行路径与配置</summary>
+                  <div className="mt-4"><RuntimePanel /></div>
+                </details>
               </div>
             </Tabs.Content>
             <Tabs.Content value="appearance">
@@ -129,6 +134,37 @@ export function SettingsPage() {
       </Tabs.Root>
     </main>
   );
+}
+
+function StoragePanel() {
+  const session = useSession();
+  const [runtime, setRuntime] = useState<z.infer<typeof RuntimeView> | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    api("/runtime", RuntimeView, { signal: controller.signal }).then((value) => {
+      if (!controller.signal.aborted) setRuntime(value);
+    }).catch((reason) => { if (!controller.signal.aborted) session.handleError(reason); });
+    return () => controller.abort();
+  }, []);
+  if (!runtime) return <p>加载存储位置…</p>;
+  return <section className="panel-card flex flex-col gap-4 p-5">
+    <h2 className="m-0">存储</h2>
+    <p className="hint m-0">项目与模型保存在本机。更换工作区会重启服务，原目录中的内容会保留。</p>
+    <dl className="key-value-list panel-card px-4">
+      {[["项目数据", runtime.dataDir], ["模型默认位置", runtime.modelDir], ["日志", runtime.logDir]].map(([label, value]) =>
+        <div className="contents" key={label}><dt>{label}</dt><dd className="numeric">{value}</dd></div>)}
+    </dl>
+    {desktop()?.pickDirectory && desktop()?.setPreferences && desktop()?.restartRuntime ?
+      <Button type="button" onClick={() => void (async () => {
+        const bridge = desktop();
+        const picked = await bridge?.pickDirectory?.();
+        if (!picked || !bridge?.setPreferences || !bridge.restartRuntime) return;
+        await bridge.setPreferences({ dataDir: picked });
+        await bridge.restartRuntime();
+      })().catch((reason) => session.handleError(reason))}>更换工作区并重启</Button>
+      : <small className="hint">浏览器中的存储位置由启动命令决定。</small>}
+    <p className="hint m-0">模型的下载位置可在“模型与供应商”中选择。</p>
+  </section>;
 }
 
 function RuntimePanel() {
@@ -231,7 +267,7 @@ function RuntimePanel() {
   return (
     <section className="panel-card flex flex-col gap-4 p-5">
       <h2 className="m-0">存储与路径</h2>
-      <p>模型 Python、transcribe 运行库、bindings 与 llama-server 的路径由上方“本地运行环境”一键下载并写入，通常不需要手动填写。这里显示数据与配置位置、引擎目录、工具状态和外部命令行。</p>
+      <p>正式安装包自带基础运行组件；选择模型时会自动准备所需依赖。这里的路径覆盖仅用于已有环境或特殊构建。</p>
       <p>需要沿用自己已有的运行库、GPU 构建或单独指定已有配置时，展开下面的高级设置。配置值按当前私有配置文件、环境变量、内置 config.yaml 默认值的顺序生效；相对路径按配置基准目录解析。</p>
       <details className="subtle-card p-4">
         <summary className="font-medium">高级：手动指定运行时路径</summary>
@@ -412,7 +448,7 @@ function DiagnosticsPanel() {
         </div>
         {counts && (
           <small>
-            本地运行环境：本应用安装 {counts.installed}/{counts.total} · 使用外部路径{" "}
+            运行组件：应用提供 {counts.installed}/{counts.total} · 使用外部路径{" "}
             {counts.external} · 未配置 {counts.unused + counts.partial}
           </small>
         )}

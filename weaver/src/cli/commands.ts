@@ -607,6 +607,16 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    path: ["models", "install"],
+    group: "模型与数据",
+    summary: "自动准备依赖，下载、校验并启用本地模型",
+    synopsis: "models install MODEL_ID --expected-revision CONFIG_REV [--root /absolute/root] [--wait]",
+    flags: ["root", ...WAIT_FLAGS, ...MUTATION_FLAGS],
+    positionals: [{ name: "model-id", description: "catalog 模型 ID", required: true }],
+    requirements: [{ kind: "flag", name: "expected-revision" }],
+    examples: ["weaver models install qwen3-asr --expected-revision CONFIG_REV --wait --json"],
+  },
+  {
     path: ["models", "download"],
     group: "模型与数据",
     summary: "下载并校验 catalog 中的本地模型",

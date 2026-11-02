@@ -138,7 +138,7 @@ export class Providers {
         name: "本地 TEN VAD + Qwen3-ASR",
         capabilities: ["asr"],
         model: path.basename(cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model")),
-        version: "ten-vad-qwen-context-v3",
+        version: "ten-vad-qwen-context-v4",
         endpoint: "local-process",
         ready: [
           cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),
@@ -146,6 +146,7 @@ export class Providers {
           cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
           cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
           this.local.settings().python,
+          this.local.settings().ffmpeg,
         ].every((v) => v && fs.existsSync(v)),
         remote: false,
         idempotency: true,
@@ -212,6 +213,7 @@ export class Providers {
               cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
               cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
               this.local.settings().python,
+              this.local.settings().ffmpeg,
               path.join(scriptsDir(), "asr.py"),
             ]
           : [base.model, ...adapter.files(id)];
@@ -418,6 +420,7 @@ export class Providers {
         bindings: cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
         backend: "auto",
         vadLibrary: cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+        ffmpeg: this.local.settings().ffmpeg,
       }),
     );
     const out = await processRun(

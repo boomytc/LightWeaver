@@ -18,6 +18,8 @@ import {
   ModelFileState,
   ModelReleaseFile,
   ModelSettingsField,
+  ModelInstallInput,
+  ModelInstallPlan,
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { readConfig } from "../config.ts";
@@ -33,6 +35,7 @@ import { LOCAL_SETUP_MODEL_IDS } from "../models/catalog.ts";
 import type { Models } from "../models/service.ts";
 import { extractArchive } from "./archive.ts";
 import { downloadArtifact } from "./download.ts";
+import { bundledEngines } from "./bundled.ts";
 import {
   engineBindingValue,
   engineCatalog,
@@ -135,13 +138,18 @@ function inspectPath(
 /** 本应用安装状态与当前配置绑定的唯一合成规则。 */
 function engineUsage(
   state: string,
-  active: readonly { ready: boolean; state: string }[],
+  active: readonly { setting: string; resolvedPath: string; ready: boolean; state: string }[],
+  bindings: Readonly<Record<string, string>>,
+  bundled: boolean,
 ): z.infer<typeof EngineUsage> {
   const ready = active.length > 0 && active.every((binding) => binding.ready),
     unset =
       active.length > 0 && active.every((binding) => binding.state === "unset");
-  if (state === "installed") return unset ? "managed-unused" : "managed";
+  if (state === "installed" && ready && active.every((binding) =>
+    path.resolve(binding.resolvedPath) === path.resolve(bindings[binding.setting] || ".")))
+    return bundled ? "bundled" : "managed";
   if (ready) return "external";
+  if (state === "installed" && unset) return "managed-unused";
   if (unset) return "unused";
   return "partial";
 }
@@ -189,7 +197,10 @@ function runCommand(
   } = {},
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
+    const env: NodeJS.ProcessEnv = { ...process.env, PYTHONNOUSERSITE: "1", PYTHONPATH: "", PYTHONDONTWRITEBYTECODE: "1" };
+    delete env.PYTHONHOME;
     const child = spawn(command, args, {
+      env,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
@@ -261,6 +272,7 @@ export class Engines {
       this.installOptionalNode(context),
     );
     jobs.register("engine-adopt", (context) => this.adoptNode(context));
+    jobs.register("model-activate", (context) => this.activateModelNode(context));
   }
 
   catalog() {
@@ -323,6 +335,22 @@ export class Engines {
     });
   }
 
+  private bundle(item: EngineItem, root: string) {
+    if (root !== this.rootDirectory() || fs.existsSync(installDirectory(root, item.id))) return;
+    return bundledEngines().find((component) => component.id === item.id);
+  }
+
+  private installedDirectory(item: EngineItem, root: string) {
+    return this.bundle(item, root)?.directory || installDirectory(root, item.id);
+  }
+
+  private usage(item: EngineItem, status: z.infer<typeof EngineStatus>, active: z.infer<typeof EngineActiveBinding>[]) {
+    const bundle = this.bundle(item, status.root);
+    const bindings = bundle?.bindings || Object.fromEntries(item.bindings.map((binding) =>
+      [binding.setting, engineBindingValue(status.directory, binding)]));
+    return engineUsage(status.state, active, bindings, !!bundle);
+  }
+
   view(root?: string) {
     const settings = this.models.settings(),
       base = this.rootDirectory(root || this.installRoot().value),
@@ -349,7 +377,7 @@ export class Engines {
           id: item.id,
           status: statuses[index],
           active,
-          usage: engineUsage(statuses[index].state, active),
+          usage: this.usage(item, statuses[index], active),
         };
       }),
       installs: this.jobs
@@ -368,7 +396,7 @@ export class Engines {
     const components = catalog.items.map((item) => {
       const status = this.status(item, base),
         active = this.activeBindings(item),
-        usage = engineUsage(status.state, active);
+        usage = this.usage(item, status, active);
       return {
         id: item.id,
         name: item.name,
@@ -384,8 +412,8 @@ export class Engines {
       required = components.filter((component) =>
         REQUIRED_SETUP_COMPONENTS.has(component.id),
       ),
-      usable = (component: { state: string; configured: boolean }) =>
-        component.state === "installed" && component.configured;
+      usable = (component: { usage: string; configured: boolean }) =>
+        ["bundled", "managed", "external"].includes(component.usage) && component.configured;
     const count = (usage: z.infer<typeof EngineUsage>) =>
       setup.filter((component) => component.usage === usage).length;
     return {
@@ -396,7 +424,8 @@ export class Engines {
       /** 本应用安装 / 外部路径 / 未配置的组件数量，供诊断与 CLI 直接展示。 */
       counts: {
         total: setup.length,
-        installed: count("managed") + count("managed-unused"),
+        installed: count("bundled") + count("managed") + count("managed-unused"),
+        bundled: count("bundled"),
         managed: count("managed"),
         external: count("external"),
         unused: count("unused"),
@@ -458,7 +487,7 @@ export class Engines {
   }
 
   private status(item: EngineItem, root: string): z.infer<typeof EngineStatus> {
-    const directory = installDirectory(root, item.id),
+    const directory = this.installedDirectory(item, root),
       marker = readMarker(directory);
     if (item.kind === "python-env") {
       const python = path.join(
@@ -726,7 +755,7 @@ export class Engines {
   ): Promise<z.infer<typeof EngineVerifyResult>> {
     const item = this.item(id),
       base = this.rootDirectory(root || this.installRoot().value);
-    return this.verifyDirectory(item, base, installDirectory(base, item.id));
+    return this.verifyDirectory(item, base, this.installedDirectory(item, base));
   }
 
   private async verifyDirectory(
@@ -876,7 +905,7 @@ export class Engines {
       base = this.rootDirectory(),
       directory = input.directory
         ? path.resolve(this.root, input.directory)
-        : installDirectory(base, item.id),
+        : this.installedDirectory(item, base),
       verification = await this.verifyDirectory(item, base, directory);
     if (verification.state !== "verified")
       throw new WeaverError(
@@ -891,6 +920,115 @@ export class Engines {
       patch: this.bindingsPatch(item, directory),
       identity,
     });
+  }
+
+  modelPlan(id: string, root = this.models.settings().downloadRoot.value) {
+    const model = this.models.catalog().localModels.find((item) => item.id === id);
+    if (!model) throw new WeaverError("INVALID_INPUT", "未知本地模型", { id });
+    const missing = this.models.runtimeStatus(id).filter((requirement) => !requirement.ready);
+    const catalog = engineCatalog();
+    const components = catalog.items.filter((item) => item.bindings.some((binding) =>
+      missing.some((requirement) => requirement.setting === binding.setting)));
+    const unsupported = missing.filter((requirement) => !components.some((item) =>
+      item.bindings.some((binding) => binding.setting === requirement.setting)));
+    const unavailable = components.filter((item) => !item.available);
+    const reason = [model.available ? "" : model.unavailableReason || "当前平台不支持此模型",
+      ...unsupported.map((item) => `无法自动准备${item.label}`),
+      ...unavailable.map((item) => item.unavailableReason || `${item.name} 在当前平台不可用`)]
+      .filter(Boolean).join("；");
+    return ModelInstallPlan.parse({
+      id,
+      modelBytes: this.models.setupMissingBytes([id], path.resolve(this.root, root)),
+      dependencyBytes: this.requiredBytes(components, this.rootDirectory()),
+      components: components.map(({ id, name }) => ({ id, name })),
+      available: !reason,
+      ...(reason ? { reason } : {}),
+    });
+  }
+
+  installModel(raw: unknown) {
+    const input = ModelInstallInput.parse(raw);
+    const root = path.resolve(this.root, input.root);
+    const requestInput = { id: input.id, root, expectedRevision: input.expectedRevision };
+    const prior = this.jobs.prior("model-setup", input.requestId, requestInput);
+    if (prior) return prior;
+    if (this.models.settings().revision !== input.expectedRevision)
+      throw new WeaverError("CONFIG_CONFLICT", "模型设置已变化，请刷新后重试");
+    const plan = this.modelPlan(input.id, root);
+    if (!plan.available)
+      throw new WeaverError("CAPABILITY_UNAVAILABLE", plan.reason || "当前平台不能准备此模型");
+    const active = this.jobs.list().find((run) =>
+      ["model-setup", "engine-setup"].includes(run.kind) &&
+      ["queued", "running", "cancelling"].includes(run.state));
+    if (active)
+      throw new WeaverError("ENGINE_BUSY", "已有模型准备或修复作业进行中", { runId: active.id }, [], true);
+    const engineRoot = this.rootDirectory();
+    const sameDisk = fs.statSync(this.existingAncestor(root)).dev ===
+      fs.statSync(this.existingAncestor(engineRoot)).dev;
+    this.assertDiskSpace(root, plan.modelBytes + (sameDisk ? plan.dependencyBytes : 0));
+    if (!sameDisk) this.assertDiskSpace(engineRoot, plan.dependencyBytes);
+    const model = this.models.planForSetup([input.id])[0];
+    const components = plan.components.map(({ id }) => this.item(id));
+    const nodes: z.input<typeof NodeSpec>[] = [];
+    for (const item of components) {
+      nodes.push({
+        key: `install-${item.id}`,
+        operation: "engine-install",
+        input: { id: item.id, version: item.version, root: engineRoot },
+        ...(nodes.length ? { dependencies: [nodes[nodes.length - 1].key] } : {}),
+      });
+    }
+    nodes.push({
+      key: `download-${input.id}`, operation: "model-download",
+      input: { id: input.id, revision: model.revision, root },
+      ...(nodes.length ? { dependencies: [nodes[nodes.length - 1].key] } : {}),
+    });
+    nodes.push({
+      key: "activate", operation: "model-activate",
+      dependencies: [`download-${input.id}`],
+      input: { ...requestInput, revision: model.revision, engineRoot,
+        components: components.map(({ id, version }) => ({ id, version })),
+        settings: this.models.runtimeStatus(input.id).filter((item) => !item.ready).map((item) => item.setting) },
+    });
+    return this.jobs.submit({ kind: "model-setup", requestInput,
+      snapshot: { ...requestInput, model, plan }, nodes, requestId: input.requestId });
+  }
+
+  private async activateModelNode(context: NodeContext) {
+    const input = z.strictObject({
+      id: z.string(), revision: z.string(), root: z.string(), engineRoot: z.string(),
+      expectedRevision: Digest,
+      components: z.array(z.strictObject({ id: z.string(), version: z.string() })),
+      settings: z.array(z.string()),
+    }).parse(context.input);
+    const patch: Record<string, string> = {};
+    for (const component of input.components) {
+      const item = this.item(component.id);
+      if (item.version !== component.version)
+        throw new WeaverError("ENGINE_RELEASE_CHANGED", "运行组件版本已变化，请重新准备模型");
+      const verification = await this.verify(item.id, input.engineRoot);
+      context.signal.throwIfAborted();
+      if (verification.state !== "verified")
+        throw new WeaverError("ENGINE_VERIFY_FAILED", `${item.name} 未通过校验`, verification);
+      for (const [key, value] of Object.entries(this.bindingsPatch(item, verification.directory)))
+        if (input.settings.includes(key)) patch[key] = value;
+    }
+    const model = this.models.planForSetup([input.id])[0];
+    if (model.revision !== input.revision)
+      throw new WeaverError("MODEL_RELEASE_CHANGED", "模型版本已变化，请重新准备模型");
+    Object.assign(patch, await this.models.bindingsForSetup(input.id, input.root));
+    context.signal.throwIfAborted();
+    const missing = this.models.runtimeStatus(input.id, patch).filter((item) => !item.ready);
+    if (missing.length)
+      throw new WeaverError("CAPABILITY_UNAVAILABLE", "模型所需组件未准备完成，未启用模型", { missing });
+    context.event("model-setup-progress", { phase: "activate", message: "正在启用模型" });
+    await this.models.writeSettingsPatch({
+      requestId: `model-setup-${context.runId}`,
+      expectedRevision: input.expectedRevision,
+      patch,
+      identity: { operation: "model-activate", ...input },
+    });
+    return { id: input.id, enabled: true };
   }
 
   /**
@@ -1047,6 +1185,8 @@ export class Engines {
     directory: string,
   ): Record<string, string> {
     const patch: Record<string, string> = {};
+    if (bundledEngines().some((component) => component.id === item.id && component.directory === directory))
+      return patch;
     for (const binding of item.bindings) {
       if (!SETTINGS[binding.setting])
         throw new WeaverError("INVALID_INPUT", "引擎绑定使用未知设置项", {
@@ -1076,7 +1216,7 @@ export class Engines {
       skipped: { id: string; message: string }[] = [];
     for (const id of input.components) {
       const item = this.item(id),
-        directory = installDirectory(root, id);
+        directory = this.installedDirectory(item, root);
       try {
         const verification = await this.verifyDirectory(item, root, directory);
         context.signal.throwIfAborted();
@@ -1191,6 +1331,7 @@ export class Engines {
     const diskLock = path.join(root, `.lightweaver-lock-${item.id}`);
     let locked = false;
     try {
+      fs.mkdirSync(root, { recursive: true });
       locked = this.acquireDiskLock(diskLock, context.token);
       if (!locked)
         throw new WeaverError(
@@ -1200,9 +1341,10 @@ export class Engines {
           [],
           true,
         );
+      if (fs.existsSync(directory) && !readMarker(directory))
+        throw new WeaverError("ENGINE_TARGET_CONFLICT", "目标目录不是本应用安装的，未覆盖", { directory });
       const existing = await this.verify(item.id, root);
       if (existing.state === "verified") return existing;
-      fs.mkdirSync(root, { recursive: true });
       const stage = path.join(root, ".lightweaver-staging", context.token);
       await fsp.mkdir(stage, { recursive: true, mode: 0o700 });
       try {

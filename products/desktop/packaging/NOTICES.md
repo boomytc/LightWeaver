@@ -11,4 +11,7 @@ LightWeaver 桌面客户端把下列组件作为独立进程或库随包提供�
 - Playwright：使用随包 Chrome 执行截图与页面捕获。
 - FFmpeg / ffprobe：以独立进程调用，不链接进应用主程序。源码与构建说明见 https://ffmpeg.org 。
 - Python 3.12、OpenTimelineIO 与 pyJianYingDraft：随包提供产品交接能力。
-- 产品 Python 脚本位于 resources/weaver/scripts。可选模型 Python 环境由用户另行指定，首次启动不会安装。
+- transcribe.cpp 0.2.0 与 transcribe Python bindings：本地语音识别运行库。
+- TEN VAD：本地语音活动检测运行库。
+- llama.cpp llama-server：本地检索与翻译运行库。
+- 产品 Python 脚本位于 resources/weaver/scripts。可选模型 Python 环境在用户选择本地模型后按需创建，首次启动不会安装。

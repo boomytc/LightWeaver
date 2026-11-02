@@ -447,7 +447,7 @@ export class Jobs {
           .get(n.id, n.retry_base),
       );
     const limitMs =
-      ["model-download", "engine-install", "engine-setup"].includes(
+      ["model-download", "engine-install", "engine-install-optional", "engine-setup", "model-activate"].includes(
         n.spec.operation,
       )
         ? 6 * 60 * 60 * 1000
@@ -654,20 +654,27 @@ export class Jobs {
     if (states.includes("running")) return;
     if (states.includes("queued")) {
       if (!states.includes("failed")) return;
-      // 依赖失败的节点不永久排队；独立目标仍可运行。
-      for (const row of this.store.db
+      const blocked = new Set(this.nodes(runId)
+        .filter((node) => ["failed", "cancelled"].includes(node.state))
+        .map((node) => node.key));
+      const queued = this.store.db
         .prepare("SELECT * FROM nodes WHERE run_id=? AND state='queued'")
-        .all(runId)) {
-        const n = NodeRow.parse(row),
-          spec = NodeSpec.parse(JSON.parse(n.json)),
-          siblings = this.nodes(runId);
-        if (
-          spec.dependencies.some((d) =>
-            ["failed", "cancelled"].includes(
-              siblings.find((s) => s.key === d)?.state || "",
-            ),
-          )
-        )
+        .all(runId).map((row) => {
+          const node = NodeRow.parse(row);
+          return { node, spec: NodeSpec.parse(JSON.parse(node.json)) };
+        });
+      let changed: boolean;
+      do {
+        changed = false;
+        for (const { node, spec } of queued) {
+          if (!blocked.has(node.key) && spec.dependencies.some((key) => blocked.has(key))) {
+            blocked.add(node.key);
+            changed = true;
+          }
+        }
+      } while (changed);
+      for (const { node } of queued) {
+        if (blocked.has(node.key))
           this.store.db
             .prepare("UPDATE nodes SET state='failed',error=? WHERE id=?")
             .run(
@@ -677,7 +684,7 @@ export class Jobs {
                 retryable: false,
                 hints: [],
               }),
-              n.id,
+              node.id,
             );
       }
       if (this.nodes(runId).some((n) => n.state === "queued")) return;

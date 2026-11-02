@@ -7,6 +7,7 @@ import {
   RunRecord,
   VerifyResult,
   EventRecord,
+  ModelInstallPlan,
 } from "@lightweaver/weaver/contracts";
 import { api, ApiError, requestId } from "../api";
 import { useSession } from "../session/context";
@@ -18,6 +19,10 @@ import { InputWithActions } from "../ui/InputWithActions";
 import { ArrowLeftIcon } from "../ui/Icons";
 
 type ModelSelection = { kind: "provider" } | { kind: "local"; id: string } | null;
+
+const capabilityLabel: Record<string, string> = { asr: "语音识别", embedding: "文字与画面检索", alignment: "精确字幕对齐", vad: "语音活动检测" };
+const formatBytes = (bytes: number) => bytes >= 1024 ** 3
+  ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.ceil(bytes / 1024 ** 2)} MB`;
 
 const RunDetail = z.object({
   run: RunRecord,
@@ -31,7 +36,7 @@ const RunDetail = z.object({
 
 const stateLabel: Record<string, string> = {
   queued: "排队",
-  running: "下载中",
+  running: "准备中",
   cancelling: "取消中",
   succeeded: "已完成",
   failed: "失败",
@@ -70,10 +75,16 @@ function ProgressEvent({ event }: { event: unknown }) {
       total: z.number().optional(),
       completedFiles: z.number().optional(),
       totalFiles: z.number().optional(),
+      message: z.string().optional(),
+      engineId: z.string().optional(),
+      phase: z.string().optional(),
     })
     .safeParse(event);
   if (!parsed.success) return null;
   const value = parsed.data;
+  const title = value.engineId
+    ? value.phase === "download" ? "下载所需组件" : value.phase === "verify" ? "校验所需组件" : "准备模型所需组件"
+    : value.message || value.file || value.modelId || "准备模型";
   const percent = value.received !== undefined && value.total
     ? Math.max(0, Math.min(100, Math.floor((value.received / value.total) * 100)))
     : value.completedFiles !== undefined && value.totalFiles
@@ -82,7 +93,7 @@ function ProgressEvent({ event }: { event: unknown }) {
   return (
     <div className="mt-2 flex flex-col gap-1">
       <small className="numeric">
-        {value.file || value.modelId || "模型"}
+        {title}
         {percent !== null ? ` · ${percent}%` : value.completedFiles !== undefined ? ` · ${value.completedFiles}/${value.totalFiles || "?"} 个文件` : ""}
       </small>
       {percent !== null && <div className="run-progress" aria-label={`下载进度 ${percent}%`}><span style={{ width: `${percent}%` }} /></div>}
@@ -92,11 +103,9 @@ function ProgressEvent({ event }: { event: unknown }) {
 
 export function ModelSettings({
   fail,
-  onOpenRuntime,
   onOpenJobs,
 }: {
   fail: (error: unknown) => void;
-  onOpenRuntime: () => void;
   onOpenJobs: () => void;
 }) {
   const session = useSession();
@@ -112,6 +121,19 @@ export function ModelSettings({
     [pollGeneration, setPollGeneration] = useState(0),
     [downloadsOpen, setDownloadsOpen] = useState(false),
     [selection, setSelection] = useState<ModelSelection>(null);
+  const [installPlan, setInstallPlan] = useState<{ key: string; value: z.infer<typeof ModelInstallPlan> } | null>(null);
+  const selectedModel = selection?.kind === "local" ? selection.id : "";
+  const planKey = JSON.stringify([selectedModel, root, view?.settings.revision]);
+  const currentPlan = installPlan?.key === planKey ? installPlan.value : null;
+  useEffect(() => {
+    if (!selectedModel || !root || !view) return;
+    const controller = new AbortController();
+    api(`/models/${encodeURIComponent(selectedModel)}/install-plan?root=${encodeURIComponent(root)}`,
+      ModelInstallPlan, { signal: controller.signal }).then((value) => {
+      if (!controller.signal.aborted) setInstallPlan({ key: planKey, value });
+    }).catch((reason) => { if (!controller.signal.aborted) fail(reason); });
+    return () => controller.abort();
+  }, [planKey]);
   const rootRef = useRef(""),
     rootDirty = useRef(false),
     refreshGeneration = useRef(0),
@@ -175,6 +197,7 @@ export function ModelSettings({
           source.close();
           notifyRunsChanged();
           await refreshModels(false, controller.signal);
+          if (!controller.signal.aborted) window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
         }
       } catch (error) {
         if (!controller.signal.aborted) fail(error);
@@ -201,6 +224,9 @@ export function ModelSettings({
           pathsUnset = paths.length === 0 || paths.every((binding) => binding.state === "unset"),
           prior = activeVerify[model.id],
           checked = prior && JSON.stringify(prior.snapshot) === JSON.stringify({ bindings: activeBindings, files: activeFiles }) ? prior : undefined,
+          enabled = pathsReady && runtime.every((item) => item.ready) &&
+            activeFiles.length > 0 && activeFiles.every((file) => file.state === "metadata-match") &&
+            checked?.state !== "invalid" && checked?.state !== "missing",
           integrity = checked?.state === "verified" ? "校验通过"
             : checked?.state === "invalid" ? "未通过此版本清单校验"
             : checked?.state === "missing" ? "文件缺失"
@@ -218,6 +244,7 @@ export function ModelSettings({
           pathsUnset,
           checked,
           integrity,
+          enabled,
           adoptPath: adoptPaths[model.id] ??
             (status?.state === "missing" ? "" : status?.directory || ""),
         };
@@ -288,6 +315,27 @@ export function ModelSettings({
     setActiveVerify((current) => ({ ...current, [id]: result }));
   });
 
+  const installModel = (id: string) => act(`准备 ${id}`, async () => {
+    if (!view) return;
+    const payload = { root, expectedRevision: view.settings.revision };
+    const key = JSON.stringify(["model-install", id, payload]);
+    const attempt = session.stableRequest(key);
+    const submit = () => api(`/models/${encodeURIComponent(id)}/install`, RunRecord, {
+      method: "POST", body: { ...payload, requestId: attempt.requestId },
+    });
+    let next: z.infer<typeof RunRecord>;
+    try { next = await submit(); }
+    catch (reason) { if (reason instanceof ApiError) throw reason; next = await submit(); }
+    session.completeStableRequest(key, attempt);
+    setRunId(next.id);
+    setPollGeneration((value) => value + 1);
+    setEvents([]);
+    setDownloadsOpen(true);
+    notifyRunsChanged();
+    setView((current) => current && ({ ...current,
+      downloads: [next, ...current.downloads.filter((item) => item.id !== next.id)] }));
+  });
+
   const select = (next: ModelSelection) => {
     setSelection(next);
     sectionRef.current?.scrollIntoView({ block: "start" });
@@ -296,12 +344,12 @@ export function ModelSettings({
   if (!view) return <section className="flex flex-col gap-5"><p>加载模型设置…</p></section>;
   const provider = view.catalog.providers[0],
     progress = [...events].reverse().find((event) =>
-      event.runId === runId && event.type === "model-download-progress",
+      event.runId === runId && ["model-download-progress", "engine-install-progress", "model-setup-progress"].includes(event.type),
     );
 
   return (
     <section ref={sectionRef} className="flex flex-col gap-5">
-      <div><h2 className="m-0">模型与供应商</h2><p className="hint mb-0 mt-1">配置值按本地配置文件、环境变量、内置默认值的顺序生效。供应商和本地权重分开配置，下载、校验、采用是三个显式操作。</p></div>
+      <div><h2 className="m-0">模型与供应商</h2><p className="hint mb-0 mt-1">选择需要的本地模型，下载后自动校验并启用；所需运行组件由应用准备。也可以选择云端供应商。</p></div>
 
       {selection && (
         <div>
@@ -421,7 +469,7 @@ export function ModelSettings({
       </section>}
 
       {selection?.kind !== "provider" && <section className="flex flex-col gap-3">
-        {!selection && <div className="section-title"><h3 className="m-0">本地模型</h3><small>路径、校验与运行时分别显示</small></div>}
+        {!selection && <div className="section-title"><h3 className="m-0">本地模型</h3><small>按需下载，在本机处理</small></div>}
         <details className="panel-card model-root">
           <summary><b>下载根目录</b><small className="numeric" title={root}>{root || "未设置"}{rootDirty.current ? " · 未保存" : ""}</small></summary>
           <div className="inline-fields">
@@ -471,65 +519,50 @@ export function ModelSettings({
         </details>
 
         {!selection && <div className="model-inventory-grid">
-          {local.map(({ model, status, runtime, activeBindings, pathsReady, pathsUnset, checked, integrity }) => (
+          {local.map(({ model, enabled }) => (
             <article key={model.id} className="panel-card model-inventory-card">
               <div className="model-inventory-head">
                 <b title={model.name}>{model.name}</b>
-                <Badge tone={pathsReady ? "ok" : "warn"} dot>{pathsReady ? "路径已找到" : pathsUnset ? "未配置" : "路径不完整"}</Badge>
-                <Button
-                  size="sm"
-                  aria-label={`校验 ${model.name}`}
-                  disabled={!model.available || pathsUnset || !!busy}
-                  onClick={() => void verifyActive(model.id)}
-                >
-                  {busy === `校验当前模型 ${model.id}` ? "校验中…" : "校验"}
-                </Button>
-                {runtime.some((item) => !item.ready) && (
-                  <Button size="sm" variant="ghost" aria-label={`配置 ${model.name} 的运行环境`} onClick={onOpenRuntime}>配置运行环境</Button>
-                )}
-                <Button size="sm" aria-label={`配置 ${model.name}`} onClick={() => select({ kind: "local", id: model.id })}>配置</Button>
+                <Badge tone={enabled ? "ok" : "neutral"} dot>{enabled ? "已启用" : "待准备"}</Badge>
+                <Button size="sm" aria-label={`选择 ${model.name}`} onClick={() => select({ kind: "local", id: model.id })}>管理模型</Button>
               </div>
-              <details className="model-inventory-details">
-                <summary aria-live="polite">{model.capability} · {model.platform} · {runtime.length === 0 ? "无额外运行条件" : runtime.every((item) => item.ready) ? "运行时条件已满足" : "运行时有缺失"} · 完整性：{integrity}</summary>
-                <div className="model-inventory-meta">
-                  <small>当前模型完整性：{checked?.state === "verified" ? "SHA-256 校验通过" : integrity}</small>
-                  {activeBindings.map((binding) => (
-                    <small className="numeric" key={binding.setting}>
-                      {binding.setting}：{binding.target === "literal" ? binding.value || "未指定" : binding.resolvedPath || "未指定"}
-                      {binding.target !== "literal" ? ` · ${pathStateLabel[binding.state]}` : ""} · 来源 {binding.source}
-                    </small>
-                  ))}
-                  <small>下载目录：{status ? stateLabel[status.state] : "未检查"}</small>
-                  {runtime.filter((item) => !item.ready).map((item) => <small key={item.setting}>运行时缺失：{item.label}</small>)}
-                </div>
-              </details>
+              <small className="hint">{capabilityLabel[model.capability]} · 模型文件 {formatBytes(model.files.reduce((sum, file) => sum + file.size, 0))}</small>
             </article>
           ))}
         </div>}
 
         {selection?.kind === "local" && <div className="flex flex-col gap-4">
-          {local.filter(({ model }) => model.id === selection.id).map(({ model, status, runtime, activeBindings, activeFiles, adoptPath, paths, pathsReady, pathsUnset, checked, integrity }) => {
+          {local.filter(({ model }) => model.id === selection.id).map(({ model, status, runtime, activeBindings, activeFiles, adoptPath, paths, pathsUnset, checked, integrity, enabled }) => {
             const downloadCheck = verify[model.id];
             return (
             <article key={model.id} className="panel-card flex flex-col gap-3 p-4">
               <div className="section-title items-start">
                 <div className="flex-col !items-start gap-1">
                   <b>{model.name}</b>
-                  <small>{model.capability} · {model.platform}{model.license ? ` · ${model.license}` : ""}</small>
+                  <small>{capabilityLabel[model.capability]}{model.license ? ` · ${model.license}` : ""}</small>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Badge tone={pathsReady ? "ok" : "warn"} dot>{pathsReady ? "当前模型路径已找到" : pathsUnset ? "当前模型未配置" : "当前模型路径不完整"}</Badge>
-                  <Badge tone={checked?.state === "verified" ? "ok" : "neutral"}>当前模型 SHA-256 · {integrity}</Badge>
-                  <Badge tone={runtime.every((item) => item.ready) ? "ok" : "warn"} dot>运行时 · {runtime.length === 0 ? "无额外条件" : runtime.every((item) => item.ready) ? "条件已满足" : "有缺失"}</Badge>
+                  <Badge tone={enabled ? "ok" : "neutral"} dot>{enabled ? "已启用" : "待准备"}</Badge>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <small className="mr-auto">推理结果以实际作业为准，文件校验不会调用模型。</small>
-                {runtime.some((item) => !item.ready) && <Button size="sm" variant="ghost" onClick={onOpenRuntime}>配置运行环境</Button>}
+                <small className="mr-auto">应用会准备所需组件，完成后自动启用。</small>
                 <Button size="sm" variant="ghost" onClick={onOpenJobs}>查看作业记录</Button>
               </div>
+              {currentPlan ? <div className="subtle-card flex flex-col gap-2 p-4">
+                <small>本次模型下载约 {formatBytes(currentPlan.modelBytes)}{currentPlan.dependencyBytes > 0 ? `，运行组件约 ${formatBytes(currentPlan.dependencyBytes)}` : "，无需额外下载运行组件"}。</small>
+                {!currentPlan.available && <small className="error">{currentPlan.reason}</small>}
+              </div> : <small className="hint">正在检查下载与兼容情况…</small>}
+              <div className="actions">
+                <Button variant="primary" disabled={!currentPlan?.available || !!busy || view.downloads.some((run) => run.kind === "model-setup" && ["queued", "running", "cancelling"].includes(run.state))}
+                  onClick={() => void installModel(model.id)}>下载并启用</Button>
+              </div>
+              <details className="subtle-card p-4">
+                <summary className="font-medium">高级：已有模型、文件校验与配置详情</summary>
+                <div className="mt-3 flex flex-col gap-3">
               <div className="model-files">
                 <b>当前生效配置</b>
+                <small>文件完整性：{integrity}</small>
                 {activeBindings.map((binding) => (
                   <small className="numeric" key={binding.setting}>
                     {binding.setting}：{binding.target === "literal" ? binding.value || "未指定" : binding.resolvedPath || "未指定"}
@@ -682,6 +715,8 @@ export function ModelSettings({
               >
                 校验后采用
               </Button>
+                </div>
+              </details>
             </article>
             );
           })}
@@ -690,13 +725,13 @@ export function ModelSettings({
 
       <details className="downloads panel-card model-downloads" open={downloadsOpen} onToggle={(event) => setDownloadsOpen(event.currentTarget.open)}>
         <summary>
-          <b>下载作业</b>
+          <b>模型准备作业</b>
           <Badge>{view.downloads.length}</Badge>
           {view.downloads.some((item) => ["queued", "running", "cancelling"].includes(item.state)) && <small>有作业进行中</small>}
           {view.downloads.some((item) => ["failed", "interrupted"].includes(item.state)) && <small className="error">有作业失败或中断</small>}
         </summary>
         <div className="flex flex-col gap-3">
-        {view.downloads.length === 0 && <p className="hint m-0">暂无下载作业。</p>}
+        {view.downloads.length === 0 && <p className="hint m-0">暂无模型准备作业。</p>}
         {view.downloads.map((item) => (
           <div className="download-row" key={item.id}>
             <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -728,11 +763,16 @@ export function ModelSettings({
                 取消
               </Button>
             )}
-            {["failed", "cancelled", "interrupted"].includes(item.state) && (
+            {["failed", "partial", "cancelled", "interrupted"].includes(item.state) && (
               <Button
                 size="sm"
                 onClick={() =>
                   act("恢复下载", async () => {
+                    if (item.kind === "model-setup" && item.error?.code === "CONFIG_CONFLICT") {
+                      await refreshModels(false);
+                      session.setNotice("模型设置已刷新，请重新点击“下载并启用”；已完成的下载会复用。");
+                      return;
+                    }
                     const next = await api(
                       `/runs/${item.id}/resume`,
                       RunRecord,
@@ -744,7 +784,7 @@ export function ModelSettings({
                   })
                 }
               >
-                重试
+                {item.kind === "model-setup" && item.error?.code === "CONFIG_CONFLICT" ? "刷新设置" : "重试"}
               </Button>
             )}
           </div>

@@ -216,6 +216,15 @@ export async function startStudioService(
       ...z.object({ root: z.string(), requestId: z.string() }).parse(req.body),
     }),
   );
+  route("get", "/api/models/:id/install-plan", (req) =>
+    app.engines.modelPlan(z.string().parse(req.params.id), z.string().min(1).optional().parse(req.query.root)),
+  );
+  route("post", "/api/models/:id/install", (req) =>
+    app.engines.installModel({
+      ...z.object({ root: z.string(), expectedRevision: z.string(), requestId: z.string() }).strict().parse(req.body),
+      id: z.string().parse(req.params.id),
+    }),
+  );
   route("post", "/api/models/:id/verify", (req) =>
     app.models.verify(
       z.string().parse(req.params.id),

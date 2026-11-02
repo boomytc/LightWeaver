@@ -15,9 +15,9 @@ HOP = 256
 CONTEXT_SAMPLES = 40 * RATE
 
 
-def load_pcm(audio: str) -> array.array:
+def load_pcm(audio: str, ffmpeg: str) -> array.array:
     result = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", audio, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
+        [ffmpeg, "-v", "error", "-i", audio, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
         check=True, capture_output=True,
     )
     pcm = array.array("h", result.stdout)
@@ -102,14 +102,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--job", required=True)
     job = json.loads(Path(parser.parse_args().job).read_text())
-    for field in ("audio", "model", "library", "bindings", "vadLibrary"):
+    for field in ("audio", "model", "library", "bindings", "vadLibrary", "ffmpeg"):
         if not isinstance(job.get(field), str) or not Path(job[field]).exists():
             raise ValueError(f"ASR configuration path missing: {field}")
     os.environ["TRANSCRIBE_LIBRARY"] = job["library"]
     sys.path.insert(0, job["bindings"])
     import transcribe_cpp
 
-    pcm = load_pcm(job["audio"])
+    pcm = load_pcm(job["audio"], job["ffmpeg"])
     ranges, version = speech_ranges(pcm, job["vadLibrary"])
     language = str(job.get("language") or "").split("-")[0]
     language = None if language in ("", "auto") else language

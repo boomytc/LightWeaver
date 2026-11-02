@@ -83,11 +83,16 @@ export async function processRun(
   options.signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
     const supervisorLaunchSpec = supervisorLaunch();
+    const env = { ...(options.env ?? process.env) };
+    if (currentRuntime().mode === "production") {
+      env.PYTHONDONTWRITEBYTECODE = "1";
+      env.PYTHONNOUSERSITE = "1";
+      env.PYTHONPATH = "";
+      delete env.PYTHONHOME;
+    }
     const supervisor = spawn(supervisorLaunchSpec.command, supervisorLaunchSpec.args, {
       cwd: options.cwd,
-      env: currentRuntime().mode === "production"
-        ? { ...(options.env ?? process.env), PYTHONDONTWRITEBYTECODE: "1" }
-        : options.env ?? process.env,
+      env,
       detached: true,
       shell: false,
       stdio: ["pipe", "pipe", "pipe", "ipc"],

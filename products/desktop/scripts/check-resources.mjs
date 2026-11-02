@@ -224,6 +224,7 @@ for (const relative of [
   "service/node_modules/playwright-core/package.json",
   "card/site/index.html",
   "resources/config.yaml",
+  "resources/bundled-engines.json",
   "resources/weaver/requirements.txt",
   "resources/weaver/requirements.models.txt",
   "resources/weaver/requirements.models.mlx.txt",
@@ -231,6 +232,28 @@ for (const relative of [
 ]) {
   if (!fs.existsSync(path.join(root, relative)))
     problems.push(`缺少必需资源 ${relative}`);
+}
+try {
+  const engines = JSON.parse(fs.readFileSync(path.join(root, "resources", "bundled-engines.json"), "utf8"));
+  const expectedIds = ["transcribe-native", "transcribe-bindings", "ten-vad", "llama-server"];
+  if (engines.schemaVersion !== 1 || engines.platform !== target || !Array.isArray(engines.components) ||
+      engines.components.length !== expectedIds.length ||
+      expectedIds.some((id) => !engines.components.some((item) => item.id === id)))
+    throw new Error("缺少基础组件或平台不符");
+  for (const component of engines.components) {
+    if (!component.version || !component.bindings || !Object.keys(component.bindings).length)
+      throw new Error(`${component.id} 的版本或绑定无效`);
+    for (const value of [component.directory, ...Object.values(component.bindings)]) {
+      if (typeof value !== "string" || !value || path.isAbsolute(value) || path.win32.isAbsolute(value) ||
+          value.split(/[\\/]/).includes("..") || !fs.existsSync(path.join(root, value)))
+        throw new Error(`${component.id} 的随包路径无效`);
+      const canonical = fs.realpathSync(path.join(root, value));
+      if (!canonical.startsWith(fs.realpathSync(root) + path.sep))
+        throw new Error(`${component.id} 的绑定越出资源根`);
+    }
+  }
+} catch (error) {
+  problems.push(`随包运行环境无效：${error.message}`);
 }
 if (
   !manifest.tools ||

@@ -23,6 +23,7 @@ const kindLabels: Record<string, string> = {
   "import-proposal": "导入候选方案",
   "import-analysis": "导入分析结果",
   "model-download": "模型下载",
+  "model-setup": "下载并启用模型",
   "engine-install": "引擎安装",
   "engine-setup": "本地运行环境配置",
   "caption-translate": "字幕翻译",
@@ -39,6 +40,8 @@ const engineRoleLabels: Record<string, string> = {
 };
 
 function nodeLabel(key: string): string {
+  if (key === "activate") return "校验并启用模型";
+  if (key.startsWith("download-")) return "下载模型文件";
   if (key === "adopt") return "写入运行时配置";
   const match = /^install-(.+)$/.exec(key);
   if (!match) return key;
@@ -149,7 +152,8 @@ export function JobsPage() {
                 </div>
                 <div>
                   {selectedRun.projectId && <Button size="sm" variant="ghost" onClick={() => void session.navigate("projects", selectedRun.projectId || "")}><ProjectIcon />打开项目</Button>}
-                  {["engine-setup", "engine-install"].includes(selectedRun.kind) && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "runtime")}>打开运行环境</Button>}
+                  {["engine-setup", "engine-install"].includes(selectedRun.kind) && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "diagnostics")}>打开诊断与修复</Button>}
+                  {selectedRun.kind === "model-setup" && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "models")}>打开模型</Button>}
                   <Button size="sm" disabled={!isActiveRun(selectedRun.state)} onClick={() => void changeRun("cancel", selectedRun.id)}>取消</Button>
                   <Button size="sm" disabled={!RESUMABLE_RUN_STATES.has(selectedRun.state)} onClick={() => void changeRun("resume", selectedRun.id)}>恢复</Button>
                 </div>

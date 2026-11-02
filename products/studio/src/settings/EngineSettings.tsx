@@ -54,6 +54,7 @@ const usageBadge: Record<
   Exclude<EngineUsage, "unused">,
   { label: string; tone: "ok" | "warn" | "accent" | "neutral" }
 > = {
+  bundled: { label: "应用自带", tone: "ok" },
   managed: { label: "已安装 · 已采用", tone: "ok" },
   "managed-unused": { label: "已安装 · 未采用", tone: "warn" },
   external: { label: "使用外部路径", tone: "accent" },
@@ -219,7 +220,7 @@ export function EngineSettings() {
       counts[current.usage] += 1;
       return counts;
     },
-    { managed: 0, "managed-unused": 0, external: 0, unused: 0, partial: 0 } as Record<
+    { bundled: 0, managed: 0, "managed-unused": 0, external: 0, unused: 0, partial: 0 } as Record<
       EngineUsage,
       number
     >,
@@ -244,7 +245,7 @@ export function EngineSettings() {
             onRefresh={refresh}
           />
           <small>
-            本应用安装 {usageCounts.managed + usageCounts["managed-unused"]}/
+            本应用提供 {usageCounts.bundled + usageCounts.managed + usageCounts["managed-unused"]}/
             {setupStatuses.length} · 使用外部路径 {usageCounts.external} · 未配置{" "}
             {usageCounts.unused + usageCounts.partial}；语音环境{speechUsage}
           </small>
@@ -293,9 +294,9 @@ function SetupPanel({
     return {
       item,
       status: current,
-      ready: current?.usage === "managed" || current?.usage === "external",
+      ready: current?.usage === "bundled" || current?.usage === "managed" || current?.usage === "external",
       managed:
-        current?.usage === "managed" || current?.usage === "managed-unused",
+        current?.usage === "bundled" || current?.usage === "managed" || current?.usage === "managed-unused",
     };
   });
   const ready = rows.length > 0 && rows.every((row) => row.ready);
@@ -340,15 +341,15 @@ function SetupPanel({
           ? "重新检查并修复"
           : failed
             ? "重试配置"
-            : "一键下载并配置";
+            : "检查并修复";
 
   return (
     <section className="panel-card flex flex-col gap-4 p-5" aria-labelledby="setup-title">
       <div>
-        <h2 id="setup-title" className="m-0">本地运行环境</h2>
+        <h2 id="setup-title" className="m-0">运行组件检查与修复</h2>
         <p className="hint mb-0 mt-1">
-          一个操作完成本地转写、精确字幕、检索与字幕翻译需要的运行库和 Python 环境：
-          下载 → 校验 → 自动写入配置，不需要手动指定路径。
+          正式安装包自带基础组件，模型所需依赖会自动准备。
+          出现组件缺失或损坏时，可在这里检查并修复。
         </p>
       </div>
       <div className="model-files">
@@ -500,7 +501,7 @@ function SetupPanel({
               去选择模型权重
             </Button>
             <span className="hint">
-              模型权重在“模型与供应商”下载，下载后点“采用”即可，也不需要填写路径。
+              在“模型与供应商”选择模型，点击“下载并启用”即可使用。
             </span>
           </div>
         </>

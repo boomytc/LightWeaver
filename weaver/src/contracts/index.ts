@@ -965,6 +965,19 @@ export const DownloadInput = z.strictObject({
   root: z.string().min(1),
   requestId: Id,
 });
+export const ModelInstallInput = DownloadInput.extend({
+  expectedRevision: Digest,
+});
+const ModelInstallEstimate = z.strictObject({
+  id: z.string(),
+  modelBytes: z.number().int().nonnegative().safe(),
+  dependencyBytes: z.number().int().nonnegative().safe(),
+  components: z.array(z.strictObject({ id: z.string(), name: z.string() })),
+});
+export const ModelInstallPlan = z.discriminatedUnion("available", [
+  ModelInstallEstimate.extend({ available: z.literal(true) }),
+  ModelInstallEstimate.extend({ available: z.literal(false), reason: z.string().min(1) }),
+]);
 export const ModelSettingsPatch = z
   .strictObject({
     expectedRevision: Digest,
@@ -1093,12 +1106,23 @@ export const EngineActiveBinding = z.strictObject({
  * 与当前配置绑定是否可用，合成一个用户可读的分类，避免页面各自拼装措辞。
  */
 export const EngineUsage = z.enum([
+  "bundled",
   "managed",
   "managed-unused",
   "external",
   "unused",
   "partial",
 ]);
+export const BundledEngines = z.strictObject({
+  schemaVersion: z.literal(1),
+  platform: z.string().min(1),
+  components: z.array(z.strictObject({
+    id: z.string().min(1),
+    version: z.string().min(1),
+    directory: z.string().min(1),
+    bindings: z.record(z.string(), z.string().min(1)),
+  })).min(1),
+});
 export const EngineItemStatus = z.strictObject({
   id: z.string(),
   status: EngineStatus,

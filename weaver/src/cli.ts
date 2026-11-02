@@ -17,6 +17,8 @@ import {
   MediaRef,
   EngineSettingsPatch,
   ModelSettingsPatch,
+  ModelInstallInput,
+  ModelInstallPlan,
   OutputProfile,
   ProjectDocument,
   ProjectRevision,
@@ -273,17 +275,20 @@ async function main(): Promise<void> {
             "未知 models settings 操作",
           );
       } else if (action === "list") result = app.models.view();
-      else if (action === "download") {
+      else if (action === "download" || action === "install") {
         const modelId = parsed.words[2];
         if (!modelId)
           throw new WeaverError("INVALID_INPUT", "缺少 model-id");
-        const run = app.models.download({
+        const download = {
           id: modelId,
           root:
             option(parsed, "root") ||
             app.models.settings().downloadRoot.value,
           requestId,
-        });
+        };
+        const run = action === "install"
+          ? app.engines.installModel({ ...download, expectedRevision: required(parsed, "expected-revision") })
+          : app.models.download(download);
         result = booleanOption(parsed, "wait")
           ? { run: await wait(run.id), nodes: app.jobs.nodes(run.id) }
           : run;
@@ -375,6 +380,8 @@ async function main(): Promise<void> {
         proposal: Proposal,
         timeline: TimelineManifest,
         "model-settings": ModelSettingsPatch,
+        "model-install": ModelInstallInput,
+        "model-install-plan": ModelInstallPlan,
         "engine-settings": EngineSettingsPatch,
         error: ErrorProtocol,
       };

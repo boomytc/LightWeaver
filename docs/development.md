@@ -12,7 +12,7 @@ npm ci
 
 拉取代码后如果依赖发生变化，重新运行 `npm ci`。切换 Node 主版本后也重新安装，使原生依赖匹配当前 Node。
 
-本地模型与引擎按需准备，不随源码或桌面包分发，默认都放在仓库根 `data/` 下的对应目录：模型权重在 `data/models/`，引擎（transcribe 运行库、bindings、TEN VAD、llama-server 及其下的 Python 环境）在 `data/engines/`。`data/` 不进入 Git：
+源码模式的本地模型与引擎按需准备，默认放在仓库根 `data/` 下的对应目录：模型权重在 `data/models/`，引擎（transcribe 运行库、bindings、TEN VAD、llama-server 及其下的 Python 环境）在 `data/engines/`。`data/` 不进入 Git：
 
 ```sh
 npx weaver models settings get --json   # 取当前 revision
@@ -20,7 +20,7 @@ npx weaver engines setup --expected-revision CONFIG_REV --wait --progress
 npx weaver engines setup --with-models --expected-revision CONFIG_REV --wait --progress
 ```
 
-`engines setup` 会按顺序下载、校验 transcribe 运行库、bindings、TEN VAD、llama-server 与模型 Python 环境，并一次写入配置；已校验的部分在重跑时复用。必需组件失败即作业失败，可选组件失败会在采用结果里列在 `skipped` 并继续写配置。`--with-speech` 额外创建语音 Python 环境，`--with-models` 额外下载并采用本地模型权重。空间不足时在开始前返回 `DISK_SPACE_INSUFFICIENT`。也可以在 **设置 → 运行环境 → 本地运行环境** 点击 **一键下载并配置**。不同平台的引擎目录不同，迁移仓库时重新安装；引擎根目录可在高级设置或 `engine_install_root` 中修改。
+`engines setup` 会按顺序下载、校验 transcribe 运行库、bindings、TEN VAD、llama-server 与模型 Python 环境，并一次写入配置；已校验的部分在重跑时复用。必需组件失败即作业失败，可选组件失败会在采用结果里列在 `skipped` 并继续写配置。`--with-speech` 额外创建语音 Python 环境，`--with-models` 额外下载并采用本地模型权重。空间不足时在开始前返回 `DISK_SPACE_INSUFFICIENT`。日常使用在 **设置 → 模型与供应商** 点击 **下载并启用**，由单个作业自动准备依赖并采用模型。组件维护入口在 **设置 → 诊断与修复 → 运行组件与修复**。不同平台的引擎目录不同，迁移仓库时重新安装；引擎根目录可在高级设置或 `engine_install_root` 中修改。
 
 媒体功能按用途准备工具：
 
@@ -93,7 +93,7 @@ Linux 设置了 `XDG_CONFIG_HOME` 时，使用该目录下的 `LightWeaver/weave
 npm run package -w @lightweaver/desktop
 ```
 
-首次构建下载固定版本的 Node、FFmpeg、Chrome 和交接 Python，并安装独立 sidecar 依赖。构建不下载模型权重或引擎；正式包首次使用引擎时按用户操作下载到数据目录的 `runtime/`。资源缓存在 `products/desktop/staging/`，产物位于 `products/desktop/release/`。
+首次构建下载固定版本的 Node、FFmpeg、Chrome、基础 Python、transcribe 运行库与 bindings、TEN VAD 和 llama-server，并安装独立 sidecar 依赖。引擎安装与校验复用共享核的 catalog 和 Jobs；随包绑定使用相对资源路径。构建不下载模型权重，完整模型 Python 环境由用户选择本地模型时自动安装到数据目录的 `engines/`。资源缓存在 `products/desktop/staging/`，产物位于 `products/desktop/release/`。
 
 打包会重新生成对应目标的应用目录。打包前保存草稿，并退出运行在该目录中的应用。
 
@@ -139,7 +139,7 @@ npx weaver build --project demo --plan --json
 
 写入携带当前修订的 `expectedRevision` 和逻辑请求的 `requestId`。素材导入、方案采用、制作、分析和交接的完整命令见[命令与配置参考](conventions.md)。
 
-桌面包自带 `bin/weaver`，Windows 为 `bin/weaver.cmd`。在应用的 **设置 → 运行环境 → 存储与路径 → 外部 agent 与命令行** 中复制实际调用路径。随包 CLI 默认读取桌面的配置与数据，也可用 `--data-dir`、`--config-file`、`--config-base` 显式指定。
+桌面包自带 `bin/weaver`，Windows 为 `bin/weaver.cmd`。在应用的 **设置 → 诊断与修复 → 高级：自定义运行路径与配置 → 外部 agent 与命令行** 中复制实际调用路径。随包 CLI 默认读取桌面的配置与数据，也可用 `--data-dir`、`--config-file`、`--config-base` 显式指定。
 
 先用所选入口执行 `capabilities --json`，核对 `runtime.dataDir` 和 `runtime.configFile`。返回的 `agentSkills` 提供与该运行时配套的技能文件，`runtime.resourcesDir` 下包含 AGENTS.md 和命令参考。正式包内的技能可按路径交给 agent 读取，不会自动写入个人技能目录。
 

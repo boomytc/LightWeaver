@@ -329,29 +329,28 @@ export class Models {
           status: this.metadataStatus(item, base),
           activeBindings: snapshot.bindings,
           activeFiles: snapshot.files,
-          runtime: item.catalog.runtimeRequirements.map((requirement) => {
-            const setting = SETTINGS[this.settingName(requirement.setting)];
-            const value = setting
-              ? field(this.root, setting, process.env).value
-              : "";
-            return {
-              setting: requirement.setting,
-              label: requirement.label,
-              documentationUrl: requirement.documentationUrl,
-              ready: checkPath(
-                requirement.kind === "executable"
-                  ? resolveExecutable(value, this.root)
-                  : resolvePath(this.root, value),
-                requirement.kind,
-              ),
-            };
-          }),
+          runtime: this.runtimeStatus(item.catalog.id),
         };
       }),
       downloads: this.jobs
         .list()
-        .filter((run) => run.kind === "model-download")
+        .filter((run) => run.kind === "model-download" || run.kind === "model-setup")
         .slice(0, 20),
+    });
+  }
+
+  runtimeStatus(id: string, overrides: Readonly<Record<string, string>> = {}) {
+    return this.model(id).catalog.runtimeRequirements.map((requirement) => {
+      const setting = SETTINGS[this.settingName(requirement.setting)];
+      const value = overrides[requirement.setting] ?? (setting
+        ? field(this.root, setting, process.env).value : "");
+      return {
+        setting: requirement.setting,
+        label: requirement.label,
+        documentationUrl: requirement.documentationUrl,
+        ready: checkPath(requirement.kind === "executable"
+          ? resolveExecutable(value, this.root) : resolvePath(this.root, value), requirement.kind),
+      };
     });
   }
 

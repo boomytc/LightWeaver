@@ -289,6 +289,7 @@ const runKindLabels: Record<string, string> = {
   "model-download": "模型下载",
   "engine-install": "引擎安装",
   "engine-setup": "本地运行环境配置",
+  "model-setup": "下载并启用模型",
   "caption-translate": "字幕翻译",
   "caption-speakers": "说话人分段",
 };
@@ -480,6 +481,7 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
   }
   if (
     command === "models download" ||
+    command === "models install" ||
     command === "engines install" ||
     command === "engines setup" ||
     command === "captions translate" ||

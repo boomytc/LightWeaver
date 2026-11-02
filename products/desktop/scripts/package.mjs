@@ -74,10 +74,15 @@ if (!fs.existsSync(sidecarPackage) || !fs.existsSync(sidecarLock))
   throw new Error("sidecar package.json 或 package-lock.json 缺失");
 const sidecarLockSha256 = sha256File(sidecarLock);
 const pythonVerification = [
-  "import importlib.metadata as m, opentimelineio, pyJianYingDraft",
+  "import pathlib, site, sys",
+  "assert not site.ENABLE_USER_SITE",
+  "assert all(pathlib.Path(p).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve()) for p in sys.path if p and 'site-packages' in p)",
+  "import importlib.metadata as m, opentimelineio, pyJianYingDraft, numpy",
   "assert m.version('opentimelineio') == '0.18.1'",
   "assert m.version('pyJianYingDraft') == '0.3.1'",
 ].join("\n");
+const isolatedPythonEnv = { ...process.env, PYTHONNOUSERSITE: "1", PYTHONDONTWRITEBYTECODE: "1", PYTHONPATH: "" };
+delete isolatedPythonEnv.PYTHONHOME;
 
 function archivePath(name) {
   return path.join(targetCache, name);
@@ -253,10 +258,10 @@ function installPython(pythonExtraction) {
   const valid = completeCache({
     root: destination,
     marker,
-    verify: () => run(pythonFile, ["-c", pythonVerification], {
-      env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
-      stdio: "pipe",
-    }) === "",
+    verify: () => {
+      run(pythonFile, ["-c", pythonVerification], { env: isolatedPythonEnv, stdio: "pipe" });
+      return true;
+    },
   });
   if (!valid) {
     fs.rmSync(destination, { recursive: true, force: true });
@@ -278,7 +283,7 @@ function installPython(pythonExtraction) {
           "import pathlib,sys; assert pathlib.Path(sys.prefix).resolve() == pathlib.Path(__import__('os').environ['PYTHONHOME']).resolve()",
         ],
         {
-          env: { ...process.env, PYTHONHOME: prefix },
+          env: { ...isolatedPythonEnv, PYTHONHOME: prefix },
           stdio: "pipe",
         },
       );
@@ -295,7 +300,7 @@ function installPython(pythonExtraction) {
         ],
         {
           env: {
-            ...process.env,
+            ...isolatedPythonEnv,
             PIP_DISABLE_PIP_VERSION_CHECK: "1",
             PYTHONDONTWRITEBYTECODE: "1",
             PYTHONHOME: prefix,
@@ -305,7 +310,7 @@ function installPython(pythonExtraction) {
       );
       run(sourcePython, ["-c", pythonVerification], {
         env: {
-          ...process.env,
+          ...isolatedPythonEnv,
           PYTHONDONTWRITEBYTECODE: "1",
           PYTHONHOME: prefix,
         },
@@ -329,7 +334,7 @@ function installPython(pythonExtraction) {
     }
   }
   run(path.join(staging, target.tools.python), ["-c", pythonVerification], {
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+    env: isolatedPythonEnv,
     stdio: "pipe",
   });
 }
@@ -409,6 +414,9 @@ function createManifest() {
     target.tools.python,
     "service/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
     remotionRelative,
+    ...walkTree(path.join(staging, "resources", "engines"))
+      .filter(({ entry, relative }) => entry.isFile() && /\.(?:dylib|so|dll|exe)$/.test(relative))
+      .map(({ relative }) => `resources/engines/${relative}`),
   ].map((nativePath) => ({ path: nativePath }));
   const manifest = {
     schemaVersion: 1,
@@ -459,7 +467,7 @@ function verifyRuntime(root, label) {
   ].join("");
   run(node, ["-e", script], { cwd: root, stdio: "pipe" });
   run(path.join(root, target.tools.python), ["-c", pythonVerification], {
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+    env: isolatedPythonEnv,
     stdio: "pipe",
   });
   process.stdout.write(`${label}运行时查询通过\n`);
@@ -659,6 +667,8 @@ async function prepare() {
   if (!fs.existsSync(pythonSource)) throw new Error("Python 归档目录不正确");
   installPython(pythonSource);
   copyResources();
+  run(node, ["--import", "tsx", path.join(desktopRoot, "scripts", "bundle-engines.mjs"),
+    staging, path.join(targetCache, "engines")], { cwd: repoRoot, stdio: "inherit" });
   writeRuntimeContract();
   createManifest();
   checkResources(staging, "staging ");
