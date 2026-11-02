@@ -9,10 +9,10 @@
 - 必需组件失败时作业失败、不写配置；可选组件失败只返回在采用节点的 `skipped` 中并继续写配置，Studio 显示“部分组件未完成，可重试”。已校验的组件在重跑时复用。
 - 下载前按未安装组件的 `estimatedBytes` 与模型剩余字节估算空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。
 - 已安装版本与当前发布不同时 `engines list` 返回 `updates`，Studio 显示“可更新组件”，一键配置会下载新版本、替换本应用管理的目录并重新采用。
-- 引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`），可在高级设置中修改；已安装目录不会自动搬迁。
+- 源码模式产物目录统一放在仓库根 `data/`：模型 `data/models/`、引擎 `data/engines/`（含其下的 Python 环境）；正式桌面包使用运行时数据目录下的同名子目录。引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`），可在高级设置中修改；已安装目录不会自动搬迁。
 - 安装走 Jobs：下载 → 解压 → 逐文件校验 → 原子发布。目标目录没有本应用标记时拒绝覆盖；取消后删除环境/暂存，不发布半成品。Python 环境按 requirements 创建 venv 并 pip 安装，版本取清单 SHA-256 前 12 位。
 - 入口：CLI `weaver engines setup|list|install|verify|use`；HTTP `GET /api/runtime`、`GET /api/engines`、`POST /api/engines/setup`、`POST /api/engines/:id/{install,verify,use}`；Studio“本地运行环境”与高级引擎分组。
-- 任务与诊断入口：任务页显示“本地运行环境配置/引擎安装”，节点显示可读组件名、完成计数与 `skipped`，并提供“打开运行环境”；模型页在运行条件缺失时提供“配置运行环境”；诊断页显示本地运行环境安装与配置数量。`capabilities` 与 `doctor` 返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。
+- 任务与诊断入口：任务页显示“本地运行环境配置/引擎安装”，节点显示可读组件名、完成计数与 `skipped`，并提供“打开运行环境”；模型页在运行条件缺失时提供“配置运行环境”；诊断页按统一分类显示“本应用安装 X/5 · 使用外部路径 Y · 未配置 Z”，存在外部路径时说明它不是本应用安装的副本。`capabilities` 与 `doctor` 返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。
 - TEN VAD 从模型清单迁入引擎清单，设置项 `vad_library` 语义不变。
 
 ## 实际验收

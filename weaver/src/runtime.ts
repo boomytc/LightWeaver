@@ -63,11 +63,12 @@ export function developmentRuntime(
     configBase,
     dataDir,
     modelDir: path.resolve(
-      env.LIGHTWEAVER_MODEL_DOWNLOAD_ROOT?.trim() || path.join(devRoot, "models"),
+      env.LIGHTWEAVER_MODEL_DOWNLOAD_ROOT?.trim() ||
+        path.join(devRoot, "data", "models"),
     ),
     engineDir: path.resolve(
       env.LIGHTWEAVER_ENGINE_ROOT?.trim() ||
-        path.join(devRoot, "weaver", "runtime"),
+        path.join(devRoot, "data", "engines"),
     ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),

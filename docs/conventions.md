@@ -162,7 +162,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码入口（仓库 CLI、浏览器 Studio、源码桌面）默认以仓库为配置基准，正式桌面包以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
 
-内置 `model_download_root: 'models'` 在源码模式按 monorepo 根目录解析，因此 CLI、浏览器 Studio 和源码桌面默认下载到根目录的 `models/`，与私有配置文件位置无关。正式桌面包没有 monorepo，默认使用运行时的用户模型目录。源码模型目录只有根目录 `models/`；`weaver/models/` 是旧版布局，不再读取或写入。私有配置或环境变量显式指定的下载根目录仍按 `configBase` 解析，优先级保持不变；根目录 `models/` 不进入 Git。
+内置 `model_download_root: 'data/models'` 在源码模式按 monorepo 根目录解析，因此 CLI、浏览器 Studio 和源码桌面默认下载到根目录 `data/models/`，与私有配置文件位置无关。正式桌面包没有 monorepo，默认使用运行时的用户模型目录下的 `models/`。根目录 `models/` 与 `weaver/models/` 是旧版布局，不再读取或写入。私有配置或环境变量显式指定的下载根目录仍按 `configBase` 解析，优先级保持不变；`data/` 不进入 Git。
 
 配置值按运行时 `configFile`（私有本地配置）、环境变量、内置 `config.yaml` 默认值的顺序解析。三者中的空字符串和纯空白值都视为未设置。`source=file` 表示私有本地配置，`source=environment` 表示环境变量，`source=default` 表示 `config.yaml` 或代码缺省值，`source=unset` 表示没有有效值。源码内置默认文件位于仓库根目录 `config.yaml`；桌面包内位于 `currentRuntime.resourcesDir/config.yaml`。私有覆盖继续写入 `runtime.configFile`，相对路径仍按 `runtime.configBase` 解析。
 
@@ -213,9 +213,9 @@ Studio 的“本地运行环境”只提供一个“一键下载并配置”主�
 
 开始前按未安装组件的 `estimatedBytes` 与模型剩余字节估算所需空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。已安装版本与当前发布不同时 `engines list` 的 `updates` 会列出该组件，`engines setup` 会下载新版本、替换本应用管理的目录并重新采用。引擎安装根目录可在高级设置中修改（写 `engine_install_root`）；已安装目录不会自动搬迁，下一次一键配置会安装到新目录。可用空间与更新列表通过 `GET /api/engines` 返回。
 
-`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
+`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。每个组件的 `usage` 由服务端统一计算：`managed`（本应用安装并已采用）、`managed-unused`（已安装未采用）、`external`（当前绑定来自手工配置或系统路径）、`unused`、`partial`；Studio 引擎面板、诊断页与 `doctor` 都使用这个分类，不再各自拼装“已安装/已配置”措辞。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
 
-引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`）。未显式配置时，源码入口使用仓库 `weaver/runtime/`（Git 忽略），正式桌面包使用数据目录下的 `runtime/`。显式相对路径按 `configBase` 解析。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
+引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`）。未显式配置时，源码入口使用仓库 `data/engines/`（Git 忽略），正式桌面包使用数据目录下的 `engines/`。显式相对路径按 `configBase` 解析。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
 
 `engines setup` 是上述单组件流程的组合：五个安装节点按顺序执行，最后一个 `engine-adopt` 节点重新校验全部组件后一次写入配置，写入继续受 expectedRevision 保护。`engines use`（高级）先完整校验单个引擎，再把绑定写入私有配置：transcribe 运行库写 `asr_library`，bindings 写 `asr_bindings`，TEN VAD 写 `vad_library`，llama-server 同时写 `visual_server`、`llama_server` 与 `translation_server`，Python 环境写 `model_python` 或 `speech_python`。采用沿用 `models settings get` 的 revision 与稳定 requestId，先校验后写配置；下载或安装本身不会隐式改写配置。
 

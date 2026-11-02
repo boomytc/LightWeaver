@@ -43,7 +43,7 @@ try {
     configBase: path.resolve(prefs.configBase || path.dirname(configFile)),
     dataDir,
     modelDir: path.resolve(prefs.modelDir || path.join(dataDir, "models")),
-    engineDir: path.resolve(path.join(dataDir, "runtime")),
+    engineDir: path.resolve(path.join(dataDir, "engines")),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),
     tools: {

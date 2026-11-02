@@ -274,10 +274,13 @@ function runtimePaths(prefs: DesktopPreferences) {
     configBase,
     dataDir,
     modelDir: path.resolve(
-      prefs.modelDir || path.join(dev ? repoRoot : dataDir, "models"),
+      prefs.modelDir ||
+        (dev ? path.join(repoRoot, "data", "models") : path.join(dataDir, "models")),
     ),
     engineDir: path.resolve(
-      dev ? path.join(repoRoot, "weaver", "runtime") : path.join(dataDir, "runtime"),
+      dev
+        ? path.join(repoRoot, "data", "engines")
+        : path.join(dataDir, "engines"),
     ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),

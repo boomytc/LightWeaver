@@ -12,15 +12,15 @@ tts_model: 'VoxCPM2'
 
 # Model files are downloaded only by an explicit `weaver models download`.
 # The Studio model page or `weaver models use --path` binds an existing directory.
-# Source checkout uses only the monorepo-root models/; installed desktop uses its user model directory.
-# weaver/models/ is a legacy location and is neither read nor written.
-model_download_root: 'models'
+# Source checkout uses only the monorepo data/models/; installed desktop uses its user model directory.
+# Root models/ and weaver/models/ are legacy locations and are not read or written.
+model_download_root: 'data/models'
 
 # Engine runtime (native libraries, llama-server, Python environments) installs into
 # the engine root below only on an explicit `weaver engines install`.
-# Source checkout defaults to weaver/runtime (ignored); installed desktop defaults to
-# <data directory>/runtime. An explicit engine_install_root follows configBase.
-# engine_install_root: 'weaver/runtime'
+# Source checkout defaults to data/engines (ignored); installed desktop defaults to
+# <data directory>/engines. An explicit engine_install_root follows configBase.
+# engine_install_root: 'data/engines'
 
 # Explicit local runtime. No implicit sibling checkout discovery or automatic download.
 # asr_model: '/absolute/runtime/qwen3-asr-0.6b-Q8_0.gguf'
@@ -44,7 +44,7 @@ llama_server: 'llama-server'
 # Text and visual retrieval share EmbeddingGemma 2, mmproj and this llama-server build.
 # visual_model: 'models/embeddinggemma-2/<revision>/embeddinggemma-2-Q8_0.gguf'
 # visual_mmproj: 'models/embeddinggemma-2/<revision>/mmproj-F16.gguf'
-# visual_server: 'weaver/runtime/visual/llama-server'
+# visual_server: 'data/engines/llama-server/llama-server'
 
 # Optional local TTS has its own environment; ModelBest VoxCPM2 needs no local TTS model.
 # speech_python: '/absolute/speech-environment/python'
