@@ -227,7 +227,6 @@ for (const relative of [
   "resources/bundled-engines.json",
   "resources/weaver/requirements.txt",
   "resources/weaver/requirements.models.txt",
-  "resources/weaver/requirements.models.mlx.txt",
   "resources/weaver/requirements.speech.txt",
 ]) {
   if (!fs.existsSync(path.join(root, relative)))

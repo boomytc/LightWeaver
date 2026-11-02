@@ -687,14 +687,6 @@ export function ModelSettings({
                   })}>选择文件</Button>
                 </>}
               />
-              {model.id === "qwen3-forced-aligner" && (
-                <details>
-                  <summary>高级说明</summary>
-                  <p>
-                    ForcedAligner 默认后端是 torch，设备是 cpu。MLX 只在这里说明，不作为默认下载或推理路径。独立重排和说话人区分不进入默认流程。
-                  </p>
-                </details>
-              )}
               <Button
                 disabled={
                   !model.available ||

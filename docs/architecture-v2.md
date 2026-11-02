@@ -24,7 +24,7 @@ SQLite、CAS、修订、库版本和公开应用入口已落地。CLI 与 Studio
 
 实施中用户先要求跳过真实模型验收，随后明确提供两种 VLM、VoxCPM2 和本地 VAD 与 ASR，用于功能确认。已实际执行这些模型路径，不将短样例作为最终模型选型或生产质量结论。
 
-架构升级时，对齐和 embedding 尚未配置模型。后续已替换为 Qwen3 强制对齐、GGUF 向量检索与可选重排，并完成真实 MLX 和 GGUF 功能验收，见[专项记录](acceptance-alignment-search.md)。人工 SRT 与文本检索可独立运行。
+架构升级时，对齐和 embedding 尚未配置模型。后续已替换为 Qwen3 强制对齐、GGUF 向量检索与可选重排，早期 MLX 和 GGUF 功能验收见[专项记录](acceptance-alignment-search.md)。2026-11-02 起强制对齐固定使用 Torch，现行配置见[模型边界](conventions.md#模型边界)。人工 SRT 与文本检索可独立运行。
 
 剪映最初检测为 11.1.0，首次启动自行升级到 11.7.0。导出 profile 锁定实际 11.7.0、schema 360000、adapter v1。应用打开并播放了混合场景、字幕、真实配音母带及静音备选音轨。OTIO 官方重载与移动包检查另行完成。
 

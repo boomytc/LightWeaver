@@ -51,7 +51,6 @@ function sourceRequirements() {
   return {
     main: path.join(repoRoot, "weaver", "requirements.txt"),
     models: path.join(repoRoot, "weaver", "requirements.models.txt"),
-    modelsMlx: path.join(repoRoot, "weaver", "requirements.models.mlx.txt"),
     speech: path.join(repoRoot, "weaver", "requirements.speech.txt"),
   };
 }
@@ -365,11 +364,9 @@ function copyResources() {
     const packagedName =
       name === "main"
         ? "requirements.txt"
-        : name === "modelsMlx"
-          ? "requirements.models.mlx.txt"
-          : name === "models"
-            ? "requirements.models.txt"
-            : "requirements.speech.txt";
+        : name === "models"
+          ? "requirements.models.txt"
+          : "requirements.speech.txt";
     fs.copyFileSync(file, path.join(resources, "weaver", packagedName));
   }
   fs.copyFileSync(

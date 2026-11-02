@@ -34,10 +34,9 @@ model_download_root: 'data/models'
 #          uv pip install --python weaver/.venv/bin/python -r weaver/requirements.models.txt
 # Python defaults to weaver/.venv/Scripts/python.exe on Windows, bin/python elsewhere.
 # model_python: '/absolute/model-environment/python'
-# Official Torch weights are the cross-platform default. MLX remains explicit opt-in.
-alignment_backend: 'torch'
+# Alignment uses the official Qwen3 ForcedAligner weights through Torch.
 # alignment_model: 'models/qwen3-forced-aligner/<revision>'
-alignment_device: 'cpu'  # torch only: cpu or cuda[:index]
+alignment_device: 'cpu'  # cpu or cuda[:index]
 # GGUF weights are loaded by a job-owned llama-server; no persistent service is needed.
 llama_server: 'llama-server'
 

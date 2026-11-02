@@ -164,7 +164,7 @@ export async function startStudioService(
     engineDir: runtime.engineDir,
     logDir: runtime.logDir,
     resourcesDir: runtime.resourcesDir,
-    requirements: ["requirements.txt", "requirements.models.txt", "requirements.models.mlx.txt", "requirements.speech.txt"]
+    requirements: ["requirements.txt", "requirements.models.txt", "requirements.speech.txt"]
       .map((name) => ({ name, file: path.join(runtime.resourcesDir, "weaver", name) }))
       .filter((item) => fs.existsSync(item.file)),
     interchangePython: runtime.tools.python,
@@ -183,7 +183,7 @@ export async function startStudioService(
   }));
   server.get("/api/runtime/requirements/:name", (req, res, next) => {
     try {
-      const name = z.enum(["requirements.txt", "requirements.models.txt", "requirements.models.mlx.txt", "requirements.speech.txt"]).parse(req.params.name);
+      const name = z.enum(["requirements.txt", "requirements.models.txt", "requirements.speech.txt"]).parse(req.params.name);
       res.download(path.join(runtime.resourcesDir, "weaver", name), name, (error) => {
         if (error && !res.headersSent) next(error);
       });

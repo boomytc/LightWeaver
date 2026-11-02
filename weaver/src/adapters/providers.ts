@@ -539,7 +539,6 @@ export class Providers {
           language,
           duration: input.duration,
           model: s.alignmentModel,
-          backend: s.alignmentBackend,
           device: s.alignmentDevice,
           ffmpeg: s.ffmpeg,
         },

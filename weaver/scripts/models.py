@@ -23,8 +23,8 @@ class ModelError(Exception):
 
 
 def inspect(backend):
-    packages = {"mlx": ["mlx", "mlx_audio", "numpy", "transformers", "tokenizers"],
-                "torch": ["qwen_asr", "torch", "numpy", "transformers", "tokenizers"], "gguf": []}[backend]
+    packages = {"torch": ["qwen_asr", "torch", "numpy", "transformers", "tokenizers"],
+                "gguf": []}[backend]
     versions, missing = {}, []
     for name in packages:
         if importlib.util.find_spec(name) is None:
@@ -111,28 +111,19 @@ def align(job):
     duration = len(waveform) / 16000
     if not len(waveform) or abs(duration - job["duration"]) > .1:
         raise ModelError("INVALID_MEDIA", "对齐音频为空或与冻结时长不一致")
-    if job["backend"] == "mlx":
-        from mlx_audio.stt import load
-        model = load(str(model_path))
-        raw = model.generate(audio=waveform, text=text, language=job["language"])
-        version = importlib.metadata.version("mlx-audio")
-    elif job["backend"] == "torch":
-        import torch
-        from qwen_asr import Qwen3ForcedAligner
-        model = Qwen3ForcedAligner.from_pretrained(str(model_path), dtype=torch.float32,
-                                                  device_map=job["device"], local_files_only=True)
-        raw = model.align(audio=(waveform, 16000), text=text, language=job["language"])[0]
-        version = importlib.metadata.version("qwen-asr")
-    else:
-        raise ModelError("INVALID_INPUT", "未知强制对齐后端")
-    # Both runtimes expose ForcedAlignResult.items; older MLX returns a list of items.
-    items = raw.items if hasattr(raw, "items") and not callable(raw.items) else raw
+    import torch
+    from qwen_asr import Qwen3ForcedAligner
+    model = Qwen3ForcedAligner.from_pretrained(str(model_path), dtype=torch.float32,
+                                              device_map=job["device"], local_files_only=True)
+    raw = model.align(audio=(waveform, 16000), text=text, language=job["language"])[0]
+    version = importlib.metadata.version("qwen-asr")
+    items = raw.items
     if not isinstance(items, (list, tuple)) or not items:
         raise ModelError("PROVIDER_FORMAT", "强制对齐没有返回词/字时间")
     words = [{"text": str(item.text), "start": float(item.start_time),
               "end": float(item.end_time)} for item in items]
     segments = aligned_segments(text, words, duration)
-    return {"backend": f'qwen3-{job["backend"]}', "version": version,
+    return {"backend": "qwen3-torch", "version": version,
             "model": str(model_path), "words": words, "segments": segments}
 
 

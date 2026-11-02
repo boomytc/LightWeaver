@@ -179,14 +179,14 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 | TTS、音色设计 | ModelBest VoxCPM2 SSE 音频事件 | MODELBEST_API_KEY、LIGHTWEAVER_TTS_MODEL |
 | VLM | ModelBest MiniCPM-V 或 DeepSeek flash | MODELBEST_API_KEY、DEEPSEEK_API_KEY，analyze --provider |
 | VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | LIGHTWEAVER_MODEL_PYTHON、LIGHTWEAVER_VAD_LIBRARY、LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS |
-| 精确对齐 | Qwen3 ForcedAligner，Torch 默认，MLX 显式兼容 | LIGHTWEAVER_ALIGNMENT_MODEL、LIGHTWEAVER_ALIGNMENT_BACKEND、LIGHTWEAVER_ALIGNMENT_DEVICE |
+| 精确对齐 | Qwen3 ForcedAligner，固定使用 Torch | LIGHTWEAVER_ALIGNMENT_MODEL、LIGHTWEAVER_ALIGNMENT_DEVICE |
 | 文本和视觉向量 | EmbeddingGemma 2 GGUF 与 mmproj，mean pooling | LIGHTWEAVER_VISUAL_MODEL、LIGHTWEAVER_VISUAL_MMPROJ、LIGHTWEAVER_VISUAL_SERVER |
 | 重排 | Qwen3 Reranker GGUF，rank pooling | LIGHTWEAVER_RERANKER_MODEL，search --rerank |
 | 本地语音 | VoxCPM2 Torch | LIGHTWEAVER_LOCAL_TTS_MODEL、LIGHTWEAVER_SPEECH_PYTHON |
 | 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL、LIGHTWEAVER_TRANSLATION_SERVER |
 | 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
-本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认路径相对 `configBase`，Windows 为 `weaver/.venv/Scripts/python.exe`，其他平台为 `weaver/.venv/bin/python`。推荐用 `weaver engines install python-model` 创建独立环境并采用；也可在设置页指定已有环境的绝对路径。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径按运行时配置基准解析，不读取相邻仓库配置或 Python 环境。默认 `requirements.models.txt` 在所有平台安装 `qwen-asr`；MLX 只在显式安装 `requirements.models.mlx.txt` 后可用。权重路径需要显式设置，不自动下载。
+本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认路径相对 `configBase`，Windows 为 `weaver/.venv/Scripts/python.exe`，其他平台为 `weaver/.venv/bin/python`。模型页的“下载并启用”自动准备环境和权重；高级配置可采用已有环境的绝对路径。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径按运行时配置基准解析，不读取相邻仓库配置或 Python 环境。`requirements.models.txt` 在所有平台安装 `qwen-asr`，强制对齐只使用 Torch；`alignment_device` 默认为 `cpu`，也可显式配置 `cuda[:index]`。旧 `alignment_backend` 和 `LIGHTWEAVER_ALIGNMENT_BACKEND` 不再参与运行或模型采用，已有私有配置中的旧行保留。原 MLX 权重需通过模型页改用官方 ForcedAligner 权重。
 
 每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。模型 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 

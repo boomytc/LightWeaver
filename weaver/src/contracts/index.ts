@@ -999,7 +999,6 @@ export const ModelSettingsPatch = z
     speechPython: z.string().optional(),
     engineInstallRoot: z.string().optional(),
     alignmentModel: z.string().optional(),
-    alignmentBackend: z.enum(["torch", "mlx"]).optional(),
     alignmentDevice: z.string().optional(),
   })
   .refine(

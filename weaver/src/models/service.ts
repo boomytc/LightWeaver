@@ -102,10 +102,6 @@ const SETTINGS: Record<string, Setting> = {
     key: "alignment_model",
     environment: "LIGHTWEAVER_ALIGNMENT_MODEL",
   },
-  alignmentBackend: {
-    key: "alignment_backend",
-    environment: "LIGHTWEAVER_ALIGNMENT_BACKEND",
-  },
   alignmentDevice: {
     key: "alignment_device",
     environment: "LIGHTWEAVER_ALIGNMENT_DEVICE",

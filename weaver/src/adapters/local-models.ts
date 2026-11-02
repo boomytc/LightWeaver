@@ -50,7 +50,7 @@ const TimedWord = z
   })
   .refine((s) => s.end >= s.start, "词时间顺序无效");
 export const AlignmentResult = z.object({
-  backend: z.enum(["qwen3-mlx", "qwen3-torch"]),
+  backend: z.literal("qwen3-torch"),
   version: z.string(),
   model: z.string(),
   words: z.array(TimedWord).min(1),
@@ -65,7 +65,7 @@ export const RerankResult = z.object({
   scores: z.array(z.number().finite()),
 });
 type ModelInvocation =
-  | { kind: "inspect"; backend: "mlx" | "torch" | "gguf" }
+  | { kind: "inspect"; backend: "torch" | "gguf" }
   | {
       kind: "align" | "embed" | "rerank";
       job: unknown;
@@ -96,14 +96,6 @@ export class LocalModels {
         this.root,
       ),
       ffmpeg: resolveExecutable("ffmpeg", this.root),
-      alignmentBackend: z
-        .enum(["mlx", "torch"])
-        .parse(
-          this.value(
-            "LIGHTWEAVER_ALIGNMENT_BACKEND",
-            "alignment_backend",
-          ),
-        ),
       alignmentDevice: z
         .string()
         .regex(/^(cpu|cuda(?::\d+)?)$/)
@@ -137,14 +129,14 @@ export class LocalModels {
           capabilities: ["alignment"],
           model: s.alignmentModel,
           version: JSON.stringify({
-            adapter: "qwen3-align-v1",
-            backend: s.alignmentBackend,
+            adapter: "qwen3-align-torch-v2",
+            backend: "torch",
             device: s.alignmentDevice,
             python: s.python,
             ffmpeg: s.ffmpeg,
           }),
           ready: !!s.python && !!s.ffmpeg && exists(s.alignmentModel, true),
-          hint: "配置 model_python、alignment_model 与 alignment_backend（mlx 或 torch），安装 weaver 的模型依赖",
+          hint: "在模型页下载并启用 Qwen3 ForcedAligner，自动准备 Torch 环境；也可配置 model_python 与官方 alignment_model 权重目录",
         },
         {
           id: RERANK_PROVIDER,
@@ -184,8 +176,7 @@ export class LocalModels {
     if (!this.files(id).length || !this.settings().python) return {};
     return this.run({
       kind: "inspect",
-      backend:
-        id === ALIGNMENT_PROVIDER ? this.settings().alignmentBackend : "gguf",
+      backend: id === ALIGNMENT_PROVIDER ? "torch" : "gguf",
     });
   }
   async run(invocation: ModelInvocation): Promise<unknown> {
