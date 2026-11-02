@@ -15,6 +15,9 @@ import { notifyRunsChanged } from "../jobs/useRunList";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { InputWithActions } from "../ui/InputWithActions";
+import { ArrowLeftIcon } from "../ui/Icons";
+
+type ModelSelection = { kind: "provider" } | { kind: "local"; id: string } | null;
 
 const RunDetail = z.object({
   run: RunRecord,
@@ -106,10 +109,13 @@ export function ModelSettings({
     [verify, setVerify] = useState<Partial<Record<string, z.infer<typeof VerifyResult>>>>({}),
     [activeVerify, setActiveVerify] = useState<Partial<Record<string, z.infer<typeof ActiveVerifyResult>>>>({}),
     [busy, setBusy] = useState(""),
-    [pollGeneration, setPollGeneration] = useState(0);
+    [pollGeneration, setPollGeneration] = useState(0),
+    [downloadsOpen, setDownloadsOpen] = useState(false),
+    [selection, setSelection] = useState<ModelSelection>(null);
   const rootRef = useRef(""),
     rootDirty = useRef(false),
-    refreshGeneration = useRef(0);
+    refreshGeneration = useRef(0),
+    sectionRef = useRef<HTMLElement>(null);
 
   const refreshModels = async (resetRoot: boolean, signal?: AbortSignal) => {
     const generation = ++refreshGeneration.current,
@@ -186,18 +192,37 @@ export function ModelSettings({
     () =>
       view?.catalog.localModels.map((model) => {
         const current = view.local.find((item) => item.id === model.id),
-          status = current?.status;
+          status = current?.status,
+          activeBindings = current?.activeBindings || [],
+          activeFiles = current?.activeFiles || [],
+          runtime = current?.runtime || [],
+          paths = activeBindings.filter((binding) => binding.target !== "literal"),
+          pathsReady = paths.length > 0 && paths.every((binding) => binding.state === "present"),
+          pathsUnset = paths.length === 0 || paths.every((binding) => binding.state === "unset"),
+          prior = activeVerify[model.id],
+          checked = prior && JSON.stringify(prior.snapshot) === JSON.stringify({ bindings: activeBindings, files: activeFiles }) ? prior : undefined,
+          integrity = checked?.state === "verified" ? "校验通过"
+            : checked?.state === "invalid" ? "未通过此版本清单校验"
+            : checked?.state === "missing" ? "文件缺失"
+            : activeFiles.length > 0 && activeFiles.every((file) => file.state === "metadata-match") ? "大小匹配，待校验"
+            : activeFiles.some((file) => file.state === "size-mismatch") ? "大小与此版本清单不同"
+            : "未校验";
         return {
           model,
           status,
-          activeBindings: current?.activeBindings || [],
-          activeFiles: current?.activeFiles || [],
-          runtime: current?.runtime || [],
+          activeBindings,
+          activeFiles,
+          runtime,
+          paths,
+          pathsReady,
+          pathsUnset,
+          checked,
+          integrity,
           adoptPath: adoptPaths[model.id] ??
             (status?.state === "missing" ? "" : status?.directory || ""),
         };
       }) || [],
-    [view, adoptPaths],
+    [view, adoptPaths, activeVerify],
   );
 
   const writeSettings = async (
@@ -253,6 +278,21 @@ export function ModelSettings({
     }
   };
 
+  const verifyActive = (id: string) => act(`校验当前模型 ${id}`, async () => {
+    const result = await api(
+      `/models/${encodeURIComponent(id)}/verify-active`,
+      ActiveVerifyResult,
+      { method: "POST" },
+    );
+    await refreshModels(false);
+    setActiveVerify((current) => ({ ...current, [id]: result }));
+  });
+
+  const select = (next: ModelSelection) => {
+    setSelection(next);
+    sectionRef.current?.scrollIntoView({ block: "start" });
+  };
+
   if (!view) return <section className="flex flex-col gap-5"><p>加载模型设置…</p></section>;
   const provider = view.catalog.providers[0],
     progress = [...events].reverse().find((event) =>
@@ -260,10 +300,38 @@ export function ModelSettings({
     );
 
   return (
-    <section className="flex flex-col gap-5">
+    <section ref={sectionRef} className="flex flex-col gap-5">
       <div><h2 className="m-0">模型与供应商</h2><p className="hint mb-0 mt-1">配置值按本地配置文件、环境变量、内置默认值的顺序生效。供应商和本地权重分开配置，下载、校验、采用是三个显式操作。</p></div>
 
-      <section className="panel-card flex flex-col gap-4 p-5">
+      {selection && (
+        <div>
+          <Button size="sm" variant="ghost" onClick={() => select(null)}><ArrowLeftIcon />返回模型列表</Button>
+        </div>
+      )}
+
+      {!selection && (
+        <section className="flex flex-col gap-3" aria-label="供应商">
+          <div className="section-title"><h3 className="m-0">供应商</h3><small>云端模型与密钥</small></div>
+          <div className="model-inventory-grid">
+            <article className="panel-card model-inventory-card">
+              <div className="model-inventory-head">
+                <b>{provider.name}</b>
+                <Badge tone={provider.apiKeyConfigured ? "ok" : "warn"} dot>{provider.apiKeyConfigured ? "密钥已配置" : "密钥未配置"}</Badge>
+                <Button size="sm" aria-label={`配置 ${provider.name}`} onClick={() => select({ kind: "provider" })}>配置</Button>
+              </div>
+              <details className="model-inventory-details">
+                <summary>查看模型与密钥来源</summary>
+                <div className="model-inventory-meta">
+                  <small>模型：{provider.models.map((model) => model.name).join(" · ")}</small>
+                  <small>密钥来源：{view.settings.apiKeys.modelbest.source}</small>
+                </div>
+              </details>
+            </article>
+          </div>
+        </section>
+      )}
+
+      {selection?.kind === "provider" && <section className="panel-card flex flex-col gap-4 p-5">
         <div className="section-title">
           <div>
             <h3 className="m-0">{provider.name}</h3>
@@ -350,11 +418,12 @@ export function ModelSettings({
             清除本地配置中的密钥
           </Button>
         </div>
-      </section>
+      </section>}
 
-      <section className="flex flex-col gap-4">
-        <div className="panel-card flex flex-col gap-4 p-5">
-          <h2 className="m-0">本地模型</h2>
+      {selection?.kind !== "provider" && <section className="flex flex-col gap-3">
+        {!selection && <div className="section-title"><h3 className="m-0">本地模型</h3><small>路径、校验与运行时分别显示</small></div>}
+        <details className="panel-card model-root">
+          <summary><b>下载根目录</b><small className="numeric" title={root}>{root || "未设置"}{rootDirty.current ? " · 未保存" : ""}</small></summary>
           <div className="inline-fields">
             <label className="field">
               <span>下载根目录</span>
@@ -399,21 +468,45 @@ export function ModelSettings({
               保存下载路径
             </Button>
           </div>
-        </div>
+        </details>
 
-        <div className="flex flex-col gap-4">
-          {local.map(({ model, status, runtime, activeBindings, activeFiles, adoptPath }) => {
-            const paths = activeBindings.filter((binding) => binding.target !== "literal");
-            const pathsReady = paths.length > 0 && paths.every((binding) => binding.state === "present");
-            const pathsUnset = paths.length === 0 || paths.every((binding) => binding.state === "unset");
-            const prior = activeVerify[model.id];
+        {!selection && <div className="model-inventory-grid">
+          {local.map(({ model, status, runtime, activeBindings, pathsReady, pathsUnset, checked, integrity }) => (
+            <article key={model.id} className="panel-card model-inventory-card">
+              <div className="model-inventory-head">
+                <b title={model.name}>{model.name}</b>
+                <Badge tone={pathsReady ? "ok" : "warn"} dot>{pathsReady ? "路径已找到" : pathsUnset ? "未配置" : "路径不完整"}</Badge>
+                <Button
+                  size="sm"
+                  aria-label={`校验 ${model.name}`}
+                  disabled={!model.available || pathsUnset || !!busy}
+                  onClick={() => void verifyActive(model.id)}
+                >
+                  {busy === `校验当前模型 ${model.id}` ? "校验中…" : "校验"}
+                </Button>
+                <Button size="sm" aria-label={`配置 ${model.name}`} onClick={() => select({ kind: "local", id: model.id })}>配置</Button>
+              </div>
+              <details className="model-inventory-details">
+                <summary aria-live="polite">{model.capability} · {model.platform} · {runtime.length === 0 ? "无额外运行条件" : runtime.every((item) => item.ready) ? "运行时条件已满足" : "运行时有缺失"} · 完整性：{integrity}</summary>
+                <div className="model-inventory-meta">
+                  <small>当前模型完整性：{checked?.state === "verified" ? "SHA-256 校验通过" : integrity}</small>
+                  {activeBindings.map((binding) => (
+                    <small className="numeric" key={binding.setting}>
+                      {binding.setting}：{binding.target === "literal" ? binding.value || "未指定" : binding.resolvedPath || "未指定"}
+                      {binding.target !== "literal" ? ` · ${pathStateLabel[binding.state]}` : ""} · 来源 {binding.source}
+                    </small>
+                  ))}
+                  <small>下载目录：{status ? stateLabel[status.state] : "未检查"}</small>
+                  {runtime.filter((item) => !item.ready).map((item) => <small key={item.setting}>运行时缺失：{item.label}</small>)}
+                </div>
+              </details>
+            </article>
+          ))}
+        </div>}
+
+        {selection?.kind === "local" && <div className="flex flex-col gap-4">
+          {local.filter(({ model }) => model.id === selection.id).map(({ model, status, runtime, activeBindings, activeFiles, adoptPath, paths, pathsReady, pathsUnset, checked, integrity }) => {
             const downloadCheck = verify[model.id];
-            const checked = prior && JSON.stringify(prior.snapshot) === JSON.stringify({ bindings: activeBindings, files: activeFiles }) ? prior : undefined;
-            const integrity = checked?.state === "verified" ? "校验通过"
-              : checked?.state === "invalid" ? "未通过此版本清单校验"
-              : activeFiles.length > 0 && activeFiles.every((file) => file.state === "metadata-match") ? "大小匹配，待校验"
-              : activeFiles.some((file) => file.state === "size-mismatch") ? "大小与此版本清单不同"
-              : "未校验";
             return (
             <article key={model.id} className="panel-card flex flex-col gap-3 p-4">
               <div className="section-title items-start">
@@ -477,17 +570,7 @@ export function ModelSettings({
               <div className="actions">
                 <Button
                   disabled={!model.available || pathsUnset || !!busy}
-                  onClick={() =>
-                    act(`校验当前模型 ${model.id}`, async () => {
-                      const result = await api(
-                        `/models/${encodeURIComponent(model.id)}/verify-active`,
-                        ActiveVerifyResult,
-                        { method: "POST" },
-                      );
-                      await refreshModels(false);
-                      setActiveVerify((current) => ({ ...current, [model.id]: result }));
-                    })
-                  }
+                  onClick={() => void verifyActive(model.id)}
                 >
                   校验当前模型大小与 SHA-256
                 </Button>
@@ -507,6 +590,7 @@ export function ModelSettings({
                       setRunId(next.id);
                       setPollGeneration((value) => value + 1);
                       setEvents([]);
+                      setDownloadsOpen(true);
                       notifyRunsChanged();
                       setView((current) =>
                         current
@@ -598,14 +682,17 @@ export function ModelSettings({
             </article>
             );
           })}
-        </div>
-      </section>
+        </div>}
+      </section>}
 
-      <section className="downloads panel-card flex flex-col gap-3 p-5">
-        <div className="section-title">
-          <h2 className="m-0">下载作业</h2>
+      <details className="downloads panel-card model-downloads" open={downloadsOpen} onToggle={(event) => setDownloadsOpen(event.currentTarget.open)}>
+        <summary>
+          <b>下载作业</b>
           <Badge>{view.downloads.length}</Badge>
-        </div>
+          {view.downloads.some((item) => ["queued", "running", "cancelling"].includes(item.state)) && <small>有作业进行中</small>}
+          {view.downloads.some((item) => ["failed", "interrupted"].includes(item.state)) && <small className="error">有作业失败或中断</small>}
+        </summary>
+        <div className="flex flex-col gap-3">
         {view.downloads.length === 0 && <p className="hint m-0">暂无下载作业。</p>}
         {view.downloads.map((item) => (
           <div className="download-row" key={item.id}>
@@ -615,7 +702,7 @@ export function ModelSettings({
                 <small className="numeric">{item.id} · {item.updatedAt}</small>
               </div>
               {item.error && <small className="error" role="alert">{item.error.message}</small>}
-              {runId === item.id && progress && (
+              {runId === item.id && progress && ["queued", "running", "cancelling"].includes(item.state) && (
                 <ProgressEvent event={progress.data} />
               )}
             </div>
@@ -659,7 +746,8 @@ export function ModelSettings({
             )}
           </div>
         ))}
-      </section>
+        </div>
+      </details>
     </section>
   );
 }

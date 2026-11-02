@@ -950,6 +950,84 @@
     flex-direction: column;
     gap: 4px;
   }
+  .model-inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 370px), 1fr));
+    align-items: start;
+    gap: 10px;
+  }
+  .model-inventory-card {
+    min-width: 0;
+    padding: 12px 14px;
+  }
+  .model-inventory-head {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .model-inventory-head > b {
+    min-width: 130px;
+    flex: 1 1 130px;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+  .model-inventory-details {
+    margin-top: 8px;
+  }
+  .model-inventory-details > summary,
+  .model-root > summary,
+  .model-downloads > summary {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    list-style: none;
+  }
+  .model-inventory-details > summary::-webkit-details-marker,
+  .model-root > summary::-webkit-details-marker,
+  .model-downloads > summary::-webkit-details-marker {
+    display: none;
+  }
+  .model-inventory-details > summary::before,
+  .model-root > summary::before,
+  .model-downloads > summary::before {
+    color: var(--lw-muted);
+    content: "▸";
+    transition: transform 150ms ease;
+  }
+  .model-inventory-details[open] > summary::before,
+  .model-root[open] > summary::before,
+  .model-downloads[open] > summary::before {
+    transform: rotate(90deg);
+  }
+  .model-inventory-details > summary {
+    color: var(--lw-muted);
+    font-size: 12px;
+  }
+  .model-inventory-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-top: 1px solid var(--lw-line);
+    margin-top: 8px;
+    padding-top: 8px;
+    overflow-wrap: anywhere;
+  }
+  .model-root,
+  .model-downloads {
+    padding: 12px 14px;
+  }
+  .model-root > summary small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .model-root > .inline-fields,
+  .model-downloads > div {
+    margin-top: 12px;
+  }
   .model-files,
   .preset-effective,
   .download-row {
