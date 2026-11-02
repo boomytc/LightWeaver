@@ -273,27 +273,27 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ConfirmDialog
           open={session.leaveOpen}
           title="有未保存的修改"
-          description="修改还没写入项目。"
-          onOpenChange={(open) => {
-            if (!open) session.answerLeave("cancel");
-          }}
-        >
-          <Button variant="primary" onClick={() => session.answerLeave("save")}>保存</Button>
-          <Button onClick={() => session.answerLeave("keep")}>保留草稿</Button>
-          <Button variant="danger" onClick={() => session.answerLeave("discard")}>放弃</Button>
-          <Button variant="ghost" onClick={() => session.answerLeave("cancel")}>取消</Button>
-        </ConfirmDialog>
+          description="保存会写入新的项目修订；保留草稿可在下次打开时恢复；放弃会删除本地草稿与草稿备份。"
+          confirmLabel="保存并离开"
+          onConfirm={() => session.answerLeave("save")}
+          secondary={{ label: "保留草稿", onClick: () => session.answerLeave("keep") }}
+          onClose={() => session.answerLeave("cancel")}
+          extra={
+            <div className="mt-3 flex justify-end">
+              <Button variant="danger" onClick={() => session.answerLeave("discard")}>放弃修改</Button>
+            </div>
+          }
+        />
         <ConfirmDialog
           open={session.jobsOpen}
           title="还有未结束的作业"
           description="退出应用会停止这些作业。需要继续执行时，可留在应用或关窗后选择后台运行。"
-          onOpenChange={(open) => {
-            if (!open) session.answerJobs(false);
-          }}
-        >
-          <Button onClick={() => session.answerJobs(false)}>留在应用</Button>
-          <Button variant="danger" onClick={() => session.answerJobs(true)}>停止作业并退出</Button>
-        </ConfirmDialog>
+          tone="danger"
+          confirmLabel="停止作业并退出"
+          cancelLabel="留在应用"
+          onConfirm={() => session.answerJobs(true)}
+          onClose={() => session.answerJobs(false)}
+        />
       </div>
     </HintProvider>
   );

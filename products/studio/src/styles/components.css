@@ -42,6 +42,12 @@
   .field > small {
     max-width: 72ch;
   }
+  .field-required {
+    margin-left: 4px;
+    color: var(--lw-danger);
+    font-size: 11px;
+    font-weight: 600;
+  }
   .actions,
   .inline-fields,
   .row {
@@ -1166,5 +1172,13 @@
     border-radius: inherit;
     background: var(--lw-accent);
     transition: width 200ms ease;
+  }
+  .run-progress.is-indeterminate > span {
+    width: 38%;
+    animation: lw-progress 1.4s ease-in-out infinite;
+  }
+  @keyframes lw-progress {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(360%); }
   }
 }

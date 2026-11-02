@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EngineSetupResult, RunRecord, z } from "@lightweaver/weaver/contracts";
 import { api } from "../api";
 import { runLabel } from "../domain/format";
@@ -9,6 +9,7 @@ import { useSession } from "../session/context";
 import { PageFrame } from "../ui/PageFrame";
 import { Segmented } from "../ui/Segmented";
 import { ListSkeleton } from "../ui/Skeleton";
+import { ProgressBar } from "../ui/ProgressBar";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { JobsIcon, ProjectIcon, RefreshIcon } from "../ui/Icons";
@@ -74,6 +75,7 @@ export function JobsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [detail, setDetail] = useState<z.infer<typeof RunDetail> | null>(null);
   const { runs, refresh, status: runsStatus, error: runsError } = useRunList((reason) => session.setError(errorMessage(reason)));
+  const peakProgress = useRef(0);
   const visibleRuns = useMemo(() => runs.filter((run) =>
     filter === "all" ||
     (filter === "active" && isActiveRun(run.state)) ||
@@ -120,6 +122,12 @@ export function JobsPage() {
     }
   };
   const selectedRun = runs.find((run) => run.id === selected);
+  const totalNodes = detail?.nodes.length || 0;
+  const completedNodes = detail?.nodes.filter((node) => node.state === "succeeded").length || 0;
+  const rawProgress = totalNodes ? Math.round(completedNodes / totalNodes * 100) : 0;
+  const progress = Math.max(peakProgress.current, rawProgress);
+  peakProgress.current = progress;
+  const activeNode = detail?.nodes.find((node) => node.state === "running");
   return (
     <PageFrame
       title="任务"
@@ -183,6 +191,13 @@ export function JobsPage() {
                   <Button size="sm" disabled={!RESUMABLE_RUN_STATES.has(selectedRun.state)} onClick={() => void changeRun("resume", selectedRun.id)}>{selectedRun.kind === "model-setup" && selectedRun.error?.code === "CONFIG_CONFLICT" ? "重新启用" : "恢复"}</Button>
                 </div>
               </div>
+              {detail && (
+                <ProgressBar
+                  value={selectedRun && !isActiveRun(selectedRun.state) && selectedRun.state === "succeeded" ? 100 : progress}
+                  label="作业进度"
+                  stage={`${completedNodes}/${totalNodes} 节点${activeNode ? ` · ${nodeLabel(activeNode.key)}` : ""}`}
+                />
+              )}
               {stream.error && <p className="error m-0">{stream.error}</p>}
               {selectedRun.error && <div className="rounded-md border border-danger-line bg-danger-bg p-3 text-danger"><b>作业错误</b><p className="m-0 mt-1">{selectedRun.error.message}</p></div>}
               <dl className="key-value-list panel-card px-4">

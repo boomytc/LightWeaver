@@ -93,7 +93,7 @@ export function useProjectSession(client: ClientStore) {
     setErrorState(message);
     if (message.trim()) pushToast(message, "danger");
   };
-  const setNotice = (message: string) => pushToast(message, "ok");
+  const setNotice = (message: string, options: { actionLabel?: string; onAction?: () => void } = {}) => pushToast(message, "ok", options);
   const dismissToast = (id: string) => setToasts((items) => items.filter((item) => item.id !== id));
   const [conflict, setConflict] = useState<z.infer<typeof ProjectRevision> | null>(null);
   const [busy, setBusy] = useState(false);

@@ -29,6 +29,7 @@ export function DeliveryPanel() {
   const draft = session.draft;
   const ctx = session.ctx;
   const [pendingKind, setPendingKind] = useState<ExportKind | null>(null);
+  const [exporting, setExporting] = useState<ExportKind | null>(null);
   const [destination, setDestination] = useState("");
   const [deliveryChoice, setDeliveryChoice] = useState<DeliveryChoice | null>(null);
   if (!draft || !ctx) return null;
@@ -38,8 +39,11 @@ export function DeliveryPanel() {
       ? deliveryChoice.deliveryId
       : ctx.deliveries.find((delivery) => delivery.state === "current")?.id || "";
 
-  const send = (kind: ExportKind, target: string, selectedDelivery = deliveryId) =>
-    session.act(async () => {
+  const send = async (kind: ExportKind, target: string, selectedDelivery = deliveryId) => {
+    if (exporting) return;
+    setExporting(kind);
+    try {
+      await session.act(async () => {
       const editSession = session.beginAssetEditSession();
       if (!editSession || editSession.projectId !== draft.id) return;
       const id = editSession.projectId;
@@ -84,7 +88,11 @@ export function DeliveryPanel() {
       const revealed = typeof result.file === "string" ? result.file : target;
       await desktop()?.reveal?.(revealed);
       session.setNotice(`已导出${kindLabel[kind]}`);
-    });
+      });
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const start = async (kind: ExportKind) => {
     const bridge = desktop();
@@ -245,8 +253,8 @@ export function DeliveryPanel() {
           检查制作计划
         </Button>
         {exportKinds.map((kind) => (
-          <Button key={kind} type="button" onClick={() => void start(kind)}>
-            导出{kindLabel[kind]}
+          <Button key={kind} type="button" disabled={exporting !== null} onClick={() => void start(kind)}>
+            {exporting === kind ? "正在导出…" : `导出${kindLabel[kind]}`}
           </Button>
         ))}
       </div>

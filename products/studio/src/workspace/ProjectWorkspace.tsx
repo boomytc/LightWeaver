@@ -19,6 +19,8 @@ import { Segmented } from "../ui/Segmented";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Hint } from "../ui/Hint";
+import { Popconfirm } from "../ui/Popconfirm";
+import { ProgressBar } from "../ui/ProgressBar";
 import { ProjectGuidance, type GuidanceTarget } from "./ProjectGuidance";
 import { ConflictReviewDialog, ProjectReviewDialog } from "./ReviewPanels";
 import {
@@ -679,7 +681,14 @@ export function ProjectWorkspace() {
                     <div className="storyboard-actions">
                       <Button size="icon" compact variant="ghost" aria-label={`左移场景 ${index + 1}`} disabled={index === 0} onClick={() => moveScene(index, -1)}><ArrowUpIcon className="-rotate-90" /></Button>
                       <Button size="icon" compact variant="ghost" aria-label={`右移场景 ${index + 1}`} disabled={index === draft.scenes.length - 1} onClick={() => moveScene(index, 1)}><ArrowDownIcon className="-rotate-90" /></Button>
-                      <Button size="icon" compact variant="ghost" aria-label={`删除场景 ${index + 1}`} onClick={() => session.edit({ ...draft, scenes: draft.scenes.filter((sceneItem) => sceneItem.id !== item.id) })}><TrashIcon /></Button>
+                      <Popconfirm
+                        title={`删除场景「${item.label || labels[item.kind]}」？`}
+                        description="该场景的遮罩与绑定旁白会一起移除；保存前仍可通过恢复草稿找回。"
+                        confirmLabel="删除场景"
+                        onConfirm={() => session.edit({ ...draft, scenes: draft.scenes.filter((sceneItem) => sceneItem.id !== item.id) })}
+                      >
+                        <Button size="icon" compact variant="ghost" aria-label={`删除场景 ${index + 1}`}><TrashIcon /></Button>
+                      </Popconfirm>
                     </div>
                   </article>
                 ))}
@@ -965,7 +974,12 @@ function ActiveRunPanel() {
   const detail = session.runDetail?.run.id === session.activeRun ? session.runDetail : null;
   const total = detail?.nodes.length || 0;
   const completed = detail?.nodes.filter((node) => node.state === "succeeded").length || 0;
-  const progress = total ? Math.round(completed / total * 100) : 0;
+  const peak = useRef(0);
+  const rawProgress = total ? Math.round(completed / total * 100) : 0;
+  const progress = Math.max(peak.current, rawProgress);
+  peak.current = progress;
+  const activeNode = detail?.nodes.find((node) => node.state === "running");
+  const stage = total ? `${completed}/${total} 节点${activeNode ? ` · ${activeNode.key}` : ""}` : "正在读取节点";
   return (
     <div className="scroll-region min-h-0 flex-1 p-3">
       {!detail && <p className={session.activeRunError ? "error" : "hint"}>{session.activeRunError || "正在连接作业进度…"}</p>}
@@ -985,7 +999,7 @@ function ActiveRunPanel() {
               {detail.run.kind === "analyze" && detail.run.state === "succeeded" && <Button size="sm" disabled={session.busy || session.dirty} onClick={() => void session.adoptAnalysisCaptions({ runId: detail.run.id, locale: session.locale })}>采用此次分析结果为字幕</Button>}
             </div>
           </div>
-          <div className="run-progress" aria-label={`作业进度 ${progress}%`}><span style={{ width: `${progress}%` }} /></div>
+          <ProgressBar value={detail ? progress : undefined} label="作业进度" stage={detail ? stage : "正在连接作业进度…"} />
           {detail.run.error && (
             <div className="subtle-card border-danger/30 bg-danger/5 p-3">
               <p className="error m-0">{detail.run.error.message}</p>

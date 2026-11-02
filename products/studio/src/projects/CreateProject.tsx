@@ -14,11 +14,13 @@ export function CreateProject({
   fail: (reason: unknown) => void;
 }) {
   const [title, setTitle] = useState("");
+  const [titleTouched, setTitleTouched] = useState(false);
   const [workflow, setWorkflow] = useState("study-explainer");
   const [pending, setPending] = useState<"manual" | "starter" | null>(null);
   const creating = useRef(false);
   const retry = useRef<{ key: string; requestId: string; project?: z.infer<typeof ProjectRevision> } | null>(null);
   const current = WORKFLOWS.find((item) => item.id === workflow);
+  const titleError = titleTouched && !title.trim() ? "片名不能为空" : "";
   const create = async (kind: "manual" | "starter") => {
     if (creating.current) return;
     creating.current = true;
@@ -80,11 +82,21 @@ export function CreateProject({
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
+          if (!title.trim()) {
+            setTitleTouched(true);
+            return;
+          }
           void create("manual");
         }}
       >
-        <Field label="片名">
-          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="输入片名" />
+        <Field label="片名" required error={titleError}>
+          <input
+            value={title}
+            aria-invalid={titleError ? true : undefined}
+            onBlur={() => setTitleTouched(true)}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="输入片名"
+          />
         </Field>
         <Field label="工作流">
           <select value={workflow} onChange={(event) => setWorkflow(event.target.value)}>
@@ -95,7 +107,7 @@ export function CreateProject({
           <b className="text-xs">{current?.name || "当前工作流"}</b>
           <p className="hint m-0 mt-1 text-xs">{current?.guidance || "选择适合本次创作的工作流。"}</p>
         </div>
-        <Button type="submit" variant="primary" disabled={pending !== null}>
+        <Button type="submit" variant="primary" disabled={pending !== null || !title.trim()}>
           <PlusIcon />
           {pending === "manual" ? "正在创建…" : "创建空白草稿"}
         </Button>

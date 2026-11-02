@@ -11,6 +11,7 @@ import { ListSkeleton } from "../ui/Skeleton";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Dropzone } from "../ui/Dropzone";
+import { useAction } from "../ui/useAction";
 
 export function LibraryPanel({
   kind,
@@ -27,6 +28,38 @@ export function LibraryPanel({
 }) {
   const session = useSession();
   const formEpoch = useRef(0);
+  const saveAction = useAction();
+  const [hiddenItems, setHiddenItems] = useState<string[]>([]);
+  const undoTimers = useRef(new Map<string, number>());
+  useEffect(() => () => {
+    for (const timer of undoTimers.current.values()) window.clearTimeout(timer);
+    undoTimers.current.clear();
+  }, []);
+  const removeItem = (value: z.infer<typeof LibraryVersion>) => {
+    const timer = window.setTimeout(() => {
+      undoTimers.current.delete(value.itemId);
+      api(`/library/${value.itemId}`, z.unknown(), {
+        method: "DELETE",
+        body: { expectedVersion: value.version, requestId: requestId() },
+      })
+        .then(refresh)
+        .catch((reason) => {
+          setHiddenItems((prev) => prev.filter((id) => id !== value.itemId));
+          fail(reason);
+        });
+    }, 5000);
+    undoTimers.current.set(value.itemId, timer);
+    setHiddenItems((prev) => [...prev, value.itemId]);
+    session.setNotice(`已删除库项「${value.payload.name}」`, {
+      actionLabel: "撤销",
+      onAction: () => {
+        const pending = undoTimers.current.get(value.itemId);
+        if (pending) window.clearTimeout(pending);
+        undoTimers.current.delete(value.itemId);
+        setHiddenItems((prev) => prev.filter((id) => id !== value.itemId));
+      },
+    });
+  };
   const [selected, setSelected] = useState<z.infer<
       typeof LibraryVersion
     > | null>(null),
@@ -184,7 +217,7 @@ export function LibraryPanel({
     setDescription("");
     setFile(null);
   };
-  const items = library.filter((v) => v.payload.kind === kind);
+  const items = library.filter((v) => v.payload.kind === kind && !hiddenItems.includes(v.itemId));
   return (
     <PageFrame
       title={kind === "voice" ? "音色" : kind === "method" ? "方法" : "素材库"}
@@ -257,17 +290,7 @@ export function LibraryPanel({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() =>
-                      api(`/library/${v.itemId}`, z.unknown(), {
-                        method: "DELETE",
-                        body: {
-                          expectedVersion: v.version,
-                          requestId: requestId(),
-                        },
-                      })
-                        .then(refresh)
-                        .catch(fail)
-                    }
+                    onClick={() => removeItem(v)}
                   >
                     删除
                   </Button>
@@ -422,10 +445,10 @@ export function LibraryPanel({
           <div className="actions">
             <Button
               variant="primary"
-              disabled={["提交中", "排队", "运行中"].includes(status)}
-              onClick={() => save().catch(fail)}
+              disabled={saveAction.isPending("save") || ["提交中", "排队", "运行中"].includes(status)}
+              onClick={() => void saveAction.run("save", async () => { await save().catch(fail); })}
             >
-              保存版本
+              {saveAction.isPending("save") ? "保存中…" : "保存版本"}
             </Button>
             {selected && (
               <Button
