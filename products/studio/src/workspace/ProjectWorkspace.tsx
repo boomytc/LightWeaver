@@ -333,7 +333,7 @@ export function ProjectWorkspace() {
           </Hint>
           <span className="h-4 w-px shrink-0 bg-line" />
           <input
-            className="workspace-title"
+            className="ui-input--bare"
             value={draft.title}
             aria-label="项目名"
             onChange={(event) => session.edit({ ...draft, title: event.target.value })}
@@ -833,17 +833,17 @@ function sceneSummary(scene: Scene, locale: string) {
 }
 
 function ScenePreview({ scene, assets, locale }: { scene: Scene | null; assets: MediaAssetVersion[]; locale: string }) {
-  if (!scene) return <div className="text-center text-sm text-[#aab3c2]">选择场景或新建一个场景开始预览</div>;
+  if (!scene) return <div className="text-center text-sm text-muted">选择场景或新建一个场景开始预览</div>;
   if (scene.kind === "clip") return <SourceWindowPlayer sourceUrl={assetUrl(assets, refKey(scene.source))} sourceKey={refKey(scene.source)} range={scene.sourceRange} label="当前场景预览" />;
   if (scene.kind === "still") return <img className="scene-still m-0 max-h-full object-contain" alt="当前静帧" src={assetUrl(assets, refKey(scene.image)) || ""} />;
-  return <div className="scene-preview card m-0 min-h-[280px] border-[#282e39] bg-[#11151d] text-2xl"><b>{scene.cardSpec.copy[locale]?.headline || "卡片"}</b></div>;
+  return <div className="scene-preview card m-0 min-h-[280px] border-line bg-panel text-2xl"><b>{scene.cardSpec.copy[locale]?.headline || "卡片"}</b></div>;
 }
 
 function AssetPreview({ asset }: { asset: MediaAssetVersion }) {
-  if (asset.kind === "video") return <video className="max-h-full rounded-[6px]" controls src={mediaUrl(asset.digest)} />;
-  if (asset.kind === "image") return <img className="max-h-full rounded-[6px] object-contain" alt={asset.name} src={mediaUrl(asset.digest)} />;
+  if (asset.kind === "video") return <video className="max-h-full rounded-sm" controls src={mediaUrl(asset.digest)} />;
+  if (asset.kind === "image") return <img className="max-h-full rounded-sm object-contain" alt={asset.name} src={mediaUrl(asset.digest)} />;
   if (asset.kind === "audio") return <div className="subtle-card flex items-center gap-4 p-6"><AudioIcon /><audio className="flex-1" controls src={mediaUrl(asset.digest)} /></div>;
-  return <a className="flex items-center gap-2 text-[#cbd8ff]" href={mediaUrl(asset.digest)}><FileIcon />读取 {asset.name}</a>;
+  return <a className="flex items-center gap-2 text-accent-text" href={mediaUrl(asset.digest)}><FileIcon />读取 {asset.name}</a>;
 }
 
 function ActiveRunPanel() {

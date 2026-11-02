@@ -1,0 +1,120 @@
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--lw-canvas);
+    color: var(--lw-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-md);
+    line-height: 1.5;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select,
+  textarea {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--lw-line-strong);
+    border-radius: var(--radius-md);
+    background: var(--lw-panel);
+    padding: 7px 10px;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select {
+    height: var(--control-h-md);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--lw-subtle);
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--lw-accent);
+    box-shadow: 0 0 0 3px var(--lw-accent-soft);
+  }
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--lw-accent);
+  }
+  input[type="range"] {
+    accent-color: var(--lw-accent);
+  }
+  input[type="color"] {
+    width: 36px;
+    height: 36px;
+    padding: 3px;
+    border: 1px solid var(--lw-line-strong);
+    border-radius: var(--radius-md);
+    background: var(--lw-panel);
+  }
+  textarea {
+    min-height: 80px;
+    resize: vertical;
+  }
+  :focus-visible {
+    outline: 2px solid var(--lw-accent);
+    outline-offset: 2px;
+  }
+  summary {
+    cursor: pointer;
+  }
+  img,
+  video,
+  audio {
+    max-width: 100%;
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    text-wrap: pretty;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  h1 {
+    font-size: var(--text-title);
+    letter-spacing: -0.03em;
+  }
+  h2 {
+    font-size: var(--text-lg);
+    letter-spacing: -0.02em;
+  }
+  h3 {
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+  ::selection {
+    background: var(--lw-accent-soft);
+    color: var(--lw-accent-text);
+  }
+}

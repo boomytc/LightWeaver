@@ -273,7 +273,7 @@ export function DeliveryPanel() {
                 修订 {delivery.revisionId.slice(0, 12)} · {delivery.createdAt}
               </small>
             </div>
-            {delivery.artifacts.video && <video className="max-h-96 rounded-[8px] bg-black" controls src={mediaUrl(delivery.artifacts.video)} />}
+            {delivery.artifacts.video && <video className="max-h-96 rounded-md bg-black" controls src={mediaUrl(delivery.artifacts.video)} />}
             <div className="actions">
               <Button
                 size="sm"

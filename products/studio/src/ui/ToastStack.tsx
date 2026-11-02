@@ -65,7 +65,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       data-slot="toast-notification-banner"
       data-phase={phase}
       data-tone={item.tone}
-      className="toast-card pointer-events-auto flex items-start gap-3 rounded-[14px] border border-line bg-elevated/95 px-3.5 py-3 shadow-[var(--lw-shadow-menu)] backdrop-blur-xl"
+      className="ui-toast toast-card pointer-events-auto flex items-start gap-3 bg-elevated/95 px-3.5 py-3 backdrop-blur-xl"
       onPointerEnter={() => {
         contact.current.pointer = true;
         clearTimer();

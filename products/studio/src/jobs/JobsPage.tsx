@@ -176,7 +176,7 @@ export function JobsPage() {
                 </div>
               </div>
               {stream.error && <p className="error m-0">{stream.error}</p>}
-              {selectedRun.error && <div className="rounded-[10px] border border-line bg-[var(--lw-danger-bg)] p-3 text-danger"><b>作业错误</b><p className="m-0 mt-1">{selectedRun.error.message}</p></div>}
+              {selectedRun.error && <div className="rounded-md border border-danger-line bg-danger-bg p-3 text-danger"><b>作业错误</b><p className="m-0 mt-1">{selectedRun.error.message}</p></div>}
               <dl className="key-value-list panel-card px-4">
                 <dt>作业类型</dt><dd>{kindLabel(selectedRun.kind)} · {selectedRun.kind}</dd>
                 <dt>当前状态</dt><dd>{runLabel(selectedRun.state)}</dd>

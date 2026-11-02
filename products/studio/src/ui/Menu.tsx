@@ -16,7 +16,7 @@ export function Menu({ label, children }: { label: ReactNode; children: ReactNod
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="z-50 min-w-48 rounded-[10px] border border-line bg-elevated p-1.5 text-ink shadow-[var(--lw-shadow-menu)]"
+          className="ui-popover z-50 min-w-48 p-1.5"
         >
           {children}
         </DropdownMenu.Content>
@@ -37,7 +37,7 @@ export function MenuItem({
   return (
     <DropdownMenu.Item
       disabled={disabled}
-      className="cursor-pointer rounded-[6px] px-2.5 py-2 text-[13px] outline-none data-[disabled]:pointer-events-none data-[highlighted]:bg-subtle-bg data-[disabled]:opacity-45"
+      className="ui-popover-item data-[disabled]:pointer-events-none data-[disabled]:opacity-45"
       onSelect={onSelect}
     >
       {children}

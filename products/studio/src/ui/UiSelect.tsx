@@ -13,18 +13,18 @@ export function UiSelect({
 }) {
   return (
     <Select.Root value={value} onValueChange={onValueChange}>
-      <Select.Trigger aria-label={label} className="inline-flex h-9 min-w-36 items-center justify-between gap-2 rounded-[10px] border border-line bg-panel px-3">
+      <Select.Trigger aria-label={label} className="inline-flex h-9 min-w-36 items-center justify-between gap-2 rounded-md border border-line bg-panel px-3">
         <Select.Value />
         <Select.Icon>▾</Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content className="z-50 overflow-hidden rounded-[10px] border border-line bg-elevated text-ink shadow-[var(--lw-shadow-menu)]">
+        <Select.Content className="ui-popover z-50 overflow-hidden">
           <Select.Viewport className="p-1">
             {options.map((option) => (
               <Select.Item
                 key={option.value}
                 value={option.value}
-                className="cursor-pointer rounded-[6px] px-2 py-1.5 outline-none data-[highlighted]:bg-subtle-bg"
+                className="ui-popover-item"
               >
                 <Select.ItemText>{option.label}</Select.ItemText>
               </Select.Item>

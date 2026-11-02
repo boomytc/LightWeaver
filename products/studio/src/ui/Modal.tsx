@@ -15,8 +15,8 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex max-h-[min(760px,calc(100vh-2rem))] w-[min(560px,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border border-line bg-elevated p-5 text-ink shadow-[var(--lw-shadow-menu)]">
+        <Dialog.Overlay className="ui-overlay fixed inset-0 z-40" />
+        <Dialog.Content className="ui-dialog fixed top-1/2 left-1/2 z-50 flex max-h-[min(760px,calc(100vh-2rem))] w-[min(560px,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden p-5">
           <Dialog.Title className="mb-3 text-base font-semibold">{title}</Dialog.Title>
           {children}
         </Dialog.Content>
