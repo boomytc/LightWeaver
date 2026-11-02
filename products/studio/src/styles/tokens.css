@@ -83,9 +83,15 @@
   --header-h-page: 76px;
   --header-h-workspace: 52px;
   --header-h-panel: 36px;
+  /* 间距档位 */
+  --space-field: 12px;
+  --space-block: 16px;
+  --space-section: 24px;
   /* 页面间距 */
   --page-pad: 24px;
   --page-pad-dense: 20px;
+  /* 断点约定（媒体查询无法用变量，仅作为规则记录）：Tailwind xl=1280；导航折叠=1100；
+     页面单栏=900（桌面最小窗口 960，<960 仅浏览器缩放）；工作区容器阈值=1000/640；字幕容器查询=760 */
   color-scheme: light;
 }
 

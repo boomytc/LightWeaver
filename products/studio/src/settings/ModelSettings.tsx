@@ -681,7 +681,7 @@ export function ModelSettings({
                   <div className="model-inventory-head">
                     <b title={model.name}>{model.name}</b>
                     <Badge tone={check?.state === "checking" ? "accent" : enabled ? "ok" : readiness === "attention" ? "warn" : "neutral"} dot>{check?.state === "checking" ? "检查中…" : readinessLabel[readiness]}</Badge>
-                    <Button size="sm" aria-label={`选择 ${model.name}`} onClick={() => select({ kind: "local", id: model.id })}>管理模型</Button>
+                    <Button size="sm" aria-label={`管理模型：${model.name}`} onClick={() => select({ kind: "local", id: model.id })}>管理模型</Button>
                   </div>
                   <small className="hint">{capabilityLabel[model.capability]} · 模型文件 {formatBytes(model.files.reduce((sum, file) => sum + file.size, 0))}</small>
                 </article>

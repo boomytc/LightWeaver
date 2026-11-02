@@ -1,3 +1,4 @@
+/* 断点：1100 导航折叠；900 页面单栏（桌面最小窗口 960）；reduced-motion 兜底。 */
 @media (max-width: 1100px) {
   .app-frame {
     grid-template-columns: 64px minmax(0, 1fr);

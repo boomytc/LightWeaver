@@ -5,6 +5,7 @@ import { desktop } from "../desktop";
 import { labels } from "../domain/format";
 import { useSession } from "../session/context";
 import { Field } from "../ui/Field";
+import { ViewHeader } from "../ui/ViewHeader";
 import { Modal } from "../ui/Modal";
 import { Menu, MenuItem } from "../ui/Menu";
 import { Button } from "../ui/Button";
@@ -17,6 +18,12 @@ type DeliveryChoice = {
   deliveryId: string;
 };
 const ExportResult = z.object({ file: z.string().optional() }).passthrough();
+
+function clampNumber(value: string, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
 
 const kindLabel: Record<ExportKind, string> = {
   file: "视频文件",
@@ -140,7 +147,7 @@ export function DeliveryPanel() {
 
   return (
     <div className="narrow-content flex min-w-0 flex-col gap-5">
-      <div><h2 className="m-0">交付规格</h2><p className="hint mb-0 mt-1 text-xs">选择输出语言与画幅，逐项确认帧率、字幕和响度目标。</p></div>
+      <ViewHeader title="交付规格" description="选择输出语言与画幅，逐项确认帧率、字幕和响度目标。" />
       <div className="sticky -top-5 z-10 flex flex-wrap items-center gap-2 border-b border-line bg-panel py-3">
         <Button variant="primary" type="button" disabled={exporting !== null} onClick={() => void start("file")}>
           {exporting === "file" ? "正在导出视频…" : "导出视频"}
@@ -178,16 +185,18 @@ export function DeliveryPanel() {
             <span>输出语言</span>
             <div className="row">
               {["zh", "en"].map((locale) => (
-                <label key={locale} className="check">
+                <label key={locale} className="check" title={draft.locales.length === 1 && draft.locales.includes(locale) ? "至少保留一种输出语言" : undefined}>
                   <input
                     type="checkbox"
                     checked={draft.locales.includes(locale)}
-                    onChange={(event) =>
+                    disabled={draft.locales.length === 1 && draft.locales.includes(locale)}
+                    onChange={(event) => {
+                      if (!event.target.checked && draft.locales.length <= 1) return;
                       session.edit({
                         ...draft,
                         locales: event.target.checked ? [...draft.locales, locale] : draft.locales.filter((item) => item !== locale),
-                      })
-                    }
+                      });
+                    }}
                   />
                   {locale === "zh" ? "中文" : "英文"}
                 </label>
@@ -198,16 +207,18 @@ export function DeliveryPanel() {
             <span>输出画幅</span>
             <div className="row">
               {Object.values(PROFILES).map((profile) => (
-                <label className="check" key={profile.id}>
+                <label className="check" key={profile.id} title={draft.profiles.length === 1 && draft.profiles[0]?.id === profile.id ? "至少保留一种输出画幅" : undefined}>
                   <input
                     type="checkbox"
                     checked={draft.profiles.some((item) => item.id === profile.id)}
-                    onChange={(event) =>
+                    disabled={draft.profiles.length === 1 && draft.profiles[0]?.id === profile.id}
+                    onChange={(event) => {
+                      if (!event.target.checked && draft.profiles.length <= 1) return;
                       session.edit({
                         ...draft,
                         profiles: event.target.checked ? [...draft.profiles, profile] : draft.profiles.filter((item) => item.id !== profile.id),
-                      })
-                    }
+                      });
+                    }}
                   />
                   {labels[profile.id] || profile.id}
                 </label>
@@ -226,17 +237,21 @@ export function DeliveryPanel() {
             <Field label="帧率">
               <input
                 type="number"
+                min={1}
+                max={120}
+                step={0.001}
                 value={profile.fps.num / profile.fps.den}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const fps = clampNumber(event.target.value, profile.fps.num / profile.fps.den, 1, 120);
                   session.edit({
                     ...draft,
                     profiles: draft.profiles.map((item, itemIndex) =>
                       itemIndex === index
-                        ? { ...item, fps: { num: Math.round(Number(event.target.value) * 1000), den: 1000 } }
+                        ? { ...item, fps: { num: Math.round(fps * 1000), den: 1000 } }
                         : item,
                     ),
-                  })
-                }
+                  });
+                }}
               />
             </Field>
             <Field label="字幕">
@@ -265,33 +280,41 @@ export function DeliveryPanel() {
             <Field label="目标 LUFS">
               <input
                 type="number"
+                min={-36}
+                max={-5}
+                step={0.1}
                 value={profile.loudness.integratedLufs}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const lufs = clampNumber(event.target.value, profile.loudness.integratedLufs, -36, -5);
                   session.edit({
                     ...draft,
                     profiles: draft.profiles.map((item, itemIndex) =>
                       itemIndex === index
-                        ? { ...item, loudness: { ...item.loudness, integratedLufs: Number(event.target.value) } }
+                        ? { ...item, loudness: { ...item.loudness, integratedLufs: lufs } }
                         : item,
                     ),
-                  })
-                }
+                  });
+                }}
               />
             </Field>
             <Field label="True peak dB">
               <input
                 type="number"
+                min={-9}
+                max={0}
+                step={0.1}
                 value={profile.loudness.truePeakDb}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const peak = clampNumber(event.target.value, profile.loudness.truePeakDb, -9, 0);
                   session.edit({
                     ...draft,
                     profiles: draft.profiles.map((item, itemIndex) =>
                       itemIndex === index
-                        ? { ...item, loudness: { ...item.loudness, truePeakDb: Number(event.target.value) } }
+                        ? { ...item, loudness: { ...item.loudness, truePeakDb: peak } }
                         : item,
                     ),
-                  })
-                }
+                  });
+                }}
               />
             </Field>
           </div>

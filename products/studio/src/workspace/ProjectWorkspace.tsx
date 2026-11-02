@@ -15,10 +15,14 @@ import { useSession } from "../session/context";
 import { SceneEditor } from "../scenes/SceneEditor";
 import { SourceWindowPlayer } from "../scenes/SourceWindowPlayer";
 import { Menu, MenuItem } from "../ui/Menu";
+import { RunStatus } from "../ui/RunStatus";
 import { Segmented } from "../ui/Segmented";
+import { ViewHeader } from "../ui/ViewHeader";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Hint } from "../ui/Hint";
+import { useAction } from "../ui/useAction";
 import { Popconfirm } from "../ui/Popconfirm";
 import { ProgressBar } from "../ui/ProgressBar";
 import { ProjectGuidance, type GuidanceTarget } from "./ProjectGuidance";
@@ -132,6 +136,8 @@ export function ProjectWorkspace() {
   const [live, setLive] = useState<LayoutPreference | null>(null);
   const [dragging, setDragging] = useState("");
   const [conflictOpen, setConflictOpen] = useState(false);
+  const [loadServerOpen, setLoadServerOpen] = useState(false);
+  const actions = useAction();
   const [planOpen, setPlanOpen] = useState(false);
   const [bottomMode, setBottomMode] = useState<BottomMode>("storyboard");
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -407,34 +413,34 @@ export function ProjectWorkspace() {
           <Button
             size="sm"
             emphasized={session.dirty || session.planDirty}
-            disabled={session.busy || (!session.dirty && !session.planDirty)}
+            disabled={session.busy || actions.pending !== "" || (!session.dirty && !session.planDirty)}
             title={
-              session.busy
-                ? "正在处理当前操作"
+              actions.isPending("save")
+                ? "正在保存项目与方案"
                 : !session.dirty && !session.planDirty
                   ? "项目与方案都已保存"
                   : "保存项目草稿和创作方案"
             }
-            onClick={() => void session.saveAll()}
+            onClick={() => void actions.run("save", async () => { await session.saveAll(); })}
           >
-            <SaveIcon />{session.busy ? "处理中…" : "保存"}
+            <SaveIcon />{actions.isPending("save") ? "保存中…" : "保存"}
           </Button>
           <Button
             size="sm"
             variant="primary"
-            disabled={session.busy || !draft.scenes.length}
+            disabled={session.busy || actions.pending !== "" || !draft.scenes.length}
             title={
-              session.busy
-                ? "正在保存或制作，请等待当前操作完成"
+              actions.isPending("build")
+                ? "正在提交制作"
                 : !draft.scenes.length
                   ? "先添加至少一个场景再制作"
                   : session.dirty || session.planDirty
                     ? "点击后会保存项目草稿和创作方案，再提交制作"
                     : "使用已保存内容提交制作"
             }
-            onClick={() => void buildNow()}
+            onClick={() => void actions.run("build", async () => { await buildNow(); })}
           >
-            {session.dirty || session.planDirty ? "保存并制作" : "制作"}
+            {actions.isPending("build") ? "制作中…" : session.dirty || session.planDirty ? "保存并制作" : "制作"}
           </Button>
         </div>
       </header>
@@ -464,7 +470,7 @@ export function ProjectWorkspace() {
             另一处已经更新了这个项目。你的本地草稿仍保留，请先查看差异再决定加载服务器内容。
           </span>
           <Button size="sm" onClick={() => setConflictOpen(true)}>查看差异</Button>
-          <Button size="sm" onClick={session.loadServerKeepingDraft}>保留我的草稿并加载服务器内容</Button>
+          <Button size="sm" onClick={() => setLoadServerOpen(true)}>保留我的草稿并加载服务器内容</Button>
         </div>
       )}
       {session.storedDraft && (
@@ -715,6 +721,17 @@ export function ProjectWorkspace() {
         onOpenChange={setPlanOpen}
         value={session.plan}
       />
+      <ConfirmDialog
+        open={loadServerOpen}
+        title="加载服务器内容？"
+        description="当前草稿会先备份为可恢复草稿（之后可在项目列表恢复），然后加载服务器最新修订；不会覆盖服务器上已保存的修订。"
+        confirmLabel="备份草稿并加载"
+        onConfirm={() => {
+          setLoadServerOpen(false);
+          void session.loadServerKeepingDraft();
+        }}
+        onClose={() => setLoadServerOpen(false)}
+      />
     </div>
   );
 }
@@ -793,12 +810,10 @@ function SoundWorkspace({
   );
   return (
     <div className="narrow-content flex flex-col gap-4">
-      <div>
-        <h2 className="m-0">声音</h2>
-        <p className="hint mb-0 mt-1">
-          逐场调整原声、旁白与混音。音色参考和已上传旁白可以直接试听。
-        </p>
-      </div>
+      <ViewHeader
+        title="声音"
+        description="逐场调整原声、旁白与混音。音色参考和已上传旁白可以直接试听。"
+      />
       <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(360px,1.2fr)]">
         <section className="panel-card p-3" aria-labelledby="scene-sound-list-title">
           <div className="section-title mb-2">
@@ -989,7 +1004,7 @@ function ActiveRunPanel() {
       {detail && (
         <div className="flex flex-col gap-3">
           <div className="section-title">
-            <div><b>{detail.run.kind}</b><Badge tone={isActiveRun(detail.run.state) ? "accent" : detail.run.state === "succeeded" ? "ok" : "warn"} dot pulse={isActiveRun(detail.run.state)}>{runLabel(detail.run.state)}</Badge><small className="numeric">{completed}/{total} 节点</small></div>
+            <div><b>{detail.run.kind}</b><RunStatus state={detail.run.state} dot /><small className="numeric">{completed}/{total} 节点</small></div>
             <div>
               <Button size="sm" disabled={!isActiveRun(detail.run.state)} onClick={() => void session.act(async () => { await apiCancel(detail.run.id); notifyRunsChanged(); await session.reload(); })}>取消</Button>
               <Button size="sm" disabled={!RESUMABLE_RUN_STATES.has(detail.run.state)} onClick={() => void session.act(async () => {

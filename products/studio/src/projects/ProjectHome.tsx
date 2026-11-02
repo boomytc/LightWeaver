@@ -8,7 +8,7 @@ import { PageFrame } from "../ui/PageFrame";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Dropzone } from "../ui/Dropzone";
-import { ListSkeleton } from "../ui/Skeleton";
+import { AsyncRegion } from "../ui/AsyncRegion";
 import { ChevronDownIcon, FolderIcon, ProjectIcon } from "../ui/Icons";
 
 const startSteps = [
@@ -168,8 +168,21 @@ export function ProjectHome() {
               </div>
             </details>
             <div className="flex flex-col">
-              {session.listsStatus === "loading" && <ListSkeleton rows={3} />}
-              {ordered.map((project) => {
+              <AsyncRegion
+                state={session.listsStatus}
+                error={session.listsError}
+                onRetry={() => void session.refreshLists().catch(() => {})}
+                empty={
+                  ordered.length === 0 ? (
+                    <div className="flex flex-col items-center px-6 py-12 text-center">
+                      <span className="dropzone-icon mb-3 size-12"><ProjectIcon /></span>
+                      <b>还没有项目</b>
+                      <p className="hint mb-0 mt-1 text-xs">创建空白草稿或从示例开始，也可以打开已有的 LightWeaver 项目包。</p>
+                    </div>
+                  ) : null
+                }
+              >
+                {ordered.map((project) => {
                 const draft = session.client.drafts.find((item) => item.projectId === project.projectId);
                 return (
                   <button
@@ -193,22 +206,7 @@ export function ProjectHome() {
                   </button>
                 );
               })}
-              {session.listsStatus === "failed" && (
-                <div className="subtle-card my-2 flex flex-col gap-2 p-4">
-                  <b>项目列表读取失败</b>
-                  <small className="hint">{session.listsError || "无法读取项目列表，请重试。"}</small>
-                  <div className="actions">
-                    <Button size="sm" onClick={() => void session.refreshLists().catch(() => {})}>重试</Button>
-                  </div>
-                </div>
-              )}
-              {session.listsStatus === "ready" && ordered.length === 0 && (
-                <div className="flex flex-col items-center px-6 py-12 text-center">
-                  <span className="dropzone-icon mb-3 size-12"><ProjectIcon /></span>
-                  <b>还没有项目</b>
-                  <p className="hint mb-0 mt-1 text-xs">创建空白草稿或从示例开始，也可以打开已有的 LightWeaver 项目包。</p>
-                </div>
-              )}
+              </AsyncRegion>
             </div>
           </section>
           <div className="flex flex-col gap-4">

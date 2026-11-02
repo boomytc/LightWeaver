@@ -17,14 +17,19 @@ walk(studio);
 const violations = [];
 const rel = (file) => relative(root, file);
 
-const componentsPath = join(studio, "styles/components.css");
-const components = readFileSync(componentsPath, "utf8");
+const styleDir = join(studio, "styles");
+const styleFiles = readdirSync(styleDir).filter((name) => name.endsWith(".css"));
 const forbidden = /^\s*\.(grid|flex|hidden|card|block|inline|table|contents|fixed|sticky|absolute|relative|static)(?![-\w])/m;
-if (forbidden.test(components)) {
-  violations.push(`${rel(componentsPath)}: 组件类不得与 Tailwind utility 同名（禁止 .grid/.flex 等）`);
+for (const name of styleFiles) {
+  const file = join(styleDir, name);
+  const text = readFileSync(file, "utf8");
+  if (forbidden.test(text)) {
+    violations.push(`${rel(file)}: 组件类不得与 Tailwind utility 同名（禁止 .grid/.flex 等）`);
+  }
 }
+const components = readFileSync(join(styleDir, "components.css"), "utf8");
 if (!components.includes(".auto-card-grid")) {
-  violations.push(`${rel(componentsPath)}: 缺少 .auto-card-grid 组件类`);
+  violations.push(`${rel(join(styleDir, "components.css"))}: 缺少 .auto-card-grid 组件类`);
 }
 
 for (const file of files) {

@@ -7,12 +7,13 @@ import { RunDetail } from "../domain/run";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { Field } from "../ui/Field";
 import { PageFrame } from "../ui/PageFrame";
-import { ListSkeleton } from "../ui/Skeleton";
+import { AsyncRegion } from "../ui/AsyncRegion";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Dropzone } from "../ui/Dropzone";
 import { Menu, MenuItem } from "../ui/Menu";
 import { useAction } from "../ui/useAction";
+import { useUndoable } from "../ui/useUndoable";
 
 const kindMeta = {
   voice: {
@@ -52,14 +53,10 @@ export function LibraryPanel({
   const formEpoch = useRef(0);
   const saveAction = useAction();
   const [hiddenItems, setHiddenItems] = useState<string[]>([]);
-  const undoTimers = useRef(new Map<string, number>());
-  useEffect(() => () => {
-    for (const timer of undoTimers.current.values()) window.clearTimeout(timer);
-    undoTimers.current.clear();
-  }, []);
+  const undo = useUndoable();
   const removeItem = (value: z.infer<typeof LibraryVersion>) => {
-    const timer = window.setTimeout(() => {
-      undoTimers.current.delete(value.itemId);
+    setHiddenItems((prev) => [...prev, value.itemId]);
+    undo.schedule(value.itemId, () => {
       api(`/library/${value.itemId}`, z.unknown(), {
         method: "DELETE",
         body: { expectedVersion: value.version, requestId: requestId() },
@@ -69,17 +66,9 @@ export function LibraryPanel({
           setHiddenItems((prev) => prev.filter((id) => id !== value.itemId));
           fail(reason);
         });
-    }, 5000);
-    undoTimers.current.set(value.itemId, timer);
-    setHiddenItems((prev) => [...prev, value.itemId]);
-    session.setNotice(`已删除库项「${value.payload.name}」`, {
-      actionLabel: "撤销",
-      onAction: () => {
-        const pending = undoTimers.current.get(value.itemId);
-        if (pending) window.clearTimeout(pending);
-        undoTimers.current.delete(value.itemId);
-        setHiddenItems((prev) => prev.filter((id) => id !== value.itemId));
-      },
+    }, {
+      onUndo: () => setHiddenItems((prev) => prev.filter((id) => id !== value.itemId)),
+      notify: (options) => session.setNotice(`已删除库项「${value.payload.name}」`, options),
     });
   };
   const [selected, setSelected] = useState<z.infer<
@@ -258,22 +247,19 @@ export function LibraryPanel({
     >
       <div className="split-page grid min-h-0 flex-1 grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
         <section className="scroll-region border-r border-line p-3">
-          {session.listsStatus === "loading" && <ListSkeleton rows={4} />}
-          {session.listsStatus === "failed" && (
-            <div className="subtle-card mb-2 flex flex-col gap-2 p-3">
-              <b>库项读取失败</b>
-              <small className="hint">{session.listsError || "无法读取库项，请重试。"}</small>
-              <div className="actions">
-                <Button size="sm" onClick={() => void session.refreshLists().catch(() => {})}>重试</Button>
-              </div>
-            </div>
-          )}
-          {session.listsStatus === "ready" && items.length === 0 && (
-            <div className="subtle-card p-6 text-center">
-              <b>{meta.emptyTitle}</b>
-              <p className="hint mx-auto mt-1 mb-0 text-xs">{meta.emptyHint}</p>
-            </div>
-          )}
+          <AsyncRegion
+            state={session.listsStatus}
+            error={session.listsError}
+            onRetry={() => void session.refreshLists().catch(() => {})}
+            empty={
+              items.length === 0 ? (
+                <div className="subtle-card p-6 text-center">
+                  <b>{meta.emptyTitle}</b>
+                  <p className="hint mx-auto mt-1 mb-0 text-xs">{meta.emptyHint}</p>
+                </div>
+              ) : null
+            }
+          >
           {items.map((v) => (
             <article className={`panel-card mb-2 p-3 ${selected?.itemId === v.itemId ? "border-accent bg-accent-soft" : ""}`} key={v.itemId}>
               <div className="section-title">
@@ -329,6 +315,7 @@ export function LibraryPanel({
               )}
             </article>
           ))}
+          </AsyncRegion>
         </section>
         <section className="flex min-h-0 min-w-0 flex-col">
           <div className="scroll-region flex-1 p-5">

@@ -94,6 +94,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     setQuery("");
     setActiveIndex(0);
   };
+  const resultsId = "find-results";
+  const activeOptionId = matches[active] ? `find-result-${active}` : undefined;
   const searchChange = (value: string) => {
     setQuery(value);
     setActiveIndex(0);
@@ -148,6 +150,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                     placeholder="查找项目"
                     className="search-field"
                     data-lw-find=""
+                    role="combobox"
+                    aria-expanded={session.findOpen}
+                    aria-controls={resultsId}
+                    aria-autocomplete="list"
+                    aria-activedescendant={activeOptionId}
                     value={query}
                     onFocus={() => session.setFindOpen(true)}
                     onChange={searchChange}
@@ -173,6 +180,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <SearchInput
                       label="查找项目"
                       placeholder="查找项目"
+                      role="combobox"
+                      aria-expanded={session.findOpen}
+                      aria-controls={resultsId}
+                      aria-autocomplete="list"
+                      aria-activedescendant={activeOptionId}
                       value={query}
                       autoFocus
                       onChange={searchChange}
@@ -184,23 +196,32 @@ export function AppShell({ children }: { children: ReactNode }) {
                     />
                   </div>
                 )}
-                {matches.map((project, index) => (
-                  <button
-                    key={project.projectId}
-                    type="button"
-                    className="search-result"
-                    data-active={index === active || undefined}
-                    onPointerMove={() => setActiveIndex(index)}
-                    onClick={() => void choose(project.projectId)}
-                  >
-                    <ProjectIcon className="shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{project.document.title || "未命名项目"}</span>
-                      <small className="numeric block truncate">{project.projectId}</small>
-                    </span>
-                  </button>
-                ))}
-                {matches.length === 0 && <p className="hint m-0 px-2 py-3 text-center text-xs">没有匹配的项目</p>}
+                <div id={resultsId} role="listbox" aria-label="项目查找结果">
+                  {matches.map((project, index) => (
+                    <button
+                      key={project.projectId}
+                      id={`find-result-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === active}
+                      className="search-result"
+                      data-active={index === active || undefined}
+                      onPointerMove={() => setActiveIndex(index)}
+                      onClick={() => void choose(project.projectId)}
+                    >
+                      <ProjectIcon className="shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{project.document.title || "未命名项目"}</span>
+                        <small className="numeric block truncate">{project.projectId}</small>
+                      </span>
+                    </button>
+                  ))}
+                  {matches.length === 0 && (
+                    <p className="hint m-0 px-2 py-3 text-center text-xs">
+                      {query ? `没有匹配「${query}」的项目，试试片名或项目 ID。` : "还没有可查找的项目。"}
+                    </p>
+                  )}
+                </div>
               </Popover.Content>
             </Popover.Portal>
           </Popover.Root>

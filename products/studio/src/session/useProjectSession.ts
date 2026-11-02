@@ -851,6 +851,9 @@ export function useProjectSession(client: ClientStore) {
     const nextPlan = current.revision.document.creativePlan || null;
     setPlanDraft(nextPlan);
     planDraftRef.current = nextPlan;
+    setNotice(snap
+      ? "已加载服务器内容；本地草稿已备份为可恢复草稿，可在项目列表恢复"
+      : "已加载服务器内容");
   });
 
   const importCaption = (locale: string, body: string, sourceKey: string) => {

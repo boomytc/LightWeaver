@@ -5,6 +5,7 @@ import { useSession } from "../session/context";
 import { Field } from "../ui/Field";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { ViewHeader } from "../ui/ViewHeader";
 import { UploadIcon } from "../ui/Icons";
 import { CaptionAssistPanel } from "./CaptionAssistPanel";
 import { CaptionTrackEditor } from "./CaptionEditors";
@@ -28,15 +29,11 @@ export function CaptionWorkspace() {
   const defaultStyle = { font: "Noto Sans CJK SC", size: 48, color: "#FFFFFF", outline: 2, marginV: 80, maxChars: 24 };
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="section-title">
-        <div>
-          <div>
-            <h2 className="m-0">字幕</h2>
-            {track?.translationLocale && <Badge tone="accent">{localeName(track.translationLocale)}译文</Badge>}
-          </div>
-          <p className="hint m-0 text-xs">人工字幕、语音对齐和估算字幕共用 cue；编辑会清除已失效的逐词时间，原始转写仍保留。</p>
-        </div>
-      </div>
+      <ViewHeader
+        title="字幕"
+        description="人工字幕、语音对齐和估算字幕共用 cue；编辑会清除已失效的逐词时间，原始转写仍保留。"
+        actions={track?.translationLocale ? <Badge tone="accent">{localeName(track.translationLocale)}译文</Badge> : undefined}
+      />
       {track?.translationLocale && <p className="notice-inline m-0 text-xs">这是 {localeName(locale)} 字幕的 {localeName(track.translationLocale)} 译文。项目输出语言与音频没有被改写。</p>}
       <section className="panel-card p-3" aria-label="字幕工具栏">
         <div className="grid gap-3 lg:grid-cols-[minmax(130px,.7fr)_minmax(180px,1.2fr)_minmax(160px,1fr)_auto]">

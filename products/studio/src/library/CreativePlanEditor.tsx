@@ -3,6 +3,7 @@ import { CreativePlan, Scene, refKey, z } from "@lightweaver/weaver/contracts";
 import { MICROS_PER_SECOND } from "../domain/time";
 import type { ReviewAnalysisEntry } from "../domain/context";
 import { Field } from "../ui/Field";
+import { ViewHeader } from "../ui/ViewHeader";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 
@@ -163,13 +164,11 @@ export function CreativePlanEditor({
   };
   return (
     <div className="flex flex-col gap-4">
-      <div className="section-title">
-        <div><h2 className="m-0">创作方案蓝图</h2></div>
-        <small>建立 / 导入 → 保存蓝图 → 应用到场景</small>
-      </div>
-      <p className="hint m-0">
-        方案是随项目修订保存的创作草案。只有点击“应用到当前场景”后，方案节拍才会成为可独立编辑的场景，之后不会自动同步。
-      </p>
+      <ViewHeader
+        title="创作方案蓝图"
+        description="方案是随项目修订保存的创作草案。只有点击“应用到当前场景”后，方案节拍才会成为可独立编辑的场景，之后不会自动同步。"
+        actions={<small className="hint">建立 / 导入 → 保存蓝图 → 应用到场景</small>}
+      />
       {plan && (
         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-y border-line bg-panel px-5 py-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">

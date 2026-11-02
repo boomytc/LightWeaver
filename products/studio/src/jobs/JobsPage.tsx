@@ -8,8 +8,9 @@ import { notifyRunsChanged, useRunList } from "./useRunList";
 import { useSession } from "../session/context";
 import { PageFrame } from "../ui/PageFrame";
 import { Segmented } from "../ui/Segmented";
-import { ListSkeleton } from "../ui/Skeleton";
+import { AsyncRegion } from "../ui/AsyncRegion";
 import { ProgressBar } from "../ui/ProgressBar";
+import { RunStatus } from "../ui/RunStatus";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { JobsIcon, ProjectIcon, RefreshIcon } from "../ui/Icons";
@@ -154,17 +155,20 @@ export function JobsPage() {
             <div className="flex items-center justify-between px-1"><small>{visibleRuns.length} 个作业</small>{isActiveRun(selectedRun?.state || "") && <Badge tone="accent" dot pulse>实时更新</Badge>}</div>
           </div>
           <div className="flex flex-col gap-1">
-            {runsStatus === "loading" && <ListSkeleton rows={3} />}
-            {runsStatus === "failed" && (
-              <div className="subtle-card mb-1 flex flex-col gap-2 p-3">
-                <b>作业列表读取失败</b>
-                <small className="hint">{runsError || "无法读取作业列表，请重试。"}</small>
-                <div className="actions">
-                  <Button size="sm" onClick={() => void refresh()}>重试</Button>
-                </div>
-              </div>
-            )}
-            {visibleRuns.map((run) => (
+            <AsyncRegion
+              state={runsStatus}
+              error={runsError}
+              onRetry={() => void refresh()}
+              empty={
+                visibleRuns.length === 0 ? (
+                  <div className="subtle-card p-6 text-center">
+                    <b>{runs.length ? "当前筛选没有作业" : "还没有作业"}</b>
+                    <p className="hint mx-auto mt-1 mb-0 text-xs">制作、分析或模型任务会显示在这里。</p>
+                  </div>
+                ) : null
+              }
+            >
+              {visibleRuns.map((run) => (
               <button key={run.id} type="button" className={`row-item ${selected === run.id ? "is-on" : ""}`} onClick={() => selectRun(run.id)}>
                 <span className="dropzone-icon size-8"><JobsIcon /></span>
                 <span className="row-item-copy">
@@ -173,14 +177,15 @@ export function JobsPage() {
                 </span>
               </button>
             ))}
-            {runsStatus === "ready" && visibleRuns.length === 0 && <div className="subtle-card p-6 text-center"><b>{runs.length ? "当前筛选没有作业" : "还没有作业"}</b><p className="hint mx-auto mt-1 mb-0 text-xs">制作、分析或模型任务会显示在这里。</p></div>}
+
+          </AsyncRegion>
           </div>
         </aside>
         <section className="scroll-region p-5">
           {selectedRun ? (
             <div className="narrow-content flex flex-col gap-4">
               <div className="section-title items-start">
-                <div className="flex-col !items-start gap-1">
+                <div className="flex-col gap-1" data-align="start">
                   <div className="flex flex-wrap items-center gap-2"><h2 className="m-0">{kindLabel(selectedRun.kind)}</h2><RunBadge state={selectedRun.state} /></div>
                   <small className="numeric">作业 {selectedRun.id}</small>
                 </div>
@@ -247,6 +252,5 @@ export function JobsPage() {
 }
 
 function RunBadge({ state }: { state: string }) {
-  const tone = isActiveRun(state) ? "accent" : state === "succeeded" ? "ok" : RESUMABLE_RUN_STATES.has(state as z.infer<typeof RunRecord>["state"]) ? "warn" : "neutral";
-  return <Badge tone={tone} dot pulse={isActiveRun(state)}>{runLabel(state)}</Badge>;
+  return <RunStatus state={state} dot />;
 }
