@@ -18,14 +18,10 @@
     scrollbar-width: thin;
     scrollbar-color: var(--lw-line-strong) transparent;
   }
-.surface-card,
-  .panel-card {
+.panel-card {
     border: 1px solid var(--lw-line);
     border-radius: var(--radius-lg);
     background: var(--lw-panel);
-  }
-.surface-card {
-    box-shadow: var(--lw-shadow);
   }
 .subtle-card {
     border: 1px solid var(--lw-line);
@@ -603,8 +599,7 @@
     animation: lw-toast-out 200ms ease-in forwards;
   }
 .mask-grid,
-  .auto-card-grid,
-  .model-list {
+  .auto-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 12px;

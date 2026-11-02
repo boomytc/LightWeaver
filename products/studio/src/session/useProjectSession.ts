@@ -571,7 +571,6 @@ export function useProjectSession(client: ClientStore) {
         return;
       }
       accepted = Boolean(await saveEdits(includePlan));
-      if (accepted) setNotice(includePlan ? "项目与方案已保存" : "项目已保存");
     });
     return accepted;
   };

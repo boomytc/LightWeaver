@@ -202,7 +202,7 @@ export function CaptionAssistPanel({
           </Button>
         </div>
       )}
-      {status && <small>{status}</small>}
+      {status && <small role="status" aria-live="polite">{status}</small>}
       {detail?.run.error && (
         <p className="error">{detail.run.error.message}</p>
       )}

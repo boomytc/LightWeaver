@@ -207,3 +207,21 @@
 - Electron 打包产物未验证；真实数据下 deliveries/runs/失败/冲突/BGM/证据等分支仍以 mock/本地假状态验证。
 
 第二轮验收：`make typecheck`（含 UI 样式检查）、`npm run build -w @lightweaver/studio` 通过；Playwright 1512 明/暗、1024、960 全页无横向溢出与 console error；空项目 mock（完整引导+创建卡）、搜索 combobox/listbox 语义与无结果文案、设置模型详情/引擎展开、交付表单约束、库项菜单删除+撤销（0 次 DELETE）、工作区 tab 方向键与分隔条键盘、skip link 均实测通过。
+
+## 八、第三轮收尾：偏差收敛（2026-11-02）
+
+针对第七节列出的偏差做一致性收尾：
+
+| 偏差 | 本轮处理 |
+| --- | --- |
+| 选择器两套实现（IF-10） | 新增 `ui/NativeSelect.tsx` 薄封装（`data-slot="native-select"`，统一 `ui-select` 钩子），把 12 个文件里 30 处裸 `<select>` 全部替换；选择规则写入组件注释（短枚举→NativeSelect、动作→Menu、≥6 项/可搜索→后续 combobox）；删除从未被使用的 `UiSelect` |
+| 主题切换两套机器 | AppShell 的三段主题控件改用 `Segmented`，与工作区/任务筛选共用同一套 toggle 语义；`Segmented` 选项支持 `ariaLabel`，主题按钮保留“浅色/跟随系统/深色”可读名称 |
+| 保存成功提示噪声（IF-12） | 普通保存不再弹 toast（header 的修订徽章已表达“已保存/未保存/冲突”）；保留“保存期间产生新编辑”“已提交制作”等界面推不出的关键结果提示 |
+| 字幕协助状态（IF-17） | 状态文案补 `role="status" aria-live="polite"` |
+| Dropzone 拖放不校验（IF-20） | 拖放按 `accept`（扩展名/MIME/`type/*`）与可选 `maxBytes` 过滤，被拒文件就地红字说明，合法文件才交给上层；项目包 ZIP、SRT/VTT、方案 JSON 入口已生效 |
+| 死样式/死组件 | 删除无引用的 `.surface-card`、`.two`、`.assist-panel`、`.model-list` 与未使用的 `UiSelect.tsx`；样式类未引用扫描结果为空 |
+| 断点与 <900 窄窗 | 保持 1280/1100/900 + 工作区容器 1000/640/760 的现状，并在 tokens.css 注明映射；**不实现 off-canvas**：桌面窗口最小 960，<900 仅浏览器缩放场景，当前 64px 图标栏 + 单列页面已可用；若产品后续要支持移动/更窄窗，另立需求做抽屉与焦点陷阱 |
+
+仍未做（有明确理由，非遗漏）：全局 undo/redo 栈（R2）、消息中心留档、Electron 打包产物验证、真实数据下 deliveries/runs/失败/冲突等分支（仍用 mock/本地假状态验证）。
+
+第三轮验收：`make typecheck`（含 UI 样式检查）、`npm run build -w @lightweaver/studio` 通过；Playwright 验证主题切换 3 按钮 `aria-label` 与 `data-theme` 生效、首页/工作区 NativeSelect 渲染（1/8 处）、拖入 `.txt` 到仅接受 `.zip` 的项目包入口出现“已忽略：bad.txt（类型不符）”且不触发导入；960/1512 各页无横向溢出与 console/pageerror。

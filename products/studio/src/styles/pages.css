@@ -24,7 +24,6 @@
   }
 .source-window,
   .cue-editor,
-  .assist-panel,
   .mask-editor,
   .plan-evidence {
     border: 1px solid var(--lw-line);

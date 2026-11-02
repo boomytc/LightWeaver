@@ -9,6 +9,7 @@ import { ViewHeader } from "../ui/ViewHeader";
 import { UploadIcon } from "../ui/Icons";
 import { CaptionAssistPanel } from "./CaptionAssistPanel";
 import { CaptionTrackEditor } from "./CaptionEditors";
+import { NativeSelect } from "../ui/NativeSelect";
 
 const modes = z.enum(["none", "manual", "precise", "estimated"]);
 
@@ -38,20 +39,20 @@ export function CaptionWorkspace() {
       <section className="panel-card p-3" aria-label="字幕工具栏">
         <div className="grid gap-3 lg:grid-cols-[minmax(130px,.7fr)_minmax(180px,1.2fr)_minmax(160px,1fr)_auto]">
           <Field label="字幕语言">
-            <select value={locale} onChange={(event) => { setLocale(event.target.value); session.setLocale(event.target.value); }}>
+            <NativeSelect value={locale} onChange={(event) => { setLocale(event.target.value); session.setLocale(event.target.value); }}>
               {draft.locales.map((item) => <option key={item} value={item}>{localeName(item)}</option>)}
-            </select>
+            </NativeSelect>
           </Field>
           <Field label="导入字幕 / 来源对照">
-            <select value={source} onChange={(event) => setSource(event.target.value)}>
+            <NativeSelect value={source} onChange={(event) => setSource(event.target.value)}>
               <option value="">成片时间</option>
               {ctx.assets.filter((asset) => asset.kind === "video" || asset.kind === "audio").map((asset) => (
                 <option key={asset.version} value={refKey(asset)}>{asset.kind === "audio" ? "音轨" : "源片"}：{asset.name}</option>
               ))}
-            </select>
+            </NativeSelect>
           </Field>
           <Field label="计时方式">
-            <select value={track?.mode || "none"} onChange={(event) => {
+            <NativeSelect value={track?.mode || "none"} onChange={(event) => {
               const next = {
                 locale,
                 translationLocale: track?.translationLocale,
@@ -66,7 +67,7 @@ export function CaptionWorkspace() {
               <option value="manual">人工 cue / 导入 SRT</option>
               <option value="precise">实际语音对齐</option>
               <option value="estimated">显式估算</option>
-            </select>
+            </NativeSelect>
           </Field>
           <div className="flex items-end gap-2">
             <Button size="sm" onClick={() => fileInput.current?.click()}><UploadIcon />导入 SRT</Button>

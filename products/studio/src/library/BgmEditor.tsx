@@ -1,5 +1,6 @@
 import { MediaAssetVersion, ProjectDocument, refKey, z } from "@lightweaver/weaver/contracts";
 import { Field } from "../ui/Field";
+import { NativeSelect } from "../ui/NativeSelect";
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -30,13 +31,13 @@ export function BgmEditor({ draft, assets, edit }: { draft: ProjectDocument; ass
   return (
     <div className="flex flex-col gap-3">
       <Field label="音频源">
-        <select value={bgm ? refKey(bgm.source) : ""} onChange={(event) => {
+        <NativeSelect value={bgm ? refKey(bgm.source) : ""} onChange={(event) => {
           const asset = assets.find((item) => refKey(item) === event.target.value);
           update(asset ? { source: { assetId: asset.assetId, version: asset.version }, range: { startUs: 0, durationUs: 1000000 }, loop: true, gainDb: -18, fadeInFrames: 10, fadeOutFrames: 15, ducking: true } : undefined);
         }}>
           <option value="">不使用背景音乐</option>
           {assets.filter((asset) => asset.kind === "audio").map((asset) => <option key={asset.version} value={refKey(asset)}>{asset.name}</option>)}
-        </select>
+        </NativeSelect>
       </Field>
       {bgm && (
         <>

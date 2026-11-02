@@ -8,6 +8,7 @@ import { PROFILES, ProjectDocument } from "@lightweaver/weaver/contracts";
 import { clamp, MICROS_PER_SECOND } from "../domain/time";
 import { Field } from "../ui/Field";
 import { Button } from "../ui/Button";
+import { NativeSelect } from "../ui/NativeSelect";
 
 export type SceneMask = ProjectDocument["masks"][number];
 type OutputProfileValue = ProjectDocument["profiles"][number];
@@ -384,7 +385,7 @@ export function MaskEditor({
       </p>
       <div className="mask-preview-controls">
         <Field label="预览画面规格">
-          <select
+          <NativeSelect
             value={previewProfile.profile.id}
             onChange={(event) => setPreviewProfileId(event.target.value)}
           >
@@ -397,7 +398,7 @@ export function MaskEditor({
                 {candidate.profile.height}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
         <small className="mask-preview-meta">
           {previewProfile.label} · {previewProfile.profile.width}×

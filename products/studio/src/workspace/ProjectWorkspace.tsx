@@ -27,6 +27,7 @@ import { Popconfirm } from "../ui/Popconfirm";
 import { ProgressBar } from "../ui/ProgressBar";
 import { ProjectGuidance, type GuidanceTarget } from "./ProjectGuidance";
 import { ConflictReviewDialog, ProjectReviewDialog } from "./ReviewPanels";
+import { NativeSelect } from "../ui/NativeSelect";
 import {
   AlertIcon,
   ArrowDownIcon,
@@ -955,9 +956,9 @@ function FieldLocale() {
   return (
     <label className="flex items-center gap-1">
       <span className="sr-only">编辑语言</span>
-      <select className="h-8 w-[58px] px-1 text-xs" aria-label="编辑语言" value={session.locale} onChange={(event) => session.setLocale(event.target.value)}>
+      <NativeSelect className="h-8 w-[58px] px-1 text-xs" aria-label="编辑语言" value={session.locale} onChange={(event) => session.setLocale(event.target.value)}>
         {session.draft.locales.map((locale) => <option key={locale}>{locale}</option>)}
-      </select>
+      </NativeSelect>
     </label>
   );
 }

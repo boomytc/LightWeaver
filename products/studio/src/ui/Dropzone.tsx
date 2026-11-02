@@ -2,11 +2,34 @@ import { useRef, useState, type DragEvent, type ReactNode } from "react";
 import { Button } from "./Button";
 import { UploadIcon } from "./Icons";
 
+function matchesAccept(file: File, accept?: string) {
+  if (!accept) return true;
+  const patterns = accept.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+  if (!patterns.length) return true;
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+  return patterns.some((pattern) =>
+    pattern.startsWith(".")
+      ? name.endsWith(pattern)
+      : pattern.endsWith("/*")
+        ? type.startsWith(pattern.slice(0, -1))
+        : type === pattern,
+  );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes >= 1024 * 1024 * 1024) return `${Math.round(bytes / 1024 / 1024 / 1024)} GB`;
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / 1024 / 1024)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
 export function Dropzone({
   inputAriaLabel,
   onFiles,
   onBrowse,
   accept,
+  maxBytes,
   multiple = false,
   disabled = false,
   title,
@@ -18,6 +41,7 @@ export function Dropzone({
   onFiles: (files: File[]) => void;
   onBrowse?: () => void;
   accept?: string;
+  maxBytes?: number;
   multiple?: boolean;
   disabled?: boolean;
   title: ReactNode;
@@ -27,11 +51,22 @@ export function Dropzone({
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [rejection, setRejection] = useState("");
   const drop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(false);
+    if (disabled) return;
     const files = [...event.dataTransfer.files];
-    if (!disabled && files.length) onFiles(files);
+    if (!files.length) return;
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const file of files) {
+      if (!matchesAccept(file, accept)) rejected.push(`${file.name}（类型不符）`);
+      else if (maxBytes && file.size > maxBytes) rejected.push(`${file.name}（超过 ${formatBytes(maxBytes)}）`);
+      else accepted.push(file);
+    }
+    setRejection(rejected.length ? `已忽略：${rejected.join("、")}` : "");
+    if (accepted.length) onFiles(accepted);
   };
   return (
     <div
@@ -50,6 +85,7 @@ export function Dropzone({
       <div className="dropzone-copy">
         <b className="block">{title}</b>
         {description && <small className="mt-0.5 block">{description}</small>}
+        {rejection && <p className="error m-0 mt-1 text-xs" role="alert">{rejection}</p>}
       </div>
       <Button
         size="sm"

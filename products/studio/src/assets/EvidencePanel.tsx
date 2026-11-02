@@ -8,6 +8,7 @@ import { useSession } from "../session/context";
 import { Field } from "../ui/Field";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { NativeSelect } from "../ui/NativeSelect";
 
 type AnalysisKind = "transcribe" | "align" | "describe";
 
@@ -79,17 +80,17 @@ export function EvidencePanel() {
       </div>
       <div className="subtle-card flex flex-col gap-3 p-3">
         <Field label="分析源片或音轨">
-          <select value={source} onChange={(event) => setAnalysisSource(event.target.value)}>
+          <NativeSelect value={source} onChange={(event) => setAnalysisSource(event.target.value)}>
             <option value="">先选择源素材</option>
             {analysisAssets.map((asset) => (
               <option key={asset.version} value={asset.assetId}>
                 {asset.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
         <Field label="分析类型">
-          <select
+          <NativeSelect
             aria-label="分析类型"
             value={analysisKind}
             onChange={(event) => setAnalysisKind(event.target.value as AnalysisKind)}
@@ -97,18 +98,18 @@ export function EvidencePanel() {
             <option value="transcribe" disabled={!asrReady}>仅转写文字</option>
             <option value="align" disabled={!asrReady || !alignmentReady}>转写并精确对齐</option>
             <option value="describe">观察画面</option>
-          </select>
+          </NativeSelect>
         </Field>
         {analysisKind === "describe" && (
           <Field label="画面观察模型">
-            <select aria-label="画面观察模型" value={vlmProvider} onChange={(event) => setVlmProvider(event.target.value)}>
+            <NativeSelect aria-label="画面观察模型" value={vlmProvider} onChange={(event) => setVlmProvider(event.target.value)}>
               {describeProviders.map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.model}
                   {provider.ready ? "" : " · 未配置"}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Field>
         )}
         <div className="actions">
@@ -203,11 +204,11 @@ export function EvidencePanel() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <select aria-label="检索方式" value={mode} onChange={(event) => setMode(event.target.value)}>
+          <NativeSelect aria-label="检索方式" value={mode} onChange={(event) => setMode(event.target.value)}>
             <option value="text">文本检索</option>
             <option value="semantic">语义检索（字幕与观察）</option>
             <option value="visual">画面检索</option>
-          </select>
+          </NativeSelect>
           <div>
             <Button size="sm" type="button" onClick={() => void session.searchCandidates(query, mode)}>
               查询候选
@@ -216,7 +217,7 @@ export function EvidencePanel() {
         </div>
       </div>
       <Field label="参考成片反向匹配">
-        <select
+        <NativeSelect
           defaultValue=""
           onChange={(event) => {
             if (!event.target.value) return;
@@ -233,7 +234,7 @@ export function EvidencePanel() {
                 {asset.name}
               </option>
             ))}
-        </select>
+        </NativeSelect>
       </Field>
       {ctx.proposals.map((proposal) => {
         const stale = proposal.revision !== session.base;

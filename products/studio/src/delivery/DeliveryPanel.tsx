@@ -10,6 +10,7 @@ import { Modal } from "../ui/Modal";
 import { Menu, MenuItem } from "../ui/Menu";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { NativeSelect } from "../ui/NativeSelect";
 
 type ExportKind = "file" | "otio" | "jianying" | "bundle";
 type DeliveryRecord = z.infer<typeof Delivery> & { state: string };
@@ -255,7 +256,7 @@ export function DeliveryPanel() {
               />
             </Field>
             <Field label="字幕">
-              <select
+              <NativeSelect
                 value={profile.subtitles}
                 onChange={(event) =>
                   session.edit({
@@ -275,7 +276,7 @@ export function DeliveryPanel() {
                 <option value="sidecar">外挂</option>
                 <option value="burn">烧录</option>
                 <option value="none">无</option>
-              </select>
+              </NativeSelect>
             </Field>
             <Field label="目标 LUFS">
               <input

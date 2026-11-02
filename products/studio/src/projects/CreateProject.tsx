@@ -5,6 +5,7 @@ import { Field } from "../ui/Field";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { MethodIcon, PlusIcon } from "../ui/Icons";
+import { NativeSelect } from "../ui/NativeSelect";
 
 export function CreateProject({
   onCreated,
@@ -103,9 +104,9 @@ export function CreateProject({
           label="工作流"
           hint={current ? `${current.name}：${current.guidance}` : "选择适合本次创作的工作流。"}
         >
-          <select value={workflow} onChange={(event) => setWorkflow(event.target.value)}>
+          <NativeSelect value={workflow} onChange={(event) => setWorkflow(event.target.value)}>
             {WORKFLOWS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+          </NativeSelect>
         </Field>
         <Button type="submit" disabled={pending !== null || !title.trim()}>
           <PlusIcon />

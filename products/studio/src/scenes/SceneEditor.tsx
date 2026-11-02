@@ -17,6 +17,7 @@ import { SourceWindowPlayer } from "./SourceWindowPlayer";
 import { Field } from "../ui/Field";
 import { MediaSourceDetails } from "../assets/MediaSourceDetails";
 import "./SceneEditors.css";
+import { NativeSelect } from "../ui/NativeSelect";
 
 export function SceneEditor({
   scene: s,
@@ -127,7 +128,7 @@ export function SceneEditor({
       {s.kind === "card" ? (
         <>
           <Field label="卡片样式">
-            <select
+            <NativeSelect
               value={s.cardSpec.template}
               onChange={(e) =>
                 onChange({
@@ -144,7 +145,7 @@ export function SceneEditor({
               <option value="title">标题</option>
               <option value="points">要点</option>
               <option value="close">收束</option>
-            </select>
+            </NativeSelect>
           </Field>
           <Field label="标题">
             <input
@@ -202,7 +203,7 @@ export function SceneEditor({
       ) : (
         <>
           <Field label={s.kind === "clip" ? "源片" : "图片"}>
-            <select
+            <NativeSelect
               value={refKey(s.kind === "clip" ? s.source : s.image)}
               onChange={(e) => {
                 const a = selectAsset(e.target.value);
@@ -224,7 +225,7 @@ export function SceneEditor({
                     {a.name}
                   </option>
                 ))}
-            </select>
+            </NativeSelect>
           </Field>
           <MediaSourceDetails asset={selectedAsset} assets={assets} />
           {preview && s.kind === "clip" && (
@@ -248,7 +249,7 @@ export function SceneEditor({
           )}
           <div className="actions">
             <Field label="画面适配">
-              <select
+              <NativeSelect
                 value={s.framing.fit}
                 onChange={(e) =>
                   onChange({
@@ -262,7 +263,7 @@ export function SceneEditor({
               >
                 <option value="contain">完整显示</option>
                 <option value="cover">填满画幅</option>
-              </select>
+              </NativeSelect>
             </Field>
             {s.kind === "clip" && (
               <>
@@ -310,7 +311,7 @@ export function SceneEditor({
         {sectionTitle(section === "all" ? "02 · 声音策略与旁白" : "声音策略与旁白")}
       {s.kind === "clip" && (
         <Field label="声音策略">
-          <select
+          <NativeSelect
             value={s.playback.audio.kind}
             onChange={(e) => {
               const kind = e.target.value;
@@ -348,7 +349,7 @@ export function SceneEditor({
             <option value="original">保留原声</option>
             <option value="narration">旁白</option>
             <option value="mix">旁白与原声混音</option>
-          </select>
+          </NativeSelect>
         </Field>
       )}
       {s.kind !== "clip" && (
@@ -366,7 +367,7 @@ export function SceneEditor({
       {speech && (
         <>
           <Field label="旁白来源">
-            <select
+            <NativeSelect
               value={speech.kind}
               onChange={(e) => {
                 const a = assets.find((a) => a.kind === "audio");
@@ -390,7 +391,7 @@ export function SceneEditor({
             >
               <option value="authored">文案与音色</option>
               <option value="imported">已上传音频</option>
-            </select>
+            </NativeSelect>
           </Field>
           {speech.kind === "authored" ? (
             <>
@@ -406,7 +407,7 @@ export function SceneEditor({
                 />
               </Field>
               <Field label="精确音色版本">
-                <select
+                <NativeSelect
                   value={
                     speech.voice[locale]
                       ? `${speech.voice[locale].itemId}@${speech.voice[locale].version}`
@@ -435,7 +436,7 @@ export function SceneEditor({
                       {v.payload.name} · {v.version.slice(0, 8)}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </Field>
               <Field label={`场景语气（可选，${localeName(locale)}）`}>
                 <textarea
@@ -473,7 +474,7 @@ export function SceneEditor({
           ) : (
             <>
               <Field label="旁白音频">
-                <select
+                <NativeSelect
                   value={speech.audio[locale] ? refKey(speech.audio[locale]) : ""}
                   onChange={(e) => {
                     const a = selectAsset(e.target.value);
@@ -495,7 +496,7 @@ export function SceneEditor({
                         {a.name}
                       </option>
                     ))}
-                </select>
+                </NativeSelect>
               </Field>
               {selectedNarrationAsset && (
                 <div className="audio-audition">
@@ -519,7 +520,7 @@ export function SceneEditor({
       {s.kind !== "clip" ? (
         <div className="actions">
           <Field label="时长策略">
-            <select
+            <NativeSelect
               value={s.timing.kind}
               onChange={(e) => {
                 if (e.target.value === "speech" && speech)
@@ -536,7 +537,7 @@ export function SceneEditor({
             >
               <option value="fixed">固定帧长</option>
               {speech && <option value="speech">真实旁白加尾帧</option>}
-            </select>
+            </NativeSelect>
           </Field>
           <Field label={s.timing.kind === "fixed" ? "帧数" : "尾帧数"}>
             <input
@@ -563,7 +564,7 @@ export function SceneEditor({
       ) : (
         <>
           <Field label="画面时长">
-            <select
+            <NativeSelect
               value={s.playback.kind}
               onChange={(e) => {
                 const audio = s.playback.audio;
@@ -585,12 +586,12 @@ export function SceneEditor({
             >
               <option value="source">由截取时长决定</option>
               {speech && <option value="speech">由旁白音频长度决定</option>}
-            </select>
+            </NativeSelect>
           </Field>
           {s.playback.kind === "speech" && (
             <div className="actions">
               <Field label="配音长于视频片段时">
-                <select
+                <NativeSelect
                   value={s.playback.overflow.kind}
                   onChange={(e) =>
                     patch({
@@ -610,7 +611,7 @@ export function SceneEditor({
                   <option value="reject">报错并保留草稿</option>
                   <option value="freeze">允许有限末帧定格</option>
                   <option value="speed">允许调整画面播放速度</option>
-                </select>
+                </NativeSelect>
               </Field>
               {s.playback.overflow.kind === "freeze" && (
                 <Field label="最多定格帧数">

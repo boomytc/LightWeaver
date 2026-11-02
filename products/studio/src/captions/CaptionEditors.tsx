@@ -17,6 +17,7 @@ import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { TrashIcon } from "../ui/Icons";
 import { mediaUrl } from "../api";
+import { NativeSelect } from "../ui/NativeSelect";
 
 type CaptionCueValue = z.infer<typeof CaptionCue>;
 type CaptionTrackValue = z.infer<typeof CaptionTrack>;
@@ -363,7 +364,7 @@ export function CaptionCueEditor({
         {time.kind === "speech" && (
           <div className="inline-fields">
             <Field label="场景">
-              <select
+              <NativeSelect
                 value={time.sceneId}
                 onChange={(event) =>
                   commitTiming({
@@ -378,7 +379,7 @@ export function CaptionCueEditor({
                     {scene.label || scene.id}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </Field>
             <Field label="场景入点（秒）">
               <input

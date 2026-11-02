@@ -5,6 +5,7 @@ import { HintProvider } from "../ui/Hint";
 import { ToastStack } from "../ui/ToastStack";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { SearchInput } from "../ui/SearchInput";
+import { Segmented } from "../ui/Segmented";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { useRunList } from "../jobs/useRunList";
@@ -267,25 +268,20 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             ))}
           </nav>
-          <div className="seg theme-switch" role="group" aria-label="界面主题">
-            {([
-              ["light", "浅色", SunIcon],
-              ["system", "跟随系统", SystemIcon],
-              ["dark", "深色", MoonIcon],
-            ] as const).map(([value, label, Icon]) => (
-              <button
-                key={value}
-                type="button"
-                className={session.client.theme === value ? "is-on" : ""}
-                aria-label={label}
-                aria-pressed={session.client.theme === value}
-                title={label}
-                onClick={() => session.client.setTheme(value)}
-              >
-                <Icon />
-              </button>
-            ))}
-          </div>
+          <Segmented
+            className="theme-switch"
+            mode="toggle"
+            label="界面主题"
+            value={session.client.theme}
+            onChange={(value) => {
+              if (value === "system" || value === "light" || value === "dark") session.client.setTheme(value);
+            }}
+            options={[
+              { value: "light", label: <SunIcon />, ariaLabel: "浅色", title: "浅色" },
+              { value: "system", label: <SystemIcon />, ariaLabel: "跟随系统", title: "跟随系统" },
+              { value: "dark", label: <MoonIcon />, ariaLabel: "深色", title: "深色" },
+            ]}
+          />
         </aside>
         <div className="app-stage">
           <div className="app-sheet">{children}</div>

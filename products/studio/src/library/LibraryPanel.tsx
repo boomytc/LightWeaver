@@ -14,6 +14,7 @@ import { Dropzone } from "../ui/Dropzone";
 import { Menu, MenuItem } from "../ui/Menu";
 import { useAction } from "../ui/useAction";
 import { useUndoable } from "../ui/useUndoable";
+import { NativeSelect } from "../ui/NativeSelect";
 
 const kindMeta = {
   voice: {
@@ -330,7 +331,7 @@ export function LibraryPanel({
           </Field>
           {kind === "voice" && (
             <Field label="语音提供方">
-              <select
+              <NativeSelect
                 value={voiceProvider}
                 onChange={(event) => setVoiceProvider(event.target.value)}
               >
@@ -347,7 +348,7 @@ export function LibraryPanel({
                       {provider.name} · 已就绪
                     </option>
                   ))}
-              </select>
+              </NativeSelect>
             </Field>
           )}
           {kind === "method" ? (
@@ -381,7 +382,7 @@ export function LibraryPanel({
                 ))}
               </div>
               <Field label="片段声音约束">
-                <select
+                <NativeSelect
                   value={clipAudio}
                   onChange={(e) => setClipAudio(e.target.value)}
                 >
@@ -389,7 +390,7 @@ export function LibraryPanel({
                   <option value="original">原声</option>
                   <option value="narration">旁白</option>
                   <option value="mix">混音</option>
-                </select>
+                </NativeSelect>
               </Field>
               <label className="check">
                 <input

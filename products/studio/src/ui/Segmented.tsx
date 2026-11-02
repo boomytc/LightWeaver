@@ -6,6 +6,7 @@ export type SegmentedOption<T extends string> = {
   label: ReactNode;
   disabled?: boolean;
   title?: string;
+  ariaLabel?: string;
 };
 
 export function Segmented<T extends string>({
@@ -68,6 +69,7 @@ export function Segmented<T extends string>({
             tabIndex={tabMode ? (selected ? 0 : -1) : undefined}
             disabled={option.disabled}
             title={option.title}
+            aria-label={option.ariaLabel}
             className={selected ? "is-on" : ""}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => move(event, index)}

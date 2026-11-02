@@ -8,6 +8,7 @@ import { Dropzone } from "../ui/Dropzone";
 import { Badge } from "../ui/Badge";
 import { AudioIcon, FileIcon, ImageIcon, VideoIcon } from "../ui/Icons";
 import { MediaSourceDetails } from "./MediaSourceDetails";
+import { NativeSelect } from "../ui/NativeSelect";
 
 type AssetImportSource =
   | { kind: "path"; file: string }
@@ -208,16 +209,16 @@ export function AssetPanel({ selectedKey, onSelect }: { selectedKey: string; onS
       <MediaSourceDetails asset={ctx.assets.find((asset) => refKey(asset) === selectedKey)} assets={ctx.assets} />
       <div className="flex flex-col gap-3 border-t border-line pt-3">
         <Field label="可选方法">
-          <select value={draft.method ? `${draft.method.itemId}@${draft.method.version}` : ""} onChange={(event) => {
+          <NativeSelect value={draft.method ? `${draft.method.itemId}@${draft.method.version}` : ""} onChange={(event) => {
             const version = session.library.find((item) => `${item.itemId}@${item.version}` === event.target.value);
             session.edit({ ...draft, method: version ? { itemId: version.itemId, version: version.version } : undefined });
           }}>
             <option value="">不指定方法</option>
             {session.library.filter((item) => item.payload.kind === "method").map((item) => <option key={item.itemId} value={`${item.itemId}@${item.version}`}>{item.payload.name}</option>)}
-          </select>
+          </NativeSelect>
         </Field>
         <Field label="从素材库采用">
-          <select defaultValue="" aria-label="从素材库采用" disabled={session.dirty || session.busy} onChange={(event) => {
+          <NativeSelect defaultValue="" aria-label="从素材库采用" disabled={session.dirty || session.busy} onChange={(event) => {
             const version = session.library.find((item) => item.itemId === event.target.value);
             event.target.value = "";
             if (!version) return;
@@ -231,7 +232,7 @@ export function AssetPanel({ selectedKey, onSelect }: { selectedKey: string; onS
           }}>
             <option value="">选择可复用素材</option>
             {session.library.filter((item) => item.payload.kind === "material").map((item) => <option key={item.itemId} value={item.itemId}>{item.payload.name}</option>)}
-          </select>
+          </NativeSelect>
         </Field>
       </div>
       {selectedKey && <p className="sr-only">预览地址 {mediaUrl(ctx.assets.find((asset) => refKey(asset) === selectedKey)?.digest || "")}</p>}

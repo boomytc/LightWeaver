@@ -6,6 +6,7 @@ import { Field } from "../ui/Field";
 import { ViewHeader } from "../ui/ViewHeader";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { NativeSelect } from "../ui/NativeSelect";
 
 type CreativePlanValue = z.infer<typeof CreativePlan>;
 
@@ -282,7 +283,7 @@ export function CreativePlanEditor({
               </Field>
             </div>
             <Field label="用当前场景添加节拍">
-              <select
+              <NativeSelect
                 value=""
                 onChange={(event) => {
                   const scene = projectScenes.find(
@@ -317,7 +318,7 @@ export function CreativePlanEditor({
                       {sceneLabels[scene.kind]} {scene.label || scene.id}
                     </option>
                   ))}
-              </select>
+              </NativeSelect>
             </Field>
           </div>
           {plan.beats.map((beat, beatIndex) => (
@@ -415,7 +416,7 @@ export function CreativePlanEditor({
                   );
                 })}
                 <Field label="引用一条当前证据">
-                  <select
+                  <NativeSelect
                     value=""
                     onChange={(event) => {
                       const entry = analysis.find(
@@ -463,7 +464,7 @@ export function CreativePlanEditor({
                           {entry.kind} · {entry.text.slice(0, 60)}
                         </option>
                       ))}
-                  </select>
+                  </NativeSelect>
                 </Field>
               </div>
             </article>
