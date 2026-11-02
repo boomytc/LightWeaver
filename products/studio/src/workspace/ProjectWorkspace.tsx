@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api, mediaUrl, requestId } from "../api";
-import { RunRecord, refKey, speechOf, type MediaAssetVersion, type Scene } from "@lightweaver/weaver/contracts";
+import { AnalysisEntry, RunRecord, refKey, speechOf, z, type MediaAssetVersion, type Scene } from "@lightweaver/weaver/contracts";
 import { AssetPanel, useProjectAssetImport } from "../assets/AssetPanel";
 import { EvidencePanel } from "../assets/EvidencePanel";
 import { CaptionWorkspace } from "../captions/CaptionWorkspace";
 import { desktop, type LayoutPreference } from "../desktop";
 import { DeliveryPanel } from "../delivery/DeliveryPanel";
-import { labels, runLabel } from "../domain/format";
+import { labels, runKindLabel, runLabel } from "../domain/format";
 import { isActiveRun, RESUMABLE_RUN_STATES } from "../domain/run";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { BgmEditor } from "../library/BgmEditor";
@@ -225,6 +225,7 @@ export function ProjectWorkspace() {
       : null;
   const completedBuild =
     currentRun?.kind === "build" && currentRun.state === "succeeded";
+  const hasCurrentDelivery = ctx.deliveries.some((delivery) => delivery.state === "current");
   const commitLayout = (next: LayoutPreference) => {
     setLive(null);
     void session.client.setLayout(clampLayout(next, available));
@@ -441,7 +442,7 @@ export function ProjectWorkspace() {
             }
             onClick={() => void actions.run("build", async () => { await buildNow(); })}
           >
-            {actions.isPending("build") ? "制作中…" : session.dirty || session.planDirty ? "保存并制作" : "制作"}
+            {actions.isPending("build") ? "提交中…" : session.dirty || session.planDirty ? "保存并制作" : hasCurrentDelivery ? "重新制作" : "制作"}
           </Button>
         </div>
       </header>
@@ -449,7 +450,7 @@ export function ProjectWorkspace() {
         workflowId={draft.workflow}
         scenes={draft.scenes.length}
         assets={ctx.assets.length}
-        deliveries={ctx.deliveries.length}
+        deliveries={ctx.deliveries.filter((delivery) => delivery.state === "current").length}
         onNavigate={navigateGuidance}
       />
       {completedBuild && (
@@ -674,7 +675,7 @@ export function ProjectWorkspace() {
             </div>
             <div id="bottom-tab-panel" role="tabpanel" aria-labelledby={`bottom-tab-${bottomMode}`} className="flex min-h-0 flex-1 flex-col">
             {bottomMode === "run" ? (
-              session.activeRun ? <ActiveRunPanel /> : (
+              session.activeRun ? <ActiveRunPanel onViewCaptions={() => setFocus("captions")} /> : (
                 <div className="scroll-region min-h-0 flex-1 p-3">
                   <p className="hint m-0 text-xs">还没有当前任务。使用“保存并制作”提交后会在这里显示进度、失败建议和完成结果。</p>
                 </div>
@@ -988,34 +989,44 @@ function AssetPreview({ asset }: { asset: MediaAssetVersion }) {
   return <a className="flex items-center gap-2 text-accent-text" href={mediaUrl(asset.digest)}><FileIcon />读取 {asset.name}</a>;
 }
 
-function ActiveRunPanel() {
+function ActiveRunPanel({ onViewCaptions }: { onViewCaptions: () => void }) {
   const session = useSession();
   const detail = session.runDetail?.run.id === session.activeRun ? session.runDetail : null;
   const total = detail?.nodes.length || 0;
   const completed = detail?.nodes.filter((node) => node.state === "succeeded").length || 0;
-  const peak = useRef(0);
+  const peak = useRef({ runId: session.activeRun, value: 0 });
+  if (peak.current.runId !== session.activeRun) peak.current = { runId: session.activeRun, value: 0 };
   const rawProgress = total ? Math.round(completed / total * 100) : 0;
-  const progress = Math.max(peak.current, rawProgress);
-  peak.current = progress;
-  const activeNode = detail?.nodes.find((node) => node.state === "running");
-  const stage = total ? `${completed}/${total} 节点${activeNode ? ` · ${activeNode.key}` : ""}` : "正在读取节点";
+  const progress = Math.max(peak.current.value, rawProgress);
+  peak.current.value = progress;
+  const stage = total ? `${completed}/${total} 个步骤完成` : "正在读取步骤";
+  const results = detail?.nodes.flatMap((node) => {
+    const parsed = z.object({ entries: z.array(AnalysisEntry) }).safeParse(node.result);
+    return parsed.success ? parsed.data.entries.filter((entry) => entry.kind === "asr" &&
+      (entry.locale === undefined || entry.locale === session.locale)) : [];
+  }) || [];
+  const captionsApplied = results.length > 0 && results.every((entry) =>
+    session.ctx?.analysis.find((current) => current.id === entry.id)?.captionLocales.includes(session.locale));
   return (
     <div className="scroll-region min-h-0 flex-1 p-3">
       {!detail && <p className={session.activeRunError ? "error" : "hint"}>{session.activeRunError || "正在连接作业进度…"}</p>}
       {detail && (
         <div className="flex flex-col gap-3">
           <div className="section-title">
-            <div><b>{detail.run.kind}</b><RunStatus state={detail.run.state} dot /><small className="numeric">{completed}/{total} 节点</small></div>
+            <div><b>{runKindLabel(detail.run.kind)}</b><RunStatus state={detail.run.state} dot /></div>
             <div>
-              <Button size="sm" disabled={!isActiveRun(detail.run.state)} onClick={() => void session.act(async () => { await apiCancel(detail.run.id); notifyRunsChanged(); await session.reload(); })}>取消</Button>
-              <Button size="sm" disabled={!RESUMABLE_RUN_STATES.has(detail.run.state)} onClick={() => void session.act(async () => {
+              {isActiveRun(detail.run.state) && <Button size="sm" disabled={detail.run.state === "cancelling"} onClick={() => void session.act(async () => { await apiCancel(detail.run.id); notifyRunsChanged(); await session.reload(); })}>{detail.run.state === "cancelling" ? "取消中…" : "取消"}</Button>}
+              {RESUMABLE_RUN_STATES.has(detail.run.state) && <Button size="sm" onClick={() => void session.act(async () => {
                 const resumed = await api(`/runs/${detail.run.id}/resume`, RunRecord, { method: "POST", body: {} });
                 session.setActiveRun(resumed.id);
                 session.retryActiveRun();
                 notifyRunsChanged();
                 await session.reload();
-              })}>恢复未完成步骤</Button>
-              {detail.run.kind === "analyze" && detail.run.state === "succeeded" && <Button size="sm" disabled={session.busy || session.dirty} onClick={() => void session.adoptAnalysisCaptions({ runId: detail.run.id, locale: session.locale })}>采用此次分析结果为字幕</Button>}
+              })}>继续任务</Button>}
+              {detail.run.kind === "analyze" && detail.run.state === "succeeded" && results.length > 0 && <>
+                {captionsApplied && <Badge tone="ok">字幕已生成</Badge>}
+                <Button size="sm" onClick={onViewCaptions}>查看字幕</Button>
+              </>}
             </div>
           </div>
           <ProgressBar value={detail ? progress : undefined} label="作业进度" stage={detail ? stage : "正在连接作业进度…"} />

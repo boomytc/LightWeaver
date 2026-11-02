@@ -9,7 +9,7 @@ import {
   RunRecord,
 } from "@lightweaver/weaver/contracts";
 
-export const ReviewAnalysis = AnalysisEntry.extend({ state: z.string() });
+export const ReviewAnalysis = AnalysisEntry.extend({ state: z.string(), captionLocales: z.array(z.string()).default([]) });
 export type ReviewAnalysisEntry = z.infer<typeof ReviewAnalysis>;
 
 export const Context = z.object({

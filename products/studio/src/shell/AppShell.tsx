@@ -304,7 +304,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ConfirmDialog
           open={session.jobsOpen}
           title="还有未结束的作业"
-          description="退出应用会停止这些作业。需要继续执行时，可留在应用或关窗后选择后台运行。"
+          description="退出会停止进行中的作业；留在应用可继续执行。"
           tone="danger"
           confirmLabel="停止作业并退出"
           cancelLabel="留在应用"

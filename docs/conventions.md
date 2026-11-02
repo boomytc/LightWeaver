@@ -200,7 +200,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 普通模型操作使用 `weaver models install ID --expected-revision CONFIG_REV --wait` 或 `POST /api/models/:id/install`。`GET /api/models/:id/install-plan` 返回兼容情况、模型剩余下载量、依赖预计体积和文件来源。`source.kind` 优先为 `configured`（当前配置的完整模型，附冻结路径与文件快照），其次为 `downloaded`（下载目录内已有完整文件），缺文件时为 `download`。已有模型不创建下载节点；单个 `model-setup` 作业只准备缺失组件并完整校验已有文件，`model-activate` 最后一次写入配置。采用当前模型时保留全部模型绑定，路径或文件快照变化会拒绝启用；采用下载目录时写入对应模型绑定。依赖失败、取消或配置冲突不会启用模型；失败沿完整依赖链传播，成功的独立步骤可在重试时复用。仅下载文件仍使用 CLI `models download`。
 
-Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复 / 外观”。模型页按状态提供操作：未下载时“下载并启用”，已有下载文件时“启用”，已配置但缺组件时“准备运行组件”，路径或文件异常时“检查配置”或“检查文件”；已启用模型不再显示准备按钮。提交时携带所见的 `source`，服务端在创建作业前重新核对；来源变化返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新选择操作，不把启用静默改为下载。高级区保留路径采用和校验，不重复提供下载按钮。组件维护和手工路径位于“诊断与修复”。旧 `runtime` 路由映射到诊断页。
+Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复 / 外观”。模型页按状态提供操作：未下载时“下载并启用”，已有完整文件时“启用”，已配置但缺组件时准备运行组件；已启用模型不再显示准备按钮。模型路径只读呈现当前配置，通过系统选择器选择文件或目录后自动校验并采用，不要求用户另行执行校验。提交时携带所见的 `source`，服务端在创建作业前重新核对；来源变化返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新选择操作，不把启用静默改为下载。组件维护和手工运行时路径位于“诊断与修复”。旧 `runtime` 路由映射到诊断页。
 
 Studio 的“诊断与修复 → 运行组件与修复”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及模型与语音 Python 环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
 
@@ -217,7 +217,7 @@ npx weaver schema engine-settings --json
 
 高级修复面板与 `engines setup` 提供组合操作：依次安装 transcribe 运行库、Python bindings、TEN VAD（必需），llama-server 和模型 Python 环境（可选），最后一个作业节点一次写入配置。用户不需要指定路径，也不需要先理解“下载、校验、采用”的逐步操作；已安装且校验通过的部分会复用。
 
-必需组件失败时作业失败且不写配置；可选组件失败只记录在采用节点的 `skipped` 里并继续写配置，界面显示“部分组件未完成，可重试”。两个默认关闭的选项可以把语音 Python 环境和本地模型权重一并纳入：`includeSpeech`（约 4 GB）与 `includeModels`（ASR、EmbeddingGemma、ForcedAligner 权重，约 3.7 GB，CLI 为 `--with-speech`、`--with-models`）。单个组件的安装、校验、采用、更新和手动路径收在高级设置里。
+必需组件失败时作业失败且不写配置；可选组件失败只记录在采用节点的 `skipped` 里并继续写配置，界面显示“部分组件未完成，可重试”。CLI 与自动化可用 `includeSpeech`（约 4 GB）与 `includeModels`（ASR、EmbeddingGemma、ForcedAligner 权重，约 3.7 GB，CLI 为 `--with-speech`、`--with-models`）扩展组合操作。Studio 的通用修复只处理运行组件，模型权重由模型页选择，语音环境也可在高级组件中单独安装。组件就绪且没有更新时，“刷新状态”只读取状态；已安装、已采用的组件不再显示重复安装或采用按钮。单个组件的校验、更新和手动路径收在高级设置里。
 
 开始前按未安装组件的 `estimatedBytes` 与模型剩余字节估算所需空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。已安装版本与当前发布不同时 `engines list` 的 `updates` 会列出该组件，`engines setup` 会下载新版本、替换本应用管理的目录并重新采用。引擎安装根目录可在高级设置中修改（写 `engine_install_root`）；已安装目录不会自动搬迁，下一次一键配置会安装到新目录。可用空间与更新列表通过 `GET /api/engines` 返回。
 

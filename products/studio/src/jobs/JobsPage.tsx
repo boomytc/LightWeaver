@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EngineSetupResult, RunRecord, z } from "@lightweaver/weaver/contracts";
 import { api } from "../api";
-import { runLabel } from "../domain/format";
+import { runLabel, runKindLabel } from "../domain/format";
 import { isActiveRun, RESUMABLE_RUN_STATES, RunDetail } from "../domain/run";
 import { useRunStream } from "./useRunStream";
 import { notifyRunsChanged, useRunList } from "./useRunList";
@@ -16,23 +16,6 @@ import { Badge } from "../ui/Badge";
 import { JobsIcon, ProjectIcon, RefreshIcon } from "../ui/Icons";
 
 type Filter = "all" | "active" | "resumable" | "completed";
-
-const kindLabels: Record<string, string> = {
-  build: "影片制作",
-  analyze: "素材分析",
-  "reference-match": "参考成片匹配",
-  "semantic-search": "语义检索",
-  "visual-search": "画面检索",
-  capture: "网页捕获",
-  "import-proposal": "导入候选方案",
-  "import-analysis": "导入分析结果",
-  "model-download": "模型下载",
-  "model-setup": "下载并启用模型",
-  "engine-install": "引擎安装",
-  "engine-setup": "本地运行环境配置",
-  "caption-translate": "字幕翻译",
-  "caption-speakers": "说话人分段",
-};
 
 const engineRoleLabels: Record<string, string> = {
   "transcribe-native": "transcribe 运行库",
@@ -50,10 +33,6 @@ function nodeLabel(key: string): string {
   const match = /^install-(.+)$/.exec(key);
   if (!match) return key;
   return `安装 ${engineRoleLabels[match[1]] || match[1]}`;
-}
-
-function kindLabel(kind: string): string {
-  return kindLabels[kind] || kind;
 }
 
 function skippedMessages(result: unknown) {
@@ -172,7 +151,7 @@ export function JobsPage() {
               <button key={run.id} type="button" className={`row-item ${selected === run.id ? "is-on" : ""}`} onClick={() => selectRun(run.id)}>
                 <span className="dropzone-icon size-8"><JobsIcon /></span>
                 <span className="row-item-copy">
-                  <span className="flex items-center gap-2"><b>{kindLabel(run.kind)}</b><RunBadge state={run.state} /></span>
+                  <span className="flex items-center gap-2"><b>{runKindLabel(run.kind)}</b><RunBadge state={run.state} /></span>
                   <small className="numeric mt-1">{run.id.slice(0, 12)}{run.projectId ? ` · ${run.projectId}` : ""}</small>
                 </span>
               </button>
@@ -186,15 +165,15 @@ export function JobsPage() {
             <div className="narrow-content flex flex-col gap-4">
               <div className="section-title items-start">
                 <div className="flex-col gap-1" data-align="start">
-                  <div className="flex flex-wrap items-center gap-2"><h2 className="m-0">{kindLabel(selectedRun.kind)}</h2><RunBadge state={selectedRun.state} /></div>
+                  <div className="flex flex-wrap items-center gap-2"><h2 className="m-0">{runKindLabel(selectedRun.kind)}</h2><RunBadge state={selectedRun.state} /></div>
                   <small className="numeric">作业 {selectedRun.id}</small>
                 </div>
                 <div className="flex flex-wrap justify-end gap-1.5">
                   {selectedRun.projectId && <Button size="sm" variant="ghost" onClick={() => void session.navigate("projects", selectedRun.projectId || "")}><ProjectIcon />打开项目</Button>}
                   {["engine-setup", "engine-install"].includes(selectedRun.kind) && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "diagnostics")}>打开诊断与修复</Button>}
                   {selectedRun.kind === "model-setup" && <Button size="sm" variant="ghost" onClick={() => void session.navigate("settings", "", "models")}>打开模型</Button>}
-                  <Button size="sm" disabled={!isActiveRun(selectedRun.state)} onClick={() => void changeRun("cancel", selectedRun.id)}>取消</Button>
-                  <Button size="sm" disabled={!RESUMABLE_RUN_STATES.has(selectedRun.state)} onClick={() => void changeRun("resume", selectedRun.id)}>{selectedRun.kind === "model-setup" && selectedRun.error?.code === "CONFIG_CONFLICT" ? "重新启用" : "恢复"}</Button>
+                  {isActiveRun(selectedRun.state) && <Button size="sm" disabled={selectedRun.state === "cancelling"} onClick={() => void changeRun("cancel", selectedRun.id)}>{selectedRun.state === "cancelling" ? "取消中…" : "取消"}</Button>}
+                  {RESUMABLE_RUN_STATES.has(selectedRun.state) && <Button size="sm" onClick={() => void changeRun("resume", selectedRun.id)}>{selectedRun.kind === "model-setup" && selectedRun.error?.code === "CONFIG_CONFLICT" ? "重新启用" : "继续任务"}</Button>}
                 </div>
               </div>
               {detail && (
@@ -207,7 +186,7 @@ export function JobsPage() {
               {stream.error && <p className="error m-0">{stream.error}</p>}
               {selectedRun.error && <div className="rounded-md border border-danger-line bg-danger-bg p-3 text-danger"><b>作业错误</b><p className="m-0 mt-1">{selectedRun.error.message}</p></div>}
               <dl className="key-value-list panel-card px-4">
-                <dt>作业类型</dt><dd>{kindLabel(selectedRun.kind)} · {selectedRun.kind}</dd>
+                <dt>作业类型</dt><dd>{runKindLabel(selectedRun.kind)} · {selectedRun.kind}</dd>
                 <dt>当前状态</dt><dd>{runLabel(selectedRun.state)}</dd>
                 <dt>所属项目</dt><dd>{selectedRun.projectId || "无项目"}</dd>
                 <dt>更新时间</dt><dd className="numeric">{selectedRun.updatedAt}</dd>

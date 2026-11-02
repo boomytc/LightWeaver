@@ -154,11 +154,6 @@ function formatBytes(bytes: number) {
   return `${bytes} B`;
 }
 
-/** 勾选项的粗略体积，按整数 GB 展示。 */
-function approxGb(bytes: number) {
-  return `${Math.max(1, Math.round(bytes / GIB))} GB`;
-}
-
 function skippedLabel(id: string, view: EngineViewValue) {
   if (id.startsWith("model:")) {
     const modelId = id.slice("model:".length);
@@ -302,8 +297,6 @@ function SetupPanel({
   onRefresh: () => Promise<void>;
 }) {
   const session = useSession();
-  const [includeSpeech, setIncludeSpeech] = useState(false);
-  const [includeModels, setIncludeModels] = useState(false);
   const setup = useSetupRun(() => view.settings.revision, onRefresh);
   const items = setupItems(view);
   const rows = items.map((item) => {
@@ -312,31 +305,21 @@ function SetupPanel({
       item,
       status: current,
       ready: current?.usage === "bundled" || current?.usage === "managed" || current?.usage === "external",
-      managed:
-        current?.usage === "bundled" || current?.usage === "managed" || current?.usage === "managed-unused",
     };
   });
   const ready = rows.length > 0 && rows.every((row) => row.ready);
-  const managedAll = rows.length > 0 && rows.every((row) => row.managed);
+  const needsSetup = !ready || view.updates.length > 0;
   const busy = setup.active || setup.starting;
   const failed =
     setup.run !== null &&
     !setup.active &&
     setup.run.state !== "succeeded";
   const catalog = new Map(view.catalog.items.map((item) => [item.id, item]));
-  const speech = catalog.get("python-speech");
-  const speechInstalled =
-    statuses.get("python-speech")?.status.state === "installed";
-  const modelBytes = view.models.reduce((total, model) => total + model.bytes, 0);
   const missingEngineBytes = items.reduce((total, item) => {
     const installed = statuses.get(item.id)?.status.state === "installed";
     return installed ? total : total + item.estimatedBytes;
   }, 0);
-  const requiredBytes =
-    missingEngineBytes +
-    (includeSpeech && !speechInstalled ? speech?.estimatedBytes || 0 : 0) +
-    (includeModels ? modelBytes : 0) +
-    SPACE_MARGIN_BYTES;
+  const requiredBytes = missingEngineBytes + SPACE_MARGIN_BYTES;
   const diskFree = view.diskFreeBytes;
   const insufficient = diskFree !== null && requiredBytes > diskFree;
   const updateNames = view.updates.map(
@@ -350,15 +333,13 @@ function SetupPanel({
   const partial = setup.run?.state === "succeeded" && skipped.length > 0;
   const label = busy
     ? "配置中…"
-    : partial
-      ? "继续配置"
-      : view.updates.length > 0
-        ? "更新并配置"
-        : ready && managedAll
-          ? "重新检查并修复"
-          : failed
-            ? "重试配置"
-            : "检查并修复";
+    : !needsSetup
+      ? "刷新状态"
+      : partial
+        ? "继续修复"
+        : view.updates.length > 0
+          ? "更新并配置"
+          : failed ? "重试配置" : "检查并修复";
   const readyCount = rows.filter((row) => row.ready).length;
   const externalCount = rows.filter((row) => row.status?.usage === "external").length;
   const missingCount = rows.filter(
@@ -382,11 +363,11 @@ function SetupPanel({
             <Button type="button" onClick={() => void setup.cancel()}>取消配置</Button>
           ) : (
             <Button
-              variant="primary"
+              variant={needsSetup ? "primary" : "secondary"}
               type="button"
-              disabled={setup.starting || insufficient}
+              disabled={setup.starting || needsSetup && insufficient}
               aria-label={label}
-              onClick={() => void setup.start({ includeSpeech, includeModels })}
+              onClick={() => { if (needsSetup) void setup.start({ includeSpeech: false, includeModels: false }); else void onRefresh(); }}
             >
               {label}
             </Button>
@@ -399,56 +380,18 @@ function SetupPanel({
         {missingCount > 0 && <small>未配置 {missingCount}</small>}
         {view.updates.length > 0 && <small>可更新 {view.updates.length}</small>}
       </div>
-      <p className="hint m-0">
-        一键配置会下载并校验固定版本产物、自动写入配置；勾选项会额外占用磁盘空间，语音环境体积大、默认关闭。
-      </p>
-      <div className="flex flex-col gap-2">
-        {speech && (
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={includeSpeech}
-              disabled={busy || !speech.available}
-              onChange={(event) => setIncludeSpeech(event.target.checked)}
-            />
-            <span>
-              同时创建语音 Python 环境（约 {approxGb(speech.estimatedBytes)}）
-              {!speech.available
-                ? "：当前平台不可用"
-                : speechInstalled
-                  ? "，已安装，勾选会重新校验并更新"
-                  : ""}
-            </span>
-          </label>
-        )}
-        {view.models.length > 0 && (
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={includeModels}
-              disabled={busy}
-              onChange={(event) => setIncludeModels(event.target.checked)}
-            />
-            <span>
-              同时下载并采用本地模型权重（
-              {view.models.map((model) => model.name).join("、")}，约{" "}
-              {formatBytes(modelBytes)}）
-            </span>
-          </label>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {needsSetup && <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {diskFree !== null && <small>引擎目录可用 {formatBytes(diskFree)}</small>}
         {requiredBytes > SPACE_MARGIN_BYTES ? (
           <small>本次预计需要 {formatBytes(requiredBytes)}（含 256 MB 余量）</small>
         ) : (
           <small>无需额外下载空间（仍预留 256 MB 余量）。</small>
         )}
-      </div>
-      {insufficient && diskFree !== null && (
+      </div>}
+      {needsSetup && insufficient && diskFree !== null && (
         <small className="error" role="alert">
           磁盘空间不足：预计需要 {formatBytes(requiredBytes)}，引擎目录可用{" "}
-          {formatBytes(diskFree)}。清理空间或取消勾选后重试。
+          {formatBytes(diskFree)}。清理空间或更换组件目录后重试。
         </small>
       )}
       {updateNames.length > 0 && (
@@ -513,15 +456,15 @@ function SetupPanel({
           )}
         </div>
       )}
-      {ready && managedAll && !setup.run && (
+      {ready && !setup.run && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-          <small>本地运行环境已就绪；再次点击会重新校验并修复，不会重复下载。</small>
+          <small>运行组件已就绪。</small>
           <Button
             size="sm"
             type="button"
             onClick={() => void session.navigate("settings", "", "models")}
           >
-            去选择模型权重
+            选择模型
           </Button>
         </div>
       )}
@@ -769,7 +712,7 @@ function InstallRootEditor({
       await onRefresh();
       window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
       session.setNotice(
-        "引擎根目录已更新；已有引擎目录不会自动移动，下一次一键配置会安装到新目录",
+        "组件存储目录已更新，已有文件保留原位。",
       );
     } catch (reason) {
       session.handleError(reason);
@@ -785,16 +728,16 @@ function InstallRootEditor({
       value={draft}
       disabled={saving}
       placeholder="留空使用内置默认目录"
-      hint={`当前生效：${value}（${sourceName(source)}）。留空保存会恢复内置默认；已有引擎目录不会自动移动。`}
+      hint="已有文件不会随目录设置自动移动。"
       onChange={(event) => setDraft(event.target.value)}
       actions={
         <>
-          <Button type="button" disabled={saving} onClick={() => void save(draft)}>
+          <Button type="button" disabled={saving || draft.trim() === value.trim()} onClick={() => void save(draft)}>
             {saving ? "保存中…" : "保存"}
           </Button>
-          <Button type="button" disabled={saving} onClick={() => void save("")}>
-            恢复默认
-          </Button>
+          {source === "file" && <Button type="button" disabled={saving} onClick={() => void save("")}>
+            清除本地设置
+          </Button>}
         </>
       }
     />

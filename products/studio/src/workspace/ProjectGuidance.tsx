@@ -29,12 +29,12 @@ export function ProjectGuidance({
   const workflow = WORKFLOWS.find((item) => item.id === workflowId);
   const steps: GuidanceStep[] = [
     { target: "storyboard", label: "场景", count: scenes, done: scenes > 0 },
-    { target: "assets", label: "素材", count: assets, done: assets > 0 },
+    ...(assets > 0 ? [{ target: "assets" as const, label: "素材", count: assets, done: true }] : []),
     { target: "delivery", label: "交付", count: deliveries, done: deliveries > 0 },
   ];
   const next = steps.find((step) => !step.done);
   if (dismissed || !next) return null;
-  const nextLabel = next.target === "storyboard" ? "添加第一个场景" : next.target === "assets" ? "导入素材" : "查看交付";
+  const nextLabel = next.target === "storyboard" ? "添加第一个场景" : "准备制作与交付";
   return (
     <section
       className="flex items-center gap-3 border-b border-line bg-subtle-bg px-3 py-1.5"

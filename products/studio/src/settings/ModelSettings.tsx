@@ -578,6 +578,9 @@ export function ModelSettings({
       event.runId === runId && ["model-download-progress", "engine-install-progress", "model-setup-progress"].includes(event.type),
     ),
     activeRun = view.downloads.find((item) => ["queued", "running", "cancelling"].includes(item.state));
+  const presetActive = view.settings.values.vlmProvider.value === "modelbest-vlm" &&
+    view.settings.values.vlmModel.value === provider.models[0]?.id &&
+    view.settings.values.ttsModel.value === provider.models[1]?.id;
   const selectedLocal = selection?.kind === "local"
     ? local.find((item) => item.model.id === selectedModel)
     : undefined;
@@ -666,7 +669,7 @@ export function ModelSettings({
                   选择目录
                 </Button>
                 <Button
-                  disabled={!root || !!busy}
+                  disabled={!root.trim() || root === view.settings.downloadRoot.value || !!busy}
                   onClick={() =>
                     act("保存路径", () => saveSettings({ downloadRoot: root }))
                   }
@@ -716,7 +719,7 @@ export function ModelSettings({
                 </div>
               ))}
             </div>
-            <div className="flex flex-col gap-1">
+            {!presetActive && <div className="flex flex-col gap-1">
               {[
                 ["vlmProvider", "VLM 提供方"],
                 ["vlmModel", "VLM 型号"],
@@ -725,13 +728,13 @@ export function ModelSettings({
                 const value = view.settings.values[key];
                 return (
                   <small key={key}>
-                    {label}：{value.value || "未设置"} · 来源 {value.source}
+                    {label}：{value.value || "未设置"}
                   </small>
                 );
               })}
-            </div>
+            </div>}
             <div className="border-t border-line pt-4">
-              <Button
+              {presetActive ? <Badge tone="ok" dot>预设已启用</Badge> : <Button
                 disabled={!!busy}
                 onClick={() =>
                   act("采用 ModelBest 预设", async () => {
@@ -746,7 +749,7 @@ export function ModelSettings({
                 }
               >
                 采用 ModelBest 预设
-              </Button>
+              </Button>}
             </div>
             <div className="inline-fields border-t border-line pt-4">
               <label className="field">
@@ -759,22 +762,22 @@ export function ModelSettings({
                   onChange={(event) => setApiKey(event.target.value)}
                 />
                 <small>
-                  当前来源：{view.settings.apiKeys.modelbest.source}。保存后立即生效；
-                  清除本地配置中的密钥后，会回退到环境变量{" "}
-                  {provider.apiKeyEnv}，未设置则为未配置。密钥不会回显或写入浏览器存储。
+                  {view.settings.apiKeys.modelbest.source === "environment"
+                    ? "当前使用环境变量中的密钥，可在此保存新密钥覆盖。"
+                    : "保存后立即生效，密钥不会回显。"}
                 </small>
               </label>
               <Button
                 variant="primary"
-                disabled={!apiKey || !!busy}
+                disabled={!apiKey.trim() || !!busy}
                 onClick={() =>
                   act("保存密钥", () => saveSettings({ modelbestApiKey: apiKey }))
                 }
               >
                 保存密钥
               </Button>
-              <Button
-                disabled={!provider.apiKeyConfigured || !!busy}
+              {view.settings.apiKeys.modelbest.source === "file" && <Button
+                disabled={!!busy}
                 onClick={() =>
                   act("清除密钥", () =>
                     saveSettings({ clearModelbestApiKey: true }),
@@ -782,7 +785,7 @@ export function ModelSettings({
                 }
               >
                 清除本地配置中的密钥
-              </Button>
+              </Button>}
             </div>
           </section>
         </>

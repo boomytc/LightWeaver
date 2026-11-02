@@ -85,16 +85,15 @@ function modeFor(cues: Cue[]): Track["mode"] {
     : "manual";
 }
 
+export function sourceCaptionId(entry: Entry): string {
+  return `source-${digest({ projectId: entry.projectId, source: entry.source, analysisId: entry.id, range: entry.range })}`;
+}
+
 export function sourceCues(entries: Entry[]): Cue[] {
   return entries.map((entry) => {
     const sourceText = entry.sourceText ?? entry.text;
     return CaptionCue.parse({
-      id: `source-${digest({
-        projectId: entry.projectId,
-        source: entry.source,
-        analysisId: entry.id,
-        range: entry.range,
-      })}`,
+      id: sourceCaptionId(entry),
       text: sourceText,
       timingQuality: entry.timingQuality,
       provenance: `${entry.model}/${entry.evidenceDigest}`,

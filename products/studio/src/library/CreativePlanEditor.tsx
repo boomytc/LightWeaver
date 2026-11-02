@@ -163,12 +163,12 @@ export function CreativePlanEditor({
   const importPlan = () => {
     applyRawPlan(importText);
   };
+  const scenesMatchPlan = !!plan && JSON.stringify(projectScenes) === JSON.stringify(plan.beats.map((beat) => beat.scene));
   return (
     <div className="flex flex-col gap-4">
       <ViewHeader
         title="创作方案蓝图"
-        description="方案是随项目修订保存的创作草案。只有点击“应用到当前场景”后，方案节拍才会成为可独立编辑的场景，之后不会自动同步。"
-        actions={<small className="hint">建立 / 导入 → 保存蓝图 → 应用到场景</small>}
+        description="先保存方案，再应用到场景；应用后可分别编辑。"
       />
       {plan && (
         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-y border-line bg-panel px-5 py-2">
@@ -177,21 +177,21 @@ export function CreativePlanEditor({
             {projectDirty && <small>先保存项目草稿，再保存或应用方案。</small>}
           </div>
           <div className="actions">
-            <Button
+            {planDirty && <Button
               variant="primary"
               disabled={busy || projectDirty || !planDirty}
               onClick={onSave}
             >
               保存方案蓝图
-            </Button>
-            <Button
+            </Button>}
+            {scenesMatchPlan && !planDirty ? <Badge tone="ok" dot>场景已同步</Badge> : <Button
               disabled={
                 busy || projectDirty || planDirty || !plan.beats.length
               }
               onClick={onApply}
             >
               应用到当前场景
-            </Button>
+            </Button>}
           </div>
         </div>
       )}

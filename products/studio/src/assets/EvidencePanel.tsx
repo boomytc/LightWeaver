@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Proposal, refKey, z, type MediaAssetVersion } from "@lightweaver/weaver/contracts";
 import { mediaUrl, requestId } from "../api";
-import { localeName } from "../domain/format";
+import { labels, localeName } from "../domain/format";
 import type { SourceWindow } from "../domain/time";
 import { SourceWindowPlayer } from "../scenes/SourceWindowPlayer";
 import { useSession } from "../session/context";
@@ -29,27 +29,32 @@ export function EvidencePanel() {
   const [allowReuse, setAllowReuse] = useState<Record<string, boolean>>({});
   if (!draft || !ctx) return null;
   const analysisAssets = ctx.assets.filter((asset) => asset.kind === "video" || asset.kind === "audio");
-  const source = analysisSource || analysisAssets[0]?.assetId || "";
+  const availableSources = analysisKind === "describe" ? analysisAssets.filter((asset) => asset.kind === "video") : analysisAssets;
+  const source = availableSources.some((asset) => asset.assetId === analysisSource) ? analysisSource : availableSources[0]?.assetId || "";
   const asrReady = session.providers.some((provider) => provider.capabilities.includes("asr") && provider.ready);
   const alignmentReady = session.providers.some(
     (provider) => provider.capabilities.includes("alignment") && provider.ready,
   );
   const describeProviders = session.providers.filter((provider) => provider.capabilities.includes("describe"));
+  const describeReady = describeProviders.some((provider) => provider.id === vlmProvider && provider.ready);
   const manual = ctx.analysis.filter((entry) => entry.kind === "manual");
   const observed = ctx.analysis.filter((entry) => entry.kind !== "manual");
-  const missing = analysisKind === "describe"
-    ? ""
-    : !source
-      ? "先选择源素材。"
+  const missing = !source
+      ? analysisKind === "describe" ? "请先导入视频素材。" : "请先导入视频或音频素材。"
+      : analysisKind === "describe" ? describeReady ? "" : "请先配置画面观察模型。"
       : !asrReady
         ? "缺少已就绪的 ASR。"
         : analysisKind === "align" && !alignmentReady
           ? "缺少已就绪的精确对齐，不会退回估算时间。"
           : "";
-  const canStart = analysisKind === "describe"
-    ? !session.busy
-    : !session.busy && !!source && asrReady && (analysisKind !== "align" || alignmentReady);
+  const canStart = !session.busy && !missing;
+  const captionSources = new Map<string, string>();
+  for (const entry of observed)
+    if (entry.kind === "asr" && entry.state === "current" && entry.timingQuality === "aligned" &&
+      (entry.locale === undefined || entry.locale === session.locale) && !captionSources.has(refKey(entry.source)))
+      captionSources.set(refKey(entry.source), entry.id);
   const startAnalysis = () => {
+    if (!canStart) return;
     if (analysisKind === "describe") {
       void session.act(() =>
         session.submitJob(`/projects/${draft.id}/analyze`, {
@@ -75,14 +80,14 @@ export function EvidencePanel() {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="section-title flex-wrap">
-        <h3 className="m-0 text-[13px] font-semibold text-ink">分析作业控制</h3>
-        <Badge tone={asrReady ? "ok" : "warn"} dot>{asrReady ? "转写已就绪" : "需要模型配置"}</Badge>
+        <h3 className="m-0 text-[13px] font-semibold text-ink">素材分析</h3>
+        <Badge tone={!missing ? "ok" : "warn"} dot>{!source ? "需要素材" : missing ? "需要模型配置" : "可以分析"}</Badge>
       </div>
       <div className="subtle-card flex flex-col gap-3 p-3">
         <Field label="分析源片或音轨">
           <NativeSelect value={source} onChange={(event) => setAnalysisSource(event.target.value)}>
             <option value="">先选择源素材</option>
-            {analysisAssets.map((asset) => (
+            {availableSources.map((asset) => (
               <option key={asset.version} value={asset.assetId}>
                 {asset.name}
               </option>
@@ -120,22 +125,17 @@ export function EvidencePanel() {
             disabled={!canStart}
             onClick={startAnalysis}
           >
-            开始分析
+            {session.busy ? "处理中…" : "开始分析"}
           </Button>
         </div>
         {missing && (
           <div className="flex flex-col gap-2">
             <p className="hint m-0 text-xs">{missing}</p>
-            <div className="actions">
+            {source && <div className="actions">
               <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "models")}>
                 打开模型设置
               </Button>
-              {analysisKind === "align" && !alignmentReady && source && asrReady && (
-                <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "runtime")}>
-                  查看运行时
-                </Button>
-              )}
-            </div>
+            </div>}
           </div>
         )}
       </div>
@@ -157,15 +157,15 @@ export function EvidencePanel() {
         )}
       </div>
       <div className="flex flex-col gap-1">
-        <h3 className="m-0 text-[13px] font-semibold text-ink">观察</h3>
+        <h3 className="m-0 text-[13px] font-semibold text-ink">分析结果</h3>
         {observed.length === 0 && <p className="hint m-0 text-xs">尚无观察记录。</p>}
         {observed.length > 0 && (
           <ul className="m-0 flex list-none flex-col p-0">
             {observed.map((entry) => (
               <li className="flex flex-col gap-2 border-b border-line py-2 last:border-0" key={entry.id}>
                 <small className="numeric">
-                  {entry.kind} · {(entry.range.startUs / 1e6).toFixed(2)}–
-                  {((entry.range.startUs + entry.range.durationUs) / 1e6).toFixed(2)} 秒 · {entry.state} · {entry.timingQuality}
+                  {labels[entry.kind] || entry.kind} · {(entry.range.startUs / 1e6).toFixed(2)}–
+                  {((entry.range.startUs + entry.range.durationUs) / 1e6).toFixed(2)} 秒 · {labels[entry.state] || entry.state} · {labels[entry.timingQuality] || entry.timingQuality}
                 </small>
                 <p className="m-0 text-xs">{entry.text}</p>
                 {entry.sourceText && entry.sourceText !== entry.text && (
@@ -174,19 +174,16 @@ export function EvidencePanel() {
                     <p className="m-0 mt-1 text-xs">{entry.sourceText}</p>
                   </div>
                 )}
-                {entry.kind === "asr" &&
-                  entry.state === "current" &&
-                  entry.timingQuality === "aligned" &&
-                  (entry.locale === undefined || entry.locale === session.locale) && (
+                {captionSources.get(refKey(entry.source)) === entry.id && (
                     <div>
-                      <Button
+                      {entry.captionLocales.includes(session.locale) ? <Badge tone="ok" dot>字幕已生成</Badge> : <Button
                         size="sm"
                         type="button"
                         disabled={session.busy || session.dirty}
                         onClick={() => void session.adoptAnalysisCaptions({ sourceId: entry.source.assetId, locale: session.locale })}
                       >
-                        采用为{localeName(session.locale)}字幕
-                      </Button>
+                        生成{localeName(session.locale)}字幕
+                      </Button>}
                     </div>
                   )}
               </li>
@@ -210,13 +207,13 @@ export function EvidencePanel() {
             <option value="visual">画面检索</option>
           </NativeSelect>
           <div>
-            <Button size="sm" type="button" onClick={() => void session.searchCandidates(query, mode)}>
+            <Button size="sm" type="button" disabled={!query.trim() || session.busy || session.dirty} onClick={() => void session.searchCandidates(query, mode)}>
               查询候选
             </Button>
           </div>
         </div>
       </div>
-      <Field label="参考成片反向匹配">
+      {ctx.assets.filter((asset) => asset.kind === "video").length >= 2 && <Field label="参考成片反向匹配">
         <NativeSelect
           defaultValue=""
           onChange={(event) => {
@@ -235,7 +232,7 @@ export function EvidencePanel() {
               </option>
             ))}
         </NativeSelect>
-      </Field>
+      </Field>}
       {ctx.proposals.map((proposal) => {
         const stale = proposal.revision !== session.base;
         const suggested = proposal.candidates.filter((candidate) => !proposal.selections.includes(candidate.id));
@@ -248,7 +245,7 @@ export function EvidencePanel() {
             </summary>
             {stale && (
               <p className="hint mt-2 mb-0 text-xs">
-                此候选基于修订 {proposal.revision.slice(0, 16)}，当前修订是 {session.base.slice(0, 16)}。重新查询后才能应用。
+                项目已更新，请重新检索后加入场景。
               </p>
             )}
             <h4 className="mt-3 mb-1 text-xs font-semibold text-ink">建议</h4>
@@ -324,7 +321,7 @@ function Candidate({
           checked={!!allowReuse[rangeKey]}
           onChange={(event) => setAllowReuse((current) => ({ ...current, [rangeKey]: event.target.checked }))}
         />
-        允许与已有场景复用重叠源窗
+        允许重复使用已选片段
       </label>
       <div>
         <Button
@@ -340,7 +337,7 @@ function Candidate({
             })
           }
         >
-          应用此源窗
+          加入场景
         </Button>
       </div>
     </article>

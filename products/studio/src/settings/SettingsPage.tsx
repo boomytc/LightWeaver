@@ -116,13 +116,12 @@ export function SettingsPage() {
                 <div>
                   <h2 id="appearance-title" className="m-0">外观</h2>
                   <p className="hint m-0 mt-1">
-                    主题由左下角的浅色、跟随系统与深色切换控制；这里只显示当前选择。
+                    在左下角切换主题，即时生效。
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
                   <span className="text-xs font-medium text-muted">当前主题</span>
                   <Badge tone="accent" dot>{themeLabel[session.client.theme]}</Badge>
-                  <small className="hint">在左下角切换，选择会立即生效并保存在本机客户端状态与桌面偏好。</small>
                 </div>
               </section>
             </Tabs.Content>
@@ -160,6 +159,7 @@ function StoragePanel() {
           const bridge = desktop();
           const picked = await bridge?.pickDirectory?.();
           if (!picked || !bridge?.setPreferences || !bridge.restartRuntime) return;
+          if (picked.replace(/[/\\]+$/, "") === runtime.dataDir.replace(/[/\\]+$/, "")) return;
           await bridge.setPreferences({ dataDir: picked });
           await bridge.restartRuntime();
         })().catch((reason) => session.handleError(reason))}>更换工作区并重启</Button>
@@ -210,7 +210,9 @@ function RuntimeSection() {
     };
   }, []);
   if (!runtime || !settings) return <p>加载运行时…</p>;
+  const changed = JSON.stringify(fields) !== JSON.stringify(runtimeFieldValues(settings));
   const save = async () => {
+    if (!changed || saving) return;
     setSaving(true);
     try {
       const submittedFields = fields;
@@ -277,26 +279,6 @@ function RuntimeSection() {
             <div className="contents" key={label}><dt>{label}</dt><dd className="numeric">{value}</dd></div>
           ))}
         </dl>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <small className="hint">更换数据目录会停止当前作业并重启服务；正在使用的数据库不会被替换，原来的目录保留。</small>
-          {desktop()?.pickDirectory && desktop()?.setPreferences && desktop()?.restartRuntime ? (
-            <Button
-              type="button"
-              onClick={() =>
-                void desktop()?.pickDirectory?.().then(async (picked) => {
-                  const bridge = desktop();
-                  if (!picked || !bridge?.setPreferences || !bridge.restartRuntime) return;
-                  await bridge.setPreferences({ dataDir: picked });
-                  await bridge.restartRuntime();
-                }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)))
-              }
-            >
-              选择数据目录并重启
-            </Button>
-          ) : (
-            <small className="hint">浏览器里的数据目录由启动命令决定。</small>
-          )}
-        </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
           <small className="font-medium">运行组件</small>
           {Object.entries(runtime.tools).map(([name, ready]) => (
@@ -345,7 +327,7 @@ function RuntimeSection() {
             }} />
           </label>
           <div className="actions">
-            <Button variant="primary" type="button" disabled={saving} onClick={() => void save()}>{saving ? "保存中…" : "保存运行时路径"}</Button>
+            <Button variant="primary" type="button" disabled={saving || !changed} onClick={() => void save()}>{saving ? "保存中…" : changed ? "保存运行时路径" : "路径已保存"}</Button>
             {desktop()?.pickModelFile && desktop()?.setPreferences && desktop()?.restartRuntime && (
               <Button
                 type="button"

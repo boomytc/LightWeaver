@@ -69,6 +69,7 @@ import {
 import {
   mergeSourceCaptionTrack,
   selectSourceEntries,
+  sourceCaptionId,
   sourceCues,
 } from "./source-captions.ts";
 
@@ -315,11 +316,27 @@ export class Analysis {
   }
   list(projectId: string) {
     const p = this.projects.read(projectId);
-    return this.evidence(projectId).map((e) => ({
+    const entries = this.evidence(projectId), sourceKeys = new Set(p.document.assets.map(refKey));
+    const captionLocales = new Map<string, string[]>();
+    for (const track of p.document.captions) {
+      const cueIds = new Set(track.cues.map((cue) => cue.id));
+      const expected = selectSourceEntries({ entries, sourceKeys, locale: track.locale });
+      const bySource = new Map<string, typeof expected>();
+      for (const entry of expected) {
+        const key = refKey(entry.source), sourceEntries = bySource.get(key) || [];
+        sourceEntries.push(entry);
+        bySource.set(key, sourceEntries);
+      }
+      for (const [key, cues] of bySource)
+        if (cues.every((entry) => cueIds.has(sourceCaptionId(entry))))
+          captionLocales.set(key, [...(captionLocales.get(key) || []), track.locale]);
+    }
+    return entries.map((e) => ({
       ...e,
-      state: p.document.assets.some((r) => refKey(r) === refKey(e.source))
+      state: sourceKeys.has(refKey(e.source))
         ? "current"
         : "historical",
+      captionLocales: captionLocales.get(refKey(e.source)) || [],
     }));
   }
   async submit(input: {

@@ -30,14 +30,16 @@ const kindLabel: Record<ExportKind, string> = {
   file: "视频文件",
   otio: "OTIO",
   jianying: "剪映草稿",
-  bundle: "bundle",
+  bundle: "项目包",
 };
+const canExportDelivery = (delivery: DeliveryRecord | undefined) => !!delivery &&
+  ["current", "stale", "historical"].includes(delivery.state) && !!delivery.artifacts.video;
 
 const artifactKeys = ["srt", "ass", "manifest", "receipt", "audio"] as const;
 
 const deliveryGroups = [
   { state: "current", label: "当前", tone: "ok", hint: "与当前修订一致，可直接导出" },
-  { state: "stale", label: "已过期", tone: "warn", hint: "仍是当前发布版本，但作者内容已更新，需重新制作" },
+  { state: "stale", label: "内容已更新", tone: "warn", hint: "可导出这份成片，或重新制作以包含最新修改" },
   { state: "historical", label: "历史", tone: "neutral", hint: "同目标的旧发布版本，保留用于核对" },
   { state: "missing", label: "缺失", tone: "danger", hint: "文件缺失或摘要不符，不能用于导出" },
 ] as const;
@@ -61,6 +63,8 @@ export function DeliveryPanel() {
       ? deliveryChoice.deliveryId
       : ctx.deliveries.find((delivery) => delivery.state === "current")?.id || "";
   const chosen = ctx.deliveries.find((delivery) => delivery.id === deliveryId);
+  const exportReady = canExportDelivery(chosen);
+  const unsaved = session.dirty || session.planDirty;
   const knownStates = new Set<string>(deliveryGroups.map((group) => group.state));
   const otherDeliveries = ctx.deliveries.filter((delivery) => !knownStates.has(delivery.state));
   const groups = [
@@ -128,6 +132,7 @@ export function DeliveryPanel() {
   };
 
   const start = async (kind: ExportKind) => {
+    if (exporting || (kind === "bundle" ? unsaved : !exportReady)) return;
     const bridge = desktop();
     const suggested = `${draft.title || "lightweaver"}${kind === "otio" ? ".otio" : kind === "file" ? ".mp4" : ""}`;
     if ((kind === "file" || kind === "bundle") && bridge?.pickExportFile) {
@@ -150,13 +155,13 @@ export function DeliveryPanel() {
     <div className="narrow-content flex min-w-0 flex-col gap-5">
       <ViewHeader title="交付规格" description="选择输出语言与画幅，逐项确认帧率、字幕和响度目标。" />
       <div className="sticky -top-5 z-10 flex flex-wrap items-center gap-2 border-b border-line bg-panel py-3">
-        <Button variant="primary" type="button" disabled={exporting !== null} onClick={() => void start("file")}>
+        <Button variant="primary" type="button" disabled={exporting !== null || !exportReady} onClick={() => void start("file")}>
           {exporting === "file" ? "正在导出视频…" : "导出视频"}
         </Button>
         <Menu label="更多导出">
-          <MenuItem disabled={exporting !== null} onSelect={() => void start("otio")}>导出 OTIO 时间线</MenuItem>
-          <MenuItem disabled={exporting !== null} onSelect={() => void start("jianying")}>导出剪映草稿</MenuItem>
-          <MenuItem disabled={exporting !== null} onSelect={() => void start("bundle")}>导出 bundle 压缩包</MenuItem>
+          <MenuItem disabled={exporting !== null || !exportReady} onSelect={() => void start("otio")}>导出 OTIO 时间线</MenuItem>
+          <MenuItem disabled={exporting !== null || !exportReady} onSelect={() => void start("jianying")}>导出剪映草稿</MenuItem>
+          <MenuItem disabled={exporting !== null || unsaved} onSelect={() => void start("bundle")}>导出项目包</MenuItem>
         </Menu>
         <Button
           type="button"
@@ -168,13 +173,13 @@ export function DeliveryPanel() {
         <div className="ml-auto flex min-w-0 flex-col items-end gap-0.5">
           {exporting && exporting !== "file" && <small className="hint text-xs">正在导出{kindLabel[exporting]}…</small>}
           <small className="hint text-right text-xs">
-            {chosen
+            {exportReady && chosen
               ? `交付来源：选中的 ${chosen.target} · 修订 ${chosen.revisionId.slice(0, 12)}`
               : ctx.deliveries.length
-                ? "交付来源：未选历史版本，使用当前交付"
-                : "交付来源：尚未有交付，先制作再导出"}
+                ? "先从下方选择一份可用成片"
+                : "先制作成片，再导出视频"}
           </small>
-          {session.dirty && <small className="hint text-xs">先保存修订，再检查制作计划。</small>}
+          {unsaved && <small className="hint text-xs">保存修改后可检查计划或导出项目包。</small>}
         </div>
       </div>
       <section className="panel-card flex flex-col gap-4 p-4">
@@ -327,7 +332,7 @@ export function DeliveryPanel() {
             <h2 className="m-0">交付与历史</h2>
             <Badge>{ctx.deliveries.length}</Badge>
           </div>
-          <small className="hint text-xs">按状态分组；每份都可作为导出输入。</small>
+          <small className="hint text-xs">选择一份可用成片导出。</small>
         </div>
         {ctx.deliveries.length === 0 && (
           <div className="subtle-card p-6 text-center">
@@ -395,6 +400,7 @@ function DeliveryRow({
 }) {
   const session = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const usable = canExportDelivery(delivery);
   return (
     <article className="flex flex-col gap-1.5 border-b border-line py-2.5 last:border-b-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -402,7 +408,7 @@ function DeliveryRow({
         <Badge tone={deliveryTone(delivery.state)} dot>{labels[delivery.state] || delivery.state}</Badge>
         <small className="numeric text-xs">修订 {delivery.revisionId.slice(0, 12)} · {delivery.createdAt}</small>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          {artifactKeys
+          {usable && artifactKeys
             .filter((key) => delivery.artifacts[key])
             .map((key) => (
               <a
@@ -415,12 +421,10 @@ function DeliveryRow({
                 {key}
               </a>
             ))}
-          <Button size="sm" emphasized={selected} type="button" onClick={onSelect}>
-            {selected ? "将用这份导出" : "导出时使用这份"}
-          </Button>
+          {usable && (selected ? <Badge tone="accent">已选为导出版本</Badge> : <Button size="sm" type="button" onClick={onSelect}>选择此版本</Button>)}
         </div>
       </div>
-      {delivery.artifacts.video && (
+      {usable && delivery.artifacts.video && (
         <details>
           <summary className="hint w-fit text-xs">画面核验与按场景定位</summary>
           <div className="mt-2 flex flex-col gap-2">

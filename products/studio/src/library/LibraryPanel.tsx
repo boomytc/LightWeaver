@@ -3,7 +3,7 @@ import { LibraryVersion, ProviderDescriptor, RunRecord, z } from "@lightweaver/w
 import { api, mediaUrl, requestId } from "../api";
 import { useSession } from "../session/context";
 import { labels } from "../domain/format";
-import { RunDetail } from "../domain/run";
+import { isActiveRun, RunDetail } from "../domain/run";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { Field } from "../ui/Field";
 import { PageFrame } from "../ui/PageFrame";
@@ -19,21 +19,21 @@ import { NativeSelect } from "../ui/NativeSelect";
 const kindMeta = {
   voice: {
     title: "音色",
-    description: "上传参考音频、转写参考文本并试听后收下音色。项目绑定精确版本；删除只隐藏当前库项，历史引用继续有效。",
+    description: "保存参考音频，或生成试听后收下音色。",
     emptyTitle: "尚无音色",
-    emptyHint: "在右侧上传参考音频并保存，即可发布首个可复用音色版本。",
+    emptyHint: "上传参考音频并填写参考文本，或在右侧生成试听。",
   },
   method: {
     title: "方法",
-    description: "记录可复用的创作方法：适用条件、需要的证据与片段声音约束。项目绑定精确版本；删除只隐藏当前库项，历史引用继续有效。",
+    description: "保存可复用的创作方法与适用条件。",
     emptyTitle: "尚无方法",
-    emptyHint: "在右侧填写方法说明并保存，即可发布首个可复用方法版本。",
+    emptyHint: "填写名称与方法说明后保存。",
   },
   material: {
     title: "素材库",
-    description: "管理可复用的素材文件，项目绑定精确版本；删除只隐藏当前库项，历史引用继续有效。",
+    description: "保存可在不同项目中使用的素材。",
     emptyTitle: "尚无素材",
-    emptyHint: "在右侧上传素材文件并保存，即可发布首个可复用素材版本。",
+    emptyHint: "选择素材文件后保存。",
   },
 } as const;
 
@@ -53,6 +53,8 @@ export function LibraryPanel({
   const session = useSession();
   const formEpoch = useRef(0);
   const saveAction = useAction();
+  const acceptAction = useAction();
+  const [acceptedRunId, setAcceptedRunId] = useState("");
   const [hiddenItems, setHiddenItems] = useState<string[]>([]);
   const undo = useUndoable();
   const removeItem = (value: z.infer<typeof LibraryVersion>) => {
@@ -100,6 +102,14 @@ export function LibraryPanel({
     return () => window.removeEventListener("lightweaver-import", onImport);
   }, []);
   useEffect(() => {
+    formEpoch.current++;
+    setStatus("");
+    setAcceptedRunId("");
+    setPurpose("design");
+    setNeeds([]);
+    setClipAudio("");
+    setObserved(false);
+    setSample("");
     setSelected(null);
     setName("");
     setReferenceText("");
@@ -125,7 +135,7 @@ export function LibraryPanel({
             const t = z.object({ text: z.string() }).parse(r.nodes[0]?.result);
             setReferenceText(t.text);
           }
-          if (["queued", "running"].includes(r.run.state))
+          if (isActiveRun(r.run.state))
             timer = setTimeout(poll, 1000);
           else {
             notifyRunsChanged();
@@ -149,6 +159,7 @@ export function LibraryPanel({
     body: unknown,
     purpose: "design" | "transcribe",
   ) => {
+    if (["提交中", "排队", "运行中", "取消中"].includes(status) || saveAction.pending || acceptAction.pending) return;
     const generation = ++formEpoch.current;
     setRunId("");
     setResult(null);
@@ -168,7 +179,40 @@ export function LibraryPanel({
         }
       });
   };
+  const payload =
+    kind === "method"
+      ? {
+          ...(selected?.payload.kind === "method"
+            ? selected.payload
+            : { kind, sceneTemplate: [] }),
+          name,
+          description,
+          needs,
+          clipAudio: clipAudio || undefined,
+          clipAlignment: observed ? "observed-sequences" : undefined,
+        }
+      : selected?.payload.kind === "voice"
+        ? {
+            ...selected.payload,
+            name,
+            referenceText,
+            provider: voiceProvider,
+            style,
+          }
+        : selected
+          ? { ...selected.payload, name }
+          : null;
+  const generating = ["提交中", "排队", "运行中", "取消中"].includes(status);
+  const formPending = !!saveAction.pending || !!acceptAction.pending;
+  const hasChanges = !!file || !selected || JSON.stringify(payload) !== JSON.stringify(selected.payload);
+  const canSave = !!name.trim() && (!!file || !!payload) && hasChanges && !generating &&
+    (kind !== "voice" || !!referenceText.trim());
+  const canTranscribe = providers.some((provider) => provider.ready && provider.capabilities.includes("asr"));
+  const canDesign = !!sample.trim() && providers.some((provider) => provider.id === voiceProvider &&
+    provider.ready && provider.capabilities.includes("voice-design"));
   const save = async () => {
+    if (!canSave) return;
+    let saved: z.infer<typeof LibraryVersion>;
     const generation = formEpoch.current;
     if (file) {
       const body = new FormData();
@@ -185,33 +229,10 @@ export function LibraryPanel({
         body.append("itemId", selected.itemId);
         body.append("expectedVersion", selected.version);
       }
-      await api("/library/upload", LibraryVersion, { method: "POST", body });
+      saved = await api("/library/upload", LibraryVersion, { method: "POST", body });
     } else {
-      const payload =
-        kind === "method"
-          ? {
-              ...(selected?.payload.kind === "method"
-                ? selected.payload
-                : { kind, sceneTemplate: [] }),
-              name,
-              description,
-              needs,
-              clipAudio: clipAudio || undefined,
-              clipAlignment: observed ? "observed-sequences" : undefined,
-            }
-          : selected?.payload.kind === "voice"
-            ? {
-                ...selected.payload,
-                name,
-                referenceText,
-                provider: voiceProvider,
-                style,
-              }
-            : selected
-              ? { ...selected.payload, name }
-              : null;
       if (!payload) throw Error("先选择文件");
-      await api("/library", LibraryVersion, {
+      saved = await api("/library", LibraryVersion, {
         method: "POST",
         body: {
           itemId: selected?.itemId,
@@ -221,16 +242,23 @@ export function LibraryPanel({
         },
       });
     }
+    if (generation === formEpoch.current) {
+      setSelected(saved);
+      setFile(null);
+    }
     await refresh();
-    if (generation !== formEpoch.current) return;
-    setSelected(null);
-    setName("");
-    setReferenceText("");
-    setDescription("");
-    setFile(null);
   };
   const cancelEdit = () => {
     formEpoch.current++;
+    setStatus("");
+    setRunId("");
+    setResult(null);
+    setAcceptedRunId("");
+    setStyle("");
+    setSample("");
+    setNeeds([]);
+    setClipAudio("");
+    setObserved(false);
     setSelected(null);
     setName("");
     setReferenceText("");
@@ -268,6 +296,7 @@ export function LibraryPanel({
                 <div className="flex items-center gap-1">
                   <Button
                     size="sm"
+                    disabled={formPending || selected?.itemId === v.itemId}
                     onClick={() => {
                       formEpoch.current++;
                       setRunId("");
@@ -303,10 +332,10 @@ export function LibraryPanel({
                       }
                     }}
                   >
-                    编辑
+                    {selected?.itemId === v.itemId ? "编辑中" : "编辑"}
                   </Button>
                   <Menu label="更多">
-                    <MenuItem onSelect={() => removeItem(v)}>删除…</MenuItem>
+                    <MenuItem disabled={formPending} onSelect={() => removeItem(v)}>删除…</MenuItem>
                   </Menu>
                 </div>
               </div>
@@ -319,14 +348,15 @@ export function LibraryPanel({
           </AsyncRegion>
         </section>
         <section className="flex min-h-0 min-w-0 flex-col">
+          <fieldset disabled={formPending} className="m-0 flex min-h-0 min-w-0 flex-1 flex-col border-0 p-0">
           <div className="scroll-region flex-1 p-5">
           <div className="narrow-content flex flex-col gap-5">
             <div className="panel-card flex flex-col gap-4 p-5">
               <div className="section-title">
-                <h2 className="m-0">{selected ? "发布新版本" : "新建库项"}</h2>
+                <h2 className="m-0">{selected ? hasChanges ? "编辑内容" : "已保存内容" : kind === "material" ? "新增素材" : `新建${meta.title}`}</h2>
                 {selected && <Badge tone="accent">正在编辑 {selected.payload.name}</Badge>}
               </div>
-          <Field label="名称">
+          <Field label="名称" required>
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
           {kind === "voice" && (
@@ -404,6 +434,7 @@ export function LibraryPanel({
           ) : (
             <Dropzone
               inputAriaLabel="上传库文件"
+              disabled={formPending}
               title={file?.name || "拖入或选择库文件"}
               description={kind === "voice" ? "选择音色参考音频" : "选择可复用素材文件"}
               onFiles={(files) => {
@@ -416,12 +447,12 @@ export function LibraryPanel({
             />
           )}{" "}
           {kind === "voice" && (
-            <Field label="克隆源的实际参考文本">
+            <Field label="参考文本" required hint="填写参考音频中实际说出的内容，也可自动转写。">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  aria-label="转写参考音频"
-                  disabled={!file && selected?.payload.kind !== "voice"}
+                  aria-label={referenceText.trim() ? "重新转写参考音频" : "转写参考音频"}
+                  disabled={generating || !canTranscribe || (!file && selected?.payload.kind !== "voice")}
                   onClick={() => {
                     const body = file
                       ? new FormData()
@@ -441,7 +472,7 @@ export function LibraryPanel({
                     );
                   }}
                 >
-                  转写参考音频
+                  {purpose === "transcribe" && generating ? "转写中…" : referenceText.trim() ? "重新转写参考音频" : "转写参考音频"}
                 </Button>
                 {purpose === "transcribe" && status && <Badge tone="accent">{status}</Badge>}
               </div>
@@ -479,6 +510,7 @@ export function LibraryPanel({
               </Field>
               <div className="actions">
                 <Button
+                  disabled={generating || !canDesign}
                   onClick={() =>
                     startRun(
                       "/voice/design",
@@ -492,31 +524,36 @@ export function LibraryPanel({
                     )
                   }
                 >
-                  生成试听作业
+                  {purpose === "design" && generating ? "生成中…" : preview.success ? "重新生成试听" : "生成试听"}
                 </Button>
               </div>
-              {purpose === "design" && preview.success && (
+              {purpose === "design" && preview.success && status === labels.succeeded && (
                 <div className="subtle-card flex flex-col gap-3 p-3">
                   <audio className="w-full" controls src={mediaUrl(preview.data.digest)} />
                   <div className="actions">
-                    <Button
+                    {acceptedRunId === runId ? <Badge tone="ok" dot>已保存为音色</Badge> : <Button
                       variant="primary"
-                      onClick={() =>
-                        api("/voice/accept", LibraryVersion, {
-                          method: "POST",
-                          body: {
-                            runId,
-                            name: name || "新音色",
-                            expectedVersion: null,
-                            requestId: requestId(),
-                          },
-                        })
-                          .then(refresh)
-                          .catch(fail)
-                      }
+                      onClick={() => void acceptAction.run("accept", async () => {
+                        const generation = formEpoch.current, accepted = runId;
+                        try {
+                          const saved = await api("/voice/accept", LibraryVersion, {
+                            method: "POST", body: {runId: accepted, name: name || "新音色", expectedVersion: null, requestId: requestId()},
+                          });
+                          if (generation === formEpoch.current && saved.payload.kind === "voice") {
+                            setAcceptedRunId(accepted);
+                            setSelected(saved);
+                            setName(saved.payload.name);
+                            setReferenceText(saved.payload.referenceText);
+                            setVoiceProvider(saved.payload.provider);
+                            setStyle(saved.payload.style);
+                            setFile(null);
+                          }
+                          await refresh();
+                        } catch (error) { fail(error); }
+                      })}
                     >
-                      收下为音色
-                    </Button>
+                      {acceptAction.pending ? "保存中…" : "保存为音色"}
+                    </Button>}
                   </div>
                 </div>
               )}
@@ -526,23 +563,24 @@ export function LibraryPanel({
           </div>
           <div className="shrink-0 border-t border-line bg-panel px-5 py-3">
             <div className="narrow-content flex flex-wrap items-center justify-end gap-2">
-              {["提交中", "排队", "运行中"].includes(status) && (
+              {generating && (
                 <small className="hint mr-auto text-xs">试听或转写作业运行中，完成前不能保存。</small>
               )}
               {selected && (
                 <Button variant="ghost" onClick={cancelEdit}>
-                  取消编辑
+                  {hasChanges ? "取消编辑" : kind === "material" ? "新增素材" : `新建${meta.title}`}
                 </Button>
               )}
               <Button
                 variant="primary"
-                disabled={saveAction.isPending("save") || ["提交中", "排队", "运行中"].includes(status)}
+                disabled={formPending || !canSave}
                 onClick={() => void saveAction.run("save", async () => { await save().catch(fail); })}
               >
-                {saveAction.isPending("save") ? "保存中…" : "保存版本"}
+                {saveAction.isPending("save") ? "保存中…" : selected ? hasChanges ? "保存修改" : "已保存" : "保存"}
               </Button>
             </div>
           </div>
+          </fieldset>
         </section>
       </div>
     </PageFrame>

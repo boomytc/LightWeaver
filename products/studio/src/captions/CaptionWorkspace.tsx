@@ -22,6 +22,10 @@ export function CaptionWorkspace() {
   const [locale, setLocale] = useState(session.locale);
   if (!draft || !ctx) return null;
   const track = draft.captions.find((item) => item.locale === locale);
+  const sourceId = source ? draft.assets.find((asset) => refKey(asset) === source)?.assetId : undefined;
+  const transcription = ctx.analysis.filter((entry) => entry.kind === "asr" && entry.state === "current" &&
+    (entry.locale === undefined || entry.locale === locale) && (!sourceId || entry.source.assetId === sourceId));
+  const captionsApplied = transcription.length > 0 && transcription.every((entry) => entry.captionLocales.includes(locale));
   const updateTrack = (next: CaptionTrack) =>
     session.edit({
       ...draft,
@@ -32,7 +36,7 @@ export function CaptionWorkspace() {
     <div className="flex min-w-0 flex-col gap-4">
       <ViewHeader
         title="字幕"
-        description="人工字幕、语音对齐和估算字幕共用 cue；编辑会清除已失效的逐词时间，原始转写仍保留。"
+        description="导入、生成或编辑字幕。"
         actions={track?.translationLocale ? <Badge tone="accent">{localeName(track.translationLocale)}译文</Badge> : undefined}
       />
       {track?.translationLocale && <p className="notice-inline m-0 text-xs">这是 {localeName(locale)} 字幕的 {localeName(track.translationLocale)} 译文。项目输出语言与音频没有被改写。</p>}
@@ -87,12 +91,12 @@ export function CaptionWorkspace() {
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
-          <small>从当前转写采用不会自动覆盖字幕，仍需明确操作。</small>
-          <Button
+          <small>{transcription.length ? "使用当前素材的转写结果生成字幕。" : "完成素材转写后，可在此生成字幕。"}</small>
+          {captionsApplied ? <Badge tone="ok" dot>转写字幕已生成</Badge> : transcription.length > 0 && <Button
             size="sm"
-            disabled={session.busy || session.dirty || !ctx.analysis.some((entry) => entry.kind === "asr" && entry.state === "current" && (entry.locale === undefined || entry.locale === locale))}
-            onClick={() => void session.adoptAnalysisCaptions({ sourceId: source ? draft.assets.find((asset) => refKey(asset) === source)?.assetId : undefined, locale })}
-          >从转写采用为{localeName(locale)}</Button>
+            disabled={session.busy || session.dirty}
+            onClick={() => void session.adoptAnalysisCaptions({ sourceId, locale })}
+          >{track?.cues.length ? "更新转写字幕" : "从转写生成字幕"}</Button>}
         </div>
       </section>
       {track ? (
@@ -111,6 +115,7 @@ export function CaptionWorkspace() {
               projectId={draft.id}
               sourceLocale={locale}
               expectedRevision={session.base}
+              currentTrack={track}
               disabled={session.busy || session.dirty}
               fail={(reason) => session.setError(reason instanceof Error ? reason.message : String(reason))}
               onApply={(runId) => void session.applyCaptionAssist(runId)}

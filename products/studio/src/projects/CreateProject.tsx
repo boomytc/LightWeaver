@@ -63,11 +63,10 @@ export function CreateProject({
         <div>
           <b className="text-sm">我的第一支视频</b>
           <p className="hint mb-0 mt-1 text-xs">
-            打开三张无旁白卡片组成的示例。无需模型，也无需自备素材，保存后就能制作。
+            打开三张文字卡片组成的示例，即可开始制作。
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Badge>3 张卡片</Badge>
           <Badge tone="ok">无需模型</Badge>
           <Badge tone="ok">无需自备素材</Badge>
         </div>

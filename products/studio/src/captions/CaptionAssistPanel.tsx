@@ -20,6 +20,7 @@ export function CaptionAssistPanel({
   projectId,
   sourceLocale,
   expectedRevision,
+  currentTrack,
   disabled,
   fail,
   onApply,
@@ -28,6 +29,7 @@ export function CaptionAssistPanel({
   projectId: string;
   sourceLocale: string;
   expectedRevision: string;
+  currentTrack: z.infer<typeof CaptionTrack>;
   disabled: boolean;
   fail: (error: unknown) => void;
   onApply: (runId: string) => void;
@@ -93,8 +95,8 @@ export function CaptionAssistPanel({
     detail?.run.state === "succeeded"
       ? CaptionAssistResult.safeParse(detail.nodes[0]?.result)
       : null;
-  const staleResult =
-    result?.success && result.data.revision !== expectedRevision;
+  const appliedResult = !!result?.success && JSON.stringify(result.data.track) === JSON.stringify(currentTrack);
+  const staleResult = result?.success && !appliedResult && result.data.revision !== expectedRevision;
   const hasActiveRun = run ? ACTIVE_RUN_STATES.has(run.state) : false;
   const canResume = run ? RESUMABLE_RUN_STATES.has(run.state) : false;
   const submit = () => {
@@ -157,10 +159,8 @@ export function CaptionAssistPanel({
   };
   return (
     <section className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
-      <h3 className="m-0 text-sm">译文作业状态</h3>
-      <p className="hint">
-        译文只改变字幕语言。项目输出语言和音频保持不变。完成后必须再点击“采用译文”。
-      </p>
+      <h3 className="m-0 text-sm">字幕翻译</h3>
+      <p className="hint m-0">生成后可预览并采用译文，音频保持原样。</p>
       <div className="actions">
         <Field label="译文目标语言">
           <input
@@ -172,19 +172,19 @@ export function CaptionAssistPanel({
         <Button
           disabled={
             disabled ||
-            !targetLocale ||
+            !targetLocale.trim() || targetLocale.trim() === sourceLocale ||
             submitting ||
             hasActiveRun ||
             runAction !== null
           }
           onClick={submit}
         >
-          生成译文字幕
+          {submitting ? "提交中…" : hasActiveRun ? "翻译中…" : result?.success ? "重新生成译文" : "生成译文"}
         </Button>
       </div>
-      {run && (
+      {run && (hasActiveRun || canResume) && (
         <div className="actions">
-          <Button
+          {hasActiveRun && <Button
             disabled={
               !hasActiveRun ||
               run.state === "cancelling" ||
@@ -193,13 +193,13 @@ export function CaptionAssistPanel({
             onClick={() => changeRun("cancel")}
           >
             取消作业
-          </Button>
-          <Button
+          </Button>}
+          {canResume && <Button
             disabled={!canResume || runAction !== null}
             onClick={() => changeRun("resume")}
           >
             恢复未完成步骤
-          </Button>
+          </Button>}
         </div>
       )}
       {status && <small role="status" aria-live="polite">{status}</small>}
@@ -213,14 +213,14 @@ export function CaptionAssistPanel({
               原文 {localeName(result.data.sourceLocale)} → 译文{" "}
               {localeName(result.data.targetLocale)}
             </b>
-            <Button
-              disabled={disabled || staleResult}
+            {appliedResult ? <span className="text-ok text-xs" role="status">译文已采用</span> : !staleResult && <Button
+              disabled={disabled}
               onClick={() => {
                 if (run) onApply(run.id);
               }}
             >
-              采用译文到原字幕轨
-            </Button>
+              采用译文
+            </Button>}
           </div>
           {result.data.track.cues.map((cue) => (
             <div className="translation-cue" key={cue.id}>
@@ -236,9 +236,7 @@ export function CaptionAssistPanel({
           ))}
           {staleResult && (
             <p className="hint">
-              此译文基于修订 {result.data.revision.slice(0, 16)}
-              ，当前修订是 {expectedRevision.slice(0, 16)}
-              。重新生成后才能采用。
+              字幕已更新，此次译文仅供查看。
             </p>
           )}
         </div>

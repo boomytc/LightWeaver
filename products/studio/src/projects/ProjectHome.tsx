@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { ProjectRevision } from "@lightweaver/weaver/contracts";
 import { api, ApiError, requestId } from "../api";
 import { desktop } from "../desktop";
+import { labels, localeName } from "../domain/format";
 import { useSession } from "../session/context";
 import { CreateProject } from "./CreateProject";
 import { PageFrame } from "../ui/PageFrame";
@@ -198,9 +199,9 @@ export function ProjectHome() {
                         {recent.has(project.projectId) && <Badge tone="accent">最近打开</Badge>}
                         {draft && <Badge tone="warn" dot>可恢复草稿</Badge>}
                       </span>
-                      <small className="numeric mt-1">{project.projectId} · rev {project.id.slice(0, 10)}</small>
+                      <small className="mt-1">{project.document.scenes.length} 个场景 · {project.document.assets.length} 份素材</small>
                       <small className="mt-1">
-                        {project.document.locales.join(" / ") || "未设置语言"} · {project.document.profiles.map((profile) => profile.id).join(" / ") || "未设置规格"}
+                        {project.document.locales.map(localeName).join(" / ") || "未设置语言"} · {project.document.profiles.map((profile) => labels[profile.id] || profile.id).join(" / ") || "未设置规格"}
                       </small>
                     </span>
                   </button>
