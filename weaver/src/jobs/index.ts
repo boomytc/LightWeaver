@@ -152,6 +152,11 @@ export class Jobs {
       )
       .map((r) => this.read(r.id));
   }
+  hasActive(): boolean {
+    return this.store.db
+      .prepare("SELECT 1 FROM runs WHERE state IN ('queued','running','cancelling') LIMIT 1")
+      .get() !== undefined;
+  }
   nodes(runId: string) {
     return this.store.db
       .prepare("SELECT * FROM nodes WHERE run_id=? ORDER BY rowid")

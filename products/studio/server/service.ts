@@ -734,6 +734,7 @@ export async function startStudioService(
   route("get", "/api/runs", (req) =>
     app.jobs.list(z.string().optional().parse(req.query.project)),
   );
+  route("get", "/api/runs/has-active", () => app.jobs.hasActive());
   route("get", "/api/runs/:id", (req) => ({
     run: app.jobs.read(z.string().parse(req.params.id)),
     nodes: app.jobs.nodes(z.string().parse(req.params.id)),

@@ -615,6 +615,23 @@ async function requestClose(win: BrowserWindow): Promise<void> {
   const request: WindowCloseRequest = { quitIntent: null };
   closeRequest = request;
   try {
+    const targetService = service;
+    let idle = !targetService;
+    if (targetService) {
+      const response = await fetch(`${targetService.origin}/api/runs/has-active`, {
+        headers: { Authorization: `Bearer ${targetService.token}` },
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => null);
+      const activity: unknown = response?.ok ? await response.json().catch(() => null) : null;
+      idle = activity !== null && typeof activity === "object" &&
+        "ok" in activity && activity.ok === true &&
+        "result" in activity && activity.result === false;
+    }
+    if (win.isDestroyed() || quitting || request.quitIntent) return;
+    if (idle && service === targetService) {
+      request.quitIntent = "confirm-jobs";
+      return;
+    }
     const { response } = await dialog.showMessageBox(win, {
       type: "question",
       title: "关闭 LightWeaver 窗口",

@@ -1062,15 +1062,14 @@ export function useProjectSession(client: ClientStore) {
       if ((await confirmLeave(true)) === "stay" || quitAttempt.current !== attempt)
         return { action: "cancel", stopJobs: false };
       if (intent === "stop-jobs") return { action: "quit", stopJobs: true };
-      let runs: z.infer<typeof RunRecord>[];
+      let active: boolean;
       try {
-        runs = await api("/runs", z.array(RunRecord));
+        active = await api("/runs/has-active", z.boolean());
       } catch (reason) {
         fail(reason);
         return { action: "cancel", stopJobs: false };
       }
       if (quitAttempt.current !== attempt) return { action: "cancel", stopJobs: false };
-      const active = runs.some((run) => run.state === "queued" || run.state === "running" || run.state === "cancelling");
       if (!active) return { action: "quit", stopJobs: false };
       const stop = await new Promise<boolean>((resolve) => {
         jobsWait.current = resolve;
