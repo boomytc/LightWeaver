@@ -12,7 +12,8 @@
 - 源码模式产物目录统一放在仓库根 `data/`：模型 `data/models/`、引擎 `data/engines/`（含其下的 Python 环境）；正式桌面包使用运行时数据目录下的同名子目录。引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`），可在高级设置中修改；已安装目录不会自动搬迁。
 - 安装走 Jobs：下载 → 解压 → 逐文件校验 → 原子发布。目标目录没有本应用标记时拒绝覆盖；取消后删除环境/暂存，不发布半成品。Python 环境按 requirements 创建 venv 并 pip 安装，版本取清单 SHA-256 前 12 位。
 - 入口：CLI `weaver engines setup|list|install|verify|use`；HTTP `GET /api/runtime`、`GET /api/engines`、`POST /api/engines/setup`、`POST /api/engines/:id/{install,verify,use}`；Studio“本地运行环境”与高级引擎分组。
-- 任务与诊断入口：任务页显示“本地运行环境配置/引擎安装”，节点显示可读组件名、完成计数与 `skipped`，并提供“打开运行环境”；模型页在运行条件缺失时提供“配置运行环境”；诊断页按统一分类显示“本应用安装 X/5 · 使用外部路径 Y · 未配置 Z”，存在外部路径时说明它不是本应用安装的副本。`capabilities` 与 `doctor` 返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。
+- 设置分区收敛为“模型与供应商 / 运行环境 / 外观”：“本地运行环境”“存储与路径”（含数据目录更换与工具状态）与“诊断及应用信息”合并为“运行环境”一个分区，旧存储/诊断入口映射到该分区。
+- 任务与诊断入口：任务页显示“本地运行环境配置/引擎安装”，节点显示可读组件名、完成计数与 `skipped`，并提供“打开运行环境”；模型页在运行条件缺失时提供“配置运行环境”；合并后的“运行环境 → 诊断及应用信息”按统一分类显示“本应用安装 X/5 · 使用外部路径 Y · 未配置 Z”。`capabilities` 与 `doctor` 返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。
 - TEN VAD 从模型清单迁入引擎清单，设置项 `vad_library` 语义不变。
 
 ## 实际验收
@@ -27,7 +28,8 @@
 - 真实安装产物可用：采用后的路径直接跑通产品脚本——8.318 秒中文语音转写为“今天天气很好，我们一起去公园散步。这是一段用于验证语音转写引擎的测试音频。”（TEN VAD 2.1.0，Metal MTL0，时间质量 estimated）；安装目录内 llama-server 完成文本与图像各 768 维嵌入（余弦 0.723891）、三条候选重排（`[0.99973, 3.49e-05, 0.00059]`）与 Hy-MT2 字幕翻译。
 - 负向与恢复：篡改已安装文件后 verify 为 invalid 并给出大小或 SHA-256 原因，重装恢复；无标记目标目录返回 `ENGINE_TARGET_CONFLICT` 并保留原件；取消安装后环境目录、磁盘锁与暂存清理，状态回到 missing 且可重试；损坏目录采用返回 `ENGINE_VERIFY_FAILED` 且 revision 不变；过期 revision 采用返回 `CONFIG_CONFLICT`。
 - 跨平台产物（本机可做的部分）：catalog 固定且可用的 18 个“平台×引擎”组合全部通过——13 个唯一下载的 size+sha256 与 pin 一致，按 `stripPrefix`/`include` 解压后 `files[]` 每条 path/size/sha256 与可执行位一致；transcribe 5 平台 `contract.json` 版本 0.2.0、header_hash `7df72bf9e667b8c2` 与 wheel 的 `PUBLIC_HEADER_HASH` 一致，架构与平台相符；llama 符号链接分别还原 18/16/10 条且无 dangling，Windows zip 无顶层目录、`llama-server.exe` 在根，macOS 两个 build 可执行。
-- Studio 实际点击（隔离环境）：一键面板显示两个选项与“引擎目录可用 … GB/本次预计需要 …”并随勾选变化（勾选模型权重后 1.9 GB → 5.6 GB）；20 MiB 卷上显示“磁盘空间不足”且按钮禁用；预置冲突目录后一键配置显示“配置完成，部分组件未完成，可重试”、跳过节点标为“已跳过（可重试）”、任务页采用节点列出 skipped；把 ten-vad 标记改旧后显示“可更新组件：TEN VAD 原生运行库”与“更新并配置”，执行后更新提示消失；高级里引擎根目录保存后写 `engine_install_root` 并显示“本地配置文件”来源，恢复默认写入空值并回到环境变量默认；模型页运行条件缺失时出现“配置运行环境”，诊断页显示本地运行环境计数与入口。
+- 合并后的设置页实际点击：设置只剩“模型与供应商 / 运行环境 / 外观”三个分区；运行环境页自上而下为“本地运行环境（一键配置）”“存储与路径（数据/配置/引擎/日志目录、工具状态、外部命令行、更换数据目录）”“诊断及应用信息（默认折叠，展开后显示 Node、SQLite、工具版本、供应商与本地运行环境计数）”；浏览器模式下数据目录显示由启动命令决定。
+- Studio 实际点击（隔离环境）：一键面板显示两个选项与“引擎目录可用 … GB/本次预计需要 …”并随勾选变化（勾选模型权重后 1.9 GB → 5.6 GB）；20 MiB 卷上显示“磁盘空间不足”且按钮禁用；预置冲突目录后一键配置显示“配置完成，部分组件未完成，可重试”、跳过节点标为“已跳过（可重试）”、任务页采用节点列出 skipped；把 ten-vad 标记改旧后显示“可更新组件：TEN VAD 原生运行库”与“更新并配置”，执行后更新提示消失；高级里引擎根目录保存后写 `engine_install_root` 并显示“本地配置文件”来源，恢复默认写入空值并回到环境变量默认；模型页运行条件缺失时出现“配置运行环境”。
 - HTTP 冒烟（开发模式，临时端口）：`/api/engines` 返回 `updates`/`models`/`diskFreeBytes`，`POST /api/engines/setup` 产生 succeeded 作业，`/api/capabilities` 与 `/api/doctor` 返回引擎摘要；服务随后停止。
 
 ## 证据边界

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { EngineView, ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
+import { ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
 import { api, ApiError } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
@@ -46,22 +46,44 @@ const DoctorView = z.object({
   alignmentRuntime: z.object({ available: z.boolean(), missing: z.array(z.string()).optional() }).optional(),
   speechRuntime: z.object({ available: z.boolean(), missing: z.array(z.string()).optional() }).optional(),
   jianying: z.unknown().optional(),
+  engines: z
+    .object({
+      ready: z.boolean().optional(),
+      coreReady: z.boolean().optional(),
+      root: z.object({ value: z.string(), source: z.string() }).optional(),
+      counts: z
+        .object({
+          total: z.number(),
+          installed: z.number(),
+          managed: z.number(),
+          external: z.number(),
+          unused: z.number(),
+          partial: z.number(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 const sections = [
   ["models", "模型与供应商"],
-  ["runtime", "运行时与路径"],
+  ["runtime", "运行环境"],
   ["appearance", "外观"],
-  ["storage", "存储位置"],
-  ["diagnostics", "诊断及应用信息"],
 ] as const;
+
+/** 旧路由兼容：存储位置与诊断已并入“运行环境”。 */
+const legacySections: Record<string, string> = {
+  storage: "runtime",
+  diagnostics: "runtime",
+};
 
 export function SettingsPage() {
   const session = useSession();
-  const section = sections.some((item) => item[0] === session.route.section) ? session.route.section : "models";
+  const requested = legacySections[session.route.section] || session.route.section;
+  const section = sections.some((item) => item[0] === requested) ? requested : "models";
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="设置" description="管理模型与供应商、运行时与引擎安装、外观、存储和应用诊断。" />
+      <PageHeader title="设置" description="管理模型与供应商、运行环境（引擎、存储与诊断）和外观。" />
       <Tabs.Root className="split-page grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)]" value={section} onValueChange={(value) => void session.navigate("settings", "", value)}>
         <Tabs.List className="flex flex-col gap-1 border-r border-line p-3" aria-label="设置分区">
           {sections.map(([value, label]) => (
@@ -83,6 +105,7 @@ export function SettingsPage() {
               <div className="flex flex-col gap-4">
                 <EngineSettings />
                 <RuntimePanel />
+                <DiagnosticsPanel />
               </div>
             </Tabs.Content>
             <Tabs.Content value="appearance">
@@ -101,8 +124,6 @@ export function SettingsPage() {
                 <p className="hint m-0">主题写在客户端状态里。有桌面桥时同时写入桌面偏好。</p>
               </section>
             </Tabs.Content>
-            <Tabs.Content value="storage"><StoragePanel /></Tabs.Content>
-            <Tabs.Content value="diagnostics"><DiagnosticsPanel /></Tabs.Content>
           </div>
         </div>
       </Tabs.Root>
@@ -209,8 +230,8 @@ function RuntimePanel() {
   ];
   return (
     <section className="panel-card flex flex-col gap-4 p-5">
-      <h2 className="m-0">运行时与路径</h2>
-      <p>模型 Python、transcribe 运行库、bindings 与 llama-server 的路径由上方“本地运行环境”一键下载并写入，通常不需要手动填写。这里显示当前数据、配置、引擎与工具位置。</p>
+      <h2 className="m-0">存储与路径</h2>
+      <p>模型 Python、transcribe 运行库、bindings 与 llama-server 的路径由上方“本地运行环境”一键下载并写入，通常不需要手动填写。这里显示数据与配置位置、引擎目录、工具状态和外部命令行。</p>
       <p>需要沿用自己已有的运行库、GPU 构建或单独指定已有配置时，展开下面的高级设置。配置值按当前私有配置文件、环境变量、内置 config.yaml 默认值的顺序生效；相对路径按配置基准目录解析。</p>
       <details className="subtle-card p-4">
         <summary className="font-medium">高级：手动指定运行时路径</summary>
@@ -290,6 +311,26 @@ function RuntimePanel() {
           <div className="contents" key={label}><dt>{label}</dt><dd className="numeric">{value}</dd></div>
         ))}
       </dl>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <small className="hint">更换数据目录会停止当前作业并重启服务；正在使用的数据库不会被替换，原来的目录保留。</small>
+        {desktop()?.pickDirectory && desktop()?.setPreferences && desktop()?.restartRuntime ? (
+          <Button
+            type="button"
+            onClick={() =>
+              void desktop()?.pickDirectory?.().then(async (picked) => {
+                const bridge = desktop();
+                if (!picked || !bridge?.setPreferences || !bridge.restartRuntime) return;
+                await bridge.setPreferences({ dataDir: picked });
+                await bridge.restartRuntime();
+              }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)))
+            }
+          >
+            选择数据目录并重启
+          </Button>
+        ) : (
+          <small className="hint">浏览器里的数据目录由启动命令决定。</small>
+        )}
+      </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {Object.entries(runtime.tools).map(([name, ready]) => (
           <div className="subtle-card flex items-center justify-between gap-2 p-3" key={name}>
@@ -351,111 +392,31 @@ function parentDir(file: string) {
   return index > 0 ? file.slice(0, index) : file;
 }
 
-function StoragePanel() {
-  const session = useSession();
-  const [dataDir, setDataDir] = useState("");
-  useEffect(() => {
-    api("/runtime", RuntimeView)
-      .then((runtime) => setDataDir(runtime.dataDir))
-      .catch((reason) => session.setError(String(reason)));
-  }, []);
-  const bridge = desktop();
-  return (
-    <section className="panel-card flex flex-col gap-4 p-5">
-      <div>
-        <h2 className="m-0">存储位置</h2>
-        <p className="hint mb-0 mt-1">更换目录会停止当前作业并重启服务。正在使用的数据库不会在运行中被替换，原来的目录保留。</p>
-      </div>
-      <dl className="key-value-list subtle-card px-4">
-        <dt>数据目录</dt>
-        <dd className="numeric">{dataDir || "加载中"}</dd>
-      </dl>
-      {bridge?.pickDirectory && bridge.setPreferences && bridge.restartRuntime ? (
-        <div className="actions">
-          <Button
-            type="button"
-            onClick={() =>
-              void bridge.pickDirectory?.().then(async (picked) => {
-                if (!picked || !bridge.setPreferences || !bridge.restartRuntime) return;
-                await bridge.setPreferences({ dataDir: picked });
-                await bridge.restartRuntime();
-              }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)))
-            }
-          >
-            选择数据目录并重启
-          </Button>
-        </div>
-      ) : (
-        <p className="hint m-0">浏览器里的数据目录由启动命令决定。</p>
-      )}
-    </section>
-  );
-}
-
 function DiagnosticsPanel() {
   const session = useSession();
   const [doctor, setDoctor] = useState<z.infer<typeof DoctorView> | null>(null);
-  const [engines, setEngines] = useState<z.infer<typeof EngineView> | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   useEffect(() => {
     api("/doctor", DoctorView).then(setDoctor).catch((reason) => session.setError(String(reason)));
   }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    api("/engines", EngineView, { signal: controller.signal })
-      .then(setEngines)
-      .catch((reason) => {
-        if (!controller.signal.aborted) session.setError(String(reason));
-      });
-    return () => controller.abort();
-  }, []);
-  const setupItems = engines
-    ? engines.setupComponents.flatMap((id) => {
-        const current = engines.items.find((item) => item.id === id);
-        return current ? [current] : [];
-      })
-    : [];
-  const usage = (value: string) =>
-    setupItems.filter((item) => item.usage === value).length;
-  const setupUsage = {
-    total: setupItems.length,
-    installed: usage("managed") + usage("managed-unused"),
-    external: usage("external"),
-    unresolved: usage("unused") + usage("partial"),
-  };
-  const speech = engines?.items.find((item) => item.id === "python-speech");
-  const speechUsage =
-    speech?.usage === "managed" || speech?.usage === "managed-unused"
-      ? "已安装"
-      : speech?.usage === "external"
-        ? "使用外部路径"
-        : "按需创建";
+  const counts = doctor?.engines?.counts;
   return (
-    <section className="panel-card flex flex-col gap-4 p-5">
-      <div>
-        <div className="flex items-center gap-3">
-          <h2 className="m-0">诊断及应用信息</h2>
+    <details className="panel-card p-4">
+      <summary className="font-medium">诊断及应用信息</summary>
+      <div className="mt-3 flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="hint m-0">
+            LightWeaver 桌面客户端；工具版本、Node/SQLite 与供应商诊断。
+          </p>
           <Button size="sm" type="button" disabled={!doctor} onClick={() => setDetailOpen(true)}>详情</Button>
         </div>
-        <p className="hint mb-0 mt-1">LightWeaver 桌面客户端</p>
-      </div>
-      {engines && (
-        <div className="subtle-card flex flex-wrap items-center justify-between gap-2 p-3">
-          <span>
-            本地运行环境：本应用安装{" "}
-            {setupUsage.installed}/{setupUsage.total} · 使用外部路径{" "}
-            {setupUsage.external} · 未配置 {setupUsage.unresolved}；语音环境
-            {speechUsage}
-          </span>
-          <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "runtime")}>打开运行环境</Button>
-        </div>
-      )}
-      {engines && setupUsage.installed === 0 && setupUsage.external > 0 && (
-        <small>
-          当前绑定来自手工配置或系统默认路径，不是本应用安装的副本；一键配置会安装受管理副本并切换配置。
-        </small>
-      )}
-      {!doctor && <p>正在读取诊断…</p>}
+        {counts && (
+          <small>
+            本地运行环境：本应用安装 {counts.installed}/{counts.total} · 使用外部路径{" "}
+            {counts.external} · 未配置 {counts.unused + counts.partial}
+          </small>
+        )}
+        {!doctor && <p>正在读取诊断…</p>}
       {doctor && (
         <>
           <dl className="key-value-list"><dt>Node</dt><dd className="numeric">{doctor.node}</dd><dt>SQLite</dt><dd className="numeric">{doctor.sqlite}</dd></dl>
@@ -475,11 +436,12 @@ function DiagnosticsPanel() {
           </div>
         </>
       )}
-      <Modal open={detailOpen && doctor !== null} title="诊断详情" onOpenChange={setDetailOpen}>
-        <pre className="code-block max-h-[min(32rem,calc(100vh-8rem))]">{doctor ? JSON.stringify(doctor, null, 2) : ""}</pre>
-      </Modal>
-      {session.error && <p className="error">{session.error}</p>}
-    </section>
+        <Modal open={detailOpen && doctor !== null} title="诊断详情" onOpenChange={setDetailOpen}>
+          <pre className="code-block max-h-[min(32rem,calc(100vh-8rem))]">{doctor ? JSON.stringify(doctor, null, 2) : ""}</pre>
+        </Modal>
+        {session.error && <p className="error">{session.error}</p>}
+      </div>
+    </details>
   );
 }
 

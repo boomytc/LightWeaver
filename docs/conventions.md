@@ -194,7 +194,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 ## 引擎运行时
 
-Studio 的“运行时与路径”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及模型与语音 Python 环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
+Studio 的“运行环境”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及模型与语音 Python 环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
 
 ```bash
 npx weaver engines setup --expected-revision CONFIG_REV --wait --json

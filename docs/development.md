@@ -20,7 +20,7 @@ npx weaver engines setup --expected-revision CONFIG_REV --wait --progress
 npx weaver engines setup --with-models --expected-revision CONFIG_REV --wait --progress
 ```
 
-`engines setup` 会按顺序下载、校验 transcribe 运行库、bindings、TEN VAD、llama-server 与模型 Python 环境，并一次写入配置；已校验的部分在重跑时复用。必需组件失败即作业失败，可选组件失败会在采用结果里列在 `skipped` 并继续写配置。`--with-speech` 额外创建语音 Python 环境，`--with-models` 额外下载并采用本地模型权重。空间不足时在开始前返回 `DISK_SPACE_INSUFFICIENT`。也可以在 **设置 → 运行时与路径 → 本地运行环境** 点击 **一键下载并配置**。不同平台的引擎目录不同，迁移仓库时重新安装；引擎根目录可在高级设置或 `engine_install_root` 中修改。
+`engines setup` 会按顺序下载、校验 transcribe 运行库、bindings、TEN VAD、llama-server 与模型 Python 环境，并一次写入配置；已校验的部分在重跑时复用。必需组件失败即作业失败，可选组件失败会在采用结果里列在 `skipped` 并继续写配置。`--with-speech` 额外创建语音 Python 环境，`--with-models` 额外下载并采用本地模型权重。空间不足时在开始前返回 `DISK_SPACE_INSUFFICIENT`。也可以在 **设置 → 运行环境 → 本地运行环境** 点击 **一键下载并配置**。不同平台的引擎目录不同，迁移仓库时重新安装；引擎根目录可在高级设置或 `engine_install_root` 中修改。
 
 媒体功能按用途准备工具：
 
@@ -139,7 +139,7 @@ npx weaver build --project demo --plan --json
 
 写入携带当前修订的 `expectedRevision` 和逻辑请求的 `requestId`。素材导入、方案采用、制作、分析和交接的完整命令见[命令与配置参考](conventions.md)。
 
-桌面包自带 `bin/weaver`，Windows 为 `bin/weaver.cmd`。在应用的 **设置 → 运行时与路径 → 外部 agent 与命令行** 中复制实际调用路径。随包 CLI 默认读取桌面的配置与数据，也可用 `--data-dir`、`--config-file`、`--config-base` 显式指定。
+桌面包自带 `bin/weaver`，Windows 为 `bin/weaver.cmd`。在应用的 **设置 → 运行环境 → 存储与路径 → 外部 agent 与命令行** 中复制实际调用路径。随包 CLI 默认读取桌面的配置与数据，也可用 `--data-dir`、`--config-file`、`--config-base` 显式指定。
 
 先用所选入口执行 `capabilities --json`，核对 `runtime.dataDir` 和 `runtime.configFile`。返回的 `agentSkills` 提供与该运行时配套的技能文件，`runtime.resourcesDir` 下包含 AGENTS.md 和命令参考。正式包内的技能可按路径交给 agent 读取，不会自动写入个人技能目录。
 
