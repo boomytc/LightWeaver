@@ -7,6 +7,7 @@ import { useSession } from "../session/context";
 import { UiSelect } from "../ui/UiSelect";
 import { PageHeader } from "../ui/PageHeader";
 import { Button } from "../ui/Button";
+import { Modal } from "../ui/Modal";
 import { Badge } from "../ui/Badge";
 import { InputWithActions } from "../ui/InputWithActions";
 import { ModelSettings } from "./ModelSettings";
@@ -78,17 +79,19 @@ export function SettingsPage() {
             </Tabs.Content>
             <Tabs.Content value="runtime"><RuntimePanel /></Tabs.Content>
             <Tabs.Content value="appearance">
-              <section className="panel-card p-5">
-                <h2 className="mt-0">外观</h2>
-                <UiSelect
-                  label="主题"
-                  value={session.client.theme}
-                  onValueChange={(value) => {
-                    if (value === "system" || value === "light" || value === "dark") session.client.setTheme(value);
-                  }}
-                  options={[{ value: "system", label: "跟随系统" }, { value: "light", label: "浅色" }, { value: "dark", label: "深色" }]}
-                />
-                <p className="hint">主题写在客户端状态里。有桌面桥时同时写入桌面偏好。</p>
+              <section className="panel-card flex flex-col gap-3 p-5">
+                <div className="flex items-center gap-3">
+                  <h2 className="m-0">外观</h2>
+                  <UiSelect
+                    label="主题"
+                    value={session.client.theme}
+                    onValueChange={(value) => {
+                      if (value === "system" || value === "light" || value === "dark") session.client.setTheme(value);
+                    }}
+                    options={[{ value: "system", label: "跟随系统" }, { value: "light", label: "浅色" }, { value: "dark", label: "深色" }]}
+                  />
+                </div>
+                <p className="hint m-0">主题写在客户端状态里。有桌面桥时同时写入桌面偏好。</p>
               </section>
             </Tabs.Content>
             <Tabs.Content value="storage"><StoragePanel /></Tabs.Content>
@@ -341,27 +344,53 @@ function StoragePanel() {
 function DiagnosticsPanel() {
   const session = useSession();
   const [doctor, setDoctor] = useState<z.infer<typeof DoctorView> | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   useEffect(() => {
     api("/doctor", DoctorView).then(setDoctor).catch((reason) => session.setError(String(reason)));
   }, []);
   return (
     <section className="panel-card flex flex-col gap-4 p-5">
-      <div><h2 className="m-0">诊断及应用信息</h2><p className="hint mb-0 mt-1">LightWeaver 桌面客户端</p></div>
+      <div>
+        <div className="flex items-center gap-3">
+          <h2 className="m-0">诊断及应用信息</h2>
+          <Button size="sm" type="button" disabled={!doctor} onClick={() => setDetailOpen(true)}>详情</Button>
+        </div>
+        <p className="hint mb-0 mt-1">LightWeaver 桌面客户端</p>
+      </div>
       {!doctor && <p>正在读取诊断…</p>}
       {doctor && (
         <>
           <dl className="key-value-list"><dt>Node</dt><dd className="numeric">{doctor.node}</dd><dt>SQLite</dt><dd className="numeric">{doctor.sqlite}</dd></dl>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {doctor.checks.map((check) => (
-              <div className="subtle-card flex items-center justify-between gap-3 p-3" key={check.tool}>
-                <span>{check.tool}</span><Badge tone={check.ok ? "ok" : "warn"} dot>{check.ok ? check.version || "可用" : "不可用"}</Badge>
-              </div>
-            ))}
+          <div className="grid items-start gap-2 sm:grid-cols-2">
+            {doctor.checks.map((check) => {
+              const status = toolStatus(check);
+              return (
+                <div className="subtle-card flex min-w-0 flex-col gap-2 p-3" key={check.tool}>
+                  <div className="flex min-w-0 items-center justify-between gap-3">
+                    <span className="font-medium">{check.tool}</span>
+                    <Badge tone={check.ok ? "ok" : "warn"} dot>{status.badge}</Badge>
+                  </div>
+                  {status.detail && <p className="hint m-0 break-words text-xs leading-5">{status.detail}</p>}
+                </div>
+              );
+            })}
           </div>
-          <details><summary>诊断详情</summary><pre className="code-block mt-3 max-h-96">{JSON.stringify(doctor, null, 2)}</pre></details>
         </>
       )}
+      <Modal open={detailOpen && doctor !== null} title="诊断详情" onOpenChange={setDetailOpen}>
+        <pre className="code-block max-h-[min(32rem,calc(100vh-8rem))]">{doctor ? JSON.stringify(doctor, null, 2) : ""}</pre>
+      </Modal>
       {session.error && <p className="error">{session.error}</p>}
     </section>
   );
+}
+
+function toolStatus(check: { ok: boolean; version: string }) {
+  if (!check.ok) return { badge: "不可用", detail: "" };
+  const version = check.version.trim();
+  if (!version) return { badge: "可用", detail: "" };
+  const numbered = version.match(/\bversion\s+n?(\d+(?:\.\d+){1,3})\b/i);
+  if (numbered) return { badge: numbered[1], detail: version };
+  if (version.length <= 24) return { badge: version, detail: "" };
+  return { badge: "可用", detail: version };
 }
