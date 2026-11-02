@@ -57,7 +57,7 @@ export function developmentRuntime(
     configBase,
     dataDir,
     modelDir: path.resolve(
-      env.LIGHTWEAVER_MODEL_DOWNLOAD_ROOT?.trim() || path.join(dataDir, "models"),
+      env.LIGHTWEAVER_MODEL_DOWNLOAD_ROOT?.trim() || path.join(devRoot, "models"),
     ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),

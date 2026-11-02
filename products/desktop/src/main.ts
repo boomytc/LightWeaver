@@ -273,7 +273,9 @@ function runtimePaths(prefs: DesktopPreferences) {
     configFile,
     configBase,
     dataDir,
-    modelDir: path.resolve(prefs.modelDir || path.join(dataDir, "models")),
+    modelDir: path.resolve(
+      prefs.modelDir || path.join(dev ? repoRoot : dataDir, "models"),
+    ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),
     tools,

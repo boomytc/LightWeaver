@@ -12,7 +12,8 @@ tts_model: 'VoxCPM2'
 
 # Model files are downloaded only by an explicit `weaver models download`.
 # The Studio model page or `weaver models use --path` binds an existing directory.
-# Source default is relative to the monorepo; installed desktop uses its user model directory.
+# Source checkout uses only the monorepo-root models/; installed desktop uses its user model directory.
+# weaver/models/ is a legacy location and is neither read nor written.
 model_download_root: 'models'
 
 # Explicit local runtime. No implicit sibling checkout discovery or automatic download.
@@ -29,19 +30,19 @@ model_download_root: 'models'
 # model_python: '/absolute/model-environment/python'
 # Official Torch weights are the cross-platform default. MLX remains explicit opt-in.
 alignment_backend: 'torch'
-# alignment_model: 'weaver/models/qwen3-forced-aligner/<revision>'
+# alignment_model: 'models/qwen3-forced-aligner/<revision>'
 alignment_device: 'cpu'  # torch only: cpu or cuda[:index]
 # GGUF weights are loaded by a job-owned llama-server; no persistent service is needed.
 llama_server: 'llama-server'
 
 # Text and visual retrieval share EmbeddingGemma 2, mmproj and this llama-server build.
-# visual_model: 'weaver/models/embeddinggemma-2/<revision>/embeddinggemma-2-Q8_0.gguf'
-# visual_mmproj: 'weaver/models/embeddinggemma-2/<revision>/mmproj-F16.gguf'
+# visual_model: 'models/embeddinggemma-2/<revision>/embeddinggemma-2-Q8_0.gguf'
+# visual_mmproj: 'models/embeddinggemma-2/<revision>/mmproj-F16.gguf'
 # visual_server: 'weaver/runtime/visual/llama-server'
 
 # Optional local TTS has its own environment; ModelBest VoxCPM2 needs no local TTS model.
 # speech_python: '/absolute/speech-environment/python'
-# local_tts_model: 'weaver/models/VoxCPM2'
-# translation_model: 'weaver/models/Hy-MT2-1.8B-Q4_K_M.gguf'
+# local_tts_model: 'models/VoxCPM2'
+# translation_model: 'models/Hy-MT2-1.8B-Q4_K_M.gguf'
 translation_server: 'llama-server'
 diarization_backend: 'auto'

@@ -163,7 +163,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码入口（仓库 CLI、浏览器 Studio、源码桌面）默认以仓库为配置基准，正式桌面包以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
 
-内置 `model_download_root: 'models'` 在源码模式按 monorepo 根目录解析，因此 CLI、浏览器 Studio 和源码桌面默认下载到根目录的 `models/`，与私有配置文件位置无关。正式桌面包没有 monorepo，默认使用运行时的用户模型目录。私有配置或环境变量显式指定的下载根目录仍按 `configBase` 解析，优先级保持不变；根目录 `models/` 不进入 Git。
+内置 `model_download_root: 'models'` 在源码模式按 monorepo 根目录解析，因此 CLI、浏览器 Studio 和源码桌面默认下载到根目录的 `models/`，与私有配置文件位置无关。正式桌面包没有 monorepo，默认使用运行时的用户模型目录。源码模型目录只有根目录 `models/`；`weaver/models/` 是旧版布局，不再读取或写入。私有配置或环境变量显式指定的下载根目录仍按 `configBase` 解析，优先级保持不变；根目录 `models/` 不进入 Git。
 
 配置值按运行时 `configFile`（私有本地配置）、环境变量、内置 `config.yaml` 默认值的顺序解析。三者中的空字符串和纯空白值都视为未设置。`source=file` 表示私有本地配置，`source=environment` 表示环境变量，`source=default` 表示 `config.yaml` 或代码缺省值，`source=unset` 表示没有有效值。源码内置默认文件位于仓库根目录 `config.yaml`；桌面包内位于 `currentRuntime.resourcesDir/config.yaml`。私有覆盖继续写入 `runtime.configFile`，相对路径仍按 `runtime.configBase` 解析。
 
