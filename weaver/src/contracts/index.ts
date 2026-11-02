@@ -908,6 +908,37 @@ export const ModelStatus = z.strictObject({
     }),
   ),
 });
+const ActivePathState = z.enum(["unset", "missing", "wrong-type", "unavailable", "present"]);
+export const ActiveModelBinding = z.discriminatedUnion("target", [
+  ModelSettingsField.extend({
+    setting: z.string(), target: z.literal("file"), file: z.string(),
+    resolvedPath: z.string(), state: ActivePathState,
+  }),
+  ModelSettingsField.extend({
+    setting: z.string(), target: z.literal("directory"),
+    resolvedPath: z.string(), state: ActivePathState,
+  }),
+  ModelSettingsField.extend({ setting: z.string(), target: z.literal("literal") }),
+]);
+export const ActiveModelFile = z.strictObject({
+  path: z.string(),
+  actualPath: z.string(),
+  expectedSize: z.number().int().nonnegative().safe(),
+  actualSize: z.number().int().nonnegative().safe().optional(),
+  signature: z.string().optional(),
+  state: z.enum(["unset", "missing", "wrong-type", "unavailable", "size-mismatch", "metadata-match"]),
+});
+export const ActiveModelSnapshot = z.strictObject({
+  bindings: z.array(ActiveModelBinding),
+  files: z.array(ActiveModelFile),
+});
+export const ActiveVerifyResult = z.strictObject({
+  id: z.string(),
+  snapshot: ActiveModelSnapshot,
+  state: z.enum(["missing", "invalid", "verified"]),
+  files: z.array(ModelFileState),
+  verifiedAt: z.string(),
+});
 export const ModelsView = z.strictObject({
   catalog: ModelCatalog,
   settings: ModelSettingsView,
@@ -915,7 +946,8 @@ export const ModelsView = z.strictObject({
     z.strictObject({
       id: z.string(),
       status: ModelStatus,
-      activeBindings: z.array(ModelSettingsField.extend({ setting: z.string() })),
+      activeBindings: z.array(ActiveModelBinding),
+      activeFiles: z.array(ActiveModelFile),
       runtime: z.array(
         z.strictObject({
           setting: z.string(),

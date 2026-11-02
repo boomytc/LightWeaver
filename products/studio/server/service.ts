@@ -218,6 +218,9 @@ export async function startStudioService(
       z.object({ root: z.string() }).parse(req.body).root,
     ),
   );
+  route("post", "/api/models/:id/verify-active", (req) =>
+    app.models.verifyActive(z.string().parse(req.params.id)),
+  );
   route("post", "/api/models/:id/adopt", (req) =>
     app.models.adopt({
       id: z.string().parse(req.params.id),

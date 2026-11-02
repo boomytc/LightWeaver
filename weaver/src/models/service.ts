@@ -5,6 +5,8 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import {
   z,
+  ActiveModelSnapshot,
+  ActiveVerifyResult,
   DownloadInput,
   Id,
   ModelSettingsPatch,
@@ -41,6 +43,7 @@ import {
 
 type Setting = Parameters<ReturnType<typeof readConfig>["field"]>[0];
 type CatalogFile = DownloadableLocalModel["catalog"]["files"][number];
+type ActiveSnapshot = z.infer<typeof ActiveModelSnapshot>;
 
 const SETTINGS: Record<string, Setting> = {
   modelbestBaseUrl: { key: "modelbest_base_url", environment: "MODELBEST_BASE_URL" },
@@ -124,6 +127,31 @@ function checkPath(
     return true;
   } catch {
     return false;
+  }
+}
+
+function inspectPath(file: string, kind: "file" | "directory"): {
+  state: "unset" | "missing" | "wrong-type" | "unavailable" | "present";
+  actualSize?: number;
+  signature?: string;
+} {
+  if (!file) return { state: "unset" };
+  try {
+    const stat = fs.statSync(file, { bigint: true });
+    if (kind === "file" ? !stat.isFile() : !stat.isDirectory())
+      return { state: "wrong-type" };
+    return kind === "directory"
+      ? { state: "present" }
+      : {
+          state: "present",
+          actualSize: Number(stat.size),
+          signature: `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`,
+        };
+  } catch (error) {
+    return {
+      state: error && typeof error === "object" && "code" in error &&
+        (error.code === "ENOENT" || error.code === "ENOTDIR") ? "missing" : "unavailable",
+    };
   }
 }
 
@@ -222,31 +250,32 @@ export class Models {
     return ModelsView.parse({
       catalog: this.catalog(),
       settings,
-      local: items.map((item) => ({
-        id: item.catalog.id,
-        status: this.metadataStatus(item, base),
-        activeBindings: item.catalog.bindings.map((binding) => ({
-          setting: binding.setting,
-          ...field(this.root, SETTINGS[this.settingName(binding.setting)], process.env),
-        })),
-        runtime: item.catalog.runtimeRequirements.map((requirement) => {
-          const setting = SETTINGS[this.settingName(requirement.setting)];
-          const value = setting
-            ? field(this.root, setting, process.env).value
-            : "";
-          return {
-            setting: requirement.setting,
-            label: requirement.label,
-            documentationUrl: requirement.documentationUrl,
-            ready: checkPath(
-              requirement.kind === "executable"
-                ? resolveExecutable(value, this.root)
-                : resolvePath(this.root, value),
-              requirement.kind,
-            ),
-          };
-        }),
-      })),
+      local: items.map((item) => {
+        const snapshot = this.activeSnapshot(item, settings);
+        return {
+          id: item.catalog.id,
+          status: this.metadataStatus(item, base),
+          activeBindings: snapshot.bindings,
+          activeFiles: snapshot.files,
+          runtime: item.catalog.runtimeRequirements.map((requirement) => {
+            const setting = SETTINGS[this.settingName(requirement.setting)];
+            const value = setting
+              ? field(this.root, setting, process.env).value
+              : "";
+            return {
+              setting: requirement.setting,
+              label: requirement.label,
+              documentationUrl: requirement.documentationUrl,
+              ready: checkPath(
+                requirement.kind === "executable"
+                  ? resolveExecutable(value, this.root)
+                  : resolvePath(this.root, value),
+                requirement.kind,
+              ),
+            };
+          }),
+        };
+      }),
       downloads: this.jobs
         .list()
         .filter((run) => run.kind === "model-download")
@@ -344,6 +373,52 @@ export class Models {
     return this.verifyDirectory(item, resolved, directory);
   }
 
+  async verifyActive(id: string) {
+    const item = this.model(id), snapshot = this.activeSnapshot(item, this.settings());
+    const files: z.input<typeof ActiveVerifyResult>["files"] = [];
+    for (const [index, expected] of item.catalog.files.entries()) {
+      const current = snapshot.files[index];
+      let actualSha256: string | undefined;
+      let reason: string | undefined;
+      if (current.state === "metadata-match") {
+        try {
+          actualSha256 = await fileDigest(current.actualPath);
+          if (actualSha256 !== expected.sha256) reason = "SHA-256 与此版本清单不同";
+        } catch {
+          reason = "无法读取文件";
+        }
+      } else {
+        reason = {
+          unset: "未配置文件路径",
+          missing: "文件缺失",
+          "wrong-type": "不是普通文件",
+          unavailable: "无法访问文件",
+          "size-mismatch": "文件大小与此版本清单不同",
+        }[current.state];
+      }
+      files.push({
+        path: expected.path,
+        expectedSize: expected.size,
+        actualSize: current.actualSize,
+        expectedSha256: expected.sha256,
+        actualSha256,
+        state: current.state === "unset" || current.state === "missing"
+          ? "missing" : reason ? "invalid" : "verified",
+        reason,
+      });
+    }
+    if (JSON.stringify(snapshot) !== JSON.stringify(this.activeSnapshot(item, this.settings())))
+      throw new WeaverError("CONFIG_CONFLICT", "校验期间模型配置或文件已变化，请重新校验");
+    return ActiveVerifyResult.parse({
+      id,
+      snapshot,
+      state: files.every((file) => file.state === "missing") ? "missing"
+        : files.every((file) => file.state === "verified") ? "verified" : "invalid",
+      files,
+      verifiedAt: new Date().toISOString(),
+    });
+  }
+
   adopt(input: {
     id: string;
     directory: string;
@@ -421,6 +496,37 @@ export class Models {
 
   private directory(root: string, item: DownloadableLocalModel): string {
     return path.join(root, item.catalog.id, item.catalog.revision);
+  }
+
+  private activeSnapshot(
+    item: DownloadableLocalModel,
+    settings: z.infer<typeof ModelSettingsView>,
+  ): ActiveSnapshot {
+    const bindings: ActiveSnapshot["bindings"] = item.catalog.bindings.map((binding) => {
+      const value = settings.values[this.settingName(binding.setting)] || { value: "", source: "unset" as const };
+      if (binding.target === "literal") return { ...value, setting: binding.setting, target: "literal" };
+      const resolvedPath = resolvePath(this.root, value.value),
+        state = inspectPath(resolvedPath, binding.target).state;
+      return binding.target === "file"
+        ? { ...value, setting: binding.setting, target: "file", file: binding.file, resolvedPath, state }
+        : { ...value, setting: binding.setting, target: "directory", resolvedPath, state };
+    });
+    const files: ActiveSnapshot["files"] = item.catalog.files.map((expected) => {
+      safeRelative(expected.path);
+      const binding = bindings.find((value) => value.target === "file" && value.file === expected.path)
+        || bindings.find((value) => value.target === "directory");
+      const actualPath = !binding || binding.target === "literal" || !binding.resolvedPath ? ""
+        : binding.target === "file" ? binding.resolvedPath : path.join(binding.resolvedPath, expected.path);
+      const inspected = inspectPath(actualPath, "file");
+      return {
+        path: expected.path, actualPath, expectedSize: expected.size,
+        actualSize: inspected.actualSize, signature: inspected.signature,
+        state: inspected.state === "present"
+          ? inspected.actualSize === expected.size ? "metadata-match" : "size-mismatch"
+          : inspected.state,
+      };
+    });
+    return ActiveModelSnapshot.parse({ bindings, files });
   }
 
   private metadataStatus(

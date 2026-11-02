@@ -159,7 +159,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 本地目录由 TypeScript 声明式 catalog 提供。每条发布固定 repository、revision、文件路径、大小和 SHA-256；不接受任意下载 URL。下载输入只接受 catalog 模型 ID 和根目录，路径拒绝绝对文件项、`..` 与控制字符。下载作业沿用现有 Jobs 取消、恢复、重试和事件，模型下载单独使用六小时时限。
 
-下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页只检查目录元数据；`verify`、成功下载和采用已有路径才读取并哈希完整文件。Qwen ASR GGUF 与 TEN VAD 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 的目录绑定要求完整模型目录。下载不会复制到 CAS，也不会隐式写入配置。
+下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页分别检查当前生效路径和下载目录的元数据；Studio 可分别校验当前模型或下载目录，CLI `verify` 校验下载目录。校验与采用按目录清单对比，其他模型版本可能不同；只有显式校验、成功下载和采用已有路径才读取并哈希完整文件。Qwen ASR GGUF 与 TEN VAD 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 的目录绑定要求完整模型目录。下载不会复制到 CAS，也不会隐式写入配置。
 
 模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码入口（仓库 CLI、浏览器 Studio、源码桌面）默认以仓库为配置基准，正式桌面包以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
 

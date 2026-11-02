@@ -217,7 +217,7 @@ function renderModels(view: z.infer<typeof ModelsView>): string[] {
   ]);
   return [
     `Models: ${view.local.length}  Downloads: ${view.downloads.length}`,
-    ...table(["Model", "State", "Bindings"], rows),
+    ...table(["Model", "Download", "Bindings"], rows),
   ];
 }
 

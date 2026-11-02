@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   z,
+  ActiveVerifyResult,
   ModelSettingsView,
   ModelsView,
   RunRecord,
@@ -38,6 +39,23 @@ const stateLabel: Record<string, string> = {
   invalid: "文件不完整",
   unchecked: "大小已匹配，待校验",
   verified: "完整性已校验",
+};
+
+const activeFileLabel: Record<string, string> = {
+  unset: "未配置路径",
+  missing: "此版本清单中的文件不存在",
+  "wrong-type": "不是普通文件",
+  unavailable: "无法访问",
+  "size-mismatch": "大小与此版本清单不同",
+  "metadata-match": "大小匹配，待校验",
+};
+
+const pathStateLabel: Record<string, string> = {
+  unset: "未配置",
+  missing: "路径不存在",
+  "wrong-type": "路径类型不匹配",
+  unavailable: "无法访问",
+  present: "路径已找到",
 };
 
 function ProgressEvent({ event }: { event: unknown }) {
@@ -86,16 +104,19 @@ export function ModelSettings({
     [runId, setRunId] = useState(""),
     [events, setEvents] = useState<z.infer<typeof EventRecord>[]>([]),
     [verify, setVerify] = useState<Partial<Record<string, z.infer<typeof VerifyResult>>>>({}),
+    [activeVerify, setActiveVerify] = useState<Partial<Record<string, z.infer<typeof ActiveVerifyResult>>>>({}),
     [busy, setBusy] = useState(""),
     [pollGeneration, setPollGeneration] = useState(0);
   const rootRef = useRef(""),
-    rootDirty = useRef(false);
+    rootDirty = useRef(false),
+    refreshGeneration = useRef(0);
 
   const refreshModels = async (resetRoot: boolean, signal?: AbortSignal) => {
-    const requestedRoot = rootRef.current,
+    const generation = ++refreshGeneration.current,
+      requestedRoot = rootRef.current,
       query = requestedRoot ? `?root=${encodeURIComponent(requestedRoot)}` : "";
     const next = await api(`/models${query}`, ModelsView, { signal });
-    if (signal?.aborted || rootRef.current !== requestedRoot) return next;
+    if (signal?.aborted || rootRef.current !== requestedRoot || refreshGeneration.current !== generation) return next;
     setView(next);
     if (resetRoot && !rootDirty.current) {
       rootRef.current = next.settings.downloadRoot.value;
@@ -170,6 +191,7 @@ export function ModelSettings({
           model,
           status,
           activeBindings: current?.activeBindings || [],
+          activeFiles: current?.activeFiles || [],
           runtime: current?.runtime || [],
           adoptPath: adoptPaths[model.id] ??
             (status?.state === "missing" ? "" : status?.directory || ""),
@@ -380,7 +402,19 @@ export function ModelSettings({
         </div>
 
         <div className="flex flex-col gap-4">
-          {local.map(({ model, status, runtime, activeBindings, adoptPath }) => (
+          {local.map(({ model, status, runtime, activeBindings, activeFiles, adoptPath }) => {
+            const paths = activeBindings.filter((binding) => binding.target !== "literal");
+            const pathsReady = paths.length > 0 && paths.every((binding) => binding.state === "present");
+            const pathsUnset = paths.length === 0 || paths.every((binding) => binding.state === "unset");
+            const prior = activeVerify[model.id];
+            const downloadCheck = verify[model.id];
+            const checked = prior && JSON.stringify(prior.snapshot) === JSON.stringify({ bindings: activeBindings, files: activeFiles }) ? prior : undefined;
+            const integrity = checked?.state === "verified" ? "校验通过"
+              : checked?.state === "invalid" ? "未通过此版本清单校验"
+              : activeFiles.length > 0 && activeFiles.every((file) => file.state === "metadata-match") ? "大小匹配，待校验"
+              : activeFiles.some((file) => file.state === "size-mismatch") ? "大小与此版本清单不同"
+              : "未校验";
+            return (
             <article key={model.id} className="panel-card flex flex-col gap-3 p-4">
               <div className="section-title items-start">
                 <div className="flex-col !items-start gap-1">
@@ -388,8 +422,8 @@ export function ModelSettings({
                   <small>{model.capability} · {model.platform}{model.license ? ` · ${model.license}` : ""}</small>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Badge tone={status && status.state !== "missing" ? "ok" : "warn"} dot>文件{status && status.state !== "missing" ? "已存在" : "不存在"}</Badge>
-                  <Badge tone={verify[model.id]?.state === "verified" ? "ok" : status?.state === "invalid" ? "danger" : "neutral"}>SHA-256 · {stateLabel[verify[model.id]?.state || (status?.state === "invalid" ? "invalid" : "unchecked")]}</Badge>
+                  <Badge tone={pathsReady ? "ok" : "warn"} dot>{pathsReady ? "当前模型路径已找到" : pathsUnset ? "当前模型未配置" : "当前模型路径不完整"}</Badge>
+                  <Badge tone={checked?.state === "verified" ? "ok" : "neutral"}>当前模型 SHA-256 · {integrity}</Badge>
                   <Badge tone={runtime.every((item) => item.ready) ? "ok" : "warn"} dot>运行时 · {runtime.length === 0 ? "无额外条件" : runtime.every((item) => item.ready) ? "条件已满足" : "有缺失"}</Badge>
                 </div>
               </div>
@@ -398,19 +432,27 @@ export function ModelSettings({
                 {runtime.some((item) => !item.ready) && <Button size="sm" variant="ghost" onClick={onOpenRuntime}>打开运行时设置</Button>}
                 <Button size="sm" variant="ghost" onClick={onOpenJobs}>查看作业记录</Button>
               </div>
-              <small>{model.repository}@{model.revision.slice(0, 12)}</small>
+              <div className="model-files">
+                <b>当前生效配置</b>
+                {activeBindings.map((binding) => (
+                  <small className="numeric" key={binding.setting}>
+                    {binding.setting}：{binding.target === "literal" ? binding.value || "未指定" : binding.resolvedPath || "未指定"}
+                    {binding.target !== "literal" ? ` · ${pathStateLabel[binding.state]}` : ""} · 来源 {binding.source}
+                  </small>
+                ))}
+                {paths.some((binding) => binding.target === "directory") && <small>目录状态只表示路径存在，文件内容需另行校验。</small>}
+              </div>
+              <small>以下按 {model.repository}@{model.revision.slice(0, 12)} 的文件清单检查；其他模型版本可能使用不同文件。</small>
               {model.files.length ? (
                 <div className="model-files">
                   {model.files.map((file, index) => {
-                    const current = verify[model.id]?.files[index] || status?.files[index];
+                    const current = activeFiles[index];
+                    const result = checked?.files[index];
                     return (
                       <small key={file.path}>
-                        {file.path} · {file.size.toLocaleString()} B ·{" "}
-                        {stateLabel[
-                          current?.state === "metadata-match"
-                            ? "unchecked"
-                            : current?.state || "missing"
-                        ]}
+                        {file.path} · 清单大小 {file.size.toLocaleString()} B · {result
+                          ? result.state === "verified" ? "SHA-256 校验通过" : result.reason || "未通过清单校验"
+                          : activeFileLabel[current?.state || "unset"]}
                       </small>
                     );
                   })}
@@ -418,16 +460,6 @@ export function ModelSettings({
               ) : (
                 <small>{model.unavailableReason}</small>
               )}
-              <details className="subtle-card p-3">
-                <summary className="text-xs font-medium">当前生效配置</summary>
-                <div className="mt-2 flex flex-col gap-1">
-                  {activeBindings.map((binding) => (
-                    <small className="numeric" key={binding.setting}>
-                      {binding.setting}：{binding.value || "未指定"} · 来源 {binding.source}
-                    </small>
-                  ))}
-                </div>
-              </details>
               {runtime.length > 0 && (
                 <div className="runtime-list">
                   {runtime.map((item) => (
@@ -443,6 +475,22 @@ export function ModelSettings({
                 </div>
               )}
               <div className="actions">
+                <Button
+                  disabled={!model.available || pathsUnset || !!busy}
+                  onClick={() =>
+                    act(`校验当前模型 ${model.id}`, async () => {
+                      const result = await api(
+                        `/models/${encodeURIComponent(model.id)}/verify-active`,
+                        ActiveVerifyResult,
+                        { method: "POST" },
+                      );
+                      await refreshModels(false);
+                      setActiveVerify((current) => ({ ...current, [model.id]: result }));
+                    })
+                  }
+                >
+                  校验当前模型大小与 SHA-256
+                </Button>
                 <Button
                   variant="primary"
                   disabled={!model.available || !root || !!busy}
@@ -492,9 +540,20 @@ export function ModelSettings({
                     })
                   }
                 >
-                  校验大小与 SHA-256
+                  校验下载目录大小与 SHA-256
                 </Button>
               </div>
+              {status && <details className="subtle-card p-3">
+                <summary className="text-xs font-medium">下载目录状态 · {status.state === "unchecked" ? "文件大小匹配" : stateLabel[status.state]}</summary>
+                <div className="mt-2 flex flex-col gap-1">
+                  <small className="numeric">{status.directory}</small>
+                  {model.files.map((file, index) => {
+                    const current = status.files[index];
+                    return <small key={file.path}>{file.path} · {current?.state === "metadata-match" ? "大小匹配" : stateLabel[current?.state || "missing"]}</small>;
+                  })}
+                  {downloadCheck && <small>本页上次校验（{new Date(downloadCheck.verifiedAt).toLocaleString()}）：{downloadCheck.state === "invalid" ? "未通过清单校验" : stateLabel[downloadCheck.state]}</small>}
+                </div>
+              </details>}
               <InputWithActions
                 label="采用已有模型目录"
                 value={adoptPath}
@@ -537,7 +596,8 @@ export function ModelSettings({
                 校验后采用
               </Button>
             </article>
-          ))}
+            );
+          })}
         </div>
       </section>
 
