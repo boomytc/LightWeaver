@@ -22,7 +22,7 @@
 - 安装目录内的 llama-server 跑视觉嵌入：文本与蓝色网格图各 768 维、归一化后余弦 0.723891；重排三条候选得 `[0.99973, 3.49e-05, 0.00059]`，相关条排第一；Hy-MT2 把两条中文字幕译为英文亦通过。
 - 负向与恢复：篡改已安装 `libggml.dylib` 追加 16 字节后 verify 为 invalid、reason「文件大小不匹配」（期望 90896、实际 90912）；同大小翻转 1 字节后 invalid、reason「SHA-256 不匹配」；重装 `run-e42baec7…` succeeded 并恢复原摘要。预置无标记目录 `ten-vad/keep.txt` 后安装 `run-4bd3e443…` failed/ENGINE_TARGET_CONFLICT，原文件保留；预置 python-speech 目录同样返回 ENGINE_TARGET_CONFLICT。已损坏的引擎目录执行采用返回 ENGINE_VERIFY_FAILED「引擎目录未通过完整性校验，未写入配置」且 revision 不变；过期 revision 采用返回 CONFIG_CONFLICT。
 - 取消与重试：python-speech 安装 `run-546cdc79…` 取消后 state cancelled、错误 CANCELLED，环境目录与磁盘锁删除、暂存清空、状态回到 missing；再次发起 `run-9b414a6a…` 能正常进入 venv/pip，取消后同样无残留。
-- Studio 实际点击（隔离数据目录、配置与引擎根，已安装并采用）：设置 → 运行时与路径显示 6 个引擎卡片、引擎根目录与「已安装/已就绪」状态；对 transcribe.cpp 运行库点「校验」返回校验通过与 6 个文件的实际字节数；点「采用」写入配置并追加配置请求收据；模型 Python 环境「校验」返回 `verified`/`f7bf37ba2e9d`；「创建/更新环境」作业显示已完成；对语音 Python 环境点「创建/更新环境」后取消，界面显示「已取消」，引擎目录与磁盘锁无残留。
+- Studio 实际点击（隔离数据目录、配置与引擎根，已安装并采用）：设置 → 运行时与路径显示 6 个引擎卡片、引擎根目录与「已安装/使用外部路径」等安装与使用状态（管理安装状态与当前绑定分开呈现）；对 transcribe.cpp 运行库点「校验」返回校验通过与 6 个文件的实际字节数；点「采用」写入配置并追加配置请求收据；模型 Python 环境「校验」返回 `verified`/`f7bf37ba2e9d`；「创建/更新环境」作业显示已完成；对语音 Python 环境点「创建/更新环境」后取消，界面显示「已取消」，引擎目录与磁盘锁无残留。另在仅手工配置外部路径、管理目录未安装的隔离配置下复核：卡片显示「未安装」与「使用外部路径」并给出切换到受管理副本的说明，顶部汇总为「已安装 0 / 6 · 使用外部路径 6 · 未使用 0」。
 - HTTP 冒烟（开发模式，本机 5199）：`/api/runtime` 的 engineDir 指向隔离引擎根；`/api/engines` 返回 6 个引擎与当前 revision；`POST /api/engines/transcribe-bindings/install` 产生 `run-6a10a441…` succeeded/verified；`POST /api/engines/llama-server/verify` 返回 verified/b12032 与探测详情；`POST /api/engines/python-model/use` 返回同一 revision 与 model_python 路径。服务随后停止。
 
 ## 证据边界

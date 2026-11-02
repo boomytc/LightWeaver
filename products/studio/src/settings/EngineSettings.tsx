@@ -46,6 +46,37 @@ const engineStateTone: Record<string, "neutral" | "ok" | "warn" | "danger"> = {
   unchecked: "warn",
   invalid: "danger",
 };
+type EngineUsage =
+  | "managed"
+  | "managed-unused"
+  | "external"
+  | "unused"
+  | "partial";
+const usageBadge: Record<
+  Exclude<EngineUsage, "unused">,
+  { label: string; tone: "ok" | "warn" | "accent" | "neutral" }
+> = {
+  managed: { label: "已安装 · 已采用", tone: "ok" },
+  "managed-unused": { label: "已安装 · 未采用", tone: "warn" },
+  external: { label: "使用外部路径", tone: "accent" },
+  partial: { label: "部分绑定可用", tone: "warn" },
+};
+/**
+ * 安装状态和当前绑定是两件事：状态徽标只看本应用管理的安装目录，
+ * 使用徽标回答“当前实际用的是哪条路径”，避免出现“未安装 + 已就绪”的矛盾观感。
+ */
+function usageOf(
+  state: string,
+  active: readonly { ready: boolean; state: string }[],
+): EngineUsage {
+  const ready = active.length > 0 && active.every((binding) => binding.ready);
+  const unset = active.length > 0 && active.every((binding) => binding.state === "unset");
+  if (state === "installed") return unset ? "managed-unused" : "managed";
+  if (ready) return "external";
+  if (unset) return "unused";
+  return "partial";
+}
+
 const runStateLabel: Record<string, string> = {
   queued: "排队中",
   running: "进行中",
@@ -147,6 +178,17 @@ export function EngineSettings() {
     );
 
   const statuses = new Map(view.items.map((item) => [item.id, item]));
+  const usageCounts = view.catalog.items.reduce(
+    (counts, item) => {
+      const current = statuses.get(item.id);
+      if (current) counts[usageOf(current.status.state, current.active)] += 1;
+      return counts;
+    },
+    { managed: 0, "managed-unused": 0, external: 0, unused: 0, partial: 0 } as Record<
+      EngineUsage,
+      number
+    >,
+  );
   return (
     <section className="flex flex-col gap-4" aria-labelledby="engine-settings-title">
       <div>
@@ -161,6 +203,11 @@ export function EngineSettings() {
           <dd className="numeric">{view.installRoot.value}（{sourceName(view.installRoot.source)}）</dd>
         </div>
       </dl>
+      <small>
+        本应用管理：已安装 {usageCounts.managed + usageCounts["managed-unused"]} /{" "}
+        {view.catalog.items.length} · 使用外部路径 {usageCounts.external} · 未使用{" "}
+        {usageCounts.unused + usageCounts.partial}
+      </small>
       <div className="model-inventory-grid">
         {view.catalog.items.map((item) => {
           const status = statuses.get(item.id);
@@ -200,18 +247,8 @@ function EngineCard({
   const status = itemStatus.status;
   const documentationUrl = item.documentationUrl;
   const pythonEnvironment = item.kind === "python-env";
-  const allReady =
-    itemStatus.active.length > 0 &&
-    itemStatus.active.every((binding) => binding.ready);
-  const allUnset =
-    itemStatus.active.length > 0 &&
-    itemStatus.active.every((binding) => binding.state === "unset");
-  const bindingBadge = allReady ? "已就绪" : allUnset ? "未采用" : "未就绪";
-  const bindingTone: "neutral" | "ok" | "warn" = allReady
-    ? "ok"
-    : allUnset
-      ? "neutral"
-      : "warn";
+  const usage = usageOf(status.state, itemStatus.active);
+  const usageInfo = usage === "unused" ? null : usageBadge[usage];
   const installing = install.active || install.starting;
   const blocked = !item.available || !!busy;
   const installLabel = pythonEnvironment
@@ -309,16 +346,35 @@ function EngineCard({
         <Badge tone={engineStateTone[status.state]} dot>
           {engineStateLabel[status.state]}
         </Badge>
-        <Badge tone={bindingTone} dot>
-          {bindingBadge}
-        </Badge>
+        {usageInfo && (
+          <Badge tone={usageInfo.tone} dot>
+            {usageInfo.label}
+          </Badge>
+        )}
         {pythonEnvironment && <Badge tone="accent">Python 环境</Badge>}
         {!item.available && <Badge tone="warn">当前平台不可用</Badge>}
       </div>
       <p className="hint mt-1 mb-0">{item.summary}</p>
-      <small>版本 {status.version || item.version} · 平台 {item.platform}</small>
-      <small className="numeric break-all">安装目录：{status.directory}</small>
+      <small>
+        清单版本 {item.version} · 平台 {item.platform}
+        {status.version ? ` · 已安装 ${status.version}` : ""}
+      </small>
+      <small className="numeric break-all">
+        {pythonEnvironment ? "环境目录" : "管理安装目录"}：{status.directory}
+      </small>
       {status.reason && <small>状态说明：{status.reason}</small>}
+      {usage === "external" && (
+        <small>
+          当前配置使用外部路径（手工配置或系统默认），本应用管理的安装目录未安装。
+          安装并通过校验后点“采用”，可把绑定切换到受管理副本。
+        </small>
+      )}
+      {usage === "managed-unused" && (
+        <small>已安装到本应用目录，尚未采用；点“采用”写入当前配置。</small>
+      )}
+      {usage === "partial" && (
+        <small>当前绑定部分可用，检查下面各设置的路径与来源。</small>
+      )}
       {!item.available && (
         <small>不可用原因：{item.unavailableReason || "当前平台没有已核验的引擎产物"}</small>
       )}
