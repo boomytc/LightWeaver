@@ -4,7 +4,7 @@ import { api, ApiError, requestId } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
 import { CreateProject } from "./CreateProject";
-import { PageHeader } from "../ui/PageHeader";
+import { PageFrame } from "../ui/PageFrame";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Dropzone } from "../ui/Dropzone";
@@ -74,10 +74,8 @@ export function ProjectHome() {
     return leftRecent - rightRecent;
   });
   return (
-    <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="项目" description="继续最近的创作，或从草稿与项目包开始一部新片。" />
-      <div className="scroll-region page-scroll">
-        <div className="page-content grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.7fr)]">
+    <PageFrame title="项目" description="继续最近的创作，或从草稿与项目包开始一部新片。">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.7fr)]">
           <section className="panel-card p-5 xl:col-span-2" aria-labelledby="start-project-title">
             <div className="section-title mb-3">
               <div>
@@ -185,7 +183,6 @@ export function ProjectHome() {
             </section>
           </div>
         </div>
-      </div>
-    </main>
+    </PageFrame>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { useSession } from "../session/context";
 import { HintProvider } from "../ui/Hint";
@@ -36,6 +36,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   const session = useSession();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 1100px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 1100px)");
+    const onChange = () => setNarrow(query.matches);
+    onChange();
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  const routeKey = `${session.route.page}/${session.route.projectId}/${session.route.section}`;
+  const previousRouteKey = useRef(routeKey);
+  useEffect(() => {
+    if (previousRouteKey.current === routeKey) return;
+    previousRouteKey.current = routeKey;
+    const frame = window.requestAnimationFrame(() => {
+      const main = document.getElementById("main");
+      if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [routeKey]);
   const { runs, refresh: refreshRuns } = useRunList();
   useEffect(() => {
     void refreshRuns();
@@ -75,58 +94,96 @@ export function AppShell({ children }: { children: ReactNode }) {
     setQuery("");
     setActiveIndex(0);
   };
+  const searchChange = (value: string) => {
+    setQuery(value);
+    setActiveIndex(0);
+    session.setFindOpen(true);
+  };
+  const searchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!matches.length) return;
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((active + delta + matches.length) % matches.length);
+    } else if (event.key === "Enter" && matches[active]) {
+      event.preventDefault();
+      void choose(matches[active].projectId);
+    } else if (event.key === "Escape") {
+      session.setFindOpen(false);
+    }
+  };
   return (
     <HintProvider>
       <div className="app-frame text-ink">
+        <a className="skip-link" href="#main">跳到主要内容</a>
         <aside className="app-rail">
           <div className="app-brand">
             <span className="brand-mark"><BrandIcon /></span>
             <span>LightWeaver</span>
           </div>
           <Popover.Root open={session.findOpen} onOpenChange={session.setFindOpen}>
-            <Popover.Anchor asChild>
-              <div className="project-search">
-                <span className="project-search-icon"><SearchIcon /></span>
-                <SearchInput
-                  label="查找项目"
-                  placeholder="查找项目"
-                  className="search-field"
-                  data-lw-find=""
-                  value={query}
-                  onFocus={() => session.setFindOpen(true)}
-                  onChange={(value) => {
-                    setQuery(value);
+            {narrow ? (
+              <Popover.Anchor asChild>
+                <button
+                  type="button"
+                  className="nav-item"
+                  aria-label="查找项目"
+                  title="查找项目"
+                  onClick={() => {
+                    setQuery("");
                     setActiveIndex(0);
                     session.setFindOpen(true);
                   }}
-                  onClear={() => {
-                    setQuery("");
-                    setActiveIndex(0);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                      event.preventDefault();
-                      if (!matches.length) return;
-                      const delta = event.key === "ArrowDown" ? 1 : -1;
-                      setActiveIndex((active + delta + matches.length) % matches.length);
-                    } else if (event.key === "Enter" && matches[active]) {
-                      event.preventDefault();
-                      void choose(matches[active].projectId);
-                    } else if (event.key === "Escape") {
-                      session.setFindOpen(false);
-                    }
-                  }}
-                />
-                {!query && <kbd className="project-search-shortcut">{navigator.platform.includes("Mac") ? "⌘F" : "Ctrl+F"}</kbd>}
-              </div>
-            </Popover.Anchor>
+                >
+                  <SearchIcon />
+                  <span className="nav-item-label">查找项目</span>
+                </button>
+              </Popover.Anchor>
+            ) : (
+              <Popover.Anchor asChild>
+                <div className="project-search">
+                  <span className="project-search-icon"><SearchIcon /></span>
+                  <SearchInput
+                    label="查找项目"
+                    placeholder="查找项目"
+                    className="search-field"
+                    data-lw-find=""
+                    value={query}
+                    onFocus={() => session.setFindOpen(true)}
+                    onChange={searchChange}
+                    onClear={() => {
+                      setQuery("");
+                      setActiveIndex(0);
+                    }}
+                    onKeyDown={searchKeyDown}
+                  />
+                  {!query && <kbd className="project-search-shortcut">{navigator.platform.includes("Mac") ? "⌘F" : "Ctrl+F"}</kbd>}
+                </div>
+              </Popover.Anchor>
+            )}
             <Popover.Portal>
               <Popover.Content
-                className="search-popover z-50"
+                className={narrow ? "search-popover search-popover-narrow z-50" : "search-popover z-50"}
                 align="start"
                 sideOffset={6}
-                onOpenAutoFocus={(event) => event.preventDefault()}
+                onOpenAutoFocus={narrow ? undefined : (event) => event.preventDefault()}
               >
+                {narrow && (
+                  <div className="search-popover-input">
+                    <SearchInput
+                      label="查找项目"
+                      placeholder="查找项目"
+                      value={query}
+                      autoFocus
+                      onChange={searchChange}
+                      onClear={() => {
+                        setQuery("");
+                        setActiveIndex(0);
+                      }}
+                      onKeyDown={searchKeyDown}
+                    />
+                  </div>
+                )}
                 {matches.map((project, index) => (
                   <button
                     key={project.projectId}
@@ -160,6 +217,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <button
                         type="button"
                         className={isPageOn ? "nav-item is-on" : "nav-item"}
+                        aria-label={label}
+                        title={label}
                         aria-current={isPageOn ? "page" : undefined}
                         onClick={() => void session.navigate(page)}
                       >
@@ -172,7 +231,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                       {page === "projects" && pinnedProject && (
                         <button
                           type="button"
-                          className={`nav-item mt-1 h-8 pl-8 text-xs ${pinnedProject.active ? "is-on" : ""}`}
+                          className={`nav-item nav-item-pinned mt-1 h-8 pl-8 text-xs ${pinnedProject.active ? "is-on" : ""}`}
+                          title={pinnedProject.title}
                           aria-current={pinnedProject.active ? "page" : undefined}
                           onClick={() => void session.navigate("projects", pinnedProject.id)}
                         >

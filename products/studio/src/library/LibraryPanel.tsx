@@ -6,7 +6,7 @@ import { labels } from "../domain/format";
 import { RunDetail } from "../domain/run";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { Field } from "../ui/Field";
-import { PageHeader } from "../ui/PageHeader";
+import { PageFrame } from "../ui/PageFrame";
 import { ListSkeleton } from "../ui/Skeleton";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
@@ -186,12 +186,12 @@ export function LibraryPanel({
   };
   const items = library.filter((v) => v.payload.kind === kind);
   return (
-    <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader
-        title={kind === "voice" ? "音色" : kind === "method" ? "方法" : "素材库"}
-        description="项目绑定精确版本。编辑发布新版本；删除只隐藏当前库项，历史引用继续有效。"
-        actions={<Badge tone="accent">{items.length} 个库项</Badge>}
-      />
+    <PageFrame
+      title={kind === "voice" ? "音色" : kind === "method" ? "方法" : "素材库"}
+      description="项目绑定精确版本。编辑发布新版本；删除只隐藏当前库项，历史引用继续有效。"
+      actions={<Badge tone="accent">{items.length} 个库项</Badge>}
+      scroll={false}
+    >
       <div className="split-page grid min-h-0 flex-1 grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
         <section className="scroll-region border-r border-line p-3">
           {session.listsStatus === "loading" && <ListSkeleton rows={4} />}
@@ -510,6 +510,6 @@ export function LibraryPanel({
           </div>
         </section>
       </div>
-    </main>
+    </PageFrame>
   );
 }

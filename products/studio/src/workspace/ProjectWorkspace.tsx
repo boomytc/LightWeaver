@@ -15,6 +15,7 @@ import { useSession } from "../session/context";
 import { SceneEditor } from "../scenes/SceneEditor";
 import { SourceWindowPlayer } from "../scenes/SourceWindowPlayer";
 import { Menu, MenuItem } from "../ui/Menu";
+import { Segmented } from "../ui/Segmented";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Hint } from "../ui/Hint";
@@ -307,10 +308,40 @@ export function ProjectWorkspace() {
     scenes[target] = current;
     session.edit({ ...draft, scenes });
   };
-  const bottomHeight = layout.collapsed.bottom ? 36 : layout.bottom;
+  const bottomForcedCollapsed = focus !== "edit" && bottomMode === "storyboard";
+  const bottomCollapsed = layout.collapsed.bottom || bottomForcedCollapsed;
+  const bottomHeight = bottomCollapsed ? 36 : layout.bottom;
+  const resizeByKeyboard = (edge: "left" | "right" | "bottom") => (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const keys = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]);
+    if (!keys.has(event.key)) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 24 : 8;
+    if (edge === "bottom") {
+      const base = layout.collapsed.bottom ? 120 : layout.bottom;
+      let next = base;
+      if (event.key === "ArrowUp") next = base + step;
+      else if (event.key === "ArrowDown") next = base - step;
+      else if (event.key === "Home") next = 120;
+      else if (event.key === "End") next = 480;
+      commitLayout({ ...layout, bottom: next, collapsed: { ...layout.collapsed, bottom: false } });
+      return;
+    }
+    const side = edge;
+    const base = layout.collapsed[side] ? (side === "left" ? 160 : 220) : layout[side];
+    const grow = side === "left" ? event.key === "ArrowRight" : event.key === "ArrowLeft";
+    let next = base;
+    if (event.key === "Home") next = side === "left" ? 160 : 220;
+    else if (event.key === "End") next = 640;
+    else if (event.key === "ArrowLeft" || event.key === "ArrowRight") next = base + (grow ? step : -step);
+    commitLayout({ ...layout, [side]: next, collapsed: { ...layout.collapsed, [side]: false } });
+  };
+  const resetResizer = (edge: "left" | "right" | "bottom") => () => {
+    const fallback = edge === "left" ? 280 : edge === "right" ? 320 : 200;
+    commitLayout({ ...layout, [edge]: fallback, collapsed: { ...layout.collapsed, [edge]: false } });
+  };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" ref={shellRef}>
+    <div className="flex min-h-0 flex-1 flex-col" ref={shellRef} id="main" tabIndex={-1}>
       <input
         ref={importInputRef}
         type="file"
@@ -325,6 +356,7 @@ export function ProjectWorkspace() {
         }}
       />
       <header className="workspace-header">
+        <h1 className="sr-only">{draft.title || "未命名项目"}</h1>
         <div className="workspace-context">
           <Hint label="返回项目列表">
             <Button size="icon" compact variant="ghost" aria-label="返回项目列表" onClick={() => void session.navigate("projects")}>
@@ -342,19 +374,20 @@ export function ProjectWorkspace() {
             {revisionState.label}
           </Badge>
         </div>
-        <div className="seg workspace-tabs" role="tablist" aria-label="工作区">
-          {([
-            ["edit", "画面"],
-            ["captions", "字幕"],
-            ["sound", "声音"],
-            ["plan", "方案"],
-            ["delivery", "交付"],
-          ] as const).map(([key, label]) => (
-            <button key={key} type="button" role="tab" aria-selected={focus === key} className={focus === key ? "is-on" : ""} onClick={() => setFocus(key)}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          className="workspace-tabs"
+          idPrefix="workspace-tab"
+          label="工作区"
+          value={focus}
+          onChange={setFocus}
+          options={[
+            { value: "edit", label: "画面" },
+            { value: "captions", label: "字幕" },
+            { value: "sound", label: "声音" },
+            { value: "plan", label: "方案" },
+            { value: "delivery", label: "交付" },
+          ]}
+        />
         <div className="workspace-actions">
           <FieldLocale />
           <Menu label={<><MoreIcon /><span className="workspace-menu-label">更多</span></>}>
@@ -450,11 +483,18 @@ export function ProjectWorkspace() {
                   <PanelButton side="left" collapsed={false} onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, left: true } })} />
                 </div>
                 <div className="scroll-region min-h-0 flex-1 p-2">
-                  <div className="seg mb-3 grid w-full grid-cols-3">
-                    {([["scenes", "场景"], ["assets", "素材"], ["evidence", "证据"]] as const).map(([key, label]) => (
-                      <button key={key} type="button" className={leftMode === key ? "is-on" : ""} aria-pressed={leftMode === key} onClick={() => setLeftMode(key)}>{label}</button>
-                    ))}
-                  </div>
+                  <Segmented
+                    className="mb-3 grid w-full grid-cols-3"
+                    mode="toggle"
+                    label="创作资源视图"
+                    value={leftMode}
+                    onChange={setLeftMode}
+                    options={[
+                      { value: "scenes", label: "场景" },
+                      { value: "assets", label: "素材" },
+                      { value: "evidence", label: "证据" },
+                    ]}
+                  />
                   {leftMode === "assets" && <AssetPanel selectedKey={assetKey} onSelect={selectAsset} />}
                   {leftMode === "evidence" && <EvidencePanel />}
                   {leftMode === "scenes" && (
@@ -478,15 +518,37 @@ export function ProjectWorkspace() {
             )}
           </aside>
         )}
-        {focus === "edit" && !panes.forced.left && <Resizer edge="left" dragging={dragging === "left"} onPointerDown={drag("left")} />}
-        <main className={focus === "edit" ? "flex min-w-0 flex-1 flex-col overflow-hidden bg-panel" : "scroll-region min-w-0 flex-1 bg-panel p-5"}>
+        {focus === "edit" && !panes.forced.left && (
+          <Resizer
+            edge="left"
+            dragging={dragging === "left"}
+            onPointerDown={drag("left")}
+            onKeyDown={resizeByKeyboard("left")}
+            onReset={resetResizer("left")}
+            value={panes.collapsed.left ? 36 : panes.left}
+            min={160}
+            max={640}
+          />
+        )}
+        <main
+          id="workspace-tab-panel"
+          role="tabpanel"
+          aria-labelledby={`workspace-tab-${focus}`}
+          className={focus === "edit" ? "flex min-w-0 flex-1 flex-col overflow-hidden bg-panel" : "scroll-region min-w-0 flex-1 bg-panel p-5"}
+        >
           {focus === "edit" && (
             <>
               <div className="preview-toolbar">
-                <div className="seg" role="group" aria-label="预览来源">
-                  <button type="button" className={previewMode === "scene" ? "is-on" : ""} aria-pressed={previewMode === "scene"} onClick={() => setPreviewMode("scene")}><EyeIcon />预览当前场景</button>
-                  <button type="button" disabled={!asset} className={previewMode === "asset" ? "is-on" : ""} aria-pressed={previewMode === "asset"} onClick={() => setPreviewMode("asset")}><VideoIcon />检视选中素材</button>
-                </div>
+                <Segmented
+                  mode="toggle"
+                  label="预览来源"
+                  value={previewMode}
+                  onChange={setPreviewMode}
+                  options={[
+                    { value: "scene", label: <><EyeIcon />预览当前场景</> },
+                    { value: "asset", label: <><VideoIcon />检视选中素材</>, disabled: !asset },
+                  ]}
+                />
                 <Badge>{previewMode === "asset" && asset ? asset.name : scene ? `场景 ${sceneIndex + 1} · ${labels[scene.kind]}` : "未选择场景"}</Badge>
               </div>
               <div className="preview-stage stage-well">
@@ -516,7 +578,18 @@ export function ProjectWorkspace() {
             {focus === "delivery" && <DeliveryPanel />}
           </div>}
         </main>
-        {focus === "edit" && !panes.forced.right && <Resizer edge="right" dragging={dragging === "right"} onPointerDown={drag("right")} />}
+        {focus === "edit" && !panes.forced.right && (
+          <Resizer
+            edge="right"
+            dragging={dragging === "right"}
+            onPointerDown={drag("right")}
+            onKeyDown={resizeByKeyboard("right")}
+            onReset={resetResizer("right")}
+            value={panes.collapsed.right ? 36 : panes.right}
+            min={220}
+            max={640}
+          />
+        )}
         {focus === "edit" && (
           <aside className="flex min-h-0 shrink-0 flex-col border-l border-line bg-panel" style={{ width: panes.collapsed.right ? 36 : panes.right }}>
             {panes.collapsed.right ? (
@@ -546,33 +619,36 @@ export function ProjectWorkspace() {
           </aside>
         )}
       </div>
-      <Resizer edge="bottom" dragging={dragging === "bottom"} onPointerDown={drag("bottom")} />
+      {!bottomForcedCollapsed && (
+        <Resizer
+          edge="bottom"
+          dragging={dragging === "bottom"}
+          onPointerDown={drag("bottom")}
+          onKeyDown={resizeByKeyboard("bottom")}
+          onReset={resetResizer("bottom")}
+          value={bottomCollapsed ? 36 : layout.bottom}
+          min={120}
+          max={480}
+        />
+      )}
       <footer className="flex shrink-0 flex-col border-t border-line bg-panel" style={{ height: bottomHeight }}>
-        {layout.collapsed.bottom ? (
-          <div className="collapsed-rail"><PanelButton side="bottom" collapsed onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, bottom: false } })} /></div>
+        {bottomCollapsed ? (
+          <div className="collapsed-rail">
+            {bottomForcedCollapsed ? <span className="hint text-xs">故事板</span> : <PanelButton side="bottom" collapsed onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, bottom: false } })} />}
+          </div>
         ) : (
           <>
             <div className="panel-header">
-              <div className="seg" role="tablist" aria-label="底部工作区">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={bottomMode === "storyboard"}
-                  className={bottomMode === "storyboard" ? "is-on" : ""}
-                  onClick={() => setBottomMode("storyboard")}
-                >
-                  故事板
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={bottomMode === "run"}
-                  className={bottomMode === "run" ? "is-on" : ""}
-                  onClick={() => setBottomMode("run")}
-                >
-                  任务{session.activeRun ? currentRun ? ` · ${runLabel(currentRun.state)}` : "进度" : "（暂无）"}
-                </button>
-              </div>
+              <Segmented
+                idPrefix="bottom-tab"
+                label="底部工作区"
+                value={bottomMode}
+                onChange={setBottomMode}
+                options={[
+                  { value: "storyboard", label: "故事板" },
+                  { value: "run", label: `任务${session.activeRun ? currentRun ? ` · ${runLabel(currentRun.state)}` : "进度" : "（暂无）"}` },
+                ]}
+              />
               <div className="panel-header-actions">
                 {bottomMode === "storyboard" && (
                   <>
@@ -584,6 +660,7 @@ export function ProjectWorkspace() {
                 <PanelButton side="bottom" collapsed={false} onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, bottom: true } })} />
               </div>
             </div>
+            <div id="bottom-tab-panel" role="tabpanel" aria-labelledby={`bottom-tab-${bottomMode}`} className="flex min-h-0 flex-1 flex-col">
             {bottomMode === "run" ? (
               session.activeRun ? <ActiveRunPanel /> : (
                 <div className="scroll-region min-h-0 flex-1 p-3">
@@ -611,6 +688,7 @@ export function ProjectWorkspace() {
                 )}
               </div>
             )}
+            </div>
           </>
         )}
       </footer>
@@ -802,10 +880,46 @@ function soundSummary(scene: Scene, locale: string) {
   return voice ? "文案与已选音色" : "文案已填写，尚未选择音色";
 }
 
-function Resizer({ edge, dragging, onPointerDown }: { edge: "left" | "right" | "bottom"; dragging: boolean; onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void }) {
+function Resizer({
+  edge,
+  dragging,
+  onPointerDown,
+  onKeyDown,
+  onReset,
+  value,
+  min,
+  max,
+}: {
+  edge: "left" | "right" | "bottom";
+  dragging: boolean;
+  onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
+  onReset: () => void;
+  value: number;
+  min: number;
+  max: number;
+}) {
   const axis = edge === "bottom" ? "y" : "x";
   const label = edge === "left" ? "调整左侧宽度" : edge === "right" ? "调整右侧宽度" : "调整底部高度";
-  return <button type="button" aria-label={label} className="workspace-resizer" data-axis={axis} data-dragging={dragging || undefined} onPointerDown={onPointerDown} />;
+  return (
+    <button
+      type="button"
+      role="separator"
+      aria-orientation={axis === "x" ? "vertical" : "horizontal"}
+      aria-label={label}
+      aria-valuenow={value}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      title="拖动调整；方向键微调；双击复位"
+      className="workspace-resizer"
+      data-axis={axis}
+      data-dragging={dragging || undefined}
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
+      onDoubleClick={onReset}
+    />
+  );
 }
 
 function FieldLocale() {

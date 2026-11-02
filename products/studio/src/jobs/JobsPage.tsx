@@ -6,7 +6,8 @@ import { isActiveRun, RESUMABLE_RUN_STATES, RunDetail } from "../domain/run";
 import { useRunStream } from "./useRunStream";
 import { notifyRunsChanged, useRunList } from "./useRunList";
 import { useSession } from "../session/context";
-import { PageHeader } from "../ui/PageHeader";
+import { PageFrame } from "../ui/PageFrame";
+import { Segmented } from "../ui/Segmented";
 import { ListSkeleton } from "../ui/Skeleton";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
@@ -120,19 +121,26 @@ export function JobsPage() {
   };
   const selectedRun = runs.find((run) => run.id === selected);
   return (
-    <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader
-        title="任务"
-        description="查看本地制作、分析、模型与运行环境作业，取消或恢复未完成的步骤。"
-        actions={<>
-          <div className="seg" role="group" aria-label="作业状态筛选">
-            {([["all", "全部"], ["active", "运行中"], ["resumable", "可恢复"], ["completed", "已完成"]] as const).map(([value, label]) => (
-              <button key={value} type="button" className={filter === value ? "is-on" : ""} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>
-            ))}
-          </div>
-          <Button size="icon" variant="ghost" aria-label="刷新作业" onClick={() => void refresh()}><RefreshIcon /></Button>
-        </>}
-      />
+    <PageFrame
+      title="任务"
+      description="查看本地制作、分析、模型与运行环境作业，取消或恢复未完成的步骤。"
+      scroll={false}
+      actions={<>
+        <Segmented
+          mode="toggle"
+          label="作业状态筛选"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "all", label: "全部" },
+            { value: "active", label: "运行中" },
+            { value: "resumable", label: "可恢复" },
+            { value: "completed", label: "已完成" },
+          ]}
+        />
+        <Button size="icon" variant="ghost" aria-label="刷新作业" onClick={() => void refresh()}><RefreshIcon /></Button>
+      </>}
+    >
       <div className="split-page grid min-h-0 flex-1 grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
         <aside className="scroll-region border-r border-line p-3">
           <div className="mb-2 flex items-center justify-between px-1"><small>{visibleRuns.length} 个作业</small>{isActiveRun(selectedRun?.state || "") && <Badge tone="accent" dot pulse>实时更新</Badge>}</div>
@@ -211,7 +219,7 @@ export function JobsPage() {
           ) : <div className="subtle-card flex h-full min-h-64 flex-col items-center justify-center p-8 text-center"><JobsIcon className="mb-3 size-6" /><b>选择一个作业查看详情</b><p className="hint mx-auto mt-1 mb-0">状态、错误、节点步骤和原始诊断会显示在右侧。</p></div>}
         </section>
       </div>
-    </main>
+    </PageFrame>
   );
 }
 

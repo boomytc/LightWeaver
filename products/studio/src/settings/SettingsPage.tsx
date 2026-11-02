@@ -5,7 +5,7 @@ import { api, ApiError } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
 import { UiSelect } from "../ui/UiSelect";
-import { PageHeader } from "../ui/PageHeader";
+import { PageFrame } from "../ui/PageFrame";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { Badge } from "../ui/Badge";
@@ -81,8 +81,7 @@ export function SettingsPage() {
   const requested = legacySections[session.route.section] || session.route.section;
   const section = sections.some((item) => item[0] === requested) ? requested : "models";
   return (
-    <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="设置" description="选择模型与供应商，管理存储、应用维护和外观。" />
+    <PageFrame title="设置" description="选择模型与供应商，管理存储、应用维护和外观。" scroll={false}>
       <Tabs.Root className="split-page grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)]" value={section} onValueChange={(value) => void session.navigate("settings", "", value)}>
         <Tabs.List className="flex flex-col gap-1 border-r border-line p-3" aria-label="设置分区">
           {sections.map(([value, label]) => (
@@ -132,7 +131,7 @@ export function SettingsPage() {
           </div>
         </div>
       </Tabs.Root>
-    </main>
+    </PageFrame>
   );
 }
 
