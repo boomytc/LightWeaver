@@ -11,6 +11,8 @@ export function notifyRunsChanged() {
 
 export function useRunList(onError?: (reason: unknown) => void) {
   const [runs, setRuns] = useState<z.infer<typeof RunRecord>[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [error, setError] = useState("");
   const errorRef = useRef(onError);
   errorRef.current = onError;
   const sequence = useRef(0);
@@ -18,9 +20,17 @@ export function useRunList(onError?: (reason: unknown) => void) {
     const request = ++sequence.current;
     try {
       const next = await api("/runs", z.array(RunRecord));
-      if (request === sequence.current) setRuns(next);
+      if (request === sequence.current) {
+        setRuns(next);
+        setStatus("ready");
+        setError("");
+      }
     } catch (reason) {
-      if (request === sequence.current) errorRef.current?.(reason);
+      if (request === sequence.current) {
+        setStatus("failed");
+        setError(reason instanceof Error ? reason.message : String(reason));
+        errorRef.current?.(reason);
+      }
     }
   }, []);
   useEffect(() => {
@@ -47,5 +57,5 @@ export function useRunList(onError?: (reason: unknown) => void) {
     }, intervalMs);
     return () => window.clearInterval(timer);
   }, [active, refresh]);
-  return { runs, refresh };
+  return { runs, refresh, status, error };
 }

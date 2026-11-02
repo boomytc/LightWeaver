@@ -7,6 +7,7 @@ import { useRunStream } from "./useRunStream";
 import { notifyRunsChanged, useRunList } from "./useRunList";
 import { useSession } from "../session/context";
 import { PageHeader } from "../ui/PageHeader";
+import { ListSkeleton } from "../ui/Skeleton";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { JobsIcon, ProjectIcon, RefreshIcon } from "../ui/Icons";
@@ -71,7 +72,7 @@ export function JobsPage() {
   const [selected, setSelected] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [detail, setDetail] = useState<z.infer<typeof RunDetail> | null>(null);
-  const { runs, refresh } = useRunList((reason) => session.setError(errorMessage(reason)));
+  const { runs, refresh, status: runsStatus, error: runsError } = useRunList((reason) => session.setError(errorMessage(reason)));
   const visibleRuns = useMemo(() => runs.filter((run) =>
     filter === "all" ||
     (filter === "active" && isActiveRun(run.state)) ||
@@ -136,6 +137,16 @@ export function JobsPage() {
         <aside className="scroll-region border-r border-line p-3">
           <div className="mb-2 flex items-center justify-between px-1"><small>{visibleRuns.length} 个作业</small>{isActiveRun(selectedRun?.state || "") && <Badge tone="accent" dot pulse>实时更新</Badge>}</div>
           <div className="flex flex-col gap-1">
+            {runsStatus === "loading" && <ListSkeleton rows={3} />}
+            {runsStatus === "failed" && (
+              <div className="subtle-card mb-1 flex flex-col gap-2 p-3">
+                <b>作业列表读取失败</b>
+                <small className="hint">{runsError || "无法读取作业列表，请重试。"}</small>
+                <div className="actions">
+                  <Button size="sm" onClick={() => void refresh()}>重试</Button>
+                </div>
+              </div>
+            )}
             {visibleRuns.map((run) => (
               <button key={run.id} type="button" className={`row-item ${selected === run.id ? "is-on" : ""}`} onClick={() => selectRun(run.id)}>
                 <span className="dropzone-icon size-8"><JobsIcon /></span>
@@ -145,7 +156,7 @@ export function JobsPage() {
                 </span>
               </button>
             ))}
-            {visibleRuns.length === 0 && <div className="subtle-card p-6 text-center"><b>{runs.length ? "当前筛选没有作业" : "还没有作业"}</b><p className="hint mx-auto mt-1 mb-0 text-xs">制作、分析或模型任务会显示在这里。</p></div>}
+            {runsStatus === "ready" && visibleRuns.length === 0 && <div className="subtle-card p-6 text-center"><b>{runs.length ? "当前筛选没有作业" : "还没有作业"}</b><p className="hint mx-auto mt-1 mb-0 text-xs">制作、分析或模型任务会显示在这里。</p></div>}
           </div>
         </aside>
         <section className="scroll-region p-5">

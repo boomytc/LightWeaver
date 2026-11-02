@@ -441,7 +441,7 @@ export function ModelSettings({
             <Button type="button" onClick={() => void openLink(provider.docsUrl)}>查看文档</Button>
           </div>
         </div>
-        <div className="grid">
+        <div className="auto-card-grid">
           {provider.models.map((model) => (
             <article className="subtle-card flex flex-col gap-1 p-3" key={model.id}>
               <b>{model.name}</b>

@@ -12,6 +12,9 @@ export type ToastItem = {
   message: string;
   tone: ToastTone;
   scope: { projectId: string; generation: number } | null;
+  key?: string;
+  actionLabel?: string;
+  onAction?: () => void;
 };
 
 export function ToastStack({ items, onDismiss }: { items: ToastItem[]; onDismiss: (id: string) => void }) {
@@ -83,6 +86,18 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
     >
       <span className={`mt-1 size-2 shrink-0 rounded-full ${item.tone === "danger" ? "bg-danger" : "bg-ok"}`} aria-hidden="true" />
       <p className="m-0 max-h-[50vh] min-w-0 flex-1 overflow-y-auto whitespace-pre-line break-words text-[13px] leading-5">{item.message}</p>
+      {item.actionLabel && item.onAction && (
+        <button
+          type="button"
+          className="shrink-0 border-0 bg-transparent p-0 text-xs font-medium text-[var(--lw-accent-text)] shadow-none hover:bg-transparent hover:underline"
+          onClick={() => {
+            item.onAction?.();
+            setPhase("closing");
+          }}
+        >
+          {item.actionLabel}
+        </button>
+      )}
       <button
         type="button"
         aria-label="关闭"

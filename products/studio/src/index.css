@@ -131,7 +131,6 @@
   input:focus,
   select:focus,
   textarea:focus {
-    outline: none;
     border-color: var(--lw-accent);
     box-shadow: 0 0 0 3px var(--lw-accent-soft);
   }
@@ -669,11 +668,9 @@
   }
   .nav-group-label {
     padding: 0 10px 4px;
-    color: var(--lw-subtle);
-    font-size: 10px;
+    color: var(--lw-muted);
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
   .nav-item {
     display: flex;
@@ -749,8 +746,8 @@
     border-radius: 4px;
     background: var(--lw-panel);
     padding: 0 4px;
-    color: var(--lw-subtle);
-    font-size: 10px;
+    color: var(--lw-muted);
+    font-size: 11px;
     line-height: 18px;
     pointer-events: none;
   }
@@ -903,7 +900,7 @@
     inset: 0;
   }
   .mask-grid,
-  .grid,
+  .auto-card-grid,
   .model-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1074,21 +1071,25 @@
   .workspace-actions {
     justify-content: flex-end;
   }
-  .workspace-title {
-    height: 32px !important;
+  .ui-input--bare {
+    height: 32px;
     min-width: 48px;
-    border-color: transparent !important;
-    background: transparent !important;
-    padding: 5px 7px !important;
+    border-color: transparent;
+    background: transparent;
+    padding: 5px 7px;
     font-weight: 600;
-    box-shadow: none !important;
+    box-shadow: none;
   }
-  .workspace-title:hover {
-    background: var(--lw-subtle-bg) !important;
+  .ui-input--bare:hover {
+    background: var(--lw-subtle-bg);
   }
-  .workspace-title:focus {
-    border-color: var(--lw-accent) !important;
-    background: var(--lw-panel) !important;
+  .ui-input--bare:focus {
+    border-color: var(--lw-accent);
+    background: var(--lw-panel);
+  }
+  .skeleton {
+    border-radius: var(--radius-sm);
+    background: var(--lw-subtle-bg);
   }
   .workspace-tabs > button {
     padding: 0 9px;
@@ -1107,6 +1108,11 @@
   .workspace-banner-copy {
     min-width: 0;
     flex: 1;
+  }
+  .workspace-banner-error {
+    border-bottom-color: var(--lw-danger-line);
+    background: var(--lw-danger-bg);
+    color: var(--lw-danger);
   }
   .panel-header {
     display: flex;
@@ -1251,8 +1257,8 @@
     cursor: pointer;
   }
   .storyboard-index {
-    color: var(--lw-subtle);
-    font-size: 11px;
+    color: var(--lw-muted);
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
   }
   .storyboard-copy {

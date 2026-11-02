@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { LibraryVersion, ProviderDescriptor, RunRecord, z } from "@lightweaver/weaver/contracts";
 import { api, mediaUrl, requestId } from "../api";
+import { useSession } from "../session/context";
 import { labels } from "../domain/format";
 import { RunDetail } from "../domain/run";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { Field } from "../ui/Field";
 import { PageHeader } from "../ui/PageHeader";
+import { ListSkeleton } from "../ui/Skeleton";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Dropzone } from "../ui/Dropzone";
@@ -23,6 +25,7 @@ export function LibraryPanel({
   refresh: () => Promise<void>;
   fail: (e: unknown) => void;
 }) {
+  const session = useSession();
   const formEpoch = useRef(0);
   const [selected, setSelected] = useState<z.infer<
       typeof LibraryVersion
@@ -191,7 +194,17 @@ export function LibraryPanel({
       />
       <div className="split-page grid min-h-0 flex-1 grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
         <section className="scroll-region border-r border-line p-3">
-          {items.length === 0 && (
+          {session.listsStatus === "loading" && <ListSkeleton rows={4} />}
+          {session.listsStatus === "failed" && (
+            <div className="subtle-card mb-2 flex flex-col gap-2 p-3">
+              <b>库项读取失败</b>
+              <small className="hint">{session.listsError || "无法读取库项，请重试。"}</small>
+              <div className="actions">
+                <Button size="sm" onClick={() => void session.refreshLists().catch(() => {})}>重试</Button>
+              </div>
+            </div>
+          )}
+          {session.listsStatus === "ready" && items.length === 0 && (
             <div className="subtle-card p-6 text-center">
               <b>尚无库项</b>
               <p className="hint mx-auto mt-1 mb-0 text-xs">在右侧填写信息并保存，即可发布首个可复用版本。</p>

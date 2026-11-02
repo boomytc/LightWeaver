@@ -8,6 +8,7 @@ import { PageHeader } from "../ui/PageHeader";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Dropzone } from "../ui/Dropzone";
+import { ListSkeleton } from "../ui/Skeleton";
 import { FolderIcon, ProjectIcon } from "../ui/Icons";
 
 export function ProjectHome() {
@@ -76,7 +77,7 @@ export function ProjectHome() {
     <main className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="项目" description="继续最近的创作，或从草稿与项目包开始一部新片。" />
       <div className="scroll-region page-scroll">
-        <div className="page-content grid items-start gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.7fr)]">
+        <div className="page-content grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.7fr)]">
           <section className="panel-card p-5 xl:col-span-2" aria-labelledby="start-project-title">
             <div className="section-title mb-3">
               <div>
@@ -110,6 +111,7 @@ export function ProjectHome() {
               </div>
             </div>
             <div className="flex flex-col gap-2">
+              {session.listsStatus === "loading" && <ListSkeleton rows={3} />}
               {ordered.map((project) => {
                 const draft = session.client.drafts.find((item) => item.projectId === project.projectId);
                 return (
@@ -134,11 +136,20 @@ export function ProjectHome() {
                   </button>
                 );
               })}
-              {ordered.length === 0 && (
+              {session.listsStatus === "failed" && (
+                <div className="subtle-card flex flex-col gap-2 p-4">
+                  <b>项目列表读取失败</b>
+                  <small className="hint">{session.listsError || "无法读取项目列表，请重试。"}</small>
+                  <div className="actions">
+                    <Button size="sm" onClick={() => void session.refreshLists().catch(() => {})}>重试</Button>
+                  </div>
+                </div>
+              )}
+              {session.listsStatus === "ready" && ordered.length === 0 && (
                 <div className="subtle-card flex flex-col items-center px-6 py-12 text-center">
                   <span className="dropzone-icon mb-3 size-12"><ProjectIcon /></span>
                   <b>还没有项目</b>
-                  <p className="hint mb-0 mt-1 text-xs">从右侧创建草稿，或打开已有的 LightWeaver 项目包。</p>
+                  <p className="hint mb-0 mt-1 text-xs">创建空白草稿或从示例开始，也可以打开已有的 LightWeaver 项目包。</p>
                 </div>
               )}
             </div>

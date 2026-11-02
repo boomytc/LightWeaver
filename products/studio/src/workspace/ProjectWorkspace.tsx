@@ -53,6 +53,67 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
+const CENTER_MIN = 360;
+
+function clampLayout(layout: LayoutPreference, available: number): LayoutPreference {
+  let left = clamp(layout.left, 160, 640);
+  let right = clamp(layout.right, 220, 640);
+  if (!layout.collapsed.left && !layout.collapsed.right) {
+    const budget = Math.max(380, available - CENTER_MIN);
+    if (left + right > budget) {
+      const overflow = left + right - budget;
+      const takeRight = Math.min(right - 220, overflow);
+      right -= takeRight;
+      left = Math.max(160, left - (overflow - takeRight));
+    }
+  }
+  return { left, right, bottom: clamp(layout.bottom, 120, 480), collapsed: layout.collapsed };
+}
+
+function effectivePanes(layout: LayoutPreference, available: number) {
+  const forced = {
+    left: available > 0 && available < 640,
+    right: available > 0 && available < 1000,
+  };
+  const collapsed = {
+    ...layout.collapsed,
+    left: layout.collapsed.left || forced.left,
+    right: layout.collapsed.right || forced.right,
+  };
+  let left = collapsed.left ? 36 : clamp(layout.left, 160, 640);
+  let right = collapsed.right ? 36 : clamp(layout.right, 220, 640);
+  const budget = available - CENTER_MIN;
+  if (!collapsed.left && !collapsed.right && left + right > budget) {
+    const overflow = left + right - budget;
+    const takeRight = Math.min(Math.max(0, right - 220), Math.max(0, overflow));
+    right -= takeRight;
+    left = Math.max(160, left - (overflow - takeRight));
+  } else if (!collapsed.left && left + 36 > budget) {
+    left = Math.max(160, budget - 36);
+  } else if (!collapsed.right && 36 + right > budget) {
+    right = Math.max(220, budget - 36);
+  }
+  return { left, right, collapsed, forced };
+}
+
+function WorkspaceSkeleton() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" aria-busy="true" aria-label="正在加载项目">
+      <div className="workspace-header">
+        <div className="workspace-context"><div className="skeleton h-5 w-40" /><div className="skeleton h-6 w-20" /></div>
+        <div className="skeleton h-8 w-52" />
+        <div className="workspace-actions"><div className="skeleton h-8 w-28" /></div>
+      </div>
+      <div className="flex min-h-0 flex-1 gap-2 p-2">
+        <div className="skeleton w-[280px] shrink-0" />
+        <div className="skeleton min-h-0 flex-1" />
+        <div className="skeleton w-[320px] shrink-0" />
+      </div>
+      <div className="skeleton h-[120px] shrink-0" />
+    </div>
+  );
+}
+
 export function ProjectWorkspace() {
   const session = useSession();
   const draft = session.draft;
@@ -63,6 +124,8 @@ export function ProjectWorkspace() {
   const [assetKey, setAssetKey] = useState("");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("scene");
   const [width, setWidth] = useState(() => window.innerWidth);
+  const [shellWidth, setShellWidth] = useState(0);
+  const shellRef = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState<LayoutPreference | null>(null);
   const [dragging, setDragging] = useState("");
   const [conflictOpen, setConflictOpen] = useState(false);
@@ -73,22 +136,24 @@ export function ProjectWorkspace() {
   const importRef = useRef(importPaths);
   importRef.current = importPaths;
   const layout = live || session.client.layout;
-  const collapsed = layout.collapsed;
+  const available = shellWidth || Math.max(0, width - 236);
+  const panes = effectivePanes(layout, available);
 
   useEffect(() => {
     const onResize = () => setWidth(window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  const wasNarrow = useRef(width < 1100);
   useEffect(() => {
-    const nextNarrow = width < 1100;
-    if (nextNarrow && !wasNarrow.current) {
-      const base = session.client.layout;
-      setLive({ ...base, collapsed: { ...base.collapsed, left: true, right: true } });
-    }
-    wasNarrow.current = nextNarrow;
-  }, [session.client.layout, width]);
+    const element = shellRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[0]?.contentRect.width ?? 0;
+      if (next > 0) setShellWidth(Math.round(next));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (session.plan !== null) setPlanOpen(true);
   }, [session.plan]);
@@ -113,7 +178,18 @@ export function ProjectWorkspace() {
     if (previewMode === "asset" && !ctx?.assets.some((item) => refKey(item) === assetKey)) setPreviewMode("scene");
   }, [assetKey, ctx, previewMode]);
 
-  if (!draft || !ctx) return <p className="p-6">加载项目…</p>;
+  if (session.contextState === "failed") return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center" role="alert">
+      <AlertIcon className="size-8 text-danger" />
+      <b className="text-base">项目加载失败</b>
+      <p className="hint m-0 max-w-[48ch]">{session.contextError || "无法读取项目内容，请检查本地服务后重试。"}</p>
+      <div className="actions justify-center">
+        <Button variant="primary" onClick={session.retryContext}>重试</Button>
+        <Button onClick={() => void session.navigate("projects")}>返回项目列表</Button>
+      </div>
+    </div>
+  );
+  if (session.contextState === "loading" || !draft || !ctx) return <WorkspaceSkeleton />;
   const scene = draft.scenes.find((item) => item.id === sceneId) || null;
   const sceneIndex = draft.scenes.findIndex((item) => item.id === sceneId);
   const asset = ctx.assets.find((item) => refKey(item) === assetKey);
@@ -140,14 +216,8 @@ export function ProjectWorkspace() {
   const completedBuild =
     currentRun?.kind === "build" && currentRun.state === "succeeded";
   const commitLayout = (next: LayoutPreference) => {
-    const clamped = {
-      left: clamp(next.left, 160, 640),
-      right: clamp(next.right, 220, 640),
-      bottom: clamp(next.bottom, 120, 480),
-      collapsed: next.collapsed,
-    };
     setLive(null);
-    void session.client.setLayout(clamped);
+    void session.client.setLayout(clampLayout(next, available));
   };
   const showLeft = (mode: LeftMode) => {
     setFocus("edit");
@@ -203,7 +273,7 @@ export function ProjectWorkspace() {
     const initial = layout[edge];
     const move = (pointer: PointerEvent) => {
       const delta = edge === "left" ? pointer.clientX - start : edge === "right" ? start - pointer.clientX : start - pointer.clientY;
-      setLive({ ...layout, [edge]: initial + delta, collapsed: { ...layout.collapsed, [edge]: false } });
+      setLive(clampLayout({ ...layout, [edge]: initial + delta, collapsed: { ...layout.collapsed, [edge]: false } }, available));
     };
     const up = (pointer: PointerEvent) => {
       const delta = edge === "left" ? pointer.clientX - start : edge === "right" ? start - pointer.clientX : start - pointer.clientY;
@@ -237,10 +307,10 @@ export function ProjectWorkspace() {
     scenes[target] = current;
     session.edit({ ...draft, scenes });
   };
-  const bottomHeight = collapsed.bottom ? 36 : layout.bottom;
+  const bottomHeight = layout.collapsed.bottom ? 36 : layout.bottom;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col" ref={shellRef}>
       <input
         ref={importInputRef}
         type="file"
@@ -361,11 +431,18 @@ export function ProjectWorkspace() {
           <Button size="sm" variant="ghost" onClick={session.clearStoredDraft}>清除备份</Button>
         </div>
       )}
+      {session.error && (
+        <div className="workspace-banner workspace-banner-error" role="alert">
+          <AlertIcon className="shrink-0" />
+          <span className="workspace-banner-copy">{session.error}</span>
+          <Button size="sm" onClick={session.clearError}>关闭</Button>
+        </div>
+      )}
       <div className="flex min-h-0 flex-1">
         {focus === "edit" && (
-          <aside className="flex min-h-0 shrink-0 flex-col border-r border-line" style={{ width: collapsed.left ? 36 : layout.left }}>
-            {collapsed.left ? (
-              <div className="collapsed-rail"><PanelButton side="left" collapsed onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, left: false } })} /></div>
+          <aside className="flex min-h-0 shrink-0 flex-col border-r border-line" style={{ width: panes.collapsed.left ? 36 : panes.left }}>
+            {panes.collapsed.left ? (
+              <div className="collapsed-rail">{!panes.forced.left && <PanelButton side="left" collapsed onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, left: false } })} />}</div>
             ) : (
               <>
                 <div className="panel-header">
@@ -401,7 +478,7 @@ export function ProjectWorkspace() {
             )}
           </aside>
         )}
-        {focus === "edit" && <Resizer edge="left" dragging={dragging === "left"} onPointerDown={drag("left")} />}
+        {focus === "edit" && !panes.forced.left && <Resizer edge="left" dragging={dragging === "left"} onPointerDown={drag("left")} />}
         <main className={focus === "edit" ? "flex min-w-0 flex-1 flex-col overflow-hidden bg-panel" : "scroll-region min-w-0 flex-1 bg-panel p-5"}>
           {focus === "edit" && (
             <>
@@ -439,11 +516,11 @@ export function ProjectWorkspace() {
             {focus === "delivery" && <DeliveryPanel />}
           </div>}
         </main>
-        {focus === "edit" && <Resizer edge="right" dragging={dragging === "right"} onPointerDown={drag("right")} />}
+        {focus === "edit" && !panes.forced.right && <Resizer edge="right" dragging={dragging === "right"} onPointerDown={drag("right")} />}
         {focus === "edit" && (
-          <aside className="flex min-h-0 shrink-0 flex-col border-l border-line bg-panel" style={{ width: collapsed.right ? 36 : layout.right }}>
-            {collapsed.right ? (
-              <div className="collapsed-rail"><PanelButton side="right" collapsed onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, right: false } })} /></div>
+          <aside className="flex min-h-0 shrink-0 flex-col border-l border-line bg-panel" style={{ width: panes.collapsed.right ? 36 : panes.right }}>
+            {panes.collapsed.right ? (
+              <div className="collapsed-rail">{!panes.forced.right && <PanelButton side="right" collapsed onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, right: false } })} />}</div>
             ) : (
               <>
                 <div className="panel-header"><span>属性检视器</span><PanelButton side="right" collapsed={false} onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, right: true } })} /></div>
@@ -471,7 +548,7 @@ export function ProjectWorkspace() {
       </div>
       <Resizer edge="bottom" dragging={dragging === "bottom"} onPointerDown={drag("bottom")} />
       <footer className="flex shrink-0 flex-col border-t border-line bg-panel" style={{ height: bottomHeight }}>
-        {collapsed.bottom ? (
+        {layout.collapsed.bottom ? (
           <div className="collapsed-rail"><PanelButton side="bottom" collapsed onClick={() => commitLayout({ ...layout, collapsed: { ...layout.collapsed, bottom: false } })} /></div>
         ) : (
           <>
@@ -573,7 +650,7 @@ function EmptyStoryboard({
   return (
     <article
       className="storyboard-card min-h-24"
-      style={{ width: "min(620px, calc(100vw - 48px))" }}
+      style={{ width: "min(620px, 100%)" }}
     >
       <div className="flex flex-1 flex-col justify-center gap-3 p-4">
         <div>

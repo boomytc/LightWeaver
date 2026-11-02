@@ -61,12 +61,33 @@ export function useProjectSession(client: ClientStore) {
   const [planDraft, setPlanDraft] = useState<CreativePlanValue | null>(null);
   const [planDirty, setPlanDirty] = useState(false);
   const [error, setErrorState] = useState("");
+  const [contextState, setContextState] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const [contextError, setContextError] = useState("");
+  const [contextNonce, setContextNonce] = useState(0);
+  const [listsStatus, setListsStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [listsError, setListsError] = useState("");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const pushToast = (message: string, tone: ToastItem["tone"]) => {
+  const pushToast = (
+    message: string,
+    tone: ToastItem["tone"],
+    options: { key?: string; actionLabel?: string; onAction?: () => void } = {},
+  ) => {
     const text = message.trim();
     if (!text) return;
     const scope = projectRef.current ? { projectId: projectRef.current, generation: epoch.current } : null;
-    setToasts((items) => [{ id: crypto.randomUUID(), message: text, tone, scope }, ...items].slice(0, 4));
+    const key = options.key || text;
+    setToasts((items) => [
+      {
+        id: crypto.randomUUID(),
+        message: text,
+        tone,
+        scope,
+        key,
+        actionLabel: options.actionLabel,
+        onAction: options.onAction,
+      },
+      ...items.filter((item) => item.key !== key),
+    ].slice(0, 3));
   };
   const setError = (message: string) => {
     setErrorState(message);
@@ -130,8 +151,16 @@ export function useProjectSession(client: ClientStore) {
   const fail = (
     reason: unknown,
     message = reason instanceof Error ? reason.message : String(reason),
+    options: { retry?: () => void; key?: string } = {},
   ) => {
-    setError(message);
+    setErrorState(message);
+    if (message.trim()) {
+      pushToast(message, "danger", {
+        key: options.key,
+        actionLabel: options.retry ? "重试" : undefined,
+        onAction: options.retry,
+      });
+    }
     if (reason instanceof ApiError && reason.protocol.code === "REVISION_CONFLICT") {
       const details = reason.protocol.details;
       if (details && typeof details === "object" && "current" in details) {
@@ -182,13 +211,24 @@ export function useProjectSession(client: ClientStore) {
 
   const refreshLists = async () => {
     const seq = ++listSeq.current;
-    const [nextProjects, nextLibrary] = await Promise.all([
-      api("/projects", z.array(ProjectRevision)),
-      api("/library", z.array(LibraryVersion)),
-    ]);
-    if (seq !== listSeq.current) return;
-    setProjects(nextProjects);
-    setLibrary(nextLibrary);
+    setListsStatus((current) => (current === "ready" ? current : "loading"));
+    try {
+      const [nextProjects, nextLibrary] = await Promise.all([
+        api("/projects", z.array(ProjectRevision)),
+        api("/library", z.array(LibraryVersion)),
+      ]);
+      if (seq !== listSeq.current) return;
+      setProjects(nextProjects);
+      setLibrary(nextLibrary);
+      setListsStatus("ready");
+      setListsError("");
+    } catch (reason) {
+      if (seq === listSeq.current) {
+        setListsStatus("failed");
+        setListsError(reason instanceof Error ? reason.message : String(reason));
+      }
+      throw reason;
+    }
   };
 
   const refreshCapabilities = async () => {
@@ -299,6 +339,8 @@ export function useProjectSession(client: ClientStore) {
       setPlanDirty(false);
     }
   };
+
+  const retryContext = () => setContextNonce((value) => value + 1);
 
   const act = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     const generation = epoch.current;
@@ -1015,6 +1057,8 @@ export function useProjectSession(client: ClientStore) {
     setToasts((items) => items.filter((item) => item.scope === null));
     if (id) {
       clientRef.current.rememberProject(id);
+      setContextState("loading");
+      setContextError("");
       api(`/projects/${id}/context`, Context, { signal: controller.signal })
         .then((next) => {
           if (epoch.current !== generation) return;
@@ -1027,13 +1071,20 @@ export function useProjectSession(client: ClientStore) {
           const nextPlan = next.revision.document.creativePlan || null;
           setPlanDraft(nextPlan);
           planDraftRef.current = nextPlan;
+          setContextState("ready");
+          setContextError("");
         })
         .catch((reason) => {
-          if (!controller.signal.aborted) fail(reason);
+          if (controller.signal.aborted || epoch.current !== generation) return;
+          setContextState("failed");
+          setContextError(reason instanceof Error ? reason.message : String(reason));
         });
+    } else {
+      setContextState("idle");
+      setContextError("");
     }
     return () => controller.abort();
-  }, [route.projectId]);
+  }, [route.projectId, contextNonce]);
 
   useEffect(() => {
     if (!dirty && !planDirty) return;
@@ -1123,6 +1174,11 @@ export function useProjectSession(client: ClientStore) {
     planDraft,
     planDirty,
     error: error || client.error,
+    contextState,
+    contextError,
+    retryContext,
+    listsStatus,
+    listsError,
     toasts: toasts.filter((item) => item.scope === null || (item.scope.projectId === route.projectId && item.scope.generation === epoch.current)),
     dismissToast,
     conflict,
