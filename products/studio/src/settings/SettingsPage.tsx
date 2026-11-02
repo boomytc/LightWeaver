@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
+import { EngineView, ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
 import { api, ApiError } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
@@ -395,9 +395,19 @@ function StoragePanel() {
 function DiagnosticsPanel() {
   const session = useSession();
   const [doctor, setDoctor] = useState<z.infer<typeof DoctorView> | null>(null);
+  const [engines, setEngines] = useState<z.infer<typeof EngineView> | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   useEffect(() => {
     api("/doctor", DoctorView).then(setDoctor).catch((reason) => session.setError(String(reason)));
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    api("/engines", EngineView, { signal: controller.signal })
+      .then(setEngines)
+      .catch((reason) => {
+        if (!controller.signal.aborted) session.setError(String(reason));
+      });
+    return () => controller.abort();
   }, []);
   return (
     <section className="panel-card flex flex-col gap-4 p-5">
@@ -408,6 +418,27 @@ function DiagnosticsPanel() {
         </div>
         <p className="hint mb-0 mt-1">LightWeaver 桌面客户端</p>
       </div>
+      {engines && (
+        <div className="subtle-card flex flex-wrap items-center justify-between gap-2 p-3">
+          <span>
+            本地运行环境：已安装{" "}
+            {engines.items.filter(
+              (item) =>
+                engines.setupComponents.includes(item.id) &&
+                item.status.state === "installed",
+            ).length}
+            /{engines.setupComponents.length} · 已配置{" "}
+            {engines.items.filter(
+              (item) =>
+                engines.setupComponents.includes(item.id) &&
+                item.active.length > 0 &&
+                item.active.every((binding) => binding.ready),
+            ).length}
+            /{engines.setupComponents.length}；语音环境按需创建
+          </span>
+          <Button size="sm" type="button" onClick={() => void session.navigate("settings", "", "runtime")}>打开运行环境</Button>
+        </div>
+      )}
       {!doctor && <p>正在读取诊断…</p>}
       {doctor && (
         <>

@@ -274,11 +274,17 @@ function SetupPanel({
   const ready = rows.length > 0 && rows.every((row) => row.ready);
   const managedAll = rows.length > 0 && rows.every((row) => row.managed);
   const busy = setup.active || setup.starting;
+  const failed =
+    setup.run !== null &&
+    !setup.active &&
+    setup.run.state !== "succeeded";
   const label = busy
     ? "配置中…"
     : ready && managedAll
       ? "重新检查并修复"
-      : "一键下载并配置";
+      : failed
+        ? "重试配置"
+        : "一键下载并配置";
   const adoptNode = setup.detail?.nodes.find((node) => node.key === "adopt");
 
   return (

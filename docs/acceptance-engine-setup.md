@@ -10,12 +10,14 @@
 - Python 环境按 requirements 清单创建 venv 并 pip 安装，环境版本取清单 SHA-256 前 12 位；安装后探测解释器与关键依赖。
 - 一键配置：CLI `weaver engines setup` 与 Studio“本地运行环境”的单个主按钮，按顺序安装全部必需组件并在最后一个作业节点一次写入配置，用户不需要指定路径；单组件安装/校验/采用与手动路径收在高级设置。
 - 入口：CLI `weaver engines setup|list|install|verify|use`；HTTP `GET /api/runtime`、`GET /api/engines`、`POST /api/engines/setup`、`POST /api/engines/:id/{install,verify,use}`；Studio 设置页“本地运行环境”与高级引擎分组。
+- 任务与诊断入口：任务页把 `engine-setup`/`engine-install` 显示为“本地运行环境配置/引擎安装”，节点显示可读组件名与完成计数，并提供“打开运行环境”；模型页在运行条件缺失时提供“配置运行环境”；诊断页显示本地运行环境已安装/已配置数量与入口。
 - TEN VAD 的下载项从模型清单移除（本地模型清单只剩 ASR、EmbeddingGemma、ForcedAligner），由引擎清单负责下载与校验；设置项 `vad_library` 语义不变。
 
 ## 实际验收
 
 - 一键配置（隔离环境、全新目录）：`weaver engines setup --expected-revision … --wait` 单个作业包含 5 个安装节点与 1 个采用节点，run succeeded，节点依次为 install-transcribe-native / install-transcribe-bindings / install-ten-vad / install-llama-server / install-python-model / adopt，全部 succeeded；最后 adopt 节点一次写入 `asr_library`、`asr_bindings`、`vad_library`、`visual_server`、`llama_server`、`translation_server`、`model_python` 七项。同一环境再次执行（新 revision）0.26 秒完成、节点全部 succeeded、配置 revision 不变且无重复下载。
 - Studio 一键流程：设置 → 运行时与路径 → 本地运行环境只显示一个“一键下载并配置”主操作与 5 个组件状态行；删除已安装的 llama-server 目录后点按钮，作业显示各组件“进行中/已完成”并自动补齐、刷新为“已安装/已配置”，按钮变为“重新检查并修复”，并给出“去选择模型权重”下一步；手动路径输入与单组件操作位于折叠的高级设置中。
+- 任务与跨入口（同一隔离环境、真实点击）：点击一键配置后，任务页出现“本地运行环境配置”作业，节点显示“安装 transcribe 运行库 … 写入运行时配置”，进度 6/6 完成，并提供“打开运行环境”；作业类型显示“本地运行环境配置 · engine-setup”。模型页在运行条件缺失时显示“配置运行环境”，诊断页显示“本地运行环境：已安装 5/5 · 已配置 5/5；语音环境按需创建”与入口。
 
 - 隔离环境（独立数据目录、配置文件与引擎根，未触碰用户配置、`models/`、`weaver/runtime/`）下列出 6 个引擎，本平台组件均 `available=true`；初始绑定为未设置，安装状态均为 missing。隔离配置写入后权限为 `0600`。
 - 真实安装全部成功：transcribe-native `run-8c723887…` succeeded，归档 1483992 字节、SHA-256 `c6252907…3d3c`，校验 verified/0.2.0，6 个文件摘要全对，占 3.7 MB；transcribe-bindings `run-5530fb72…` succeeded，34388 字节、`2b4ae07f…2443`，verified/0.2.0，安装目录内只有 `transcribe_cpp/`；ten-vad `run-b612bc35…` succeeded，744600 字节、`81b2de13…e715a`，verified/`d68ab71c8d5f`（macOS universal x86_64+arm64）；llama-server `run-6be94574…` succeeded，16513842 字节、`00468fe8…6382`，verified/b12032，探测输出 `version: 0.8.0-dev (build 12032, commit dde879bc4)`，11 个必需文件与 18 条符号链接落地，占 40 MB。

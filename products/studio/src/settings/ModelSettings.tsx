@@ -484,6 +484,9 @@ export function ModelSettings({
                 >
                   {busy === `校验当前模型 ${model.id}` ? "校验中…" : "校验"}
                 </Button>
+                {runtime.some((item) => !item.ready) && (
+                  <Button size="sm" variant="ghost" aria-label={`配置 ${model.name} 的运行环境`} onClick={onOpenRuntime}>配置运行环境</Button>
+                )}
                 <Button size="sm" aria-label={`配置 ${model.name}`} onClick={() => select({ kind: "local", id: model.id })}>配置</Button>
               </div>
               <details className="model-inventory-details">
@@ -522,7 +525,7 @@ export function ModelSettings({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <small className="mr-auto">推理结果以实际作业为准，文件校验不会调用模型。</small>
-                {runtime.some((item) => !item.ready) && <Button size="sm" variant="ghost" onClick={onOpenRuntime}>打开运行时设置</Button>}
+                {runtime.some((item) => !item.ready) && <Button size="sm" variant="ghost" onClick={onOpenRuntime}>配置运行环境</Button>}
                 <Button size="sm" variant="ghost" onClick={onOpenJobs}>查看作业记录</Button>
               </div>
               <div className="model-files">

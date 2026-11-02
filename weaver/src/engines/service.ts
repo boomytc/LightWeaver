@@ -760,6 +760,21 @@ export class Engines {
         expectedRevision: input.expectedRevision,
       });
     if (prior) return prior;
+    const active = this.jobs
+      .list()
+      .find(
+        (run) =>
+          run.kind === "engine-setup" &&
+          ["queued", "running", "cancelling"].includes(run.state),
+      );
+    if (active)
+      throw new WeaverError(
+        "ENGINE_BUSY",
+        "本地运行环境配置作业进行中",
+        { runId: active.id },
+        ["在任务页等待该作业完成后再试。"],
+        true,
+      );
     const busy = ids.filter((id) => this.locks.has(`${root}:${id}`));
     if (busy.length)
       throw new WeaverError(
