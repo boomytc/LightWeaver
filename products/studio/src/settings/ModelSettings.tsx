@@ -54,7 +54,7 @@ const readinessLabel = {
   missing: "未下载",
 };
 
-type ModelPath = Exclude<z.infer<typeof ActiveModelBinding>, { target: "literal" }>;
+type ModelPath = z.infer<typeof ActiveModelBinding>;
 type LocalModelState = z.infer<typeof ModelsView>["local"][number];
 type ModelCheck = { key: string; state: "checking" | "verified" | "invalid" | "missing" | "error" };
 const modelCheckKey = (id: string, current: LocalModelState | undefined) =>
@@ -277,7 +277,7 @@ export function ModelSettings({
   }, [planKey]);
   useEffect(() => {
     if (!selectedModel || !selectedState) return;
-    const paths = selectedState.activeBindings.filter((binding) => binding.target !== "literal"),
+    const paths = selectedState.activeBindings,
       configured = paths.length > 0 && paths.every((binding) => binding.state === "present") &&
         selectedState.activeFiles.length > 0 && selectedState.activeFiles.every((file) => file.state === "metadata-match");
     if (!configured && selectedState.status.state !== "unchecked") return;
@@ -393,7 +393,7 @@ export function ModelSettings({
           activeBindings = current?.activeBindings || [],
           activeFiles = current?.activeFiles || [],
           runtime = current?.runtime || [],
-          paths = activeBindings.filter((binding) => binding.target !== "literal"),
+          paths = activeBindings,
           pathsReady = paths.length > 0 && paths.every((binding) => binding.state === "present"),
           pathsUnset = paths.length === 0 || paths.every((binding) => binding.state === "unset"),
           check = checks[model.id]?.key === modelCheckKey(model.id, current) ? checks[model.id] : undefined,

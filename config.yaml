@@ -10,13 +10,8 @@ vlm_model: 'MiniCPM-V-4.7-35B-A3B'
 deepseek_model: 'deepseek-flash'
 tts_model: 'VoxCPM2'
 
-# Model files are downloaded only by an explicit `weaver models download`.
-# The Studio model page or `weaver models use --path` binds an existing directory.
-# Source checkout uses only the monorepo data/models/; installed desktop uses its user model directory.
-# Root models/ and weaver/models/ are legacy locations and are not read or written.
-model_download_root: 'data/models'
-
 # Optional model weights. Relative paths resolve from runtime configBase.
+# Override the runtime download location with model_download_root in config.local.yaml.
 # asr_model: '/absolute/models/qwen3-asr-0.6b-Q8_0.gguf'
 # alignment_model: '/absolute/models/qwen3-forced-aligner'
 # visual_model: '/absolute/models/embeddinggemma-2-Q8_0.gguf'

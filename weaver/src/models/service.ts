@@ -36,11 +36,11 @@ import {
   modelBindingValue,
   MODELBEST_TTS_MODEL,
   MODELBEST_VLM_MODEL,
-  type DownloadableLocalModel,
+  type LocalModel,
 } from "./catalog.ts";
 
 type Setting = Parameters<ReturnType<typeof readConfig>["field"]>[0];
-type CatalogFile = DownloadableLocalModel["catalog"]["files"][number];
+type CatalogFile = LocalModel["files"][number];
 type ActiveSnapshot = z.infer<typeof ActiveModelSnapshot>;
 
 const SETTINGS: Record<string, Setting> = {
@@ -146,15 +146,15 @@ export class Models {
     jobs.register("model-download", (context) => this.downloadNode(context));
   }
 
-  private model(id: string): DownloadableLocalModel {
-    const found = localModels().find((item) => item.catalog.id === id);
+  private model(id: string): LocalModel {
+    const found = localModels().find((item) => item.id === id);
     if (!found)
       throw new WeaverError("INVALID_INPUT", "未知本地模型", { id });
-    if (!found.catalog.available)
+    if (!found.available)
       throw new WeaverError(
         "CAPABILITY_UNAVAILABLE",
-        found.catalog.unavailableReason || "当前平台没有可用模型文件",
-        { id, platform: found.catalog.platform },
+        found.unavailableReason || "当前平台没有可用模型文件",
+        { id, platform: found.platform },
       );
     return found;
   }
@@ -219,10 +219,10 @@ export class Models {
     return ids.map((id) => {
       const item = this.model(id);
       return {
-        id: item.catalog.id,
-        name: item.catalog.name,
-        revision: item.catalog.revision,
-        bytes: item.catalog.files.reduce((sum, file) => sum + file.size, 0),
+        id: item.id,
+        name: item.name,
+        revision: item.revision,
+        bytes: item.files.reduce((sum, file) => sum + file.size, 0),
       };
     });
   }
@@ -233,8 +233,8 @@ export class Models {
     let bytes = 0;
     for (const plan of this.planForSetup(ids)) {
       const item = this.model(plan.id),
-        directory = path.join(base, item.catalog.id, item.catalog.revision),
-        complete = item.catalog.files.every((file) => {
+        directory = path.join(base, item.id, item.revision),
+        complete = item.files.every((file) => {
           try {
             const stat = fs.statSync(path.join(directory, file.path));
             return stat.isFile() && stat.size === file.size;
@@ -254,7 +254,7 @@ export class Models {
   ): Promise<Record<string, string>> {
     const item = this.model(id),
       base = path.resolve(root),
-      directory = path.join(base, item.catalog.id, item.catalog.revision),
+      directory = path.join(base, item.id, item.revision),
       verification = await this.verifyDirectory(item, base, directory);
     if (verification.state !== "verified")
       throw new WeaverError(
@@ -263,7 +263,7 @@ export class Models {
         verification,
       );
     const patch: Record<string, string> = {};
-    for (const binding of item.catalog.bindings)
+    for (const binding of item.bindings)
       patch[binding.setting] = modelBindingValue(directory, binding);
     return patch;
   }
@@ -278,11 +278,11 @@ export class Models {
       local: items.map((item) => {
         const snapshot = this.activeSnapshot(item, settings);
         return {
-          id: item.catalog.id,
+          id: item.id,
           status: this.metadataStatus(item, base),
           activeBindings: snapshot.bindings,
           activeFiles: snapshot.files,
-          runtime: this.runtimeStatus(item.catalog.id),
+          runtime: this.runtimeStatus(item.id),
         };
       }),
       downloads: this.jobs
@@ -293,7 +293,7 @@ export class Models {
   }
 
   runtimeStatus(id: string) {
-    return this.model(id).catalog.runtimeRequirements.map((requirement) => {
+    return this.model(id).runtimeRequirements.map((requirement) => {
       const value = runtimeBinding(requirement.setting).value;
       return {
         setting: requirement.setting,
@@ -366,18 +366,18 @@ export class Models {
       requestInput: { id: input.id, root },
       kind: "model-download",
       snapshot: {
-        id: item.catalog.id,
-        revision: item.catalog.revision,
+        id: item.id,
+        revision: item.revision,
         root,
-        files: item.catalog.files,
+        files: item.files,
       },
       nodes: [
         {
-          key: `download-${item.catalog.id}`,
+          key: `download-${item.id}`,
           operation: "model-download",
           input: {
-            id: item.catalog.id,
-            revision: item.catalog.revision,
+            id: item.id,
+            revision: item.revision,
             root,
           },
         },
@@ -396,7 +396,7 @@ export class Models {
   async verifyActive(id: string) {
     const item = this.model(id), snapshot = this.activeSnapshot(item, this.settings());
     const files: z.input<typeof ActiveVerifyResult>["files"] = [];
-    for (const [index, expected] of item.catalog.files.entries()) {
+    for (const [index, expected] of item.files.entries()) {
       const current = snapshot.files[index];
       let actualSha256: string | undefined;
       let reason: string | undefined;
@@ -457,10 +457,10 @@ export class Models {
     } catch {
       isFile = false;
     }
-    const singleFile = isFile && item.catalog.files.length === 1;
+    const singleFile = isFile && item.files.length === 1;
     let directory = resolved;
     if (isFile && !singleFile) {
-      const matches = item.catalog.files.filter((file) => path.basename(file.path) === path.basename(resolved));
+      const matches = item.files.filter((file) => path.basename(file.path) === path.basename(resolved));
       if (matches.length !== 1)
         throw new WeaverError("INVALID_INPUT", "请选择此模型的文件或完整目录", { id: input.id });
       const selected = matches[0];
@@ -481,7 +481,7 @@ export class Models {
             verified,
           );
         const patch: Record<string, string> = {};
-        for (const binding of item.catalog.bindings) {
+        for (const binding of item.bindings) {
           if (singleFile) {
             if (binding.target !== "file")
               throw new WeaverError(
@@ -524,28 +524,27 @@ export class Models {
     });
   }
 
-  private directory(root: string, item: DownloadableLocalModel): string {
-    return path.join(root, item.catalog.id, item.catalog.revision);
+  private directory(root: string, item: LocalModel): string {
+    return path.join(root, item.id, item.revision);
   }
 
   private activeSnapshot(
-    item: DownloadableLocalModel,
+    item: LocalModel,
     settings: z.infer<typeof ModelSettingsView>,
   ): ActiveSnapshot {
-    const bindings: ActiveSnapshot["bindings"] = item.catalog.bindings.map((binding) => {
+    const bindings: ActiveSnapshot["bindings"] = item.bindings.map((binding) => {
       const value = settings.values[this.settingName(binding.setting)] || { value: "", source: "unset" as const };
-      if (binding.target === "literal") return { ...value, setting: binding.setting, target: "literal" };
       const resolvedPath = resolvePath(this.root, value.value),
         state = inspectPath(resolvedPath, binding.target).state;
       return binding.target === "file"
         ? { ...value, setting: binding.setting, target: "file", file: binding.file, resolvedPath, state }
         : { ...value, setting: binding.setting, target: "directory", resolvedPath, state };
     });
-    const files: ActiveSnapshot["files"] = item.catalog.files.map((expected) => {
+    const files: ActiveSnapshot["files"] = item.files.map((expected) => {
       safeRelative(expected.path);
       const binding = bindings.find((value) => value.target === "file" && value.file === expected.path)
         || bindings.find((value) => value.target === "directory");
-      const actualPath = !binding || binding.target === "literal" || !binding.resolvedPath ? ""
+      const actualPath = !binding?.resolvedPath ? ""
         : binding.target === "file" ? binding.resolvedPath : path.join(binding.resolvedPath, expected.path);
       const inspected = inspectPath(actualPath, "file");
       return {
@@ -560,12 +559,12 @@ export class Models {
   }
 
   private metadataStatus(
-    item: DownloadableLocalModel,
+    item: LocalModel,
     root: string,
   ): z.infer<typeof ModelStatus> {
     const base = resolvePath(this.root, root),
       directory = this.directory(base, item);
-    const files = item.catalog.files.map((file) => {
+    const files = item.files.map((file) => {
       safeRelative(file.path);
       let actualSize: number | undefined;
       try {
@@ -591,16 +590,16 @@ export class Models {
       : files.every((file) => file.state === "metadata-match")
         ? "unchecked"
         : "invalid";
-    return ModelStatus.parse({ id: item.catalog.id, root: base, directory, state, files });
+    return ModelStatus.parse({ id: item.id, root: base, directory, state, files });
   }
 
   private async verifyDirectory(
-    item: DownloadableLocalModel,
+    item: LocalModel,
     root: string,
     directory: string,
   ): Promise<z.infer<typeof VerifyResult>> {
     const files = [];
-    for (const expected of item.catalog.files) {
+    for (const expected of item.files) {
       safeRelative(expected.path);
       const file = path.join(directory, expected.path);
       let actualSize: number | undefined,
@@ -640,7 +639,7 @@ export class Models {
         ? "verified"
         : "invalid";
     return VerifyResult.parse({
-      id: item.catalog.id,
+      id: item.id,
       root,
       state,
       files,
@@ -649,13 +648,13 @@ export class Models {
   }
 
   private async verifySingleFile(
-    item: DownloadableLocalModel,
+    item: LocalModel,
     file: string,
   ): Promise<z.infer<typeof VerifyResult>> {
-    const expected = item.catalog.files[0];
+    const expected = item.files[0];
     if (!expected)
       throw new WeaverError("INVALID_INPUT", "模型没有可校验文件", {
-        id: item.catalog.id,
+        id: item.id,
       });
     const stat = fs.statSync(file),
       actualSha256 =
@@ -667,7 +666,7 @@ export class Models {
             ? "SHA-256 不匹配"
             : undefined;
     return VerifyResult.parse({
-      id: item.catalog.id,
+      id: item.id,
       root: path.dirname(file),
       state: reason ? "invalid" : "verified",
       files: [
@@ -690,7 +689,7 @@ export class Models {
         .object({ id: z.string(), revision: z.string(), root: z.string() })
         .parse(context.input),
       item = this.model(input.id);
-    if (input.revision !== item.catalog.revision)
+    if (input.revision !== item.revision)
       throw new WeaverError("MODEL_RELEASE_CHANGED", "模型发布版本已改变");
     const root = resolvePath(this.root, input.root),
       directory = this.directory(root, item),
@@ -699,17 +698,17 @@ export class Models {
     try {
       const existing = await this.verifyDirectory(item, root, directory);
       if (existing.state === "verified") return existing;
-      for (const [index, expected] of item.catalog.files.entries()) {
+      for (const [index, expected] of item.files.entries()) {
         context.signal.throwIfAborted();
         safeRelative(expected.path);
         const final = path.join(directory, expected.path),
           staged = path.join(stage, expected.path);
         if (await this.matches(final, expected)) {
           context.event("model-download-progress", {
-            modelId: item.catalog.id,
+            modelId: item.id,
             file: expected.path,
             completedFiles: index + 1,
-            totalFiles: item.catalog.files.length,
+            totalFiles: item.files.length,
             reused: true,
           });
           continue;
@@ -741,10 +740,10 @@ export class Models {
         }
         if (expected.executable) await fsp.chmod(final, 0o755);
         context.event("model-download-progress", {
-          modelId: item.catalog.id,
+          modelId: item.id,
           file: expected.path,
           completedFiles: index + 1,
-          totalFiles: item.catalog.files.length,
+          totalFiles: item.files.length,
           reused: false,
         });
       }
@@ -775,7 +774,7 @@ export class Models {
   }
 
   private async downloadFile(
-    item: DownloadableLocalModel,
+    item: LocalModel,
     expected: CatalogFile,
     destination: string,
     fileIndex: number,
@@ -834,10 +833,10 @@ export class Models {
         if (Date.now() - reportedAt >= 1000) {
           reportedAt = Date.now();
           context.event("model-download-progress", {
-            modelId: item.catalog.id,
+            modelId: item.id,
             file: expected.path,
             fileIndex: fileIndex + 1,
-            totalFiles: item.catalog.files.length,
+            totalFiles: item.files.length,
             received,
             total: expected.size,
           });

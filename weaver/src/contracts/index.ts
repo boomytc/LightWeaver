@@ -825,11 +825,6 @@ export const ModelBinding = z.discriminatedUnion("target", [
     setting: z.string().min(1),
     target: z.literal("directory"),
   }),
-  z.strictObject({
-    setting: z.string().min(1),
-    target: z.literal("literal"),
-    value: z.string(),
-  }),
 ]);
 export const ModelRuntimeRequirement = z.strictObject({
   setting: z.string().min(1),
@@ -918,7 +913,6 @@ export const ActiveModelBinding = z.discriminatedUnion("target", [
     setting: z.string(), target: z.literal("directory"),
     resolvedPath: z.string(), state: ActivePathState,
   }),
-  ModelSettingsField.extend({ setting: z.string(), target: z.literal("literal") }),
 ]);
 export const ActiveModelFile = z.strictObject({
   path: z.string(),

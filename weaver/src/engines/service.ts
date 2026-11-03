@@ -846,7 +846,7 @@ export class Engines {
     const model = this.models.catalog().localModels.find((item) => item.id === id);
     if (!model) throw new WeaverError("INVALID_INPUT", "未知本地模型", { id });
     const current = this.models.view(root).local.find((item) => item.id === id);
-    const paths = current?.activeBindings.filter((binding) => binding.target !== "literal") || [];
+    const paths = current?.activeBindings || [];
     const source = current && paths.length > 0 && paths.every((binding) => binding.state === "present") &&
       current.activeFiles.length > 0 && current.activeFiles.every((file) => file.state === "metadata-match")
       ? { kind: "configured", snapshot: { bindings: current.activeBindings, files: current.activeFiles } }
