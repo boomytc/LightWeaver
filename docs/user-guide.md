@@ -6,13 +6,9 @@
 
 ## 打开桌面应用
 
-如果已取得桌面包，解压后打开 LightWeaver。macOS 打开 `LightWeaver.app`，Windows 打开 `LightWeaver.exe`，Linux 打开分发的 AppImage 或解压目录中的 `LightWeaver`。
+收到源码工作区后，让 WorkBuddy 按[运行指南](development.md)准备 Node、媒体工具和项目依赖，再用 `npm start` 或根目录启动脚本打开应用。
 
-桌面包包含普通制作工具、基础 Python 和本地推理的原生运行库。启动应用无需另行安装 Node、FFmpeg、Chrome 或 Python。本地模型按需下载，缺失的模型依赖由应用自动准备。云端服务仍需提供 API 密钥。
-
-当前桌面包未签名、未公证。本机验收覆盖 macOS Apple Silicon。其他目标的构建与验证范围见[桌面客户端验收](acceptance-desktop.md)。
-
-如果手头只有源代码，按[源码启动步骤](../README.md#从源码启动)准备依赖，再使用仓库根目录的启动脚本。源码版制作卡片需要 FFmpeg、ffprobe 和 Chrome。构建后的桌面包包含这些普通制作工具。
+普通卡片制作无需模型或 API Key。本地模型和共享 Python 环境按需准备，云端服务需要使用者自己的 API Key。macOS 支持 Apple Silicon，完整本地模型功能要求 macOS 14 或更新版本。
 
 ## 制作第一部片子
 
@@ -57,7 +53,7 @@
 2. 未下载的模型点击 **下载并启用**；已下载的模型点击 **启用**；已配置路径但尚未启用的模型点击 **启用**。应用复用已有文件、准备缺失组件，校验后启用。显示 **已启用** 的模型可直接使用，无需重复操作。
 3. 准备时显示当前进度，完整记录可在 **任务** 中查看；完成后模型显示 **已启用**。失败或取消时可重试，已完成的文件会复用。
 
-语音识别选择 Qwen3-ASR，精确字幕选择 Qwen3 ForcedAligner，文字与画面检索选择 EmbeddingGemma 2。正式包自带全部运行组件，模型推理、语音合成与项目交接共用同一套 Python 运行环境；使用时只需选择模型权重。
+语音识别选择 Qwen3-ASR，精确字幕选择 Qwen3 ForcedAligner，文字与画面检索选择 EmbeddingGemma 2。运行组件可由 WorkBuddy 预先安装；模型推理、语音合成与项目交接共用一套 Python 环境，模型权重按需选择。
 
 下载位置通过 **更换位置** 打开系统选择器，选定目录后自动保存；已有文件不移动。
 
@@ -108,10 +104,9 @@
 - 制作失败时，在 **任务** 中查看错误。修正输入或配置后，恢复未完成步骤。
 - 提示修订冲突时，保留草稿并对照当前修订，再决定如何采用修改。点击保留草稿后仍可编辑；等待备份期间产生新编辑时，界面会保留这些编辑并提示再次确认加载。
 
-使用正式桌面包与外部 agent 协作时，在 **设置 → 诊断与修复 → 高级：自定义运行路径与配置 → 外部 agent 与命令行** 复制完整命令。让 agent 先读取 `capabilities --json`，核对工作区，并根据返回的 `agentSkills` 读取配套技能。从源码启动的桌面与浏览器开发模式的入口见[开发指南](development.md#使用-cli-与外部-agent-协作)，详细命令见[命令与配置参考](conventions.md)。
+与外部 agent 协作时，使用项目 **复制给 agent** 中的完整命令。让 agent 先读取 `capabilities --json`，核对工作区，再根据 `agentSkills` 读取配套技能。安装与调用方式见[运行指南](development.md#使用-cli-与外部-agent-协作)，详细命令见[命令参考](conventions.md)。
 
 CLI 默认输出 JSON。需要终端表格时显式加 `--human`。长作业使用 `--wait`，阶段进度写到 stderr，stdout 仍保留最终 JSON 结果。脚本和 agent 不要解析 stderr 中的进度文本。
 
-项目中的 **复制给 agent** 或 `project brief <id>` 会给出绑定了实际数据目录、配置文件和配置基准目录的完整命令。不要用裸 `weaver` 猜测目标工作区。
 
 Agent 提交制作必须使用已审核计划的修订。`build --plan` 返回 `revision`，确认计划后用 `build --expected-revision <revision> --wait` 制作；发生冲突时重新读取并审核。

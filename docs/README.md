@@ -15,7 +15,7 @@
 
 ## Agent
 
-Agent 从项目 **复制给 agent** 或 `project brief <id>` 取得完整调用入口。该入口包含绝对 Node 与源码 CLI 路径，或随包 CLI 路径，并带有实际 `dataDir`、配置文件与配置基准目录。
+Agent 从项目 **复制给 agent** 或 `project brief <id>` 取得完整调用入口。该入口包含绝对 Node 与源码 CLI 路径，并带有实际 `dataDir`、配置文件与配置基准目录。
 
 - [LightWeaver 入口选择](../.agents/skills/lightweaver/SKILL.md)
 - [电影制作](../.agents/skills/lightweaver-film/SKILL.md)
@@ -29,7 +29,7 @@ Agent 从项目 **复制给 agent** 或 `project brief <id>` 取得完整调用�
 
 | 文档 | 内容 |
 | --- | --- |
-| [运行与开发](development.md) | 源码环境、启动、构建、CLI 和验证入口 |
+| [运行与开发](development.md) | WorkBuddy 安装、源码启动、共享与 CLI 入口 |
 | [架构说明](architecture-v2.md) | 修订、素材、作业、时间轴和交付的实现边界 |
 | [命令与配置参考](conventions.md) | 公开入口、数据结构、工具和运行合同 |
 
@@ -50,4 +50,4 @@ Agent 从项目 **复制给 agent** 或 `project brief <id>` 取得完整调用�
 | [全片精确对齐根因与验收](acceptance-alignment-root-cause.md) | 全片对齐缺陷与修复证据 |
 | [编辑与恢复验收](acceptance-editing-recovery.md) | 保存、冲突、草稿和遮罩 |
 
-验收文档记录特定环境下的证据。它们不证明未列出的平台、模型质量或交付软件兼容性。
+验收文档记录特定环境下的历史证据；其中的安装包构建记录不代表当前交付方式，当前使用源码工作区交付。它们不证明未列出的平台、模型质量或交付软件兼容性。

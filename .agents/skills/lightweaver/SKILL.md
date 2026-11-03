@@ -5,11 +5,11 @@ description: Route LightWeaver film production, project editing, library managem
 
 # LightWeaver
 
-按用户正在操作的环境选择 CLI，后续所有命令保持同一入口和配置。
+从源码工作区运行。首次安装或缺少环境时，先读 `docs/development.md`，按需准备运行组件和模型。
 
-- 正式桌面包使用 **复制给 agent** 或设置页 **外部 agent 与命令行** 提供的完整命令。随包入口为 `bin/weaver`，Windows 为 `bin/weaver.cmd`。它读取桌面偏好和数据，不依赖当前目录。
-- 浏览器开发模式使用仓库根目录的 `npx weaver`，默认数据在 `data/.weaver`。
-- 从源码启动的桌面仍使用桌面工作区。使用仓库 CLI 时，传 `--data-dir`、`--config-file` 和 `--config-base` 对齐设置页中的实际路径，并沿用启动桌面时的工具环境。其它显式工作区同样核对这些路径。
+- 在工作区根目录使用 `npx weaver`。
+- 与桌面项目协作时，使用 **复制给 agent** 给出的完整命令；它已绑定实际数据目录、配置文件与基准目录。
+- 从其它目录调用时，保留命令中的绝对 Node、`weaver/bin/weaver.mjs` 路径和配置参数。
 
 用所选入口运行 `capabilities --json`、`help --json`。核对返回的 `runtime.dataDir` 和 `runtime.configFile`，读取 `runtime.resourcesDir` 下的 AGENTS.md 和 `docs/conventions.md`。`agentSkills` 提供与入口配套的技能路径。已有项目先读取它；找不到项目时先检查入口和工作区。
 

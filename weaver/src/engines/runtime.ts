@@ -4,7 +4,6 @@ import { z, ModelSettingsField } from "../contracts/index.ts";
 import { currentRuntime } from "../runtime.ts";
 import { resolveExecutable } from "../adapters/executable.ts";
 import { engineCatalog, engineBindingValue, installDirectory } from "./catalog.ts";
-import { bundledBinding } from "./bundled.ts";
 
 const environments: Record<string, string> = {
   asr_library: "TRANSCRIBE_LIBRARY",
@@ -21,7 +20,7 @@ export function engineRoot(env: NodeJS.ProcessEnv = process.env): z.infer<typeof
     : { value: currentRuntime().engineDir, source: "default" };
 }
 
-/** 运行组件只来自显式环境覆盖、受管安装或随包资源，不读取模型配置。 */
+/** 运行组件只来自显式环境覆盖或受管安装，不读取模型配置。 */
 export function runtimeBinding(setting: string, env: NodeJS.ProcessEnv = process.env): z.infer<typeof ModelSettingsField> {
   const runtime = currentRuntime();
   const item = engineCatalog().items.find((item) => item.bindings.some((binding) => binding.setting === setting));
@@ -34,7 +33,5 @@ export function runtimeBinding(setting: string, env: NodeJS.ProcessEnv = process
   };
   const directory = installDirectory(engineRoot(env).value, item.id);
   if (fs.existsSync(directory)) return { value: engineBindingValue(directory, binding), source: "default" };
-  const bundled = bundledBinding(setting);
-  if (bundled) return { value: bundled, source: "default" };
   return { value: "", source: "unset" };
 }

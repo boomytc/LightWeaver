@@ -24,15 +24,11 @@ import {
 } from "@lightweaver/weaver/contracts";
 import { ClientStateStore } from "./client-state.ts";
 
-export type ServiceMode = "development" | "production";
-
 export type StudioServiceOptions = {
-  mode: ServiceMode;
   token: string;
   runtime: RuntimeContext;
   port?: number;
-  staticDir?: string;
-  devOrigins?: string[];
+  clientOrigins?: string[];
 };
 
 export type StudioService = {
@@ -56,11 +52,8 @@ export async function startStudioService(
 ): Promise<StudioService> {
   if (process.versions.electron)
     throw new Error("业务服务不能在 Electron 进程内启动");
-  if (options.mode === "production" && options.token.length < 16)
-    throw new Error("生产服务拒绝匿名访问");
   const runtime = installRuntime({
     ...options.runtime,
-    mode: options.mode,
     tools: {
       ...options.runtime.tools,
       node: process.execPath,
@@ -88,44 +81,20 @@ export async function startStudioService(
       deny(res, "LOCAL_ONLY", "仅允许本机回环地址");
       return;
     }
-    if (options.mode === "production") {
-      if (requestOrigin && requestOrigin !== origin) {
-        deny(res, "LOCAL_ONLY", "生产服务拒绝外部来源");
-        return;
-      }
-      if (req.headers.authorization !== `Bearer ${options.token}`) {
-        deny(res, "UNAUTHORIZED", "生产服务需要本应用会话", 401);
-        return;
-      }
-    } else {
-      const allowed = new Set([origin, ...(options.devOrigins || [])]);
-      if (requestOrigin && !allowed.has(requestOrigin)) {
-        deny(res, "LOCAL_ONLY", "开发服务拒绝未登记的来源");
-        return;
-      }
-      const header = req.headers.authorization;
-      if (header && header !== `Bearer ${options.token}`) {
-        deny(res, "UNAUTHORIZED", "开发服务拒绝错误的会话", 401);
-        return;
-      }
-      if (!header && options.token && requestOrigin && !allowed.has(requestOrigin)) {
-        deny(res, "UNAUTHORIZED", "开发服务拒绝未登记的来源", 401);
-        return;
-      }
+    const allowed = new Set([origin, ...(options.clientOrigins || [])]);
+    if (requestOrigin && !allowed.has(requestOrigin)) {
+      deny(res, "LOCAL_ONLY", "服务拒绝未登记的来源");
+      return;
     }
+    const header = req.headers.authorization;
+    if ((options.token || header) && header !== `Bearer ${options.token}`) {
+      deny(res, "UNAUTHORIZED", "服务需要有效的本应用会话", 401);
+      return;
+    }
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
     next();
   });
-  if (options.mode === "production") {
-    server.use((_req, res, next) => {
-      res.setHeader(
-        "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
-      );
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      res.setHeader("Referrer-Policy", "no-referrer");
-      next();
-    });
-  }
   server.use(express.json({ limit: "16mb" }));
   const route = (
     method: "get" | "post" | "put" | "delete",
@@ -749,15 +718,6 @@ export async function startStudioService(
       next(error);
     }
   });
-  if (options.staticDir) {
-    const root = options.staticDir;
-    server.use(express.static(root, { index: "index.html", fallthrough: true }));
-    server.get(/^\/(?!api\/).*/, (_req, res, next) => {
-      res.sendFile(path.join(root, "index.html"), (error) => {
-        if (error) next(error);
-      });
-    });
-  }
   server.use(
     (
       error: unknown,

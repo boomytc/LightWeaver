@@ -11,8 +11,7 @@ description: Author and revise LightWeaver films through the exact workspace CLI
 
 先读[入口选择](../lightweaver/SKILL.md)。从任务 brief 取得完整 CLI 入口和数据基线：
 
-- 源码版使用绝对 Node 路径和绝对 `weaver/bin/weaver.mjs` 路径。
-- 桌面包使用设置页或 **复制给 agent** 给出的绝对随包 CLI 命令。
+- 使用 **复制给 agent** 给出的绝对 Node 和 `weaver/bin/weaver.mjs` 路径。
 - 命令保留实际 `--data-dir`、`--config-file` 和 `--config-base`。
 
 不要在未知工作区运行裸 `weaver`。brief 缺少入口，或入口、数据目录与用户项目不一致时，先取得正确 brief 再写入。

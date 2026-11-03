@@ -27,7 +27,7 @@ if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
     }
     process.chdir(root);
     process.stdout.write("正在启动 LightWeaver 源码桌面窗口…\n");
-    await import("../products/desktop/scripts/dev.mjs");
+    await import("../products/desktop/scripts/start.mjs");
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

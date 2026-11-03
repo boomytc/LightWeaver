@@ -4,13 +4,6 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
 export function adapterInfo() {
-  const pinned = process.env.LIGHTWEAVER_CARD_INFO;
-  if (pinned && fs.existsSync(pinned))
-    return JSON.parse(fs.readFileSync(pinned, "utf8")) as ReturnType<typeof describeAdapter>;
-  return describeAdapter();
-}
-
-function describeAdapter() {
   const hash = createHash("sha256");
   for (const file of [
     "./Card.tsx",
@@ -39,9 +32,7 @@ function describeAdapter() {
   let chrome = "bundled-chromium";
   const executable =
     process.env.LIGHTWEAVER_CHROME ||
-    (process.env.LIGHTWEAVER_PACKAGED === "1"
-      ? ""
-      : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   try {
     chrome = execFileSync(executable, ["--version"], {
       encoding: "utf8",

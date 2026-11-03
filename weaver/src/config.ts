@@ -5,11 +5,11 @@ import { fileURLToPath } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
 import { z, Id, ModelSettingsField } from "./contracts/index.ts";
 import { WeaverError } from "./contracts/errors.ts";
-import { currentRuntime, resourcePath, usesInstalledConfig } from "./runtime.ts";
+import { currentRuntime, resourcePath, usesRuntimeConfig } from "./runtime.ts";
 const defaultRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 export function localConfigPath(root = defaultRoot): string {
-  if (usesInstalledConfig(root)) return currentRuntime().configFile;
+  if (usesRuntimeConfig(root)) return currentRuntime().configFile;
   return path.join(path.resolve(root), "config.local.yaml");
 }
 
@@ -70,7 +70,7 @@ export function readConfig(
   const file = localConfigPath(root);
   const local = input.localContent ??
     (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "");
-  const defaultsFile = usesInstalledConfig(root)
+  const defaultsFile = usesRuntimeConfig(root)
     ? resourcePath("config.yaml")
     : path.join(path.resolve(root), "config.yaml");
   if (!fs.existsSync(defaultsFile))

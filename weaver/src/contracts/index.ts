@@ -1105,22 +1105,11 @@ export const EngineActiveBinding = z.strictObject({
  * 与当前运行时绑定是否可用，合成一个用户可读的分类，避免页面各自拼装措辞。
  */
 export const EngineUsage = z.enum([
-  "bundled",
   "managed",
   "external",
   "unused",
   "partial",
 ]);
-export const BundledEngines = z.strictObject({
-  schemaVersion: z.literal(1),
-  platform: z.string().min(1),
-  components: z.array(z.strictObject({
-    id: z.string().min(1),
-    version: z.string().min(1),
-    directory: z.string().min(1),
-    bindings: z.record(z.string(), z.string().min(1)),
-  })).min(1),
-});
 export const EngineItemStatus = z.strictObject({
   id: z.string(),
   status: EngineStatus,

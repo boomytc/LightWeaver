@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
-import { developmentRuntime, type RuntimeContext } from "@lightweaver/weaver/app";
+import { workspaceRuntime, type RuntimeContext } from "@lightweaver/weaver/app";
 import { startStudioService } from "./service.ts";
 
 if (process.versions.electron) {
@@ -9,11 +9,9 @@ if (process.versions.electron) {
 }
 
 const desktop = process.argv.includes("--desktop");
-const production = process.argv.includes("--production");
 const launchFile = process.env.LIGHTWEAVER_LAUNCH_FILE;
-let runtime: RuntimeContext = developmentRuntime();
-let staticDir: string | undefined;
-let devOrigins = [
+let runtime: RuntimeContext = workspaceRuntime();
+let clientOrigins = [
   "http://127.0.0.1:5175",
   "http://localhost:5175",
   "http://127.0.0.1:4175",
@@ -22,25 +20,17 @@ let devOrigins = [
 if (launchFile) {
   const launch = JSON.parse(fs.readFileSync(launchFile, "utf8")) as {
     runtime: RuntimeContext;
-    staticDir?: string;
-    devOrigins?: string[];
+    clientOrigins?: string[];
   };
   runtime = launch.runtime;
-  staticDir = launch.staticDir;
-  if (launch.devOrigins) devOrigins = launch.devOrigins;
-}
-if (production && !staticDir) {
-  process.stderr.write("生产服务缺少编译后的界面目录\n");
-  process.exit(1);
+  if (launch.clientOrigins) clientOrigins = launch.clientOrigins;
 }
 
 const service = await startStudioService({
-  mode: production ? "production" : "development",
-  token: desktop || production ? randomBytes(32).toString("hex") : "",
+  token: desktop ? randomBytes(32).toString("hex") : "",
   runtime,
-  port: desktop || production ? 0 : Number(process.env.LIGHTWEAVER_API_PORT || 5176),
-  staticDir: production ? staticDir : undefined,
-  devOrigins,
+  port: desktop ? 0 : Number(process.env.LIGHTWEAVER_API_PORT || 5176),
+  clientOrigins,
 });
 
 let closed = false;
@@ -52,7 +42,7 @@ async function shutdown() {
 }
 process.once("SIGTERM", () => void shutdown());
 process.once("SIGINT", () => void shutdown());
-if (desktop || production) {
+if (desktop) {
   const parent = process.ppid;
   const timer = setInterval(() => {
     try {

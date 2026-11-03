@@ -15,7 +15,7 @@
 
 ## 公开入口
 
-Node 产品使用 `@lightweaver/weaver/app`，浏览器使用 `@lightweaver/weaver/contracts`。`weaver capabilities` 返回工作流、输出规格、provider 描述符和内置包版本。capabilities 与 doctor 的 `runtime` 显示实际模式、数据目录和配置文件，供 agent 核对目标工作区。capabilities 和 Studio 设置页还提供带绝对 Node、CLI、数据目录、配置文件和配置基准的完整命令；项目 brief 沿用同一命令，供其他工作目录中的 agent 访问当前项目。`schema` 由运行时 Zod 合同生成。下列 `npx weaver` 示例用于源码工作区；协作桌面项目时换成设置页提供的随包 CLI。
+Node 产品使用 `@lightweaver/weaver/app`，浏览器使用 `@lightweaver/weaver/contracts`。`weaver capabilities` 返回工作流、输出规格、provider 描述符和内置包版本。capabilities 与 doctor 的 `runtime` 显示实际数据目录和配置文件，供 agent 核对目标工作区。capabilities 和 Studio 设置页还提供带绝对 Node、CLI、数据目录、配置文件和配置基准的完整命令；项目 brief 沿用同一命令，供其他工作目录中的 agent 访问当前项目。`schema` 由运行时 Zod 合同生成。下列 `npx weaver` 示例用于源码工作区；协作桌面项目时沿用复制给 agent 的完整命令。
 
 stdout 结果为 `{ok:true,result,requestId}`，错误为 `{ok:false,error:{code,message,retryable,details,hints}}`。日志进 stderr。`--json` 输出单行 JSON。CLI 默认仍返回 JSON；终端用户可显式使用 `--human`，它与 `--json` 互斥。帮助和参数检查共享命令描述，必填参数自动进入允许参数和帮助，不接受未知参数。`--help`、`-h` 在创建 Application 前解析。`--wait` 在终端中默认把阶段进度写到 stderr，非终端可显式加 `--progress`；stdout 保持结果契约。CLI `events` 输出 JSONL，`run events` 返回事件数组。HTTP 返回相同结果与错误形状；SSE 使用单调 seq，支持 Last-Event-ID。
 
@@ -165,11 +165,11 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页分别检查当前生效路径和下载目录的元数据；Studio 只读显示当前模型路径，通过系统选择器选择模型文件或目录；打开模型详情及选择已有路径时自动校验，路径校验通过后保存，失败保留原配置。完整作业记录集中在任务页，CLI `verify` 校验下载目录。校验与采用按目录清单对比，其他模型版本可能不同；列表扫描只读取元数据；模型详情、显式校验、下载和采用已有路径会校验完整文件哈希。Qwen ASR GGUF 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 可选择完整目录，或选择清单内的一个文件来定位完整目录，所有文件校验通过后才采用。TEN VAD 与其它原生运行库由引擎安装管理。下载不会复制到 CAS，也不会隐式写入配置。
 
-模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码入口（仓库 CLI、浏览器 Studio、源码桌面）默认以仓库为配置基准，正式桌面包以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
+模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。CLI、浏览器 Studio 和桌面默认以工作区为配置基准，显式选择的配置文件按其所在目录解析。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
 
-Studio 的下载位置只读显示，使用系统选择器更换后立即保存，不移动已有文件。模型下载位置由运行时统一决定：源码入口使用仓库 `data/models/`，正式桌面包使用用户模型目录。私有配置的 `model_download_root` 或环境变量可显式覆盖，相对路径按 `configBase` 解析；`data/` 不进入 Git。
+Studio 的下载位置只读显示，使用系统选择器更换后立即保存，不移动已有文件。模型下载位置由运行时统一决定：默认使用工作区 `data/models/`。私有配置的 `model_download_root` 或环境变量可显式覆盖，相对路径按 `configBase` 解析；`data/` 不进入 Git。
 
-配置值按运行时 `configFile`（私有本地配置）、环境变量、内置 `config.yaml` 默认值的顺序解析。三者中的空字符串和纯空白值都视为未设置。`source=file` 表示私有本地配置，`source=environment` 表示环境变量，`source=default` 表示 `config.yaml` 或代码缺省值，`source=unset` 表示没有有效值。源码内置默认文件位于仓库根目录 `config.yaml`；桌面包内位于 `currentRuntime.resourcesDir/config.yaml`。私有覆盖继续写入 `runtime.configFile`，相对路径仍按 `runtime.configBase` 解析。
+配置值按运行时 `configFile`（私有本地配置）、环境变量、内置 `config.yaml` 默认值的顺序解析。三者中的空字符串和纯空白值都视为未设置。`source=file` 表示私有本地配置，`source=environment` 表示环境变量，`source=default` 表示 `config.yaml` 或代码缺省值，`source=unset` 表示没有有效值。内置默认文件位于工作区根目录 `config.yaml`。私有覆盖继续写入 `runtime.configFile`，相对路径仍按 `runtime.configBase` 解析。
 
 `config.yaml` 的 API Key 字段必须保持空字符串，不得提交真实凭据。用户应通过设置页或私有本地配置文件提供凭据；在源码环境，该文件是忽略的 `config.local.yaml`。桌面设置保存密钥后立即采用新值，无需重启；清除私有本地配置中的密钥后，如果环境变量有非空值则立即回退到环境变量，否则回到未配置状态。
 
@@ -189,7 +189,7 @@ Studio 的下载位置只读显示，使用系统选择器更换后立即保存�
 | 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL |
 | 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
-运行组件路径由安装清单统一解析，不写入模型配置文件。源码模式使用仓库 `data/engines/`，桌面包优先使用当前安装目录中的组件；未安装受管组件时使用随包资源。所有 Python 功能使用同一个 `python-runtime`，不再按模块选择虚拟环境。ASR 使用 TEN VAD、transcribe 运行库与 Python bindings；检索、重排和翻译共用同一个 `llama_server` 绑定；开发覆盖只使用 `LIGHTWEAVER_LLAMA_SERVER`。强制对齐固定使用 Torch，默认 CPU。特殊构建可通过 `LIGHTWEAVER_ENGINE_ROOT` 或各组件环境变量覆盖；设备选择使用 `LIGHTWEAVER_ALIGNMENT_DEVICE`（`cpu`、`cuda[:index]`）和 `LIGHTWEAVER_DIARIZATION_BACKEND`。这些开发覆盖不进入模型配置或设置写入接口。
+运行组件路径由安装清单统一解析，不写入模型配置文件。默认使用工作区 `data/engines/` 中安装的组件。所有 Python 功能使用同一个 `python-runtime`，不再按模块选择虚拟环境。ASR 使用 TEN VAD、transcribe 运行库与 Python bindings；检索、重排和翻译共用同一个 `llama_server` 绑定；开发覆盖只使用 `LIGHTWEAVER_LLAMA_SERVER`。强制对齐固定使用 Torch，默认 CPU。特殊构建可通过 `LIGHTWEAVER_ENGINE_ROOT` 或各组件环境变量覆盖；设备选择使用 `LIGHTWEAVER_ALIGNMENT_DEVICE`（`cpu`、`cuda[:index]`）和 `LIGHTWEAVER_DIARIZATION_BACKEND`。这些开发覆盖不进入模型配置或设置写入接口。
 
 每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。共享 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 
@@ -199,7 +199,7 @@ Studio 的下载位置只读显示，使用系统选择器更换后立即保存�
 
 ## 引擎运行时
 
-正式桌面包预装 transcribe 运行库、Python bindings、TEN VAD 与 llama-server，构建时沿用同一 catalog、安装作业和完整性校验。`resources/bundled-engines.json` 记录平台、版本及相对应用资源根的绑定路径；实际默认路径按当前应用位置解析，显式环境变量覆盖优先。完整 Python 运行环境随包交付，模型权重按需选择。
+WorkBuddy 可使用 CLI 为接收方准备 transcribe 运行库、Python bindings、TEN VAD、llama-server 和共享 Python。安装与模型下载沿用现有作业和完整性校验，源码压缩包只交付代码与内置资源。
 
 普通模型操作使用 `weaver models install ID --expected-revision CONFIG_REV --wait` 或 `POST /api/models/:id/install`。`GET /api/models/:id/install-plan` 返回兼容情况、模型剩余下载量、依赖预计体积和文件来源。`source.kind` 优先为 `configured`（当前配置的完整模型，附冻结路径与文件快照），其次为 `downloaded`（下载目录内已有完整文件），缺文件时为 `download`。已有模型不创建下载节点；单个 `model-setup` 作业只准备缺失组件并完整校验已有文件，`model-activate` 最后一次写入配置。采用当前模型时保留全部模型绑定，路径或文件快照变化会拒绝启用；采用下载目录时写入对应模型绑定。依赖失败、取消或配置冲突不会启用模型；失败沿完整依赖链传播，成功的独立步骤可在重试时复用。仅下载文件仍使用 CLI `models download`。
 
@@ -222,13 +222,13 @@ npx weaver engines verify transcribe-native --json
 
 开始前按未安装组件的 `estimatedBytes` 与模型剩余字节估算所需空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。已安装版本与当前发布不同时 `engines list` 的 `updates` 会列出该组件，`engines setup` 会下载新版本、替换本应用管理的目录并重新采用。组件位置由运行时决定，已有文件不会自动搬迁。可用空间与更新列表通过 `GET /api/engines` 返回。
 
-`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。每个组件的 `usage` 由服务端统一计算：`bundled`（应用自带并正在使用）、`managed`（本应用安装并自动使用）、`external`（使用显式环境覆盖）、`unused`、`partial`；Studio 引擎面板与 `doctor` 使用同一分类；当前路径属于受管或随包目录时，缺文件或元数据异常归为 `partial`，不会冒充外部组件。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件可用，`coreReady` 要求 transcribe 运行库、bindings、TEN VAD 与共享 Python。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
+`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。每个组件的 `usage` 由服务端统一计算：`managed`（本应用安装并自动使用）、`external`（使用显式环境覆盖）、`unused`、`partial`；Studio 引擎面板与 `doctor` 使用同一分类；当前路径属于受管目录时，缺文件或元数据异常归为 `partial`，不会冒充外部组件。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件可用，`coreReady` 要求 transcribe 运行库、bindings、TEN VAD 与共享 Python。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
 
-引擎安装根目录由运行时选择；源码入口使用仓库 `data/engines/`（Git 忽略），正式桌面包使用数据目录下的 `engines/`。开发时可用 `LIGHTWEAVER_ENGINE_ROOT` 覆盖。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
+引擎安装根目录由运行时选择；默认使用工作区 `data/engines/`（Git 忽略）。开发时可用 `LIGHTWEAVER_ENGINE_ROOT` 覆盖。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
 
 `engines setup` 按顺序安装并校验组件，安装完成后自动解析使用，不再需要“采用引擎”操作。仅在显式选择同时采用模型时，完成节点才按 expectedRevision 写入模型路径。模型配置只接受模型路径、模型选择及 API 凭据，设置接口与内部配置写入口均拒绝运行组件字段。
 
-Python 依赖统一在 `weaver/requirements.txt`。模型推理、VoxCPM2 语音合成、字幕翻译与项目交接共用 `python-runtime`；对齐所需的 Transformers 4.57.6 同时满足 VoxCPM2 的依赖声明。源码安装使用 Python 3.12 创建受管 venv；桌面构建将完整依赖安装到随包 Python，同一组件清单按应用位置解析。`LIGHTWEAVER_PYTHON` 是唯一的 Python 开发覆盖。作业使用六小时时限，取消会终止 pip；新建失败时清除未完成环境。安装校验核对固定依赖版本，桌面资源核验同时验证模型与交接包可导入。
+Python 依赖统一在 `weaver/requirements.txt`。模型推理、VoxCPM2 语音合成、字幕翻译与项目交接共用 `python-runtime`；对齐所需的 Transformers 4.57.6 同时满足 VoxCPM2 的依赖声明。安装时使用 Python 3.12 创建受管 venv。`LIGHTWEAVER_PYTHON` 是唯一的 Python 开发覆盖。作业使用六小时时限，取消会终止 pip；新建失败时清除未完成环境。安装校验核对固定依赖版本。
 
 TEN VAD 由引擎安装管理。引擎安装的历史证据和平台范围见[引擎运行时安装验收](acceptance-engine-setup.md)。
 
@@ -277,19 +277,18 @@ npx weaver gc --apply --json
 
 ```bash
 make desktop          # Electron + Vite HMR + 动态端口服务
-make desktop-package  # 本机未签名可运行包
-make desktop-dist     # 未签名安装分发包
+make source-zip       # 打包已提交源码
 ```
 
 Studio 的“保存”一次写入文档与待审创作方案；“保存并制作”先完成该写入，再以返回的精确 expectedRevision 提交制作。保存方案不会自动采用场景。等待保存期间产生新文档或方案编辑时，保留草稿并暂停制作；保存或提交制作的响应丢失时，相同内容重试复用 requestId。离开项目时选择保存也使用同一写入。创建项目和导入项目包的失败重试保留请求身份，确认成功后才结束该操作。
 
 冲突界面保留本地草稿并展示内容差异。加载服务器内容前先备份、重新读取 head；服务器又更新时要求重新查看差异。备份、读取及恢复的回调绑定项目、会话代次和草稿序号，不能清除期间的新编辑，也不能向新项目展示旧项目的恢复 journal 错误。
 
-`make studio` 继续使用仓库 `data/.weaver` 与 Vite。桌面开发包和正式包默认把数据库写到用户目录，不写安装目录或仓库数据；源码桌面的私有配置与仓库 CLI、浏览器 Studio 共用仓库根 `config.local.yaml`。`LIGHTWEAVER_USER_DATA` 可隔离桌面的数据目录与偏好。正式服务和 CLI 使用随包 Node；bundle 内的 `bin/weaver`（Windows 为 `bin/weaver.cmd`）默认读取同一桌面偏好，也可用 `--data-dir`、`--config-file`、`--config-base` 显式覆盖。
+`npm start` 和 `make desktop` 启动同一源码桌面。界面由 Vite 提供，API 和 worker 在独立 Node 服务中运行。API 仅接受回环地址和登记的来源，桌面请求还需匹配当前会话凭据。CLI、浏览器和桌面共用仓库根的私有配置；桌面数据与偏好保留在系统用户目录。协作桌面项目时，从“复制给 agent”取得绑定实际数据目录的完整命令。`LIGHTWEAVER_USER_DATA` 可隔离桌面用户目录。
 
-打包支持 `darwin-arm64`、`linux-x64`、`win32-x64`，需在对应宿主执行 `npm run package -w @lightweaver/desktop -- --target=目标`。普通 package 生成可运行目录，`--dist` 再生成安装分发包；不支持的目标或跨宿主构建在修改 staging 前失败。Node、FFmpeg、Chrome、共享 Python 和 sidecar 依赖随包固定，最终 Resources 按 SHA-256 与原生架构核验。当前固定 Torch 与 torchaudio 无 Intel macOS 产物，该目标在构建前拒绝。签名和公证不在这些命令里。
+共享时用 `make source-zip` 打包已提交源码。压缩包包含配套技能和 lockfile，排除私有配置、数据、模型、环境及构建产物。接收方按运行指南安装依赖，不再构建独立应用安装包。
 
-共享 Python 自带模型推理、VoxCPM2、OTIO 与剪映导出依赖。transcribe、bindings、TEN VAD 与 llama-server 随包预装，默认绑定在运行时按应用位置解析，不把随包绝对路径写入用户配置。Python 路径由同一运行组件解析，首次启动不安装 Python 依赖或下载模型权重。项目首页可导入 bundle ZIP 或目录；模型完整性检查与真实推理作业结果分别展示。
+共享 Python 由 `engines setup` 准备，模型按需安装。项目首页仍可导入成片项目的 bundle ZIP 或目录；模型完整性检查与真实推理作业结果分别展示。
 
 客户端状态先加载再重放待保存操作；冲突时按最新状态重放，备份清除需服务端确认。桌面每次编辑同时写入当前数据目录的独立恢复 journal，重启前等待写盘。草稿恢复保留原修订基线，转换操作期间的新编辑不会绕过修订冲突。“保留草稿并加载当前修订”在备份前绑定项目、会话、修订基线与草稿序号；等待期间有新编辑时，保留草稿和冲突状态，由用户再次确认加载。并发保存推进修订后，旧加载操作也会失效。桌面关窗先通过作业服务检查排队、运行和正在取消的任务，不受最近 100 条历史记录限制。没有活动任务时先处理草稿，再停止后台并退出；有活动任务或状态暂不可读时，提供后台运行、停止后台并退出、取消三项。后台运行先等待草稿写盘并建立托盘恢复入口，再隐藏窗口。菜单退出沿用同一活动任务检查，隐藏窗口会先恢复以显示确认。主进程串行协调关窗与退出，浏览器仍使用离站提示。验收证据与平台限制见 [桌面客户端验收](acceptance-desktop.md)。
 

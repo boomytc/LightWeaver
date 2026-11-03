@@ -24,7 +24,7 @@ make typecheck
 npm run build -w @lightweaver/studio
 make studio
 make desktop
-make desktop-package
+make source-zip
 ```
 
 清理时保留当前项目及其引用的原始媒体和模型环境。Git 提交、推送和发布需要用户授权。

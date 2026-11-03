@@ -17,7 +17,6 @@ const child = spawn(electron, ["."], {
   stdio: "inherit",
   env: {
     ...process.env,
-    LIGHTWEAVER_DESKTOP_DEV: "1",
     LIGHTWEAVER_NODE: process.execPath,
   },
 });

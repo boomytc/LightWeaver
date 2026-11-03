@@ -32,7 +32,6 @@ import { LOCAL_SETUP_MODEL_IDS } from "../models/catalog.ts";
 import type { Models } from "../models/service.ts";
 import { extractArchive } from "./archive.ts";
 import { downloadArtifact } from "./download.ts";
-import { bundledEngines } from "./bundled.ts";
 import {
   engineBindingValue,
   engineCatalog,
@@ -105,14 +104,13 @@ function engineUsage(
   state: z.infer<typeof EngineStatus>["state"],
   active: readonly z.infer<typeof EngineActiveBinding>[],
   bindings: Readonly<Record<string, string>>,
-  bundled: boolean,
 ): z.infer<typeof EngineUsage> {
   const ready = active.length > 0 && active.every((binding) => binding.ready),
     unset =
       active.length > 0 && active.every((binding) => binding.value.source === "unset");
   const owned = active.length > 0 && active.every((binding) =>
     path.resolve(binding.resolvedPath) === path.resolve(bindings[binding.setting] || "."));
-  if (owned) return state === "installed" && ready ? bundled ? "bundled" : "managed" : "partial";
+  if (owned) return state === "installed" && ready ? "managed" : "partial";
   if (ready) return "external";
   if (unset) return "unused";
   return "partial";
@@ -290,20 +288,10 @@ export class Engines {
     });
   }
 
-  private bundle(item: EngineItem, root: string) {
-    if (root !== this.rootDirectory() || fs.existsSync(installDirectory(root, item.id))) return;
-    return bundledEngines().find((component) => component.id === item.id);
-  }
-
-  private installedDirectory(item: EngineItem, root: string) {
-    return this.bundle(item, root)?.directory || installDirectory(root, item.id);
-  }
-
   private usage(item: EngineItem, status: z.infer<typeof EngineStatus>, active: z.infer<typeof EngineActiveBinding>[]) {
-    const bundle = this.bundle(item, status.root);
-    const bindings = bundle?.bindings || Object.fromEntries(item.bindings.map((binding) =>
+    const bindings = Object.fromEntries(item.bindings.map((binding) =>
       [binding.setting, engineBindingValue(status.directory, binding)]));
-    return engineUsage(status.state, active, bindings, !!bundle);
+    return engineUsage(status.state, active, bindings);
   }
 
   view(root?: string) {
@@ -359,7 +347,7 @@ export class Engines {
         REQUIRED_SETUP_COMPONENTS.has(component.id),
       ),
       usable = (component: { usage: string; configured: boolean }) =>
-        ["bundled", "managed", "external"].includes(component.usage) && component.configured;
+        ["managed", "external"].includes(component.usage) && component.configured;
     const count = (usage: z.infer<typeof EngineUsage>) =>
       components.filter((component) => component.usage === usage).length;
     return {
@@ -370,9 +358,7 @@ export class Engines {
       /** 本应用安装 / 外部路径 / 未配置的组件数量，供诊断与 CLI 直接展示。 */
       counts: {
         total: components.length,
-        installed: count("bundled") + count("managed"),
-        bundled: count("bundled"),
-        managed: count("managed"),
+        installed: count("managed"),
         external: count("external"),
         unused: count("unused"),
         partial: count("partial"),
@@ -434,10 +420,10 @@ export class Engines {
   }
 
   private status(item: EngineItem, root: string): z.infer<typeof EngineStatus> {
-    const directory = this.installedDirectory(item, root),
+    const directory = installDirectory(root, item.id),
       marker = readMarker(directory);
     if (item.kind === "python-env") {
-      const python = this.pythonExecutable(item, directory);
+      const python = this.pythonExecutable(directory);
       const pythonState = inspectPath(python, "executable");
       const files: z.input<typeof EngineStatus>["files"] = [];
       if (!fs.existsSync(directory))
@@ -638,10 +624,7 @@ export class Engines {
     }
   }
 
-  private pythonExecutable(item: EngineItem, directory: string): string {
-    const bundled = bundledEngines().find((component) =>
-      component.id === item.id && component.directory === directory);
-    if (bundled) return bundled.bindings.python;
+  private pythonExecutable(directory: string): string {
     return path.join(directory, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
   }
 
@@ -650,7 +633,7 @@ export class Engines {
     directory: string,
     signal?: AbortSignal,
   ): Promise<{ detail: string; problems: string[] }> {
-    const python = this.pythonExecutable(item, directory);
+    const python = this.pythonExecutable(directory);
     const requirements =
       item.source.kind === "python-env" ? item.source.requirements : "";
     const specs = this.pythonSpecs(requirements);
@@ -702,7 +685,7 @@ export class Engines {
   ): Promise<z.infer<typeof EngineVerifyResult>> {
     const item = this.item(id),
       base = this.rootDirectory(root || this.installRoot().value);
-    return this.verifyDirectory(item, base, this.installedDirectory(item, base));
+    return this.verifyDirectory(item, base, installDirectory(base, item.id));
   }
 
   private async verifyDirectory(
@@ -1129,7 +1112,7 @@ export class Engines {
       skipped: { id: string; message: string }[] = [];
     for (const id of input.components) {
       const item = this.item(id),
-        directory = this.installedDirectory(item, root);
+        directory = installDirectory(root, item.id);
       try {
         const verification = await this.verifyDirectory(item, root, directory);
         context.signal.throwIfAborted();

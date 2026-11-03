@@ -1,160 +1,82 @@
 # 运行与开发 LightWeaver
 
-本文用于运行源代码、修改实现和构建桌面包。操作界面与模型配置见[用户指南](user-guide.md)，完整 CLI 与运行合同见[命令与配置参考](conventions.md)。
+LightWeaver 通过源码工作区交付。接收方可让 WorkBuddy 阅读本文完成安装，再用启动脚本打开桌面窗口。界面操作见[用户指南](user-guide.md)，CLI 合同见[命令参考](conventions.md)。
 
-## 准备源码环境
+## 首次安装
 
-使用 Node.js 22.13 及以上的 22.x 版本，或 24.x。Node 安装需包含 npm。在仓库根目录安装锁定依赖：
-
-```sh
-npm ci
-```
-
-拉取代码后如果依赖发生变化，重新运行 `npm ci`。切换 Node 主版本后也重新安装，使原生依赖匹配当前 Node。
-
-源码模式的本地模型与引擎按需准备，默认放在仓库根 `data/` 下的对应目录：模型权重在 `data/models/`，引擎（transcribe 运行库、bindings、TEN VAD、llama-server 及其下的 Python 环境）在 `data/engines/`。`data/` 不进入 Git：
+1. 准备 Node.js 22.13 及以上的 22.x，或 24.x，包含 npm。
+2. 准备 FFmpeg、ffprobe 和 Chrome。FFmpeg 与 ffprobe 放入 PATH；macOS 默认识别 `/Applications/Google Chrome.app`，其它位置用 `LIGHTWEAVER_CHROME` 指定。
+3. 在工作区根目录执行 `npm ci`，按 lockfile 安装 Electron 和项目依赖。
+4. 需要本地模型或项目交接时，准备 Python 3.12，再通过下列命令创建共用环境和运行组件。
 
 ```sh
-npx weaver models settings get --json   # 取当前 revision
-npx weaver engines setup --expected-revision CONFIG_REV --wait --progress
-npx weaver engines setup --with-models --expected-revision CONFIG_REV --wait --progress
+npx weaver models settings get --json
+npx weaver engines setup --expected-revision CONFIG_REV --wait --json
+npx weaver models list --json
 ```
 
-`engines setup` 会按顺序准备 transcribe 运行库、bindings、TEN VAD、llama-server 与共享 Python 运行环境，组件安装后自动可用；已校验的部分在重跑时复用。必需组件失败即作业失败，可选组件失败列在 `skipped`。`--with-models` 额外下载并采用本地模型权重。空间不足时在开始前返回 `DISK_SPACE_INSUFFICIENT`。日常使用在 **设置 → 模型与供应商** 点击 **下载并启用**，由单个作业自动准备依赖并采用模型。组件维护入口在 **设置 → 诊断与修复 → 运行组件与修复**。不同平台的引擎目录不同，迁移仓库时重新安装；开发时可通过 `LIGHTWEAVER_ENGINE_ROOT` 覆盖引擎根目录。
+`CONFIG_REV` 使用第一条命令返回的当前配置 revision。按需要选择模型，再重新读取配置 revision 并安装：
 
-媒体功能按用途准备工具：
+```sh
+npx weaver models install MODEL_ID --expected-revision CONFIG_REV --wait --json
+npx weaver doctor --json
+```
 
-- 普通视频制作需要 PATH 中的 FFmpeg 与 ffprobe，也可通过 `LIGHTWEAVER_FFMPEG`、`LIGHTWEAVER_FFPROBE` 指定绝对路径。
-- 卡片制作与网页捕获需要 Chrome。可通过 `LIGHTWEAVER_CHROME` 指定可执行文件。
-- 模型推理、语音合成、字幕翻译、bundle、OTIO 与剪映交接共用 Python 3.12 和 `weaver/requirements.txt` 中的依赖，统一由 `python-runtime` 安装。
-- 本地模型另需权重及对应原生运行库。API 画面观察与 API TTS 按供应商配置使用。
+`engines setup` 准备 transcribe 运行库、bindings、TEN VAD、llama-server 和共享 Python。`models install` 下载、校验并启用指定模型，也会准备缺少的运行组件。已有有效安装可复用；组件默认在 `data/engines/`，权重在 `data/models/`。API Key 由使用者在设置中填写，不随源码交付。
 
-普通媒体工具与完整 Python 运行环境已包含在构建后的桌面包中。源码环境按上述用途准备。
+普通卡片制作不需要模型或 Python。macOS 支持 M 系列芯片，完整本地模型功能要求 macOS 14 或更新版本；不支持 Intel Mac。其它平台的历史验证范围见[桌面客户端验收](acceptance-desktop.md)。
 
-源码环境先安装 Python 3.12，再运行 `npx weaver engines install python-runtime --wait`。共享环境位于 `data/engines/python-runtime/`，所有 Python 功能自动使用它。特殊构建可通过 `LIGHTWEAVER_PYTHON` 指定同样包含完整依赖的解释器；无需分别维护模型、语音或交接环境。
-
-## 启动桌面或浏览器界面
-
-启动源码桌面窗口：
+## 启动应用
 
 ```sh
 npm start
 ```
 
-根目录的 `start.command`、`start.cmd` 和 `start.sh` 使用同一入口。该入口检查 Node 与必要依赖，随后复用现有桌面开发命令，编译主进程和 preload，启动 Electron、Vite 与本地服务。运行 `npm start -- --help` 查看启动说明。
+也可双击根目录的 `start.command`（macOS）、`start.cmd`（Windows），或运行 `./start.sh`（Linux）。入口检查 Node 和项目依赖，编译主进程与 preload，再启动 Electron、Vite 和独立 Node 服务。`make desktop` 使用同一入口。
 
-直接运行工作区命令也可启动桌面开发环境：
+运行时保留启动终端。关闭窗口时，没有进行中任务会处理草稿并退出；有任务时可选择后台运行，从系统托盘恢复窗口。通过应用菜单退出也会处理草稿与任务。
 
-```sh
-npm run dev -w @lightweaver/desktop
-```
+需要浏览器界面时运行 `make studio`，访问 `http://127.0.0.1:5175/`；在启动终端按 Ctrl+C 结束。
 
-需要浏览器界面时执行：
+依赖变化或切换 Node 主版本后重新运行 `npm ci`。
 
-```sh
-npm run dev -w @lightweaver/studio
-```
+## 共享源码工作区
 
-浏览器访问 `http://127.0.0.1:5175/`。在启动终端按 Ctrl+C 结束浏览器服务。运行源码桌面时保留启动终端，通过应用菜单退出，或关闭窗口后选择 **停止后台并退出**。选择 **后台运行** 会保留服务，可从系统托盘恢复窗口。
-
-浏览器模式默认使用仓库 `data/.weaver/`。桌面模式默认使用系统用户目录，实际位置在设置页可查。源码桌面的私有配置默认是仓库根 `config.local.yaml`，与仓库 CLI、浏览器 Studio 相同；正式包使用用户目录中的 `config.local.yaml`。
-
-桌面数据目录默认如下：
-
-| 系统 | 数据目录 |
-| --- | --- |
-| macOS | `~/Library/Application Support/LightWeaver/weaver` |
-| Windows | `%APPDATA%\LightWeaver\weaver` |
-| Linux | `~/.config/LightWeaver/weaver` |
-
-Linux 设置了 `XDG_CONFIG_HOME` 时，使用该目录下的 `LightWeaver/weaver`。`LIGHTWEAVER_USER_DATA` 可隔离整个桌面用户目录。源码 CLI 与浏览器模式可通过 `LIGHTWEAVER_DATA_DIR` 或 `--data-dir` 指定数据目录。
-
-## 构建桌面包
-
-在对应系统与架构的主机执行：
+提交修改后执行：
 
 ```sh
-npm run package -w @lightweaver/desktop
+make source-zip
 ```
 
-首次构建下载固定版本的 Node、FFmpeg、Chrome、完整 Python 运行环境、transcribe 运行库与 bindings、TEN VAD 和 llama-server，并安装独立 sidecar 依赖。引擎安装与校验复用共享核的 catalog 和 Jobs；随包绑定使用相对资源路径。构建安装同一份 Python 依赖并随包交付，不下载模型权重；选择本地模型时只需准备权重。缓存位于 `products/desktop/staging/cache/`，正式产物位于 `products/desktop/release/`。最终包核验通过后清除中间副本 `staging/lightweaver/`；显式使用 `--prepare` 时保留它。
+发送 `out/LightWeaver-source.zip`。它由 `git archive HEAD` 生成，只包含已提交源码、lockfile、内置资源和 `.agents/skills/`，不含 Git 历史、私有配置、用户数据、模型、环境、依赖或构建产物。未提交的修改不会进入压缩包。
 
-打包会重新生成对应目标的应用目录。打包前保存草稿，并退出运行在该目录中的应用。
-
-显式目标与可运行产物如下：
-
-| 目标 | 主机 | 产物 |
-| --- | --- | --- |
-| `darwin-arm64` | macOS Apple Silicon | `products/desktop/release/mac-arm64/LightWeaver.app` |
-| `win32-x64` | Windows x64 | `products/desktop/release/win-unpacked/LightWeaver.exe` |
-| `linux-x64` | Linux x64 | `products/desktop/release/linux-unpacked/LightWeaver` |
-
-例如，在对应主机运行 `npm run package:win32-x64 -w @lightweaver/desktop`。当前固定 Torch 与 torchaudio 不提供 Intel macOS 产物，因此不构建 Intel Mac 版本。不支持的目标或跨宿主构建在准备资源前失败。平台实测范围见[桌面客户端验收](acceptance-desktop.md)。
-
-需要安装分发包时执行：
-
-```sh
-npm run dist -w @lightweaver/desktop
-```
-
-分发目标为 macOS DMG 与 ZIP、Windows NSIS、Linux AppImage。这些命令不包含签名或公证。打包流程检查最终包中的文件摘要、原生架构与 SQLite 运行查询。
+接收方解压后，让 WorkBuddy 按“首次安装”准备本机环境。不要直接压缩整个日常工作目录，其中可能含有密钥、个人项目和大量依赖。
 
 ## 使用 CLI 与外部 agent 协作
 
-仓库技能位于 `.agents/skills/`，包括 `lightweaver`、`lightweaver-film` 和 `lightweaver-assets`。在本仓使用 Codex 时可按名称选择；从总入口开始确定桌面或源码工作区。技能发现位置遵循 [Codex 官方说明](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills)。
+`.agents/skills/` 内含 `lightweaver`、`lightweaver-film` 和 `lightweaver-assets`。先读总入口，再按任务读取电影制作或素材管理技能。
 
-源码环境从能力与合同发现开始：
+在工作区根目录执行：
 
 ```sh
 npx weaver capabilities --json
 npx weaver doctor --json
 npx weaver help --json
-npx weaver schema ops --json
 ```
 
-创建项目并检查制作计划：
+与桌面中的项目协作时，从项目 **复制给 agent** 取得完整命令。它包含绝对 Node 与源码 CLI 路径，以及实际数据目录和配置参数，离开工作区后仍能调用同一项目。`capabilities.agentSkills` 返回本工作区的技能路径；技能按路径读取，不自动写入个人技能目录。
 
-```sh
-npx weaver project create demo --workflow study-explainer --json
-npx weaver project show demo --json
-npx weaver build --project demo --plan --json
-```
+CLI 与浏览器默认使用 `data/.weaver/`。桌面保留系统用户目录中的数据与偏好，实际位置可在设置中查看；协作时沿用复制出的完整命令，避免操作另一份数据。`LIGHTWEAVER_USER_DATA` 可隔离桌面用户目录。
 
-写入携带当前修订的 `expectedRevision` 和逻辑请求的 `requestId`。素材导入、方案采用、制作、分析和交接的完整命令见[命令与配置参考](conventions.md)。
-
-桌面包自带 `bin/weaver`，Windows 为 `bin/weaver.cmd`。在应用的 **设置 → 诊断与修复 → 高级：自定义运行路径与配置 → 外部 agent 与命令行** 中复制实际调用路径。随包 CLI 默认读取桌面的配置与数据，也可用 `--data-dir`、`--config-file`、`--config-base` 显式指定。
-
-先用所选入口执行 `capabilities --json`，核对 `runtime.dataDir` 和 `runtime.configFile`。返回的 `agentSkills` 提供与该运行时配套的技能文件，`runtime.resourcesDir` 下包含 AGENTS.md 和命令参考。正式包内的技能可按路径交给 agent 读取，不会自动写入个人技能目录。
-
-`npm start` 启动的源码桌面默认读取仓库根 `config.local.yaml`，配置基准同为仓库根，与浏览器 Studio 和仓库 CLI 一致；数据目录仍使用系统用户目录。若用仓库 CLI 协作源码桌面，显式指定设置页中的数据目录：
-
-```sh
-npx weaver capabilities --data-dir /absolute/desktop-data --json
-```
-
-在设置页绑定过其它配置文件后，再按设置页显示的路径补上 `--config-file`、`--config-base`。后续命令保持这些参数，并沿用启动桌面时的工具环境。浏览器开发模式与仓库 CLI 默认使用 `data/.weaver/` 作为数据目录。
-
-制作完成后，用 `export --project ID --format video --dest /absolute/movie.mp4` 交付视频。先用 `artifacts --project ID` 查看交付，按需要传 `--delivery ID` 选择旧版本。用 `artifact show DIGEST` 读取 manifest 或 receipt，历史修订使用 `project show ID --revision REV`。这些命令均支持 `--json`。
-
-仓库根的 `config.yaml` 是源码环境的内置默认值，并随桌面包复制到 `resources/config.yaml`。其中 API Key 字段保持空字符串；私有凭据写入忽略的 `config.local.yaml` 或通过设置页保存，CLI 更新配置使用文件输入，避免把密钥写入命令参数。源码入口（仓库 CLI、浏览器 Studio、源码桌面）共用仓库根这份 `config.local.yaml`；正式包的私有配置位于系统用户配置目录中的 `LightWeaver/config.local.yaml`。
-
-源码模式的默认模型下载目录是仓库根 `data/models/`，已忽略；根目录 `models/` 与 `weaver/models/` 是旧版布局，不再读取或写入。设置页显示的“模型目录”就是 `data/models/`。源码桌面也使用这个目录；正式安装包使用用户模型目录。已有权重不会自动搬迁，可在设置中选择现有路径。
-
-配置值按 `config.local.yaml`、环境变量、内置 `config.yaml` 的顺序生效，空或纯空白值视为未设置。设置页保存密钥后立即生效，无需重启；清除本地配置中的密钥后，会回退到同名环境变量，未设置则显示未配置。绑定已有配置时，该文件继续作为私有本地配置，相对路径仍按它的所在目录解析。
+三个入口默认共用工作区根的 `config.local.yaml`。其中只保存模型路径、模型选择和 API 凭据；默认值在 `config.yaml`。配置按本地文件、环境变量、默认值的顺序生效。组件通过受管安装解析，开发覆盖使用环境变量，不写入模型配置。
 
 ## 修改实现与完成验收
 
-修改前读取根目录及目标产品的 `AGENTS.md`。共享核与 CLI 位于 `weaver/`，React 界面位于 `products/studio/`，Electron 宿主位于 `products/desktop/`，无声卡片渲染位于 `products/study-films/`。
-
-执行相关静态检查：
+修改前读取根目录与目标产品的 `AGENTS.md`。共享核与 CLI 位于 `weaver/`，界面位于 `products/studio/`，Electron 宿主位于 `products/desktop/`，卡片渲染位于 `products/study-films/`。
 
 ```sh
 npm run typecheck
 npm run build -w @lightweaver/studio
 ```
 
-卡片预览使用 `npm run studio -w @lightweaver/study-films`。已安装 make 的环境也可使用根目录 Makefile 中的快捷命令。
-
-本仓采用 `confident-development-conventions`。按改动完成有限验收，结束后清理本次创建的临时脚本、mock、样本与自启服务。保留产品诊断、schema 校验、模块边界和类型检查。
-
-职责与设计说明见[架构说明](architecture-v2.md)。当前端到端闭环与异常恢复证据见[功能收尾验收](acceptance-completion.md)，视频交付、素材来源和技能的既有证据见[Agent 制作与交付验收](acceptance-agent-delivery.md)。模型与媒体能力的既有证据见[能力验收](acceptance-coverage.md)、[模型安装验收](acceptance-model-setup.md)及[全片精确对齐验收](acceptance-alignment-root-cause.md)。
+本仓采用 `confident-development-conventions`。按改动完成有限验收，清理临时脚本、样本和自启服务。保留产品诊断、schema 校验、模块边界和类型检查。

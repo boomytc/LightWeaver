@@ -32,14 +32,12 @@ import {
   type RecoveryFlushResult,
 } from "./protocol";
 import { RecoveryJournal } from "./recovery-journal";
-import { resolveRuntimeTools, type RuntimeTools } from "./runtime-tools";
 import {
   ServiceHost,
   ServiceStartCancelledError,
   type ServiceReady,
 } from "./service-host";
 
-const dev = process.env.LIGHTWEAVER_DESKTOP_DEV === "1" && !app.isPackaged;
 const repoRoot = path.resolve(__dirname, "../../..");
 const startupFile = path.join(__dirname, "../static/startup.html");
 const serviceHost = new ServiceHost();
@@ -93,7 +91,6 @@ const MODEL_ENV_KEYS = new Set([
   "LIGHTWEAVER_ASR_BINDINGS",
   "LIGHTWEAVER_ASR_MODEL",
   "LIGHTWEAVER_CARD_RENDERER",
-  "LIGHTWEAVER_CARD_SITE",
   "LIGHTWEAVER_CHROME",
   "LIGHTWEAVER_CONFIG_BASE",
   "LIGHTWEAVER_CONFIG_FILE",
@@ -107,7 +104,6 @@ const MODEL_ENV_KEYS = new Set([
   "LIGHTWEAVER_LLAMA_SERVER",
   "LIGHTWEAVER_LOCAL_TTS_MODEL",
   "LIGHTWEAVER_MODEL_DOWNLOAD_ROOT",
-  "LIGHTWEAVER_PACKAGED",
   "LIGHTWEAVER_PYTHON",
   "LIGHTWEAVER_RERANKER_MODEL",
   "LIGHTWEAVER_TRANSLATION_MODEL",
@@ -233,56 +229,34 @@ function dataDirForPreferences(prefs: DesktopPreferences): string {
 
 function runtimePaths(prefs: DesktopPreferences) {
   const dataDir = dataDirForPreferences(prefs);
-  // 源码桌面与仓库 CLI、浏览器 Studio 共用仓库根的私有配置；正式包写入用户目录。
   const configFile = path.resolve(
-    prefs.configFile ||
-      path.join(dev ? repoRoot : userDataDir(), "config.local.yaml"),
+    prefs.configFile || path.join(repoRoot, "config.local.yaml"),
   );
   const configBase = path.resolve(prefs.configBase || path.dirname(configFile));
-  const bundleRoot = path.join(process.resourcesPath, "lightweaver");
-  const tools: RuntimeTools = dev
-    ? {
-        node: process.env.LIGHTWEAVER_NODE || "node",
-        ffmpeg: process.env.LIGHTWEAVER_FFMPEG || "",
-        ffprobe: process.env.LIGHTWEAVER_FFPROBE || "",
-        supervisor: path.join(
-          repoRoot,
-          "weaver",
-          "scripts",
-          "process-supervisor.mjs",
-        ),
-        cardRenderer: path.join(
-          repoRoot,
-          "node_modules",
-          ".bin",
-          "weaver-card",
-        ),
-        cardBrowser: "",
-        cardSite: "",
-        python: process.env.LIGHTWEAVER_PYTHON || "",
-      }
-    : resolveRuntimeTools(bundleRoot);
+  const tools = {
+    node: process.env.LIGHTWEAVER_NODE || "node",
+    ffmpeg: process.env.LIGHTWEAVER_FFMPEG || "",
+    ffprobe: process.env.LIGHTWEAVER_FFPROBE || "",
+    supervisor: path.join(repoRoot, "weaver", "scripts", "process-supervisor.mjs"),
+    cardRenderer: path.join(repoRoot, "node_modules", ".bin", "weaver-card"),
+    cardBrowser: process.env.LIGHTWEAVER_CHROME || "",
+    python: process.env.LIGHTWEAVER_PYTHON || "",
+  };
   return {
-    mode: dev ? "development" : "production",
-    bundleRoot,
-    resourcesDir: dev ? repoRoot : path.join(bundleRoot, "resources"),
+    resourcesDir: repoRoot,
     configFile,
     configBase,
     dataDir,
     modelDir: path.resolve(
-      prefs.modelDir ||
-        (dev ? path.join(repoRoot, "data", "models") : path.join(dataDir, "models")),
+      prefs.modelDir || path.join(repoRoot, "data", "models"),
     ),
     engineDir: path.resolve(
       configBase,
-      process.env.LIGHTWEAVER_ENGINE_ROOT?.trim() || (dev
-        ? path.join(repoRoot, "data", "engines")
-        : path.join(dataDir, "engines")),
+      process.env.LIGHTWEAVER_ENGINE_ROOT?.trim() || path.join(repoRoot, "data", "engines"),
     ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),
     tools,
-    staticDir: dev ? undefined : path.join(bundleRoot, "ui"),
   };
 }
 
@@ -314,7 +288,7 @@ function atomicJson(file: string, value: unknown): void {
   }
 }
 
-function serviceEnvironment(paths: ReturnType<typeof runtimePaths>, launchFile: string) {
+function serviceEnvironment(launchFile: string) {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
     const canonical = key.toUpperCase();
@@ -326,14 +300,6 @@ function serviceEnvironment(paths: ReturnType<typeof runtimePaths>, launchFile: 
   }
   env.LANG ||= "zh_CN.UTF-8";
   env.LIGHTWEAVER_LAUNCH_FILE = launchFile;
-  if (!dev) {
-    env.NODE_PATH = path.join(paths.bundleRoot, "service", "node_modules");
-    env.LIGHTWEAVER_CARD_INFO = path.join(
-      paths.bundleRoot,
-      "card",
-      "info.json",
-    );
-  }
   return env;
 }
 
@@ -350,8 +316,7 @@ function isStartupPage(value: string): boolean {
 }
 
 function trustedOrigin(): string | null {
-  if (dev) return studioOrigin;
-  return service?.origin || null;
+  return studioOrigin;
 }
 
 function isTrustedPage(value: string): boolean {
@@ -440,35 +405,27 @@ async function bootService(
   studioPort: number,
   prefs: DesktopPreferences,
 ): Promise<{ ready: ServiceReady; dataDir: string }> {
-  const paths = runtimePaths(prefs);
-  const { staticDir, bundleRoot: _bundleRoot, ...runtime } = paths;
+  const runtime = runtimePaths(prefs);
   fs.mkdirSync(runtime.logDir, { recursive: true });
   const launchFile = path.join(runtime.logDir, "launch.json");
   atomicJson(launchFile, {
     runtime,
-    staticDir,
-    devOrigins: dev ? [`http://127.0.0.1:${studioPort}`] : [],
+    clientOrigins: [`http://127.0.0.1:${studioPort}`],
   });
   const ready = await serviceHost.start({
-    nodePath: paths.tools.node,
-    args: dev
-      ? [
-          "--import",
-          "tsx",
-          path.join(repoRoot, "products", "studio", "server", "listen.ts"),
-          "--desktop",
-        ]
-      : [
-          path.join(paths.bundleRoot, "service", "server.mjs"),
-          "--desktop",
-          "--production",
-        ],
-    cwd: dev ? repoRoot : path.join(paths.bundleRoot, "service"),
-    env: serviceEnvironment(paths, launchFile),
-    logFile: path.join(paths.logDir, "service.log"),
+    nodePath: runtime.tools.node,
+    args: [
+      "--import",
+      "tsx",
+      path.join(repoRoot, "products", "studio", "server", "listen.ts"),
+      "--desktop",
+    ],
+    cwd: repoRoot,
+    env: serviceEnvironment(launchFile),
+    logFile: path.join(runtime.logDir, "service.log"),
     onExit: () => serviceDidExit(),
   });
-  return { ready, dataDir: paths.dataDir };
+  return { ready, dataDir: runtime.dataDir };
 }
 
 function installCredentialHook(): void {
@@ -506,11 +463,9 @@ function clearCredential(): void {
 }
 
 function currentContentTarget(): string | null {
-  if (dev)
-    return studioOrigin && vite && vite.exitCode === null
-      ? `${studioOrigin}/`
-      : null;
-  return service ? `${service.origin}/` : null;
+  return studioOrigin && vite && vite.exitCode === null
+    ? `${studioOrigin}/`
+    : null;
 }
 
 function createWindow(visualPreferences?: DesktopPreferences): BrowserWindow {
@@ -586,9 +541,7 @@ function showMainWindow(): void {
 
 function ensureBackgroundTray(): void {
   if (backgroundTray && !backgroundTray.isDestroyed()) return;
-  const iconFile = dev
-    ? path.join(__dirname, "../packaging/icon.png")
-    : path.join(process.resourcesPath, "lightweaver", "icon.png");
+  const iconFile = path.join(__dirname, "../static/icon.png");
   const icon = nativeImage.createFromPath(iconFile);
   if (icon.isEmpty()) throw new Error("托盘图标不可用，无法提供后台窗口恢复入口");
   const tray = new Tray(icon.resize({ width: 18, height: 18 }));
@@ -893,7 +846,7 @@ function launchRuntime(abortOnFlushFailure = false): Promise<void> {
       clearCredential();
       await Promise.allSettled([serviceHost.stop(), stopVite()]);
       if (quitting || serial !== runtimeSerial) return;
-      const studioPort = dev ? await reserveStudioPort() : 0;
+      const studioPort = await reserveStudioPort();
       if (quitting || serial !== runtimeSerial) return;
       const booted = await bootService(studioPort, launch.preferences);
       if (quitting || serial !== runtimeSerial) {
@@ -904,7 +857,7 @@ function launchRuntime(abortOnFlushFailure = false): Promise<void> {
         return;
       }
       attachCredential(booted.ready);
-      if (dev) await startVite(booted.ready, studioPort);
+      await startVite(booted.ready, studioPort);
       if (quitting || serial !== runtimeSerial) {
         clearRecoveryBinding();
         rendererGeneration = null;

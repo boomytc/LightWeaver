@@ -52,7 +52,6 @@ type EngineProgressValue = z.infer<typeof EngineProgress>;
 
 type EngineUsage = EngineItemStatusValue["usage"];
 const usageBadge: Record<EngineUsage, { label: string; tone: "ok" | "warn" | "accent" | "neutral" }> = {
-  bundled: { label: "应用自带", tone: "ok" },
   managed: { label: "可用", tone: "ok" },
   external: { label: "外部组件可用", tone: "accent" },
   unused: { label: "未安装", tone: "neutral" },
@@ -244,7 +243,7 @@ function SetupPanel({
     return {
       item,
       status: current,
-      ready: current?.usage === "bundled" || current?.usage === "managed" || current?.usage === "external",
+      ready: current?.usage === "managed" || current?.usage === "external",
     };
   });
   const ready = rows.length > 0 && rows.every((row) => row.ready);
@@ -292,7 +291,7 @@ function SetupPanel({
         <div className="min-w-0 flex-1">
           <h2 id="setup-title" className="m-0">运行组件检查与修复</h2>
           <p className="hint m-0 mt-1">
-            安装包已包含运行环境；缺失或损坏时可在此修复。
+            首次可由 WorkBuddy 安装运行组件，缺失或损坏时可在此修复。
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">

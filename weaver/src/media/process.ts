@@ -22,9 +22,6 @@ export function nodeScriptInvocation(
   if (runtime.tools.ffmpeg) env.LIGHTWEAVER_FFMPEG = runtime.tools.ffmpeg;
   if (runtime.tools.ffprobe) env.LIGHTWEAVER_FFPROBE = runtime.tools.ffprobe;
   if (runtime.tools.cardBrowser) env.LIGHTWEAVER_CHROME = runtime.tools.cardBrowser;
-  else if (runtime.mode === "production") delete env.LIGHTWEAVER_CHROME;
-  if (runtime.tools.cardSite) env.LIGHTWEAVER_CARD_SITE = runtime.tools.cardSite;
-  if (runtime.mode === "production") env.LIGHTWEAVER_PACKAGED = "1";
   delete env.ELECTRON_RUN_AS_NODE;
   return { command: runtime.tools.node, args: [script, ...args], env };
 }
@@ -92,12 +89,10 @@ export async function processRun(
   return new Promise((resolve, reject) => {
     const supervisorLaunchSpec = supervisorLaunch();
     const env = { ...(options.env ?? process.env) };
-    if (currentRuntime().mode === "production") {
-      env.PYTHONDONTWRITEBYTECODE = "1";
-      env.PYTHONNOUSERSITE = "1";
-      env.PYTHONPATH = "";
-      delete env.PYTHONHOME;
-    }
+    env.PYTHONDONTWRITEBYTECODE = "1";
+    env.PYTHONNOUSERSITE = "1";
+    env.PYTHONPATH = "";
+    delete env.PYTHONHOME;
     const supervisor = spawn(supervisorLaunchSpec.command, supervisorLaunchSpec.args, {
       cwd: options.cwd,
       env,

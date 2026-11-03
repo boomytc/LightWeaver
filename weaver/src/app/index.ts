@@ -49,7 +49,7 @@ export {
   RuntimeContext,
   currentRuntime,
   cliInvocation,
-  developmentRuntime,
+  workspaceRuntime,
   installRuntime,
   resourcePath,
   resolveConfiguredPath,
@@ -131,7 +131,6 @@ export class Application {
     return {
       schemaVersion: 2,
       runtime: {
-        mode: this.runtime.mode,
         dataDir: this.runtime.dataDir,
         configFile: this.runtime.configFile,
         configBase: this.runtime.configBase,

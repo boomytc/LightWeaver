@@ -2,7 +2,7 @@
 
 ## 绑定 CLI 和数据
 
-先读任务 brief。源码版使用绝对 Node 路径和绝对 `weaver/bin/weaver.mjs` 路径。桌面包使用 **复制给 agent** 或设置页给出的完整随包 CLI 命令。两者都保留 brief 中的 `--data-dir`、`--config-file` 和 `--config-base`。
+先读任务 brief，使用 **复制给 agent** 给出的完整命令，保留绝对 Node、`weaver/bin/weaver.mjs` 路径，以及 `--data-dir`、`--config-file` 和 `--config-base`。
 
 以下 `<ACTUAL CLI>` 表示复制得到的完整命令。不要用裸 `weaver` 猜测数据目录。
 
@@ -21,7 +21,7 @@
 <ACTUAL CLI> export --project first-film --format video --dest /absolute/first-film.mp4 --json
 ```
 
-审核计划后，用返回的 `revision` 替换 `<reviewed-revision>`。示例是三张固定 90 帧的卡片，不含外部素材或声音。创建入口的源码或桌面包形式以实际 brief 和运行时为准。
+审核计划后，用返回的 `revision` 替换 `<reviewed-revision>`。示例是三张固定 90 帧的卡片，不含外部素材或声音。调用入口以实际 brief 为准。
 
 ## CreativePlan 流程
 

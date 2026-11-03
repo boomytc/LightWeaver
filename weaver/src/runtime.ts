@@ -3,11 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "./contracts/index.ts";
 
-const devRoot = fileURLToPath(new URL("../../", import.meta.url));
+const workspaceRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 export const RuntimeContext = z
   .object({
-    mode: z.enum(["development", "production"]),
     resourcesDir: z.string().min(1),
     configFile: z.string().min(1),
     configBase: z.string().min(1),
@@ -24,7 +23,6 @@ export const RuntimeContext = z
         supervisor: z.string().min(1),
         cardRenderer: z.string().min(1),
         cardBrowser: z.string(),
-        cardSite: z.string(),
         python: z.string(),
       })
       .strict(),
@@ -46,30 +44,29 @@ export function currentPlatform(): string {
   return `${process.platform}-${process.arch}`;
 }
 
-export function developmentRuntime(
+export function workspaceRuntime(
   env: NodeJS.ProcessEnv = process.env,
 ): RuntimeContext {
   const dataDir = path.resolve(
-    env.LIGHTWEAVER_DATA_DIR || path.join(devRoot, "data", ".weaver"),
+    env.LIGHTWEAVER_DATA_DIR || path.join(workspaceRoot, "data", ".weaver"),
   );
   const configFile = path.resolve(
-    env.LIGHTWEAVER_CONFIG_FILE || path.join(devRoot, "config.local.yaml"),
+    env.LIGHTWEAVER_CONFIG_FILE || path.join(workspaceRoot, "config.local.yaml"),
   );
   const configBase = path.resolve(env.LIGHTWEAVER_CONFIG_BASE || path.dirname(configFile));
   return RuntimeContext.parse({
-    mode: "development",
-    resourcesDir: devRoot,
+    resourcesDir: workspaceRoot,
     configFile,
     configBase,
     dataDir,
     modelDir: path.resolve(
       env.LIGHTWEAVER_MODEL_DOWNLOAD_ROOT?.trim() ||
-        path.join(devRoot, "data", "models"),
+        path.join(workspaceRoot, "data", "models"),
     ),
     engineDir: path.resolve(
       configBase,
       env.LIGHTWEAVER_ENGINE_ROOT?.trim() ||
-        path.join(devRoot, "data", "engines"),
+        path.join(workspaceRoot, "data", "engines"),
     ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),
@@ -77,12 +74,11 @@ export function developmentRuntime(
       node: env.LIGHTWEAVER_NODE || process.execPath,
       ffmpeg: env.LIGHTWEAVER_FFMPEG || "",
       ffprobe: env.LIGHTWEAVER_FFPROBE || "",
-      supervisor: path.join(devRoot, "weaver", "scripts", "process-supervisor.mjs"),
+      supervisor: path.join(workspaceRoot, "weaver", "scripts", "process-supervisor.mjs"),
       cardRenderer:
         env.LIGHTWEAVER_CARD_RENDERER ||
-        path.join(devRoot, "node_modules", ".bin", "weaver-card"),
+        path.join(workspaceRoot, "node_modules", ".bin", "weaver-card"),
       cardBrowser: env.LIGHTWEAVER_CHROME || "",
-      cardSite: env.LIGHTWEAVER_CARD_SITE || "",
       python: env.LIGHTWEAVER_PYTHON || "",
     },
   });
@@ -126,14 +122,12 @@ export function installRuntime(input: RuntimeContext): RuntimeContext {
 }
 
 export function currentRuntime(): RuntimeContext {
-  return active ?? developmentRuntime();
+  return active ?? workspaceRuntime();
 }
 
 export function cliInvocation(context = currentRuntime()) {
   const node = context.tools.node;
-  const entry = context.mode === "production"
-    ? path.join(path.dirname(context.resourcesDir), "service", "cli.mjs")
-    : path.join(context.resourcesDir, "weaver", "bin", "weaver.mjs");
+  const entry = path.join(context.resourcesDir, "weaver", "bin", "weaver.mjs");
   const quote = (value: string) => process.platform === "win32"
     ? `'${value.replaceAll("'", "''")}'`
     : `'${value.replaceAll("'", "'\"'\"'")}'`;
@@ -161,13 +155,13 @@ export function resolveConfiguredPath(value: string): string {
   return path.resolve(currentRuntime().configBase, value);
 }
 
-export function usesInstalledConfig(root: string | undefined): boolean {
+export function usesRuntimeConfig(root: string | undefined): boolean {
   if (!root) return true;
   const resolved = path.resolve(root);
   const runtime = currentRuntime();
   return (
     resolved === path.resolve(runtime.configBase) ||
     resolved === path.resolve(runtime.resourcesDir) ||
-    resolved === path.resolve(devRoot)
+    resolved === path.resolve(workspaceRoot)
   );
 }

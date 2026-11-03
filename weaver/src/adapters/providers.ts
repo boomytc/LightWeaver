@@ -682,7 +682,6 @@ export class Providers {
     return {
       node: process.version,
       runtime: {
-        mode: currentRuntime().mode,
         dataDir: currentRuntime().dataDir,
         configFile: currentRuntime().configFile,
         resourcesDir: currentRuntime().resourcesDir,

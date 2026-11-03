@@ -64,7 +64,6 @@ const ProjectContextView = z.object({
 const DoctorView = z.object({
   node: z.string(),
   runtime: z.object({
-    mode: z.string(),
     dataDir: z.string(),
     configFile: z.string(),
     resourcesDir: z.string(),
@@ -85,7 +84,6 @@ const DoctorView = z.object({
         .object({
           total: z.number(),
           installed: z.number(),
-          managed: z.number(),
           external: z.number(),
           unused: z.number(),
           partial: z.number(),
@@ -405,7 +403,6 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
     const doctor = DoctorView.safeParse(result);
     if (doctor.success)
       return [
-        `Runtime: ${doctor.data.runtime.mode}`,
         `Data: ${doctor.data.runtime.dataDir}`,
         `Config: ${doctor.data.runtime.configFile}`,
         `Node: ${doctor.data.node}  SQLite: ${doctor.data.sqlite}`,
@@ -550,7 +547,6 @@ function renderSpecial(command: string, result: unknown): string[] | undefined {
     const capabilities = CapabilitiesSummary.safeParse(result);
     if (capabilities.success)
       return [
-        `Runtime: ${capabilities.data.runtime.mode}`,
         `Data: ${capabilities.data.runtime.dataDir}`,
         `Workflows: ${capabilities.data.workflows.map((workflow) => workflow.id).join(", ")}`,
         `Providers: ${capabilities.data.providers.filter((provider) => provider.ready).length}/${capabilities.data.providers.length} ready`,
