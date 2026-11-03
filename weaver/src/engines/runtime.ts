@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z, ModelSettingsField } from "../contracts/index.ts";
 import { currentRuntime } from "../runtime.ts";
-import { defaultModelPython, defaultSpeechPython, resolveExecutable } from "../adapters/executable.ts";
+import { resolveExecutable } from "../adapters/executable.ts";
 import { engineCatalog, engineBindingValue, installDirectory } from "./catalog.ts";
 import { bundledBinding } from "./bundled.ts";
 
@@ -13,8 +13,7 @@ const environments: Record<string, string> = {
   llama_server: "LIGHTWEAVER_LLAMA_SERVER",
   visual_server: "LIGHTWEAVER_VISUAL_SERVER",
   translation_server: "LIGHTWEAVER_TRANSLATION_SERVER",
-  model_python: "LIGHTWEAVER_MODEL_PYTHON",
-  speech_python: "LIGHTWEAVER_SPEECH_PYTHON",
+  python: "LIGHTWEAVER_PYTHON",
 };
 
 export function engineRoot(env: NodeJS.ProcessEnv = process.env): z.infer<typeof ModelSettingsField> {
@@ -39,9 +38,5 @@ export function runtimeBinding(setting: string, env: NodeJS.ProcessEnv = process
   if (fs.existsSync(directory)) return { value: engineBindingValue(directory, binding), source: "default" };
   const bundled = bundledBinding(setting);
   if (bundled) return { value: bundled, source: "default" };
-  if (runtime.mode === "development" && (setting === "model_python" || setting === "speech_python")) {
-    const python = path.join(runtime.resourcesDir, setting === "model_python" ? defaultModelPython() : defaultSpeechPython());
-    if (fs.existsSync(python)) return { value: python, source: "default" };
-  }
   return { value: "", source: "unset" };
 }

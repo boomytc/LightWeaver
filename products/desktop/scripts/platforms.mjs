@@ -31,7 +31,6 @@ const martinFfmpeg = (platform, arch, stamp) => ({
     url: `https://ffmpeg.martin-riedl.de/download/${platform}/${arch}/${stamp}_${FFMPEG_VERSION}/ffmpeg.zip`,
     sha256: {
       "darwin-arm64": "c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924",
-      "darwin-x64": "7c6b4125b191cbf773832dc51f424cf2b6bb7da43007d1e066f95909e47cacd4",
       "linux-x64": "fa8ecf4abbd290d98f7d188b8649cc6b391ae209a98452be955a15aab1909d7f",
     }[`${platform === "macos" ? "darwin" : "linux"}-${arch === "amd64" ? "x64" : arch}`],
   },
@@ -39,14 +38,12 @@ const martinFfmpeg = (platform, arch, stamp) => ({
     url: `https://ffmpeg.martin-riedl.de/download/${platform}/${arch}/${stamp}_${FFMPEG_VERSION}/ffprobe.zip`,
     sha256: {
       "darwin-arm64": "fcbe839537485eaee7a7a8bc5cbc0f90d53617e80943e8a5b2e31cb851197ea6",
-      "darwin-x64": "2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd",
       "linux-x64": "3f428c49070be3d24ec338602b76d412e401ffcb8a5641ef0e729181a232fc32",
     }[`${platform === "macos" ? "darwin" : "linux"}-${arch === "amd64" ? "x64" : arch}`],
   },
 });
 
 const macArmMedia = martinFfmpeg("macos", "arm64", "1789931890");
-const macX64Media = martinFfmpeg("macos", "amd64", "1789931006");
 const linuxX64Media = martinFfmpeg("linux", "amd64", "1789931100");
 
 const windowsMedia = {
@@ -74,36 +71,6 @@ export const TARGETS = Object.freeze({
       ffprobe: { archive: "ffprobe", path: "ffprobe" },
     },
     remotionCompositor: "@remotion/compositor-darwin-arm64",
-    tools: {
-      node: "node/bin/node",
-      ffmpeg: "tools/ffmpeg",
-      ffprobe: "tools/ffprobe",
-      supervisor: "resources/weaver/scripts/process-supervisor.mjs",
-      cardRenderer: "service/render.mjs",
-      cardBrowser: "card/browser/chrome-headless-shell",
-      cardSite: "card/site",
-      python: "python/bin/python3.12",
-    },
-    cliLauncher: "bin/weaver",
-  },
-  "darwin-x64": {
-    platform: "darwin",
-    arch: "x64",
-    electronBuilderPlatform: "mac",
-    node: nodePin("node-v22.23.4-darwin-x64.tar.gz", "efcc2b0db6f94bf53eddb038fe2b370277a042bd29e4f19b8f8e23598795b819"),
-    python: pythonPin("x86_64-apple-darwin", "a962e47df522889eaa7ff0d6a56203f1079f68aabb65ffdbe8455f362bc769f3"),
-    chrome: {
-      version: CHROME_VERSION,
-      url: chromeUrl("mac-x64", "chrome-headless-shell-mac-x64.zip"),
-      sha256: "2597bf0940b54afbdfcb76519b5c8cf423cec49eea90ce1c4123456aca47a851",
-      root: "chrome-headless-shell-mac-x64",
-    },
-    mediaArchives: macX64Media,
-    mediaArtifacts: {
-      ffmpeg: { archive: "ffmpeg", path: "ffmpeg" },
-      ffprobe: { archive: "ffprobe", path: "ffprobe" },
-    },
-    remotionCompositor: "@remotion/compositor-darwin-x64",
     tools: {
       node: "node/bin/node",
       ffmpeg: "tools/ffmpeg",

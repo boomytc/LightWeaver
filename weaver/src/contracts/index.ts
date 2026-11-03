@@ -1130,7 +1130,7 @@ export const EngineView = z.strictObject({
   catalog: EngineCatalog,
   settings: ModelSettingsView,
   installRoot: ModelSettingsField,
-  /** 一键配置按顺序包含的引擎 ID；语音 Python 环境体积大，默认单独按需创建。 */
+  /** 一键配置按顺序包含的引擎 ID。 */
   setupComponents: z.array(z.string()).min(1),
   /** 已安装版本与当前发布不同的引擎 ID。 */
   updates: z.array(z.string()),
@@ -1167,8 +1167,6 @@ export const EngineSetupInput = z.strictObject({
   root: z.string().min(1).optional(),
   expectedRevision: Digest,
   requestId: Id,
-  /** 同时配置语音 Python 环境（体积大，默认关闭）。 */
-  includeSpeech: z.boolean().default(false),
   /** 同时下载并采用本地模型权重（ASR、EmbeddingGemma、ForcedAligner）。 */
   includeModels: z.boolean().default(false),
 });

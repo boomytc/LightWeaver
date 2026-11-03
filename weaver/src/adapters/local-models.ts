@@ -84,7 +84,7 @@ export class LocalModels {
   }
   settings() {
     return {
-      python: runtimeBinding("model_python").value,
+      python: runtimeBinding("python").value,
       server: runtimeBinding("llama_server").value,
       ffmpeg: resolveExecutable("ffmpeg", this.root),
       alignmentDevice: z

@@ -3,6 +3,7 @@ import { WeaverError } from "../contracts/errors.ts";
 import { z } from "../contracts/index.ts";
 import { resolveExecutable } from "../adapters/executable.ts";
 import { currentRuntime } from "../runtime.ts";
+import { runtimeBinding } from "../engines/runtime.ts";
 
 function supervisorLaunch(): { command: string; args: string[] } {
   const runtime = currentRuntime();
@@ -29,7 +30,13 @@ export function nodeScriptInvocation(
 }
 
 function resolveCommand(command: string): string {
-  if (["ffmpeg", "ffprobe", "python3", "python"].includes(command)) {
+  if (command === "python3" || command === "python") {
+    const python = runtimeBinding("python").value;
+    if (!python) throw new WeaverError("CONFIG_MISSING", "Python 运行环境尚未安装", null,
+      ["运行 weaver engines install python-runtime，或在诊断与修复中准备运行组件。"]);
+    return python;
+  }
+  if (["ffmpeg", "ffprobe"].includes(command)) {
     const resolved = resolveExecutable(command, currentRuntime().configBase);
     if (resolved) return resolved;
   }
@@ -81,6 +88,7 @@ export async function processRun(
   } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   options.signal?.throwIfAborted();
+  const resolvedCommand = resolveCommand(command);
   return new Promise((resolve, reject) => {
     const supervisorLaunchSpec = supervisorLaunch();
     const env = { ...(options.env ?? process.env) };
@@ -154,7 +162,7 @@ export async function processRun(
     supervisor.once("spawn", () => {
       spawned = true;
       supervisor.send(
-        { type: "start", command: resolveCommand(command), args },
+        { type: "start", command: resolvedCommand, args },
         (error?: Error | null) => {
           if (error) {
             protocolFailure ??= error.message;

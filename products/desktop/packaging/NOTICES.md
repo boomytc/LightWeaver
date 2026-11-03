@@ -14,4 +14,4 @@ LightWeaver 桌面客户端把下列组件作为独立进程或库随包提供�
 - transcribe.cpp 0.2.0 与 transcribe Python bindings：本地语音识别运行库。
 - TEN VAD：本地语音活动检测运行库。
 - llama.cpp llama-server：本地检索与翻译运行库。
-- 产品 Python 脚本位于 resources/weaver/scripts。可选模型 Python 环境在用户选择本地模型后按需创建，首次启动不会安装。
+- 产品 Python 脚本位于 resources/weaver/scripts。模型、语音与项目交接依赖统一安装在随包 Python 中；首次启动不会安装依赖或下载权重。

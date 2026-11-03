@@ -17,7 +17,6 @@ __pycache__/
 .venv/
 /models/
 weaver/runtime/
-weaver/.speech-venv/
 .pytest_cache/
 .ruff_cache/
 .idea/

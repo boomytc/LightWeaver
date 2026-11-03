@@ -49,18 +49,18 @@ type ActivePathState =
   | "unavailable"
   | "present";
 
-/** 一键配置默认包含的组件；语音 Python 环境体积大，按需显式开启。 */
 const SETUP_COMPONENTS = [
   "transcribe-native",
   "transcribe-bindings",
   "ten-vad",
   "llama-server",
-  "python-model",
+  "python-runtime",
 ] as const;
 const REQUIRED_SETUP_COMPONENTS = new Set([
   "transcribe-native",
   "transcribe-bindings",
   "ten-vad",
+  "python-runtime",
 ]);
 const SPACE_MARGIN_BYTES = 256 * 1024 * 1024;
 
@@ -364,22 +364,21 @@ export class Engines {
         configured: active.length > 0 && active.every((binding) => binding.ready),
       };
     });
-    const setup = components.filter((component) => component.id !== "python-speech"),
-      required = components.filter((component) =>
+    const required = components.filter((component) =>
         REQUIRED_SETUP_COMPONENTS.has(component.id),
       ),
       usable = (component: { usage: string; configured: boolean }) =>
         ["bundled", "managed", "external"].includes(component.usage) && component.configured;
     const count = (usage: z.infer<typeof EngineUsage>) =>
-      setup.filter((component) => component.usage === usage).length;
+      components.filter((component) => component.usage === usage).length;
     return {
       /** 本地转写、精确字幕、检索与翻译所需的全部组件都已安装并采用。 */
-      ready: setup.every(usable),
-      /** 只要求本地转写必需组件（transcribe 运行库、bindings、TEN VAD）就绪。 */
+      ready: components.every(usable),
+      /** 本地转写必需组件及共享 Python 就绪。 */
       coreReady: required.every(usable),
       /** 本应用安装 / 外部路径 / 未配置的组件数量，供诊断与 CLI 直接展示。 */
       counts: {
-        total: setup.length,
+        total: components.length,
         installed: count("bundled") + count("managed") + count("managed-unused"),
         bundled: count("bundled"),
         managed: count("managed"),
@@ -446,10 +445,7 @@ export class Engines {
     const directory = this.installedDirectory(item, root),
       marker = readMarker(directory);
     if (item.kind === "python-env") {
-      const python = path.join(
-        directory,
-        item.bindings[0]?.target === "executable" ? item.bindings[0].file : "",
-      );
+      const python = this.pythonExecutable(item, directory);
       const pythonState = inspectPath(python, "executable");
       const files: z.input<typeof EngineStatus>["files"] = [];
       if (!fs.existsSync(directory))
@@ -650,16 +646,19 @@ export class Engines {
     }
   }
 
+  private pythonExecutable(item: EngineItem, directory: string): string {
+    const bundled = bundledEngines().find((component) =>
+      component.id === item.id && component.directory === directory);
+    if (bundled) return bundled.bindings.python;
+    return path.join(directory, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+  }
+
   private async probePythonEnvironment(
     item: EngineItem,
     directory: string,
     signal?: AbortSignal,
   ): Promise<{ detail: string; problems: string[] }> {
-    const binding = item.bindings[0];
-    const python =
-      binding && binding.target !== "directory"
-        ? path.join(directory, binding.file)
-        : path.join(directory, process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+    const python = this.pythonExecutable(item, directory);
     const requirements =
       item.source.kind === "python-env" ? item.source.requirements : "";
     const specs = this.pythonSpecs(requirements);
@@ -982,7 +981,7 @@ export class Engines {
    */
   setup(raw: unknown) {
     const input = EngineSetupInput.parse(raw),
-      items = this.setupItems(input.includeSpeech),
+      items = this.setupItems(),
       ids = items.map((item) => item.id),
       optionalIds = items
         .filter((item) => !REQUIRED_SETUP_COMPONENTS.has(item.id))
@@ -1081,7 +1080,6 @@ export class Engines {
       kind: "engine-setup",
       snapshot: {
         ...requestInput,
-        includeSpeech: input.includeSpeech,
         includeModels: input.includeModels,
         items: items.map((item) => ({
           id: item.id,
@@ -1096,13 +1094,10 @@ export class Engines {
     });
   }
 
-  private setupItems(includeSpeech: boolean): EngineItem[] {
-    const ids: string[] = includeSpeech
-      ? [...SETUP_COMPONENTS, "python-speech"]
-      : [...SETUP_COMPONENTS];
+  private setupItems(): EngineItem[] {
     const missing: { id: string; reason: string }[] = [];
     const items: EngineItem[] = [];
-    for (const id of ids) {
+    for (const id of SETUP_COMPONENTS) {
       try {
         items.push(this.item(id));
       } catch (error) {
@@ -1111,10 +1106,7 @@ export class Engines {
           error.code !== "CAPABILITY_UNAVAILABLE"
         )
           throw error;
-        const required =
-          REQUIRED_SETUP_COMPONENTS.has(id) ||
-          (includeSpeech && id === "python-speech");
-        if (required) missing.push({ id, reason: error.message });
+        if (REQUIRED_SETUP_COMPONENTS.has(id)) missing.push({ id, reason: error.message });
       }
     }
     if (missing.length)
@@ -1468,8 +1460,6 @@ export class Engines {
       candidates: { command: string; args: string[] }[] = [];
     if (runtime.tools.python)
       candidates.push({ command: runtime.tools.python, args: [] });
-    if (process.env.LIGHTWEAVER_PYTHON)
-      candidates.push({ command: process.env.LIGHTWEAVER_PYTHON, args: [] });
     if (process.platform === "win32")
       candidates.push(
         { command: "py", args: ["-3.12"] },
@@ -1496,7 +1486,7 @@ export class Engines {
         const version = result.stdout.trim();
         if (result.code === 0 && /^\d+\.\d+$/.test(version)) {
           const [major, minor] = version.split(".").map(Number);
-          if (major > 3 || (major === 3 && minor >= 10)) return candidate;
+          if (major === 3 && minor === 12) return candidate;
         }
       } catch {
         continue;
@@ -1504,9 +1494,9 @@ export class Engines {
     }
     throw new WeaverError(
       "CAPABILITY_UNAVAILABLE",
-      "找不到可创建 Python 环境的解释器（需要 Python 3.10 以上）",
+      "找不到可创建运行环境的 Python 3.12 解释器",
       null,
-      ["在设置页指定可用的 Python，或安装 Python 3.12 后重试。"],
+      ["安装 Python 3.12 后重试；开发时可通过 LIGHTWEAVER_PYTHON 指定解释器。"],
     );
   }
 

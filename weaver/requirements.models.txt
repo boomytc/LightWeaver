@@ -1,3 +1,0 @@
-# Product-local alignment and shared EmbeddingGemma environment.
-numpy>=1.26,<3
-qwen-asr==0.0.6

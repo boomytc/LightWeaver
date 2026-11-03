@@ -2,27 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { currentRuntime } from "../runtime.ts";
 
-export function defaultModelPython(
-  platform: NodeJS.Platform = process.platform,
-): string {
-  return defaultVenvPython(".venv", platform);
-}
-
-export function defaultSpeechPython(
-  platform: NodeJS.Platform = process.platform,
-): string {
-  return defaultVenvPython(".speech-venv", platform);
-}
-
-function defaultVenvPython(
-  venv: ".venv" | ".speech-venv",
-  platform: NodeJS.Platform,
-): string {
-  return platform === "win32"
-    ? path.join("weaver", venv, "Scripts", "python.exe")
-    : path.join("weaver", venv, "bin", "python");
-}
-
 export function resolveExecutable(value: string, root: string): string {
   if (!value) return "";
   const runtime = currentRuntime();
@@ -32,8 +11,6 @@ export function resolveExecutable(value: string, root: string): string {
       return runtime.tools.ffmpeg;
     if ((named === "ffprobe" || named === "ffprobe.exe") && runtime.tools.ffprobe)
       return runtime.tools.ffprobe;
-    if ((named === "python3" || named === "python" || named === "python3.exe" || named === "python.exe") && runtime.tools.python)
-      return runtime.tools.python;
   }
   const candidates = /[\\/]/.test(value)
     ? executableCandidates(

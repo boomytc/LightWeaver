@@ -5,7 +5,6 @@ import { WeaverError } from "../contracts/errors.ts";
 import { readConfig } from "../config.ts";
 import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
-import { resolveExecutable } from "./executable.ts";
 import { localModelDigest } from "./toolchain.ts";
 import { runtimeBinding } from "../engines/runtime.ts";
 
@@ -167,22 +166,21 @@ export class SpeechModels {
       localTtsModel: this.localPath(
         this.value("LIGHTWEAVER_LOCAL_TTS_MODEL", "local_tts_model"),
       ),
-      speechPython: runtimeBinding("speech_python").value,
+      python: runtimeBinding("python").value,
       translationModel: this.localPath(
         this.value("LIGHTWEAVER_TRANSLATION_MODEL", "translation_model"),
       ),
       translationServer: runtimeBinding("translation_server").value,
-      python3: resolveExecutable("python3", this.root),
     };
   }
 
   descriptors(): SpeechDescriptor[] {
     const settings = this.settings();
     const localReady =
-      !!settings.speechPython &&
+      !!settings.python &&
       this.isLocalVoxcpmModel(settings.localTtsModel);
     const translationReady =
-      !!settings.python3 &&
+      !!settings.python &&
       !!settings.translationServer &&
       this.isGguf(settings.translationModel);
     return z.array(ProviderDescriptor).parse([
@@ -197,7 +195,7 @@ export class SpeechModels {
         remote: false,
         idempotency: true,
         cancellation: "process-tree",
-        hint: "选择 local_tts_model，并在诊断与修复中安装语音运行组件",
+        hint: "选择 local_tts_model，并在诊断与修复中准备运行组件",
       },
       {
         id: TRANSLATION_PROVIDER,
@@ -222,13 +220,13 @@ export class SpeechModels {
       return [
         this.script("speech_models.py"),
         resourcePath("weaver", "src", "adapters", "speech-models.ts"),
-        resourcePath("weaver", "requirements.speech.txt"),
-        settings.speechPython,
+        resourcePath("weaver", "requirements.txt"),
+        settings.python,
       ];
     return [
       this.script("subtitle_models.py"),
       resourcePath("weaver", "src", "adapters", "speech-models.ts"),
-      settings.python3,
+      settings.python,
       settings.translationServer,
     ];
   }
@@ -236,14 +234,10 @@ export class SpeechModels {
   async versions(id: string): Promise<unknown> {
     const provider = this.provider(id);
     const settings = this.settings();
+    if (!settings.python) return { available: false, missing: ["python"] };
     if (provider === LOCAL_TTS_PROVIDER) {
-      if (!settings.speechPython)
-        return {
-          available: false,
-          missing: ["speech_python"],
-        };
       return this.runJson(
-        settings.speechPython,
+        settings.python,
         [
           this.script("speech_models.py"),
           "inspect",
@@ -252,13 +246,8 @@ export class SpeechModels {
         { cwd: this.root, timeoutMs: 10000 },
       );
     }
-    if (!settings.python3)
-      return {
-        available: false,
-        missing: ["python3"],
-      };
     return this.runJson(
-      settings.python3,
+      settings.python,
       [
         this.script("subtitle_models.py"),
         "inspect",
@@ -328,7 +317,7 @@ export class SpeechModels {
     const missing =
       provider === LOCAL_TTS_PROVIDER
         ? [
-            ...(!settings.speechPython ? ["speech_python"] : []),
+            ...(!settings.python ? ["python"] : []),
             ...(!settings.localTtsModel ? ["local_tts_model"] : []),
             ...(settings.localTtsModel &&
             !this.isLocalVoxcpmModel(settings.localTtsModel)
@@ -336,7 +325,7 @@ export class SpeechModels {
               : []),
           ]
         : [
-            ...(!settings.python3 ? ["python3"] : []),
+            ...(!settings.python ? ["python"] : []),
             ...(!settings.translationModel ? ["translation_model"] : []),
             ...(settings.translationModel &&
             !this.isGguf(settings.translationModel)
@@ -353,7 +342,7 @@ export class SpeechModels {
       { provider, missing },
       provider === LOCAL_TTS_PROVIDER
         ? [
-            "选择 local_tts_model，并在诊断与修复中安装语音运行组件",
+            "选择 local_tts_model，并在诊断与修复中准备运行组件",
           ]
         : [
             "配置 translation_model（Hy-MT2 GGUF）",
@@ -401,7 +390,7 @@ export class SpeechModels {
       { mode: 0o600 },
     );
     const output = await this.runJson(
-      settings.speechPython,
+      settings.python,
       [this.script("speech_models.py"), "synthesize", job],
       {
         cwd: workDir,
@@ -461,7 +450,7 @@ export class SpeechModels {
     );
     const result = TranslateResult.parse(
       await this.runJson(
-        settings.python3,
+        settings.python,
         [this.script("subtitle_models.py"), "translate", job],
         {
           cwd: workDir,

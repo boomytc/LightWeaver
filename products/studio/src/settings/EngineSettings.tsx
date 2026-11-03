@@ -121,8 +121,7 @@ const settingLabel: Record<string, string> = {
   visual_server: "EmbeddingGemma llama-server",
   llama_server: "llama-server",
   translation_server: "字幕翻译 llama-server",
-  model_python: "模型 Python",
-  speech_python: "语音 Python",
+  python: "Python 运行环境",
 };
 
 const setupLabels: Record<string, string> = {
@@ -130,8 +129,7 @@ const setupLabels: Record<string, string> = {
   "transcribe-bindings": "Python bindings",
   "ten-vad": "TEN VAD",
   "llama-server": "llama-server",
-  "python-model": "模型 Python 环境",
-  "python-speech": "语音 Python 环境",
+  "python-runtime": "Python 运行环境",
 };
 
 function setupItems(view: EngineViewValue): EngineItem[] {
@@ -233,13 +231,6 @@ export function EngineSettings() {
       number
     >,
   );
-  const speechStatus = statuses.get("python-speech");
-  const speechUsage =
-    speechStatus?.usage === "managed" || speechStatus?.usage === "managed-unused"
-      ? "已安装"
-      : speechStatus?.usage === "external"
-        ? "使用外部路径"
-        : "按需创建";
   return (
     <section className="flex flex-col gap-4 p-5" aria-label="本地运行环境">
       <SetupPanel view={view} statuses={statuses} onRefresh={refresh} />
@@ -250,7 +241,7 @@ export function EngineSettings() {
           <small>
             本应用提供 {usageCounts.bundled + usageCounts.managed + usageCounts["managed-unused"]}/
             {setupStatuses.length} · 使用外部路径 {usageCounts.external} · 未配置{" "}
-            {usageCounts.unused + usageCounts.partial}；语音环境{speechUsage}
+            {usageCounts.unused + usageCounts.partial}
           </small>
           <p className="hint m-0">
             通常不需要展开：已安装组件自动使用，仅在需要更新、修复或校验时操作。
@@ -357,7 +348,7 @@ function SetupPanel({
               type="button"
               disabled={setup.starting || needsSetup && insufficient}
               aria-label={label}
-              onClick={() => { if (needsSetup) void setup.start({ includeSpeech: false, includeModels: false }); else void onRefresh(); }}
+              onClick={() => { if (needsSetup) void setup.start({ includeModels: false }); else void onRefresh(); }}
             >
               {label}
             </Button>
@@ -556,7 +547,6 @@ function useSetupRun(
     starting,
     active: run !== null && isActiveRun(run.state),
     start: async (options: {
-      includeSpeech: boolean;
       includeModels: boolean;
     }) => {
       setStarting(true);
@@ -564,7 +554,6 @@ function useSetupRun(
         const key = JSON.stringify([
           "engine-setup",
           revisionRef.current(),
-          options.includeSpeech,
           options.includeModels,
         ]);
         let attempt = session.stableRequest(key);
@@ -578,7 +567,6 @@ function useSetupRun(
               body: {
                 expectedRevision: revisionRef.current(),
                 requestId: attempt.requestId,
-                includeSpeech: options.includeSpeech,
                 includeModels: options.includeModels,
               },
             });
@@ -752,7 +740,6 @@ function EngineCard({
               </small>
             );
           })}
-          {pythonEnvironment && <small>采用后写入对应 Python 环境路径。</small>}
         </div>
       </details>
       {verification && <VerifySummary result={verification} />}
@@ -798,13 +785,6 @@ function EngineCard({
           </Button>
         )}
       </div>
-      {pythonEnvironment && usage !== "external" && state !== "installed" && (
-        <p className="hint m-0">
-          {item.id === "python-model"
-            ? "无法一键创建时，仍可按上方“安装可选模型 Python 环境”中的手工命令操作，再把解释器路径填入“模型 Python”。"
-            : "无法一键创建时，可手工创建虚拟环境并安装 requirements.speech.txt，再把解释器路径写入“语音 Python”配置。"}
-        </p>
-      )}
     </article>
   );
 }

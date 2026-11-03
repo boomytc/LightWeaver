@@ -47,22 +47,13 @@ const cache = path.join(stagingRoot, "cache");
 const targetCache = path.join(cache, targetName);
 const work = path.join(targetCache, "work");
 
-function sourceRequirements() {
-  return {
-    main: path.join(repoRoot, "weaver", "requirements.txt"),
-    models: path.join(repoRoot, "weaver", "requirements.models.txt"),
-    speech: path.join(repoRoot, "weaver", "requirements.speech.txt"),
-  };
-}
-
-for (const [name, file] of Object.entries(sourceRequirements())) {
-  if (!fs.existsSync(file)) throw new Error(`缺少 Python 产品依赖清单 ${name}: ${file}`);
-}
-
-const requirements = sourceRequirements();
-const requirementsSha256 = Object.fromEntries(
-  Object.entries(requirements).map(([name, file]) => [name, sha256File(file)]),
-);
+const requirements = path.join(repoRoot, "weaver", "requirements.txt");
+if (!fs.existsSync(requirements)) throw new Error(`缺少 Python 依赖清单：${requirements}`);
+const requirementsSha256 = sha256File(requirements);
+const pythonPins = fs.readFileSync(requirements, "utf8").split(/\r?\n/).flatMap((line) => {
+  const match = /^([A-Za-z0-9._-]+)==([A-Za-z0-9._-]+)$/.exec(line.trim());
+  return match ? [[match[1], match[2]]] : [];
+});
 const trackedConfig = path.join(repoRoot, "config.yaml");
 if (!fs.existsSync(trackedConfig))
   throw new Error(`缺少内置配置默认值：${trackedConfig}`);
@@ -76,9 +67,9 @@ const pythonVerification = [
   "import pathlib, site, sys",
   "assert not site.ENABLE_USER_SITE",
   "assert all(pathlib.Path(p).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve()) for p in sys.path if p and 'site-packages' in p)",
-  "import importlib.metadata as m, opentimelineio, pyJianYingDraft, numpy",
-  "assert m.version('opentimelineio') == '0.18.1'",
-  "assert m.version('pyJianYingDraft') == '0.3.1'",
+  "import importlib.metadata as m, opentimelineio, pyJianYingDraft, numpy, torch, torchaudio, qwen_asr, voxcpm",
+  `for name, version in ${JSON.stringify(pythonPins)}:`,
+  "    assert m.version(name) == version, f'{name}: expected {version}, got {m.version(name)}'",
 ].join("\n");
 const isolatedPythonEnv = { ...process.env, PYTHONNOUSERSITE: "1", PYTHONDONTWRITEBYTECODE: "1", PYTHONPATH: "" };
 delete isolatedPythonEnv.PYTHONHOME;
@@ -235,7 +226,7 @@ function installPython(pythonExtraction) {
     targetName,
     `python${PYTHON_VERSION}`,
     target.python.sha256.slice(0, 16),
-    requirementsSha256.main.slice(0, 16),
+    requirementsSha256.slice(0, 16),
   ].join("-");
   const destination = path.join(pythonCacheRoot, cacheKey);
   const marker = {
@@ -245,7 +236,7 @@ function installPython(pythonExtraction) {
     python: PYTHON_VERSION,
     pythonRelease: PYTHON_RELEASE,
     archiveSha256: target.python.sha256,
-    requirementsMainSha256: requirementsSha256.main,
+    requirementsSha256,
   };
   fs.mkdirSync(pythonCacheRoot, { recursive: true });
   const pythonFile = path.join(destination, target.tools.python);
@@ -290,7 +281,7 @@ function installPython(pythonExtraction) {
           "--no-cache-dir",
           "--disable-pip-version-check",
           "--requirement",
-          requirements.main,
+          requirements,
         ],
         {
           env: {
@@ -310,6 +301,14 @@ function installPython(pythonExtraction) {
         },
         stdio: "pipe",
       });
+      fs.writeFileSync(path.join(prefix, ".lightweaver-engine.json"), JSON.stringify({
+        schemaVersion: 1,
+        id: "python-runtime",
+        version: requirementsSha256.slice(0, 12),
+        platform: targetName,
+        sourceSha256: requirementsSha256,
+        installedAt: new Date().toISOString(),
+      }) + "\n");
       finalizeCache({ staging: building, destination, marker });
     } finally {
       fs.rmSync(building, { recursive: true, force: true });
@@ -355,15 +354,7 @@ function copyResources() {
       path.join(resources, "weaver", "src", "adapters", file),
     );
   }
-  for (const [name, file] of Object.entries(requirements)) {
-    const packagedName =
-      name === "main"
-        ? "requirements.txt"
-        : name === "models"
-          ? "requirements.models.txt"
-          : "requirements.speech.txt";
-    fs.copyFileSync(file, path.join(resources, "weaver", packagedName));
-  }
+  fs.copyFileSync(requirements, path.join(resources, "weaver", "requirements.txt"));
   fs.copyFileSync(
     path.join(desktopRoot, "packaging", "NOTICES.md"),
     path.join(staging, "NOTICES.md"),
@@ -468,7 +459,7 @@ function verifyRuntime(root, label) {
 function packagedResourceRoot() {
   const release = path.join(desktopRoot, "release");
   if (target.platform === "darwin") {
-    const directory = target.arch === "arm64" ? "mac-arm64" : "mac";
+    const directory = "mac-arm64";
     return path.join(
       release,
       directory,
@@ -657,7 +648,7 @@ async function prepare() {
   installPython(pythonSource);
   copyResources();
   run(node, ["--import", "tsx", path.join(desktopRoot, "scripts", "bundle-engines.mjs"),
-    staging, path.join(targetCache, "engines")], { cwd: repoRoot, stdio: "inherit" });
+    staging, path.join(targetCache, "engines"), target.tools.python], { cwd: repoRoot, stdio: "inherit" });
   writeRuntimeContract();
   createManifest();
   checkResources(staging, "staging ");
@@ -673,7 +664,7 @@ if (prepareOnly) {
 const output = path.join(desktopRoot, "release");
 const staleOutput =
   target.platform === "darwin"
-    ? path.join(output, target.arch === "arm64" ? "mac-arm64" : "mac")
+    ? path.join(output, "mac-arm64")
     : target.platform === "win32"
       ? path.join(output, "win-unpacked")
       : path.join(output, "linux-unpacked");

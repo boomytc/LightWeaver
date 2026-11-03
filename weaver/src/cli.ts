@@ -330,7 +330,6 @@ async function main(): Promise<void> {
           root: option(parsed, "root"),
           expectedRevision: required(parsed, "expected-revision"),
           requestId,
-          includeSpeech: booleanOption(parsed, "with-speech"),
           includeModels: booleanOption(parsed, "with-models"),
         });
         result = booleanOption(parsed, "wait")

@@ -1,5 +1,0 @@
-# Keep VoxCPM2 dependencies separate from the shared model_python environment.
-voxcpm==2.0.3
-torch==2.15.0
-torchaudio==2.11.1
-transformers==5.22.1

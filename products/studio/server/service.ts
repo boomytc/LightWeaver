@@ -165,10 +165,9 @@ export async function startStudioService(
     engineDir: runtime.engineDir,
     logDir: runtime.logDir,
     resourcesDir: runtime.resourcesDir,
-    requirements: ["requirements.txt", "requirements.models.txt", "requirements.speech.txt"]
+    requirements: ["requirements.txt"]
       .map((name) => ({ name, file: path.join(runtime.resourcesDir, "weaver", name) }))
       .filter((item) => fs.existsSync(item.file)),
-    interchangePython: runtime.tools.python,
     cli: cliInvocation(runtime),
     tools: {
       node: fs.existsSync(runtime.tools.node),
@@ -179,12 +178,12 @@ export async function startStudioService(
         ? fs.existsSync(runtime.tools.cardBrowser)
         : false,
       cardSite: runtime.tools.cardSite ? fs.existsSync(runtime.tools.cardSite) : false,
-      python: runtime.tools.python ? fs.existsSync(runtime.tools.python) : false,
+      python: app.engines.summary().components.some((item) => item.id === "python-runtime" && item.configured),
     },
   }));
   server.get("/api/runtime/requirements/:name", (req, res, next) => {
     try {
-      const name = z.enum(["requirements.txt", "requirements.models.txt", "requirements.speech.txt"]).parse(req.params.name);
+      const name = z.enum(["requirements.txt"]).parse(req.params.name);
       res.download(path.join(runtime.resourcesDir, "weaver", name), name, (error) => {
         if (error && !res.headersSent) next(error);
       });
@@ -252,7 +251,6 @@ export async function startStudioService(
           root: z.string().min(1).optional(),
           expectedRevision: z.string(),
           requestId: z.string().min(1),
-          includeSpeech: z.boolean().optional(),
           includeModels: z.boolean().optional(),
         })
         .strict()

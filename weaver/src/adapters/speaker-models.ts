@@ -137,7 +137,7 @@ export class SpeakerModels {
           "diarization_model",
         ),
       ),
-      python: runtimeBinding("model_python").value,
+      python: runtimeBinding("python").value,
       library: runtimeBinding("asr_library").value,
       bindings: runtimeBinding("asr_bindings").value,
       vadLibrary: runtimeBinding("vad_library").value,

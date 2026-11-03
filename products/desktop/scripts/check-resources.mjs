@@ -226,15 +226,13 @@ for (const relative of [
   "resources/config.yaml",
   "resources/bundled-engines.json",
   "resources/weaver/requirements.txt",
-  "resources/weaver/requirements.models.txt",
-  "resources/weaver/requirements.speech.txt",
 ]) {
   if (!fs.existsSync(path.join(root, relative)))
     problems.push(`缺少必需资源 ${relative}`);
 }
 try {
   const engines = JSON.parse(fs.readFileSync(path.join(root, "resources", "bundled-engines.json"), "utf8"));
-  const expectedIds = ["transcribe-native", "transcribe-bindings", "ten-vad", "llama-server"];
+  const expectedIds = ["transcribe-native", "transcribe-bindings", "ten-vad", "llama-server", "python-runtime"];
   if (engines.schemaVersion !== 1 || engines.platform !== target || !Array.isArray(engines.components) ||
       engines.components.length !== expectedIds.length ||
       expectedIds.some((id) => !engines.components.some((item) => item.id === id)))

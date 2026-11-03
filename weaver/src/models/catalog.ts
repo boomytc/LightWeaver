@@ -44,8 +44,8 @@ export const MODELBEST_VLM_MODEL = "MiniCPM-V-4.7-35B-A3B";
 export const MODELBEST_TTS_MODEL = "VoxCPM2";
 
 const runtimePython: RuntimeSpec = {
-  setting: "model_python",
-  label: "模型 Python 运行时",
+  setting: "python",
+  label: "Python 运行环境",
   kind: "executable",
 };
 

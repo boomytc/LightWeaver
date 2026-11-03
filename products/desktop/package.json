@@ -12,11 +12,9 @@
     "package": "node scripts/package.mjs",
     "dist": "node scripts/package.mjs --dist",
     "prepare:darwin-arm64": "node scripts/package.mjs --target=darwin-arm64 --prepare",
-    "prepare:darwin-x64": "node scripts/package.mjs --target=darwin-x64 --prepare",
     "prepare:linux-x64": "node scripts/package.mjs --target=linux-x64 --prepare",
     "prepare:win32-x64": "node scripts/package.mjs --target=win32-x64 --prepare",
     "package:darwin-arm64": "node scripts/package.mjs --target=darwin-arm64",
-    "package:darwin-x64": "node scripts/package.mjs --target=darwin-x64",
     "package:linux-x64": "node scripts/package.mjs --target=linux-x64",
     "package:win32-x64": "node scripts/package.mjs --target=win32-x64",
     "check-resources": "node scripts/check-resources.mjs"

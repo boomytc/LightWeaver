@@ -22,8 +22,7 @@ const engineRoleLabels: Record<string, string> = {
   "transcribe-bindings": "Python bindings",
   "ten-vad": "TEN VAD",
   "llama-server": "llama-server",
-  "python-model": "模型 Python 环境",
-  "python-speech": "语音 Python 环境",
+  "python-runtime": "Python 运行环境",
 };
 
 function nodeLabel(key: string): string {

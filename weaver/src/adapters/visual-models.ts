@@ -105,7 +105,7 @@ export class VisualModels {
         this.value("LIGHTWEAVER_VISUAL_MMPROJ", "visual_mmproj"),
       ),
       server: runtimeBinding("visual_server").value,
-      python: runtimeBinding("model_python").value,
+      python: runtimeBinding("python").value,
       script: resourcePath("weaver", "scripts", "visual_models.py"),
     };
   }
@@ -215,10 +215,10 @@ export class VisualModels {
     if (!settings.python)
       throw new WeaverError(
         "CONFIG_MISSING",
-        "未配置 LightWeaver 模型 Python 环境",
+        "Python 运行环境尚未安装",
         null,
         [
-          "uv venv --python 3.12 weaver/.venv，然后安装 weaver/requirements.models.txt",
+          "运行 weaver engines install python-runtime，或在诊断与修复中准备运行组件",
         ],
       );
     const args = [settings.script, kind];

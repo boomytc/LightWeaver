@@ -20,34 +20,18 @@ npx weaver engines setup --expected-revision CONFIG_REV --wait --progress
 npx weaver engines setup --with-models --expected-revision CONFIG_REV --wait --progress
 ```
 
-`engines setup` 会按顺序下载、校验 transcribe 运行库、bindings、TEN VAD、llama-server 与模型 Python 环境，，组件安装后自动可用；已校验的部分在重跑时复用。必需组件失败即作业失败，可选组件失败会在采用结果里列在 `skipped` 并继续完成其余组件。`--with-speech` 额外创建语音 Python 环境，`--with-models` 额外下载并采用本地模型权重。空间不足时在开始前返回 `DISK_SPACE_INSUFFICIENT`。日常使用在 **设置 → 模型与供应商** 点击 **下载并启用**，由单个作业自动准备依赖并采用模型。组件维护入口在 **设置 → 诊断与修复 → 运行组件与修复**。不同平台的引擎目录不同，迁移仓库时重新安装；开发时可通过 `LIGHTWEAVER_ENGINE_ROOT` 覆盖引擎根目录。
+`engines setup` 会按顺序准备 transcribe 运行库、bindings、TEN VAD、llama-server 与共享 Python 运行环境，组件安装后自动可用；已校验的部分在重跑时复用。必需组件失败即作业失败，可选组件失败列在 `skipped`。`--with-models` 额外下载并采用本地模型权重。空间不足时在开始前返回 `DISK_SPACE_INSUFFICIENT`。日常使用在 **设置 → 模型与供应商** 点击 **下载并启用**，由单个作业自动准备依赖并采用模型。组件维护入口在 **设置 → 诊断与修复 → 运行组件与修复**。不同平台的引擎目录不同，迁移仓库时重新安装；开发时可通过 `LIGHTWEAVER_ENGINE_ROOT` 覆盖引擎根目录。
 
 媒体功能按用途准备工具：
 
 - 普通视频制作需要 PATH 中的 FFmpeg 与 ffprobe，也可通过 `LIGHTWEAVER_FFMPEG`、`LIGHTWEAVER_FFPROBE` 指定绝对路径。
 - 卡片制作与网页捕获需要 Chrome。可通过 `LIGHTWEAVER_CHROME` 指定可执行文件。
-- bundle、OTIO 与剪映交接需要 Python 3.12 和 `weaver/requirements.txt` 中的依赖。
-- 本地模型另需权重、模型 Python 环境及对应运行库。API 画面观察与 API TTS 按供应商配置使用。
+- 模型推理、语音合成、字幕翻译、bundle、OTIO 与剪映交接共用 Python 3.12 和 `weaver/requirements.txt` 中的依赖，统一由 `python-runtime` 安装。
+- 本地模型另需权重及对应原生运行库。API 画面观察与 API TTS 按供应商配置使用。
 
-普通媒体工具与交接 Python 已包含在构建后的桌面包中。源码环境按上述用途准备。
+普通媒体工具与完整 Python 运行环境已包含在构建后的桌面包中。源码环境按上述用途准备。
 
-需要交接功能时，用独立环境安装依赖。macOS 与 Linux 执行：
-
-```sh
-python3.12 -m venv weaver/.venv
-weaver/.venv/bin/python -m pip install -r weaver/requirements.txt
-export LIGHTWEAVER_PYTHON="$PWD/weaver/.venv/bin/python"
-```
-
-Windows PowerShell 执行：
-
-```powershell
-py -3.12 -m venv weaver/.venv
-& .\weaver\.venv\Scripts\python.exe -m pip install -r weaver/requirements.txt
-$env:LIGHTWEAVER_PYTHON = (Resolve-Path .\weaver\.venv\Scripts\python.exe).Path
-```
-
-在同一终端继续启动应用，使 `LIGHTWEAVER_PYTHON` 生效。本地模型环境安装见[模型运行约定](conventions.md#模型边界)。
+源码环境先安装 Python 3.12，再运行 `npx weaver engines install python-runtime --wait`。共享环境位于 `data/engines/python-runtime/`，所有 Python 功能自动使用它。特殊构建可通过 `LIGHTWEAVER_PYTHON` 指定同样包含完整依赖的解释器；无需分别维护模型、语音或交接环境。
 
 ## 启动桌面或浏览器界面
 
@@ -93,7 +77,7 @@ Linux 设置了 `XDG_CONFIG_HOME` 时，使用该目录下的 `LightWeaver/weave
 npm run package -w @lightweaver/desktop
 ```
 
-首次构建下载固定版本的 Node、FFmpeg、Chrome、基础 Python、transcribe 运行库与 bindings、TEN VAD 和 llama-server，并安装独立 sidecar 依赖。引擎安装与校验复用共享核的 catalog 和 Jobs；随包绑定使用相对资源路径。构建不下载模型权重，完整模型 Python 环境由用户选择本地模型时自动安装到数据目录的 `engines/`。资源缓存在 `products/desktop/staging/`，产物位于 `products/desktop/release/`。
+首次构建下载固定版本的 Node、FFmpeg、Chrome、完整 Python 运行环境、transcribe 运行库与 bindings、TEN VAD 和 llama-server，并安装独立 sidecar 依赖。引擎安装与校验复用共享核的 catalog 和 Jobs；随包绑定使用相对资源路径。构建安装同一份 Python 依赖并随包交付，不下载模型权重；选择本地模型时只需准备权重。资源缓存在 `products/desktop/staging/`，产物位于 `products/desktop/release/`。
 
 打包会重新生成对应目标的应用目录。打包前保存草稿，并退出运行在该目录中的应用。
 
@@ -102,11 +86,10 @@ npm run package -w @lightweaver/desktop
 | 目标 | 主机 | 产物 |
 | --- | --- | --- |
 | `darwin-arm64` | macOS Apple Silicon | `products/desktop/release/mac-arm64/LightWeaver.app` |
-| `darwin-x64` | macOS Intel | `products/desktop/release/mac/LightWeaver.app` |
 | `win32-x64` | Windows x64 | `products/desktop/release/win-unpacked/LightWeaver.exe` |
 | `linux-x64` | Linux x64 | `products/desktop/release/linux-unpacked/LightWeaver` |
 
-例如，在对应主机运行 `npm run package:win32-x64 -w @lightweaver/desktop`。不支持的目标或跨宿主构建在准备资源前失败。平台实测范围见[桌面客户端验收](acceptance-desktop.md)。
+例如，在对应主机运行 `npm run package:win32-x64 -w @lightweaver/desktop`。当前固定 Torch 与 torchaudio 不提供 Intel macOS 产物，因此不构建 Intel Mac 版本。不支持的目标或跨宿主构建在准备资源前失败。平台实测范围见[桌面客户端验收](acceptance-desktop.md)。
 
 需要安装分发包时执行：
 

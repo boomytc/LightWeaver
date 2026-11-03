@@ -21,7 +21,6 @@ const RuntimeView = z.object({
   engineDir: z.string(),
   logDir: z.string(),
   resourcesDir: z.string().optional(),
-  interchangePython: z.string(),
   cli: z.object({ node: z.string(), entry: z.string(), command: z.string(), shell: z.string() }).nullable(),
   requirements: z.array(z.object({ name: z.string(), file: z.string() })),
   tools: z.object({

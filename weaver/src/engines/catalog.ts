@@ -510,30 +510,24 @@ function llamaServer(platform: string): z.input<typeof EngineCatalogItem> {
   };
 }
 
-function pythonEnvironment(
-  id: "python-model" | "python-speech",
-  name: string,
-  setting: "model_python" | "speech_python",
-  requirements: string,
-  summary: string,
-  estimatedBytes: number,
-): z.input<typeof EngineCatalogItem> {
+function pythonEnvironment(): z.input<typeof EngineCatalogItem> {
+  const requirements = "requirements.txt";
   const platform = currentPlatform();
   const version = requirementsVersion(requirements);
   const python = platform.startsWith("win32")
     ? "Scripts/python.exe"
     : "bin/python";
   const base = {
-    id,
-    name,
+    id: "python-runtime",
+    name: "Python 运行环境",
     version: version || "missing",
     kind: "python-env" as const,
     platform,
-    summary,
-    bindings: [{ setting, target: "executable" as const, file: python }],
+    summary: "模型推理、语音合成与项目交接共用",
+    bindings: [{ setting: "python", target: "executable" as const, file: python }],
     files: [],
-    optional: true,
-    estimatedBytes,
+    optional: false,
+    estimatedBytes: 4_200_000_000,
   };
   if (!version)
     return {
@@ -573,22 +567,7 @@ export function engineCatalog(): z.infer<typeof EngineCatalog> {
       transcribeBindings(),
       tenVad(platform),
       llamaServer(platform),
-      pythonEnvironment(
-        "python-model",
-        "模型 Python 环境",
-        "model_python",
-        "requirements.models.txt",
-        "强制对齐与视觉检索使用的独立 Python 环境",
-        1_800_000_000,
-      ),
-      pythonEnvironment(
-        "python-speech",
-        "语音 Python 环境",
-        "speech_python",
-        "requirements.speech.txt",
-        "本地语音合成使用的独立 Python 环境",
-        4_200_000_000,
-      ),
+      pythonEnvironment(),
     ],
   });
 }
