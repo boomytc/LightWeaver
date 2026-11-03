@@ -47,24 +47,10 @@ function atomicRename(source, destination) {
   fs.renameSync(source, destination);
 }
 
-export async function downloadVerified({ url, sha256, destination, legacy = [] }) {
+export async function downloadVerified({ url, sha256, destination }) {
   if (fs.existsSync(destination) && sha256File(destination) === sha256)
     return destination;
   if (fs.existsSync(destination)) fs.rmSync(destination, { force: true });
-  for (const candidate of legacy) {
-    if (fs.existsSync(candidate) && sha256File(candidate) === sha256) {
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      const copied = `${destination}.${process.pid}.${randomUUID()}.copy`;
-      fs.copyFileSync(candidate, copied);
-      if (sha256File(copied) !== sha256) {
-        fs.rmSync(copied, { force: true });
-        throw new Error(`缓存复制后校验失败：${candidate}`);
-      }
-      atomicRename(copied, destination);
-      return destination;
-    }
-  }
-
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.${process.pid}.${randomUUID()}.part`;
   let response;

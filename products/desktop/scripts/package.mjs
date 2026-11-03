@@ -87,16 +87,11 @@ function archivePath(name) {
   return path.join(targetCache, name);
 }
 
-function legacy(name) {
-  return path.join(cache, name);
-}
-
-async function obtainArchive(name, pin, legacyNames = []) {
+async function obtainArchive(name, pin) {
   return downloadVerified({
     url: pin.url,
     sha256: pin.sha256,
     destination: archivePath(name),
-    legacy: legacyNames.map(legacy),
   });
 }
 
@@ -497,7 +492,6 @@ async function prepare() {
   const nodeArchive = await obtainArchive(
     `node-${NODE_VERSION}.${target.platform === "win32" ? "zip" : "tar.gz"}`,
     target.node,
-    targetName === "darwin-arm64" ? ["node.tar.gz"] : [],
   );
   const nodeExtraction = extractNamed(nodeArchive, "node");
   const nodeSource = path.join(nodeExtraction, target.node.root);
@@ -600,7 +594,6 @@ async function prepare() {
     const archive = await obtainArchive(
       `${name}-${FFMPEG_VERSION}.zip`,
       pin,
-      targetName === "darwin-arm64" ? [`${name}.zip`] : [],
     );
     mediaExtractions.set(name, extractNamed(archive, `media-${name}`));
   }
@@ -617,7 +610,6 @@ async function prepare() {
   const chromeArchive = await obtainArchive(
     `chrome-${target.chrome.version}.zip`,
     target.chrome,
-    targetName === "darwin-arm64" ? ["chrome.zip"] : [],
   );
   const chromeExtraction = extractNamed(chromeArchive, "chrome");
   const chromeSource = path.join(chromeExtraction, target.chrome.root);
