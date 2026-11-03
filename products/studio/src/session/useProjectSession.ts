@@ -638,8 +638,7 @@ export function useProjectSession(client: ClientStore) {
         method: "POST",
         body: { runId, expectedRevision, requestId: requestId() },
       });
-      if (await acceptProjectRevision(revision, { id, generation, draftSequence }))
-        setNotice("译文字幕已显式采用到原字幕轨");
+      await acceptProjectRevision(revision, { id, generation, draftSequence });
     });
   };
 

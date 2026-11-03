@@ -68,17 +68,17 @@ export function CaptionWorkspace() {
               session.edit({ ...draft, captions: [...draft.captions.filter((item) => item.locale !== locale), next] });
             }}>
               <option value="none">无字幕</option>
-              <option value="manual">人工 cue / 导入 SRT</option>
+              <option value="manual">手动编辑 / 导入字幕</option>
               <option value="precise">实际语音对齐</option>
-              <option value="estimated">显式估算</option>
+              <option value="estimated">估算字幕时间</option>
             </NativeSelect>
           </Field>
           <div className="flex items-end gap-2">
-            <Button size="sm" onClick={() => fileInput.current?.click()}><UploadIcon />导入 SRT</Button>
+            <Button size="sm" onClick={() => fileInput.current?.click()}><UploadIcon />导入字幕</Button>
             <input
               ref={fileInput}
               className="hidden"
-              aria-label={`导入 ${locale} SRT`}
+              aria-label={`导入 ${locale} 字幕`}
               type="file"
               accept=".srt,.vtt"
               onChange={(event) => {
@@ -110,8 +110,9 @@ export function CaptionWorkspace() {
             </div>
           </details>
           <details className="panel-card p-4">
-            <summary className="font-medium">字幕译文作业</summary>
+            <summary className="font-medium">字幕翻译</summary>
             <CaptionAssistPanel
+              key={`${draft.id}:${locale}`}
               projectId={draft.id}
               sourceLocale={locale}
               expectedRevision={session.base}
@@ -119,7 +120,6 @@ export function CaptionWorkspace() {
               disabled={session.busy || session.dirty}
               fail={(reason) => session.setError(reason instanceof Error ? reason.message : String(reason))}
               onApply={(runId) => void session.applyCaptionAssist(runId)}
-              onRunChange={() => void session.reload().catch((reason) => session.setError(String(reason)))}
             />
           </details>
           <CaptionTrackEditor
@@ -134,7 +134,7 @@ export function CaptionWorkspace() {
             onRemoveCue={(cueId) => updateTrack({ ...track, cues: track.cues.filter((cue) => cue.id !== cueId) })}
           />
         </>
-      ) : <div className="subtle-card p-6 text-center"><b>当前语言还没有字幕轨</b><p className="hint mx-auto mt-1 mb-0 text-xs">选择计时方式、导入 SRT，或从已完成的转写明确采用。</p></div>}
+      ) : <div className="subtle-card p-6 text-center"><b>当前语言还没有字幕轨</b><p className="hint mx-auto mt-1 mb-0 text-xs">选择计时方式、导入字幕，或从转写生成字幕。</p></div>}
     </div>
   );
 }

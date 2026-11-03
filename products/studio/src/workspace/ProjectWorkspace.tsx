@@ -677,7 +677,7 @@ export function ProjectWorkspace() {
             {bottomMode === "run" ? (
               session.activeRun ? <ActiveRunPanel onViewCaptions={() => setFocus("captions")} /> : (
                 <div className="scroll-region min-h-0 flex-1 p-3">
-                  <p className="hint m-0 text-xs">还没有当前任务。使用“保存并制作”提交后会在这里显示进度、失败建议和完成结果。</p>
+                  <p className="hint m-0 text-xs">提交制作或素材分析后，可在此查看进度和结果。</p>
                 </div>
               )
             ) : (
@@ -994,11 +994,7 @@ function ActiveRunPanel({ onViewCaptions }: { onViewCaptions: () => void }) {
   const detail = session.runDetail?.run.id === session.activeRun ? session.runDetail : null;
   const total = detail?.nodes.length || 0;
   const completed = detail?.nodes.filter((node) => node.state === "succeeded").length || 0;
-  const peak = useRef({ runId: session.activeRun, value: 0 });
-  if (peak.current.runId !== session.activeRun) peak.current = { runId: session.activeRun, value: 0 };
-  const rawProgress = total ? Math.round(completed / total * 100) : 0;
-  const progress = Math.max(peak.current.value, rawProgress);
-  peak.current.value = progress;
+  const progress = total ? Math.round(completed / total * 100) : 0;
   const stage = total ? `${completed}/${total} 个步骤完成` : "正在读取步骤";
   const results = detail?.nodes.flatMap((node) => {
     const parsed = z.object({ entries: z.array(AnalysisEntry) }).safeParse(node.result);
@@ -1029,7 +1025,7 @@ function ActiveRunPanel({ onViewCaptions }: { onViewCaptions: () => void }) {
               </>}
             </div>
           </div>
-          <ProgressBar value={detail ? progress : undefined} label="作业进度" stage={detail ? stage : "正在连接作业进度…"} />
+          <ProgressBar value={progress} label="作业进度" stage={stage} />
           {detail.run.error && (
             <div className="subtle-card border-danger/30 bg-danger/5 p-3">
               <p className="error m-0">{detail.run.error.message}</p>

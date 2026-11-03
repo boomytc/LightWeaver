@@ -203,6 +203,14 @@ export const CaptionTrack = z.strictObject({
   style: CaptionStyle,
   cues: z.array(CaptionCue),
 });
+export const CaptionTranslationResult = z.object({
+  projectId: z.string(),
+  revision: z.string(),
+  sourceLocale: Locale,
+  targetLocale: Locale,
+  sourceTrackDigest: z.string(),
+  track: CaptionTrack,
+});
 export const OutputProfile = z.strictObject({
   id: Id,
   width: Pixels,

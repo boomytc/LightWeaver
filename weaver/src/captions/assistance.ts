@@ -1,5 +1,5 @@
 import {
-  z, CaptionTrack, Locale, ProjectRevision,
+  z, CaptionTrack, CaptionTranslationResult, Locale, ProjectRevision,
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
 import { Store, digest } from "../store/index.ts";
@@ -7,11 +7,6 @@ import { Projects } from "../project/service.ts";
 import { Jobs, type NodeContext } from "../jobs/index.ts";
 import { Providers } from "../adapters/providers.ts";
 import { Artifacts } from "../artifacts/index.ts";
-
-const Result = z.object({
-  projectId: z.string(), revision: z.string(), sourceLocale: Locale,
-  targetLocale: Locale, sourceTrackDigest: z.string(), track: CaptionTrack,
-});
 
 export class CaptionAssistance {
   private readonly artifacts: Artifacts;
@@ -68,7 +63,7 @@ export class CaptionAssistance {
         provenance: {binding: i.binding, sourceTrackDigest}, verified: true});
     }
     c.signal.throwIfAborted();
-    return Result.parse({projectId: i.projectId, revision: i.expectedRevision,
+    return CaptionTranslationResult.parse({projectId: i.projectId, revision: i.expectedRevision,
       sourceLocale: i.locale, targetLocale: i.targetLocale, sourceTrackDigest, track});
   }
 
@@ -77,7 +72,7 @@ export class CaptionAssistance {
       const run = this.jobs.read(input.runId);
       if (run.projectId !== input.projectId || run.kind !== "caption-translate" || run.state !== "succeeded")
         throw new WeaverError("INVALID_INPUT", "字幕翻译作业尚未成功或不属于此项目");
-      const result = Result.parse(this.jobs.nodes(run.id)[0]?.result);
+      const result = CaptionTranslationResult.parse(this.jobs.nodes(run.id)[0]?.result);
       const revision = this.projects.read(input.projectId);
       const current = revision.document.captions.find((t) => t.locale === result.sourceLocale);
       if (result.revision !== input.expectedRevision || revision.id !== input.expectedRevision ||
