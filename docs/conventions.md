@@ -185,7 +185,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 | 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL、LIGHTWEAVER_TRANSLATION_SERVER |
 | 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
-本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认路径相对 `configBase`，Windows 为 `weaver/.venv/Scripts/python.exe`，其他平台为 `weaver/.venv/bin/python`。模型页的“下载并启用”自动准备环境和权重；高级配置可采用已有环境的绝对路径。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径按运行时配置基准解析，不读取相邻仓库配置或 Python 环境。`requirements.models.txt` 在所有平台安装 `qwen-asr`，强制对齐只使用 Torch；`alignment_device` 默认为 `cpu`，也可显式配置 `cuda[:index]`。旧 `alignment_backend` 和 `LIGHTWEAVER_ALIGNMENT_BACKEND` 不再参与运行或模型采用，已有私有配置中的旧行保留。原 MLX 权重需通过模型页改用官方 ForcedAligner 权重。
+本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认路径相对 `configBase`，Windows 为 `weaver/.venv/Scripts/python.exe`，其他平台为 `weaver/.venv/bin/python`。模型页的“下载并启用”自动准备环境和权重；高级配置可采用已有环境的绝对路径。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径按运行时配置基准解析，不读取相邻仓库配置或 Python 环境。`requirements.models.txt` 在所有平台安装 `qwen-asr`，强制对齐只使用 Torch；`alignment_device` 默认为 `cpu`，也可显式配置 `cuda[:index]`。
 
 每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。模型 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 
