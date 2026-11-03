@@ -8,12 +8,10 @@
 | `data/.weaver/blobs/<prefix>/<digest>` | SHA-256 内容存储 |
 | `data/.weaver/work/<node>/<attempt>` | 独立 attempt 工作目录与完成收据 |
 | `data/.weaver/materialized/` | 可重建的友好文件名副本 |
-| `data/.weaver/backups/` | 一致性数据库、引用 blob 与迁移前 JSON 备份 |
+| `data/.weaver/backups/` | 按需创建的一致性数据库与引用 blob 备份 |
 | `library/` | 可复用内置包和方法说明的显式导入来源 |
 
 `LIGHTWEAVER_DATA_DIR` 或 CLI `--data-dir` 选择运行根。项目 ID 不依赖方法、工作流或目录。完整 DB 与 blobs 可一起搬迁，内部 locator 保持相对值。JSON 用于显式交换和不可变快照。
-
-旧版项目只作为显式迁移的输入。迁移完成后，核对项目记录、正式素材与成片的内容摘要，保留迁移备份，再清理旧目录及派生缓存；当前项目不依赖旧版目录。
 
 ## 公开入口
 
@@ -269,9 +267,6 @@ npx weaver backup --dest /absolute/empty-backup --json
 npx weaver restore --source /absolute/backup --dest /absolute/empty-state --json
 npx weaver gc --json
 npx weaver gc --apply --json
-npx weaver migrate --root /absolute/legacy-workspace --dry-run --json
-npx weaver migrate --root /absolute/legacy-workspace --execute --request-id migration-1 --json
-npx weaver migrate rollback JOURNAL --json
 ```
 
 失败与取消保留已完成独立目标及上一份有效交付。作业总时限返回 `DEADLINE_EXCEEDED`，用户取消与 worker 停止分别登记 cancelled 与 interrupted。工具探测接收节点取消信号。媒体监督进程通过父进程管道与 IPC 断连感知 worker 退出。POSIX 终止目标进程组；Windows 用 PowerShell 宿主中的 Job Object 拥有进程树，目标先挂起、加入 Job 后才运行，停止或宿主退出会回收后代。三秒宽限后仍未退出的监督宿主会被强制停止。界面上的“取消”只表示请求已提交，进程回收以监督结果为准。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
@@ -296,4 +291,4 @@ Studio 的“保存”一次写入文档与待审创作方案；“保存并制�
 
 客户端状态先加载再重放待保存操作；冲突时按最新状态重放，备份清除需服务端确认。桌面每次编辑同时写入当前数据目录的独立恢复 journal，重启前等待写盘。草稿恢复保留原修订基线，转换操作期间的新编辑不会绕过修订冲突。“保留草稿并加载当前修订”在备份前绑定项目、会话、修订基线与草稿序号；等待期间有新编辑时，保留草稿和冲突状态，由用户再次确认加载。并发保存推进修订后，旧加载操作也会失效。桌面关窗先通过作业服务检查排队、运行和正在取消的任务，不受最近 100 条历史记录限制。没有活动任务时先处理草稿，再停止后台并退出；有活动任务或状态暂不可读时，提供后台运行、停止后台并退出、取消三项。后台运行先等待草稿写盘并建立托盘恢复入口，再隐藏窗口。菜单退出沿用同一活动任务检查，隐藏窗口会先恢复以显示确认。主进程串行协调关窗与退出，浏览器仍使用离站提示。验收证据与平台限制见 [桌面客户端验收](acceptance-desktop.md)。
 
-备份使用 SQLite backup API，并复制快照引用的不可变 blob。restore 核对备份数据库实际引用、清单集合与元数据，以及每个文件的大小和 SHA-256；全部通过后才发布到空目录，失败会清理暂存。GC 默认 dry-run，保护修订、库版本、run、收据、pin 和保留交付。迁移默认保留旧原件，旧派生结果无完整来源时登记 historical/unverified；核对完成后可显式清理旧目录。rollback 只在迁移后未被修改时执行。
+备份使用 SQLite backup API，并复制快照引用的不可变 blob。restore 核对备份数据库实际引用、清单集合与元数据，以及每个文件的大小和 SHA-256；全部通过后才发布到空目录，失败会清理暂存。GC 默认 dry-run，保护修订、库版本、run、收据、pin 和保留交付。

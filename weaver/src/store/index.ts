@@ -61,11 +61,11 @@ export class Store {
     fs.mkdirSync(root, { recursive: true });
     this.root = fs.realpathSync(root);
     for (const dir of ["blobs", "work", "materialized", "backups"]) {
-      fs.mkdirSync(path.join(this.root, dir), { recursive: true });
-      if (
-        fs.realpathSync(path.join(this.root, dir)) !== path.join(this.root, dir)
-      )
-        throw new WeaverError("INVALID_INPUT", "内容存储目录不能是软链", {
+      const directory = path.join(this.root, dir);
+      if (dir !== "backups") fs.mkdirSync(directory, { recursive: true });
+      const entry = fs.lstatSync(directory, { throwIfNoEntry: false });
+      if (entry && !entry.isDirectory())
+        throw new WeaverError("INVALID_INPUT", "内容存储路径必须是普通目录", {
           dir,
         });
     }

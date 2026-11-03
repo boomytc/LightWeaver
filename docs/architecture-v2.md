@@ -1,7 +1,5 @@
 # 事务项目与统一制作链
 
-实施基线：430b226，2026-10-31。现场 Node 22.23.3、Python 3.12.2、FFmpeg 8.0.1；原始 data 约 3.9 GB、10 个项目、库 catalog 9 项。原目录保持原位，迁移必须显式执行。
-
 CLI / HTTP / worker 共用 `weaver/src/app`。`contracts` 的 Zod schema 是协议真相源；SQLite 保存可变 head 和不可变版本，SHA-256 CAS 保存字节。JSON 只作为导入导出与不可变快照。项目身份不由方法或路径决定。
 
 选择 SQLite 短事务而非 JSON 加锁：条件更新、请求幂等、作业 fencing 和交付集合切换需要同一个提交点。固定 better-sqlite3 12.6.2，运行基线 Node 22/24。数据库 locator 只保存相对值，运行根由 LIGHTWEAVER_DATA_DIR 解析。
@@ -17,8 +15,6 @@ SQLite、CAS、修订、库版本和公开应用入口已落地。CLI 与 Studio
 作业先保存完成收据，再原子登记目标交付。收据保存在 DB 并引用 CAS，备份恢复可继续复用。崩溃遗留的 operation pin 转为恢复引用，GC 不会永久被已经退出的进程阻塞。
 
 缓存与 current 状态同时包含语义、provider、工具、字体和卡片指纹。标题不会进入 TTS 计算键，locale 和音色分别控制语音失效。向量按文本和绑定保存，源分析记录保留区间与模型绑定。
-
-本轮正式迁移 10 个旧项目、9 个库项，保留 103 项 historical/unverified 派生记录，重建 10 处旧旁白实际源范围。原 JSON 与媒体保留原位。迁移 journal 记录备份及可执行回滚条件。
 
 ## 验收范围调整
 
