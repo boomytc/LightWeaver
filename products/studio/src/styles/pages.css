@@ -191,26 +191,22 @@
 .model-inventory-details {
     margin-top: 8px;
   }
-.model-inventory-details > summary,
-  .model-root > summary {
+.model-inventory-details > summary {
     display: flex;
     min-width: 0;
     align-items: center;
     gap: 8px;
     list-style: none;
   }
-.model-inventory-details > summary::-webkit-details-marker,
-  .model-root > summary::-webkit-details-marker {
+.model-inventory-details > summary::-webkit-details-marker {
     display: none;
   }
-.model-inventory-details > summary::before,
-  .model-root > summary::before {
+.model-inventory-details > summary::before {
     color: var(--lw-muted);
     content: "▸";
     transition: transform 150ms ease;
   }
-.model-inventory-details[open] > summary::before,
-  .model-root[open] > summary::before {
+.model-inventory-details[open] > summary::before {
     transform: rotate(90deg);
   }
 .model-inventory-details > summary {
@@ -225,17 +221,6 @@
     margin-top: 8px;
     padding-top: 8px;
     overflow-wrap: anywhere;
-  }
-.model-root {
-    padding: 12px 14px;
-  }
-.model-root > summary small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-.model-root > .inline-fields {
-    margin-top: 12px;
   }
 .model-files {
     border: 1px solid var(--lw-line);

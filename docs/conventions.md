@@ -163,7 +163,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。源码入口（仓库 CLI、浏览器 Studio、源码桌面）默认以仓库为配置基准，正式桌面包以配置文件所在目录为基准。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
 
-模型下载位置由运行时统一决定：源码入口使用仓库 `data/models/`，正式桌面包使用用户模型目录。私有配置的 `model_download_root` 或环境变量可显式覆盖，相对路径按 `configBase` 解析；`data/` 不进入 Git。
+Studio 的下载位置只读显示，使用系统选择器更换后立即保存，不移动已有文件。模型下载位置由运行时统一决定：源码入口使用仓库 `data/models/`，正式桌面包使用用户模型目录。私有配置的 `model_download_root` 或环境变量可显式覆盖，相对路径按 `configBase` 解析；`data/` 不进入 Git。
 
 配置值按运行时 `configFile`（私有本地配置）、环境变量、内置 `config.yaml` 默认值的顺序解析。三者中的空字符串和纯空白值都视为未设置。`source=file` 表示私有本地配置，`source=environment` 表示环境变量，`source=default` 表示 `config.yaml` 或代码缺省值，`source=unset` 表示没有有效值。源码内置默认文件位于仓库根目录 `config.yaml`；桌面包内位于 `currentRuntime.resourcesDir/config.yaml`。私有覆盖继续写入 `runtime.configFile`，相对路径仍按 `runtime.configBase` 解析。
 
@@ -199,7 +199,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 普通模型操作使用 `weaver models install ID --expected-revision CONFIG_REV --wait` 或 `POST /api/models/:id/install`。`GET /api/models/:id/install-plan` 返回兼容情况、模型剩余下载量、依赖预计体积和文件来源。`source.kind` 优先为 `configured`（当前配置的完整模型，附冻结路径与文件快照），其次为 `downloaded`（下载目录内已有完整文件），缺文件时为 `download`。已有模型不创建下载节点；单个 `model-setup` 作业只准备缺失组件并完整校验已有文件，`model-activate` 最后一次写入配置。采用当前模型时保留全部模型绑定，路径或文件快照变化会拒绝启用；采用下载目录时写入对应模型绑定。依赖失败、取消或配置冲突不会启用模型；失败沿完整依赖链传播，成功的独立步骤可在重试时复用。仅下载文件仍使用 CLI `models download`。
 
-Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复 / 外观”。模型页按状态提供操作：未下载时“下载并启用”，已有完整文件时“启用”，已配置但缺组件时准备运行组件；已启用模型不再显示准备按钮。模型路径只读呈现当前配置，通过系统选择器选择文件或目录后自动校验并采用，不要求用户另行执行校验。提交时携带所见的 `source`，服务端在创建作业前重新核对；来源变化返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新选择操作，不把启用静默改为下载。组件状态与修复入口位于“诊断与修复”，默认只展示就绪状态和必要操作；版本、来源与文件检查收在组件详情中。旧 `runtime` 路由映射到诊断页。
+Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复”。模型页按状态提供操作：未下载时“下载并启用”，已有完整文件时“启用”，已配置但缺组件时准备运行组件；已启用模型不再显示准备按钮。模型路径只读呈现当前配置，通过系统选择器选择文件或目录后自动校验并采用，不要求用户另行执行校验。提交时携带所见的 `source`，服务端在创建作业前重新核对；来源变化返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新选择操作，不把启用静默改为下载。组件状态与修复入口位于“诊断与修复”，默认只展示就绪状态和必要操作；版本、来源与文件检查收在组件详情中。主题在侧栏底部切换。
 
 Studio 的“诊断与修复 → 运行组件与修复”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及共享 Python 运行环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
 

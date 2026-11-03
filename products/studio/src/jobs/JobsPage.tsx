@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EngineSetupResult, RunRecord, z } from "@lightweaver/weaver/contracts";
 import { api } from "../api";
-import { runLabel, runKindLabel } from "../domain/format";
+import { runKindLabel } from "../domain/format";
 import { isActiveRun, RESUMABLE_RUN_STATES, RunDetail } from "../domain/run";
 import { useRunStream } from "./useRunStream";
 import { notifyRunsChanged, useRunList } from "./useRunList";
@@ -54,7 +54,6 @@ export function JobsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [detail, setDetail] = useState<z.infer<typeof RunDetail> | null>(null);
   const { runs, refresh, status: runsStatus, error: runsError } = useRunList((reason) => session.setError(errorMessage(reason)));
-  const peakProgress = useRef(0);
   const visibleRuns = useMemo(() => runs.filter((run) =>
     filter === "all" ||
     (filter === "active" && isActiveRun(run.state)) ||
@@ -103,9 +102,7 @@ export function JobsPage() {
   const selectedRun = runs.find((run) => run.id === selected);
   const totalNodes = detail?.nodes.length || 0;
   const completedNodes = detail?.nodes.filter((node) => node.state === "succeeded").length || 0;
-  const rawProgress = totalNodes ? Math.round(completedNodes / totalNodes * 100) : 0;
-  const progress = Math.max(peakProgress.current, rawProgress);
-  peakProgress.current = progress;
+  const progress = totalNodes ? Math.round(completedNodes / totalNodes * 100) : 0;
   const activeNode = detail?.nodes.find((node) => node.state === "running");
   return (
     <PageFrame
@@ -150,8 +147,8 @@ export function JobsPage() {
               <button key={run.id} type="button" className={`row-item ${selected === run.id ? "is-on" : ""}`} onClick={() => selectRun(run.id)}>
                 <span className="dropzone-icon size-8"><JobsIcon /></span>
                 <span className="row-item-copy">
-                  <span className="flex items-center gap-2"><b>{runKindLabel(run.kind)}</b><RunBadge state={run.state} /></span>
-                  <small className="numeric mt-1">{run.id.slice(0, 12)}{run.projectId ? ` · ${run.projectId}` : ""}</small>
+                  <span className="flex items-center gap-2"><b>{runKindLabel(run.kind)}</b><RunStatus state={run.state} dot /></span>
+                  <small className="numeric mt-1">{new Date(run.updatedAt).toLocaleString()}{run.projectId ? ` · ${run.projectId}` : ""}</small>
                 </span>
               </button>
             ))}
@@ -164,8 +161,8 @@ export function JobsPage() {
             <div className="narrow-content flex flex-col gap-4">
               <div className="section-title items-start">
                 <div className="flex-col gap-1" data-align="start">
-                  <div className="flex flex-wrap items-center gap-2"><h2 className="m-0">{runKindLabel(selectedRun.kind)}</h2><RunBadge state={selectedRun.state} /></div>
-                  <small className="numeric">作业 {selectedRun.id}</small>
+                  <div className="flex flex-wrap items-center gap-2"><h2 className="m-0">{runKindLabel(selectedRun.kind)}</h2><RunStatus state={selectedRun.state} dot /></div>
+                  <small className="numeric">更新于 {new Date(selectedRun.updatedAt).toLocaleString()}</small>
                 </div>
                 <div className="flex flex-wrap justify-end gap-1.5">
                   {selectedRun.projectId && <Button size="sm" variant="ghost" onClick={() => void session.navigate("projects", selectedRun.projectId || "")}><ProjectIcon />打开项目</Button>}
@@ -177,21 +174,15 @@ export function JobsPage() {
               </div>
               {detail && (
                 <ProgressBar
-                  value={selectedRun && !isActiveRun(selectedRun.state) && selectedRun.state === "succeeded" ? 100 : progress}
+                  value={progress}
                   label="作业进度"
                   stage={`${completedNodes}/${totalNodes} 节点${activeNode ? ` · ${nodeLabel(activeNode.key)}` : ""}`}
                 />
               )}
               {stream.error && <p className="error m-0">{stream.error}</p>}
               {selectedRun.error && <div className="rounded-md border border-danger-line bg-danger-bg p-3 text-danger"><b>作业错误</b><p className="m-0 mt-1">{selectedRun.error.message}</p></div>}
-              <dl className="key-value-list panel-card px-4">
-                <dt>作业类型</dt><dd>{runKindLabel(selectedRun.kind)} · {selectedRun.kind}</dd>
-                <dt>当前状态</dt><dd>{runLabel(selectedRun.state)}</dd>
-                <dt>所属项目</dt><dd>{selectedRun.projectId || "无项目"}</dd>
-                <dt>更新时间</dt><dd className="numeric">{selectedRun.updatedAt}</dd>
-              </dl>
               <section className="flex flex-col gap-2">
-                <div className="section-title"><h3 className="m-0 text-sm">节点执行步骤</h3>{detail && <Badge>{detail.nodes.filter((node) => node.state === "succeeded").length}/{detail.nodes.length} 完成</Badge>}</div>
+                <h3 className="m-0 text-sm">节点执行步骤</h3>
                 {!detail && <p className="hint">正在读取作业详情…</p>}
                 <div className="flex flex-col">
                   {detail?.nodes.map((node, index) => (
@@ -200,7 +191,6 @@ export function JobsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <b className="text-xs">{nodeLabel(node.key)}</b>
-                          <small className="numeric text-xs">{node.key} · 尝试 {node.attempts} 次</small>
                         </div>
                         {node.error != null && (
                           <details className="mt-1">
@@ -215,7 +205,7 @@ export function JobsPage() {
                             </p>
                           ))}
                       </div>
-                      <RunBadge state={node.state} />
+                      <RunStatus state={node.state} dot />
                     </div>
                   ))}
                 </div>
@@ -227,8 +217,4 @@ export function JobsPage() {
       </div>
     </PageFrame>
   );
-}
-
-function RunBadge({ state }: { state: string }) {
-  return <RunStatus state={state} dot />;
 }

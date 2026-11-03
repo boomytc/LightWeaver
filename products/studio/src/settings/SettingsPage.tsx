@@ -30,25 +30,14 @@ const sections = [
   ["models", "模型与供应商"],
   ["storage", "存储"],
   ["diagnostics", "诊断与修复"],
-  ["appearance", "外观"],
 ] as const;
-
-const legacySections: Record<string, string> = {
-  runtime: "diagnostics",
-};
-
-const themeLabel: Record<string, string> = {
-  system: "跟随系统",
-  light: "浅色",
-  dark: "深色",
-};
 
 export function SettingsPage() {
   const session = useSession();
-  const requested = legacySections[session.route.section] || session.route.section;
+  const requested = session.route.section;
   const section = sections.some((item) => item[0] === requested) ? requested : "models";
   return (
-    <PageFrame title="设置" description="选择模型与供应商，管理存储、应用维护和外观。" scroll={false}>
+    <PageFrame title="设置" description="选择模型、管理存储与检查运行组件。" scroll={false}>
       <Tabs.Root className="split-page grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)]" value={section} onValueChange={(value) => void session.navigate("settings", "", value)}>
         <Tabs.List className="flex flex-col gap-1 border-r border-line p-3" aria-label="设置分区">
           {sections.map(([value, label]) => (
@@ -71,20 +60,6 @@ export function SettingsPage() {
                 <EngineSettings />
                 <DiagnosticsSection />
                 <RuntimeSection />
-              </section>
-            </Tabs.Content>
-            <Tabs.Content value="appearance">
-              <section className="panel-card flex flex-col gap-4 p-5" aria-labelledby="appearance-title">
-                <div>
-                  <h2 id="appearance-title" className="m-0">外观</h2>
-                  <p className="hint m-0 mt-1">
-                    在左下角切换主题，即时生效。
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-                  <span className="text-xs font-medium text-muted">当前主题</span>
-                  <Badge tone="accent" dot>{themeLabel[session.client.theme]}</Badge>
-                </div>
               </section>
             </Tabs.Content>
           </div>

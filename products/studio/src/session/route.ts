@@ -9,10 +9,8 @@ const pages = new Set(["projects", "methods", "voices", "library", "jobs", "sett
 export function currentRoute(): Route {
   const url = new URL(location.href);
   const path = url.pathname.split("/").filter(Boolean);
-  let page = path[0] || "projects";
-  if (page === "films") page = "projects";
-  if (page === "models") page = "settings";
-  if (!pages.has(page)) page = "projects";
+  const requested = path[0] || "projects";
+  const page = pages.has(requested) ? requested : "projects";
   return {
     page,
     projectId: page === "projects" ? path[1] || "" : "",

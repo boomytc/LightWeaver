@@ -14,6 +14,8 @@ import { api, ApiError } from "../api";
 import { useSession } from "../session/context";
 import { desktop, openLink } from "../desktop";
 import { notifyRunsChanged } from "../jobs/useRunList";
+import { useRunStream } from "../jobs/useRunStream";
+import { isActiveRun } from "../domain/run";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { ArrowLeftIcon } from "../ui/Icons";
@@ -24,16 +26,6 @@ type ModelSelection = { kind: "provider" } | { kind: "local"; id: string } | nul
 const capabilityLabel: Record<string, string> = { asr: "语音识别", embedding: "文字与画面检索", alignment: "精确字幕对齐", vad: "语音活动检测" };
 const formatBytes = (bytes: number) => bytes >= 1024 ** 3
   ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.ceil(bytes / 1024 ** 2)} MB`;
-
-const RunDetail = z.object({
-  run: RunRecord,
-  nodes: z.array(
-    z.object({
-      state: z.string(),
-      result: z.unknown().nullable(),
-    }),
-  ),
-});
 
 const stateLabel: Record<string, string> = {
   queued: "排队",
@@ -229,13 +221,12 @@ export function ModelSettings({
 }) {
   const session = useSession();
   const [view, setView] = useState<z.infer<typeof ModelsView> | null>(null),
-    [root, setRoot] = useState(""),
     [apiKey, setApiKey] = useState(""),
     [runId, setRunId] = useState(""),
-    [events, setEvents] = useState<z.infer<typeof EventRecord>[]>([]),
+    [progress, setProgress] = useState<z.infer<typeof EventRecord> | null>(null),
     [busy, setBusy] = useState(""),
-    [pollGeneration, setPollGeneration] = useState(0),
     [selection, setSelection] = useState<ModelSelection>(null);
+  const root = view?.settings.downloadRoot.value || "";
   const [checks, setChecks] = useState<Partial<Record<string, ModelCheck>>>({});
   const [installPlan, setInstallPlan] = useState<{ key: string; value: z.infer<typeof ModelInstallPlan> } | null>(null);
   const selectedModel = selection?.kind === "local" ? selection.id : "";
@@ -289,7 +280,7 @@ export function ModelSettings({
     verify.then(async (result) => {
       if (!controller.signal.aborted && "snapshot" in result &&
         JSON.stringify(result.snapshot) !== JSON.stringify({ bindings: selectedState.activeBindings, files: selectedState.activeFiles })) {
-        await refreshModels(false, controller.signal);
+        await refreshModels(controller.signal);
         return;
       }
       if (!controller.signal.aborted) setChecks((current) => ({ ...current, [id]: { key: checkKey, state: result.state } }));
@@ -306,94 +297,60 @@ export function ModelSettings({
       });
     };
   }, [checkKey]);
-  const rootRef = useRef(""),
-    rootDirty = useRef(false),
-    refreshGeneration = useRef(0),
+  const refreshGeneration = useRef(0),
+    refreshController = useRef<AbortController | null>(null),
+    settledRun = useRef(""),
     sectionRef = useRef<HTMLElement>(null),
     listScroll = useRef(0),
     mutationPending = useRef(false);
 
-  const refreshModels = async (resetRoot: boolean, signal?: AbortSignal) => {
-    const generation = ++refreshGeneration.current,
-      requestedRoot = rootRef.current,
-      query = requestedRoot ? `?root=${encodeURIComponent(requestedRoot)}` : "";
-    const next = await api(`/models${query}`, ModelsView, { signal });
-    if (signal?.aborted || rootRef.current !== requestedRoot || refreshGeneration.current !== generation) return next;
+  const refreshModels = async (signal = refreshController.current?.signal) => {
+    const generation = ++refreshGeneration.current;
+    const next = await api("/models", ModelsView, { signal });
+    if (signal?.aborted || refreshGeneration.current !== generation) return next;
     setView(next);
-    if (resetRoot && !rootDirty.current) {
-      rootRef.current = next.settings.downloadRoot.value;
-      setRoot(next.settings.downloadRoot.value);
-    }
-    const latest = next.downloads.find((item) =>
-      ["queued", "running", "cancelling"].includes(item.state),
-    ) || next.downloads[0];
-    if (latest) setRunId(latest.id);
+    const latest = next.downloads.find((item) => isActiveRun(item.state)) || next.downloads[0];
+    setRunId(latest?.id || "");
     return next;
   };
 
   useEffect(() => {
     const controller = new AbortController();
-    refreshModels(true, controller.signal).catch((error) => {
+    refreshController.current = controller;
+    refreshModels(controller.signal).catch((error) => {
       if (!controller.signal.aborted) fail(error);
     });
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    if (!runId) return;
-    const controller = new AbortController(),
-      source = new EventSource(`/api/runs/${runId}/events`);
-    source.addEventListener("weaver", (event) => {
-      if (controller.signal.aborted) return;
-      try {
-        const value = EventRecord.parse(JSON.parse(event.data));
-        setEvents((current) => [...current.slice(-99), value]);
-      } catch (error) {
-        fail(error);
-      }
-    });
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      try {
-        const detail = await api(`/runs/${runId}`, RunDetail, {
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted) return;
-        setView((current) => current && ({
-          ...current,
-          downloads: current.downloads.map((item) => item.id === runId ? detail.run : item),
-        }));
-        if (
-          ["queued", "running", "cancelling"].includes(detail.run.state)
-        )
-          timer = setTimeout(poll, 1000);
-        else {
-          source.close();
-          notifyRunsChanged();
-          await refreshModels(false, controller.signal);
-          if (!controller.signal.aborted) window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) fail(error);
-      }
-    };
-    poll();
-    return () => {
-      controller.abort();
-      source.close();
-      clearTimeout(timer);
-    };
-  }, [runId, pollGeneration]);
+  const stream = useRunStream({
+    runId,
+    onDetail: ({ run }) => {
+      setView((current) => current && ({ ...current,
+        downloads: current.downloads.map((item) => item.id === run.id ? run : item) }));
+      if (isActiveRun(run.state) || settledRun.current === run.id) return;
+      settledRun.current = run.id;
+      notifyRunsChanged();
+      void refreshModels().then(() => {
+        if (!refreshController.current?.signal.aborted)
+          window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
+      }).catch((error) => { if (!refreshController.current?.signal.aborted) fail(error); });
+    },
+    onEvent: (event) => {
+      if (["model-download-progress", "engine-install-progress", "model-setup-progress"].includes(event.type))
+        setProgress(event);
+    },
+    onError: fail,
+  });
 
   const local = useMemo(
     () =>
       view?.catalog.localModels.map((model) => {
         const current = view.local.find((item) => item.id === model.id),
           status = current?.status,
-          activeBindings = current?.activeBindings || [],
+          paths = current?.activeBindings || [],
           activeFiles = current?.activeFiles || [],
           runtime = current?.runtime || [],
-          paths = activeBindings,
           pathsReady = paths.length > 0 && paths.every((binding) => binding.state === "present"),
           pathsUnset = paths.length === 0 || paths.every((binding) => binding.state === "unset"),
           check = checks[model.id]?.key === modelCheckKey(model.id, current) ? checks[model.id] : undefined,
@@ -425,10 +382,19 @@ export function ModelSettings({
   ) => {
     const key = JSON.stringify([endpoint, payload]);
     const attempt = session.stableRequest(key);
-    const submit = () => api(endpoint, ModelSettingsView, {
-      method,
-      body: { ...payload, requestId: attempt.requestId },
-    });
+    const submit = async () => {
+      try {
+        return await api(endpoint, ModelSettingsView, {
+          method, body: { ...payload, requestId: attempt.requestId },
+        });
+      } catch (error) {
+        if (error instanceof ApiError && error.protocol.code === "CONFIG_CONFLICT") {
+          await refreshModels();
+          throw new ApiError({ ...error.protocol, message: "模型设置已更新，请重试此操作。", hints: [] });
+        }
+        throw error;
+      }
+    };
     let saved: z.infer<typeof ModelSettingsView>;
     try { saved = await submit(); }
     catch (error) {
@@ -441,8 +407,6 @@ export function ModelSettings({
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     if (!view) return;
-    const submittedRoot =
-      typeof patch.downloadRoot === "string" ? patch.downloadRoot : undefined;
     const submittedApiKey = apiKey;
     const saved = await writeSettings("/models/settings", "PUT", {
       expectedRevision: view.settings.revision,
@@ -450,12 +414,8 @@ export function ModelSettings({
     });
     if ("modelbestApiKey" in patch || patch.clearModelbestApiKey)
       setApiKey((current) => current === submittedApiKey ? "" : current);
-    if (submittedRoot !== undefined && rootRef.current === submittedRoot) {
-      rootDirty.current = false;
-      rootRef.current = saved.downloadRoot.value;
-      setRoot(saved.downloadRoot.value);
-    }
-    await refreshModels(false);
+    setView((current) => current && ({ ...current, settings: saved }));
+    await refreshModels();
     window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
   };
 
@@ -477,15 +437,10 @@ export function ModelSettings({
 
   const adoptModel = (id: string, path: string) => mutate("应用模型路径", async () => {
     if (!view) return;
-    try {
-      await writeSettings(`/models/${encodeURIComponent(id)}/adopt`, "POST", {
-        path, expectedRevision: view.settings.revision,
-      });
-    } catch (error) {
-      if (error instanceof ApiError && error.protocol.code === "CONFIG_CONFLICT") await refreshModels(false);
-      throw error;
-    }
-    await refreshModels(false);
+    await writeSettings(`/models/${encodeURIComponent(id)}/adopt`, "POST", {
+      path, expectedRevision: view.settings.revision,
+    });
+    await refreshModels();
     window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
   });
 
@@ -500,7 +455,13 @@ export function ModelSettings({
           method: "POST", body: { ...payload, requestId: attempt.requestId },
         });
       } catch (reason) {
-        if (reason instanceof ApiError && reason.protocol.code === "MODEL_FILES_CHANGED") await refreshModels(false);
+        if (reason instanceof ApiError) {
+          if (reason.protocol.code === "CONFIG_CONFLICT") {
+            await refreshModels();
+            throw new ApiError({ ...reason.protocol, message: "模型设置已更新，请重试此操作。", hints: [] });
+          }
+          if (reason.protocol.code === "MODEL_FILES_CHANGED") await refreshModels();
+        }
         throw reason;
       }
     };
@@ -509,8 +470,8 @@ export function ModelSettings({
     catch (reason) { if (reason instanceof ApiError) throw reason; next = await submit(); }
     session.completeStableRequest(key, attempt);
     setRunId(next.id);
-    setPollGeneration((value) => value + 1);
-    setEvents([]);
+    if (next.id === runId) stream.retry();
+    setProgress(null);
     notifyRunsChanged();
     setView((current) => current && ({ ...current,
       downloads: [next, ...current.downloads.filter((item) => item.id !== next.id)] }));
@@ -525,10 +486,7 @@ export function ModelSettings({
 
   if (!view) return <section className="flex flex-col gap-5"><p>加载模型设置…</p></section>;
   const provider = view.catalog.providers[0],
-    progress = [...events].reverse().find((event) =>
-      event.runId === runId && ["model-download-progress", "engine-install-progress", "model-setup-progress"].includes(event.type),
-    ),
-    activeRun = view.downloads.find((item) => ["queued", "running", "cancelling"].includes(item.state));
+    activeRun = view.downloads.find((item) => isActiveRun(item.state));
   const presetActive = view.settings.values.vlmProvider.value === "modelbest-vlm" &&
     view.settings.values.vlmModel.value === provider.models[0]?.id &&
     view.settings.values.ttsModel.value === provider.models[1]?.id;
@@ -542,7 +500,7 @@ export function ModelSettings({
     <div className="subtle-card flex items-center gap-3 p-3" role="status">
       <div className="min-w-0 flex-1">
         <small>模型{stateLabel[activeRun.state]}</small>
-        {activeRun.id === runId && progress && <ProgressEvent event={progress.data} />}
+        {progress?.runId === activeRun.id && <ProgressEvent event={progress.data} />}
       </div>
       <Button size="sm" variant="ghost" onClick={onOpenJobs}>查看任务</Button>
     </div>
@@ -581,52 +539,16 @@ export function ModelSettings({
           </section>
           <section className="flex flex-col gap-3" aria-label="本地模型">
             <div className="section-title"><h3 className="m-0">本地模型</h3><small>按需准备，在本机处理</small></div>
-            <details className="panel-card model-root">
-              <summary><b>下载根目录</b><small className="numeric" title={root}>{root || "未设置"}{rootDirty.current ? " · 未保存" : ""}</small></summary>
-              <div className="inline-fields">
-                <label className="field">
-                  <span>下载根目录</span>
-                  <input
-                    value={root}
-                    disabled={!!busy}
-                    onBlur={() => refreshModels(false).catch(fail)}
-                    onChange={(event) => {
-                      rootDirty.current = true;
-                      rootRef.current = event.target.value;
-                      setRoot(event.target.value);
-                    }}
-                  />
-                  <small>
-                    {rootDirty.current
-                      ? "未保存，离开输入框后刷新文件状态"
-                      : `来源：${view.settings.downloadRoot.source}`}
-                  </small>
-                </label>
-                <Button
-                  type="button"
-                  disabled={!!busy}
-                  onClick={() =>
-                    void desktop()?.pickDirectory?.().then((picked) => {
-                      if (!picked) return;
-                      rootDirty.current = true;
-                      rootRef.current = picked;
-                      setRoot(picked);
-                      void refreshModels(false).catch(fail);
-                    }).catch(fail)
-                  }
-                >
-                  选择目录
-                </Button>
-                <Button
-                  disabled={!root.trim() || root === view.settings.downloadRoot.value || !!busy}
-                  onClick={() =>
-                    act("保存路径", () => saveSettings({ downloadRoot: root }))
-                  }
-                >
-                  保存下载路径
-                </Button>
+            <div className="panel-card flex flex-wrap items-center gap-3 p-4">
+              <div className="min-w-0 flex-1">
+                <b>模型下载位置</b>
+                <small className="numeric block break-all" title={root}>{root}</small>
               </div>
-            </details>
+              {desktop()?.pickDirectory && <Button disabled={!!busy || !!activeRun} onClick={() => void act("更换下载位置", async () => {
+                const picked = await desktop()?.pickDirectory?.();
+                if (picked && picked !== root) await saveSettings({ downloadRoot: picked });
+              })}>{busy === "更换下载位置" ? "保存中…" : "更换位置"}</Button>}
+            </div>
             <div className="model-inventory-grid">
               {local.map(({ model, enabled, readiness, check }) => (
                 <article key={model.id} className="panel-card model-inventory-card">
@@ -692,7 +614,7 @@ export function ModelSettings({
                       "POST",
                       { expectedRevision: view.settings.revision },
                     );
-                    await refreshModels(false);
+                    await refreshModels();
                     window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
                   })
                 }
@@ -710,11 +632,7 @@ export function ModelSettings({
                   placeholder={provider.apiKeyConfigured ? "已配置，留空保持不变" : "粘贴密钥"}
                   onChange={(event) => setApiKey(event.target.value)}
                 />
-                <small>
-                  {view.settings.apiKeys.modelbest.source === "environment"
-                    ? "当前使用环境变量中的密钥，可在此保存新密钥覆盖。"
-                    : "保存后立即生效，密钥不会回显。"}
-                </small>
+                {view.settings.apiKeys.modelbest.source === "environment" && <small>当前使用环境变量中的密钥，保存新密钥将覆盖它。</small>}
               </label>
               <Button
                 variant="primary"

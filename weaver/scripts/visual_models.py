@@ -45,9 +45,9 @@ def regular_file(value, label):
 
 
 def executable(value):
-    file = regular_file(value, "visual_server")
+    file = regular_file(value, "llama_server")
     if not os.access(file, os.X_OK):
-        raise ModelError("CONFIG_MISSING", f"visual_server 不可执行: {file}")
+        raise ModelError("CONFIG_MISSING", f"llama_server 不可执行: {file}")
     return file
 
 

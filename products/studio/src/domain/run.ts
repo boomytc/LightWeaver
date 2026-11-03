@@ -15,7 +15,7 @@ export const RunDetail = z.object({
 
 export type RunStateValue = z.infer<typeof RunRecord>["state"];
 
-export const ACTIVE_RUN_STATES: ReadonlySet<RunStateValue> = new Set([
+export const ACTIVE_RUN_STATES: ReadonlySet<string> = new Set<RunStateValue>([
   "queued",
   "running",
   "cancelling",
@@ -29,5 +29,5 @@ export const RESUMABLE_RUN_STATES: ReadonlySet<RunStateValue> = new Set([
 ]);
 
 export function isActiveRun(state: string) {
-  return ACTIVE_RUN_STATES.has(state as RunStateValue);
+  return ACTIVE_RUN_STATES.has(state);
 }

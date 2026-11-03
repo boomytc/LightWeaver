@@ -57,7 +57,7 @@ def inspect(model, server):
             missing.append("translation_model")
     server_path = Path(server)
     if not server_path.is_file() or not os.access(server_path, os.X_OK):
-        missing.append("translation_server")
+        missing.append("llama_server")
         server_version = ""
     else:
         result = subprocess.run(
@@ -154,7 +154,7 @@ def translate(job):
     model = validate_model(job["model"])
     server = Path(job["server"])
     if not server.is_file() or not os.access(server, os.X_OK):
-        raise ModelError("CONFIG_MISSING", "translation_server 不存在或不可执行")
+        raise ModelError("CONFIG_MISSING", "llama_server 不存在或不可执行")
     target_locale = str(job.get("targetLocale") or "")
     language = language_name(target_locale)
     texts = job.get("texts")
