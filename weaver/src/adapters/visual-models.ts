@@ -104,7 +104,7 @@ export class VisualModels {
       mmproj: this.localPath(
         this.value("LIGHTWEAVER_VISUAL_MMPROJ", "visual_mmproj"),
       ),
-      server: runtimeBinding("visual_server").value,
+      server: runtimeBinding("llama_server").value,
       python: runtimeBinding("python").value,
       script: resourcePath("weaver", "scripts", "visual_models.py"),
     };

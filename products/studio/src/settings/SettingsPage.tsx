@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
+import { z } from "@lightweaver/weaver/contracts";
 import { api } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
@@ -12,54 +12,18 @@ import { ModelSettings } from "./ModelSettings";
 import { EngineSettings } from "./EngineSettings";
 
 const RuntimeView = z.object({
-  platform: z.string(),
-  mode: z.string().optional(),
   dataDir: z.string(),
   configFile: z.string(),
-  configBase: z.string(),
   modelDir: z.string(),
   engineDir: z.string(),
   logDir: z.string(),
-  resourcesDir: z.string().optional(),
   cli: z.object({ node: z.string(), entry: z.string(), command: z.string(), shell: z.string() }).nullable(),
-  requirements: z.array(z.object({ name: z.string(), file: z.string() })),
-  tools: z.object({
-    node: z.boolean(),
-    ffmpeg: z.boolean(),
-    ffprobe: z.boolean(),
-    cardRenderer: z.boolean(),
-    cardBrowser: z.boolean(),
-    cardSite: z.boolean(),
-    python: z.boolean(),
-  }),
 });
 
-const DoctorView = z.object({
+const DoctorView = z.looseObject({
   node: z.string(),
   sqlite: z.string(),
   checks: z.array(z.object({ tool: z.string(), ok: z.boolean(), version: z.string() })),
-  providers: z.array(ProviderDescriptor),
-  modules: z.record(z.string(), z.boolean()).optional(),
-  alignmentRuntime: z.object({ available: z.boolean(), missing: z.array(z.string()).optional() }).optional(),
-  speechRuntime: z.object({ available: z.boolean(), missing: z.array(z.string()).optional() }).optional(),
-  jianying: z.unknown().optional(),
-  engines: z
-    .object({
-      ready: z.boolean().optional(),
-      coreReady: z.boolean().optional(),
-      root: z.object({ value: z.string(), source: z.string() }).optional(),
-      counts: z
-        .object({
-          total: z.number(),
-          installed: z.number(),
-          managed: z.number(),
-          external: z.number(),
-          unused: z.number(),
-          partial: z.number(),
-        })
-        .optional(),
-    })
-    .optional(),
 });
 
 const sections = [
@@ -193,14 +157,6 @@ function RuntimeSection() {
             <div className="contents" key={label}><dt>{label}</dt><dd className="numeric">{value}</dd></div>
           ))}
         </dl>
-        <div className="flex flex-wrap gap-3">
-          {Object.entries(runtime.tools).map(([name, ready]) => (
-            <span className="inline-flex items-center gap-1.5 text-xs" key={name}>
-              <span className="text-muted">{name}</span>
-              <Badge tone={ready ? "ok" : "warn"} dot>{ready ? "已找到" : "未找到"}</Badge>
-            </span>
-          ))}
-        </div>
         {runtime.cli && (
           <pre className="code-block">{`${runtime.cli.command} capabilities --json`}</pre>
         )}
@@ -214,9 +170,12 @@ function DiagnosticsSection() {
   const [doctor, setDoctor] = useState<z.infer<typeof DoctorView> | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   useEffect(() => {
-    api("/doctor", DoctorView).then(setDoctor).catch((reason) => session.setError(String(reason)));
+    const controller = new AbortController();
+    api("/doctor", DoctorView, { signal: controller.signal })
+      .then((value) => { if (!controller.signal.aborted) setDoctor(value); })
+      .catch((reason) => { if (!controller.signal.aborted) session.handleError(reason); });
+    return () => controller.abort();
   }, []);
-  const counts = doctor?.engines?.counts;
   return (
     <details className="p-5">
       <summary className="font-medium">诊断及应用信息</summary>
@@ -227,12 +186,6 @@ function DiagnosticsSection() {
           </p>
           <Button size="sm" type="button" disabled={!doctor} onClick={() => setDetailOpen(true)}>详情</Button>
         </div>
-        {counts && (
-          <small>
-            运行组件：应用提供 {counts.installed}/{counts.total} · 使用外部路径{" "}
-            {counts.external} · 未配置 {counts.unused + counts.partial}
-          </small>
-        )}
         {!doctor && <p>正在读取诊断…</p>}
         {doctor && (
           <>

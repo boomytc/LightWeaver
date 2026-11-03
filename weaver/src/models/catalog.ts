@@ -155,7 +155,7 @@ const embeddingModel: DownloadableLocalModel = {
     ],
     runtimeRequirements: [
       {
-        setting: "visual_server",
+        setting: "llama_server",
         label: "支持 EmbeddingGemma 的 llama-server",
         kind: "executable",
         documentationUrl: LLAMA_SERVER_DOC,

@@ -170,7 +170,7 @@ export class SpeechModels {
       translationModel: this.localPath(
         this.value("LIGHTWEAVER_TRANSLATION_MODEL", "translation_model"),
       ),
-      translationServer: runtimeBinding("translation_server").value,
+      translationServer: runtimeBinding("llama_server").value,
     };
   }
 
@@ -331,7 +331,7 @@ export class SpeechModels {
             !this.isGguf(settings.translationModel)
               ? ["translation_model:GGUF"]
               : []),
-            ...(!settings.translationServer ? ["translation_server"] : []),
+            ...(!settings.translationServer ? ["llama_server"] : []),
           ];
     if (!missing.length) return;
     throw new WeaverError(

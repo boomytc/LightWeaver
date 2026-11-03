@@ -475,9 +475,7 @@ function llamaServer(platform: string): z.input<typeof EngineCatalogItem> {
       LLAMA_DOC,
       `当前平台 ${platform} 没有已核验的 llama-server 预编译产物`,
       [
-        { setting: "visual_server", target: "executable", file: binary },
         { setting: "llama_server", target: "executable", file: binary },
-        { setting: "translation_server", target: "executable", file: binary },
       ],
       true,
     );
@@ -491,9 +489,7 @@ function llamaServer(platform: string): z.input<typeof EngineCatalogItem> {
     summary: "GGUF 视觉检索、重排与字幕翻译的本地服务",
     documentationUrl: LLAMA_DOC,
     bindings: [
-      { setting: "visual_server", target: "executable", file: binary },
       { setting: "llama_server", target: "executable", file: binary },
-      { setting: "translation_server", target: "executable", file: binary },
     ],
     files,
     optional: true,

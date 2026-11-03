@@ -11,8 +11,6 @@ const environments: Record<string, string> = {
   asr_bindings: "LIGHTWEAVER_ASR_BINDINGS",
   vad_library: "LIGHTWEAVER_VAD_LIBRARY",
   llama_server: "LIGHTWEAVER_LLAMA_SERVER",
-  visual_server: "LIGHTWEAVER_VISUAL_SERVER",
-  translation_server: "LIGHTWEAVER_TRANSLATION_SERVER",
   python: "LIGHTWEAVER_PYTHON",
 };
 

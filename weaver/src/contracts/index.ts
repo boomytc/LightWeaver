@@ -1105,7 +1105,6 @@ export const EngineActiveBinding = z.strictObject({
 export const EngineUsage = z.enum([
   "bundled",
   "managed",
-  "managed-unused",
   "external",
   "unused",
   "partial",

@@ -32,10 +32,10 @@ function nextEngineAction({ item, current, verification }: {
   current: EngineItemStatusValue;
   verification: EngineVerifyValue | null;
 }): EngineAction {
-  if (!item.available) return "none";
-  const { status, usage } = current;
+  if (!item.available || current.usage === "external") return "none";
+  const { status } = current;
   if (status.version && status.version !== item.version) return "update";
-  if (status.state === "missing") return usage === "external" || usage === "bundled" ? "none" : "install";
+  if (status.state === "missing") return "install";
   if (status.state === "unchecked") return "none";
   if (status.state === "invalid" || verification && verification.state !== "verified") return status.version ? "repair" : "none";
   return "none";
@@ -50,28 +50,13 @@ const EngineProgress = z.object({
 });
 type EngineProgressValue = z.infer<typeof EngineProgress>;
 
-const engineStateLabel: Record<string, string> = {
-  missing: "未安装",
-  installed: "已安装",
-  unchecked: "已放置待校验",
-  invalid: "不完整或版本不符",
-};
-const engineStateTone: Record<string, "neutral" | "ok" | "warn" | "danger"> = {
-  missing: "neutral",
-  installed: "ok",
-  unchecked: "warn",
-  invalid: "danger",
-};
 type EngineUsage = EngineItemStatusValue["usage"];
-const usageBadge: Record<
-  Exclude<EngineUsage, "unused">,
-  { label: string; tone: "ok" | "warn" | "accent" | "neutral" }
-> = {
+const usageBadge: Record<EngineUsage, { label: string; tone: "ok" | "warn" | "accent" | "neutral" }> = {
   bundled: { label: "应用自带", tone: "ok" },
-  managed: { label: "已安装 · 已采用", tone: "ok" },
-  "managed-unused": { label: "已安装 · 未采用", tone: "warn" },
-  external: { label: "使用外部路径", tone: "accent" },
-  partial: { label: "部分绑定可用", tone: "warn" },
+  managed: { label: "可用", tone: "ok" },
+  external: { label: "外部组件可用", tone: "accent" },
+  unused: { label: "未安装", tone: "neutral" },
+  partial: { label: "需检查", tone: "warn" },
 };
 const runStateLabel: Record<string, string> = {
   queued: "排队中",
@@ -118,9 +103,7 @@ const settingLabel: Record<string, string> = {
   asr_library: "ASR transcribe native library",
   asr_bindings: "ASR transcribe Python bindings",
   vad_library: "TEN VAD 运行库",
-  visual_server: "EmbeddingGemma llama-server",
   llama_server: "llama-server",
-  translation_server: "字幕翻译 llama-server",
   python: "Python 运行环境",
 };
 
@@ -217,35 +200,12 @@ export function EngineSettings() {
     );
 
   const statuses = new Map(view.items.map((item) => [item.id, item]));
-  const setupStatuses = view.setupComponents.flatMap((id) => {
-    const current = statuses.get(id);
-    return current ? [current] : [];
-  });
-  const usageCounts = setupStatuses.reduce(
-    (counts, current) => {
-      counts[current.usage] += 1;
-      return counts;
-    },
-    { bundled: 0, managed: 0, "managed-unused": 0, external: 0, unused: 0, partial: 0 } as Record<
-      EngineUsage,
-      number
-    >,
-  );
   return (
     <section className="flex flex-col gap-4 p-5" aria-label="本地运行环境">
       <SetupPanel view={view} statuses={statuses} onRefresh={refresh} />
       <details className="border-t border-line pt-4">
-        <summary className="font-medium">组件清单与高级手动操作</summary>
+        <summary className="font-medium">组件详情</summary>
         <div className="mt-3 flex flex-col gap-3">
-          <small className="numeric">组件目录：{view.installRoot.value}</small>
-          <small>
-            本应用提供 {usageCounts.bundled + usageCounts.managed + usageCounts["managed-unused"]}/
-            {setupStatuses.length} · 使用外部路径 {usageCounts.external} · 未配置{" "}
-            {usageCounts.unused + usageCounts.partial}
-          </small>
-          <p className="hint m-0">
-            通常不需要展开：已安装组件自动使用，仅在需要更新、修复或校验时操作。
-          </p>
           <div className="model-inventory-grid">
             {view.catalog.items.map((item) => {
               const status = statuses.get(item.id);
@@ -277,7 +237,6 @@ function SetupPanel({
   statuses: Map<string, EngineItemStatusValue>;
   onRefresh: () => Promise<void>;
 }) {
-  const session = useSession();
   const setup = useSetupRun(() => view.settings.revision, onRefresh);
   const items = setupItems(view);
   const rows = items.map((item) => {
@@ -298,7 +257,8 @@ function SetupPanel({
   const catalog = new Map(view.catalog.items.map((item) => [item.id, item]));
   const missingEngineBytes = items.reduce((total, item) => {
     const installed = statuses.get(item.id)?.status.state === "installed";
-    return installed ? total : total + item.estimatedBytes;
+    const external = statuses.get(item.id)?.usage === "external";
+    return installed || external ? total : total + item.estimatedBytes;
   }, 0);
   const requiredBytes = missingEngineBytes + SPACE_MARGIN_BYTES;
   const diskFree = view.diskFreeBytes;
@@ -313,19 +273,15 @@ function SetupPanel({
   const skipped = setupResult?.success ? setupResult.data.skipped : [];
   const partial = setup.run?.state === "succeeded" && skipped.length > 0;
   const label = busy
-    ? "配置中…"
+    ? "处理中…"
     : !needsSetup
       ? "刷新状态"
       : partial
         ? "继续修复"
         : view.updates.length > 0
-          ? "更新并配置"
-          : failed ? "重试配置" : "检查并修复";
+          ? "更新组件"
+          : failed ? "重试" : "检查并修复";
   const readyCount = rows.filter((row) => row.ready).length;
-  const externalCount = rows.filter((row) => row.status?.usage === "external").length;
-  const missingCount = rows.filter(
-    (row) => row.status?.usage === "unused" || row.status?.usage === "partial",
-  ).length;
   const runNodes = setup.detail?.nodes.filter((node) => node.key !== "adopt") ?? [];
   const runSucceeded = runNodes.filter((node) => node.state === "succeeded").length;
   const progress = runNodes.length > 0 ? Math.round((runSucceeded / runNodes.length) * 100) : undefined;
@@ -336,19 +292,19 @@ function SetupPanel({
         <div className="min-w-0 flex-1">
           <h2 id="setup-title" className="m-0">运行组件检查与修复</h2>
           <p className="hint m-0 mt-1">
-            正式安装包自带基础组件，模型所需依赖会自动准备；出现组件缺失或损坏时，在这里检查并修复。
+            安装包已包含运行环境；缺失或损坏时可在此修复。
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {setup.active ? (
-            <Button type="button" onClick={() => void setup.cancel()}>取消配置</Button>
+            <Button type="button" onClick={() => void setup.cancel()}>取消</Button>
           ) : (
             <Button
               variant={needsSetup ? "primary" : "secondary"}
               type="button"
               disabled={setup.starting || needsSetup && insufficient}
               aria-label={label}
-              onClick={() => { if (needsSetup) void setup.start({ includeModels: false }); else void onRefresh(); }}
+              onClick={() => { if (needsSetup) void setup.start(); else void onRefresh(); }}
             >
               {label}
             </Button>
@@ -356,9 +312,7 @@ function SetupPanel({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Badge tone={ready ? "ok" : "warn"} dot>已就绪 {readyCount}/{rows.length}</Badge>
-        {externalCount > 0 && <small>外部路径 {externalCount}</small>}
-        {missingCount > 0 && <small>未配置 {missingCount}</small>}
+        <Badge tone={ready ? "ok" : "warn"} dot>{ready ? "已就绪" : `可用 ${readyCount}/${rows.length}`}</Badge>
         {view.updates.length > 0 && <small>可更新 {view.updates.length}</small>}
       </div>
       {needsSetup && <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -372,21 +326,21 @@ function SetupPanel({
       {needsSetup && insufficient && diskFree !== null && (
         <small className="error" role="alert">
           磁盘空间不足：预计需要 {formatBytes(requiredBytes)}，引擎目录可用{" "}
-          {formatBytes(diskFree)}。清理空间或更换组件目录后重试。
+          {formatBytes(diskFree)}。清理磁盘空间后重试。
         </small>
       )}
       {updateNames.length > 0 && (
         <small>
-          可更新组件：{updateNames.join("、")}；更新会重新下载并采用这些组件。
+          可更新组件：{updateNames.join("、")}。
         </small>
       )}
-      {setup.run && (
+      {setup.run && (setup.run.state !== "succeeded" || partial) && (
         <div className="flex flex-col gap-2 border-t border-line pt-4" aria-live="polite">
-          <small>配置作业 · {runStateLabel[setup.run.state]}</small>
+          <small>修复作业 · {runStateLabel[setup.run.state]}</small>
           {setup.active && (
             <ProgressBar
               value={progress}
-              label="配置进度"
+              label="修复进度"
               stage={
                 setup.message ||
                 (runNodes.length > 0
@@ -401,12 +355,9 @@ function SetupPanel({
               {setup.run.error.message}
             </small>
           )}
-          {setup.run.state === "succeeded" && !partial && (
-            <small>配置完成，绑定已刷新。</small>
-          )}
           {partial && (
             <>
-              <small className="error">配置完成，部分组件未完成，可重试：</small>
+              <small className="error">部分组件仍不可用：</small>
               {skipped.map((skip) => (
                 <small className="error" key={skip.id}>
                   {skippedLabel(skip.id, view)}：{skip.message}
@@ -415,7 +366,7 @@ function SetupPanel({
             </>
           )}
           {setup.run.state === "cancelled" && (
-            <small>作业已取消，已安装的组件保留；可再次点击配置继续。</small>
+            <small>已取消，可再次修复。</small>
           )}
           {runNodes.length > 0 && (
             <details>
@@ -435,18 +386,6 @@ function SetupPanel({
               </div>
             </details>
           )}
-        </div>
-      )}
-      {ready && !setup.run && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-          <small>运行组件已就绪。</small>
-          <Button
-            size="sm"
-            type="button"
-            onClick={() => void session.navigate("settings", "", "models")}
-          >
-            选择模型
-          </Button>
         </div>
       )}
     </section>
@@ -499,8 +438,8 @@ function useSetupRun(
       const skipped = result?.success ? result.data.skipped.length : 0;
       session.setNotice(
         skipped > 0
-          ? "本地运行环境已配置，部分组件未完成，可重试"
-          : "本地运行环境已配置完成",
+          ? "部分运行组件仍不可用，可重试"
+          : "运行组件已就绪",
       );
       window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
     }
@@ -546,15 +485,13 @@ function useSetupRun(
     message,
     starting,
     active: run !== null && isActiveRun(run.state),
-    start: async (options: {
-      includeModels: boolean;
-    }) => {
+    start: async () => {
       setStarting(true);
       try {
+        const expectedRevision = revisionRef.current();
         const key = JSON.stringify([
           "engine-setup",
-          revisionRef.current(),
-          options.includeModels,
+          expectedRevision,
         ]);
         let attempt = session.stableRequest(key);
         let next: EngineRun;
@@ -565,9 +502,8 @@ function useSetupRun(
             next = await api("/engines/setup", RunRecord, {
               method: "POST",
               body: {
-                expectedRevision: revisionRef.current(),
+                expectedRevision,
                 requestId: attempt.requestId,
-                includeModels: options.includeModels,
               },
             });
             break;
@@ -640,7 +576,7 @@ function EngineCard({
   const documentationUrl = item.documentationUrl;
   const pythonEnvironment = item.kind === "python-env";
   const usage = itemStatus.usage;
-  const usageInfo = usage === "unused" ? null : usageBadge[usage];
+  const usageInfo = usageBadge[usage];
   const installing = install.active || install.starting;
   const blocked = !item.available || !!busy;
   const verification = verifyResult?.root === status.root && verifyResult.directory === status.directory &&
@@ -654,8 +590,12 @@ function EngineCard({
   };
   const actionLabel = installing ? pythonEnvironment ? "创建中…" : "安装中…"
     : action === "none" ? "" : actionLabels[action];
-  const showStateBadge = state === "missing" && (usage === "external" || usage === "bundled") ? false
-    : state !== "installed" || !usageInfo || usage === "external" || usage === "partial";
+  const badge: typeof usageInfo = usage === "external" ? usageInfo
+    : !item.available ? { label: "当前平台不可用", tone: "warn" }
+    : state === "invalid" ? { label: "需修复", tone: "warn" }
+    : state === "unchecked" ? { label: "待检查", tone: "warn" }
+    : usageInfo;
+  const paths = [...new Set(itemStatus.active.map((binding) => binding.resolvedPath).filter(Boolean))];
 
   const act = async (label: string, run: () => Promise<void>) => {
     setBusy(label);
@@ -685,106 +625,58 @@ function EngineCard({
     <article className="panel-card model-inventory-card">
       <div className="model-inventory-head">
         <b title={item.name}>{item.name}</b>
-        {showStateBadge && <Badge tone={engineStateTone[state]} dot>
-          {engineStateLabel[state]}
-        </Badge>}
-        {usageInfo && (state === "installed" || usage === "external" || usage === "partial") && (
-          <Badge tone={usageInfo.tone} dot>
-            {usageInfo.label}
-          </Badge>
-        )}
-        {pythonEnvironment && <Badge tone="accent">Python 环境</Badge>}
-        {!item.available && <Badge tone="warn">当前平台不可用</Badge>}
+        <Badge tone={badge.tone} dot>{badge.label}</Badge>
       </div>
-      <p className="hint mt-1 mb-0">{item.summary}</p>
-      <small>
-        清单版本 {item.version} · 平台 {item.platform}
-        {status.version ? ` · 已安装 ${status.version}` : ""}
-      </small>
-      <small className="numeric break-all">
-        {pythonEnvironment ? "环境目录" : "管理安装目录"}：{status.directory}
-      </small>
-      {status.reason && <small>状态说明：{status.reason}</small>}
-      {usage === "external" && (
-        <small>当前使用外部路径{status.state === "installed" ? "，可按需改用本应用的组件" : ""}。</small>
-      )}
-      {usage === "partial" && (
-        <small>当前绑定部分可用，检查下面各设置的路径与来源。</small>
-      )}
-      {!item.available && (
-        <small>不可用原因：{item.unavailableReason || "当前平台没有已核验的引擎产物"}</small>
-      )}
-      {itemStatus.active.length > 0 && (
-        <div className="model-files">
+      {paths.map((file) => <small className="numeric break-all" key={file}>{file}</small>)}
+      {usage !== "external" && status.reason && <small className="error">{status.reason}</small>}
+      {!item.available && <small>{item.unavailableReason}</small>}
+      <details className="model-inventory-details">
+        <summary>详细信息</summary>
+        <div className="model-inventory-meta">
+          <small>{item.summary}</small>
+          <small>版本 {status.version || "未安装"}{status.version !== item.version ? ` · 目标 ${item.version}` : ""} · 平台 {item.platform}</small>
+          <small className="numeric break-all">安装目录：{status.directory}</small>
           {itemStatus.active.map((binding) => (
-            <small className="numeric" key={binding.setting}>
-              {settingLabel[binding.setting] || binding.setting}：
-              {binding.value.value || "未配置"} · {pathStateLabel[binding.state]} · 来源{" "}
-              {sourceName(binding.value.source)}
+            <small key={binding.setting}>
+              {settingLabel[binding.setting] || binding.setting}：{pathStateLabel[binding.state]} · {sourceName(binding.value.source)}
             </small>
           ))}
-        </div>
-      )}
-      <details className="model-inventory-details">
-        <summary>发布文件与目录状态</summary>
-        <div className="model-inventory-meta">
-          <small>发布版本：{item.version} · 已安装版本：{status.version || "未知"}</small>
           {item.files.map((file) => {
             const actual = status.files.find((entry) => entry.path === file.path);
-            return (
-              <small className="numeric" key={file.path}>
-                {file.path} · 清单 {file.size.toLocaleString()} B ·{" "}
-                {actual?.actualSize === undefined
-                  ? "文件缺失"
-                  : `实际 ${actual.actualSize.toLocaleString()} B`}
-              </small>
-            );
+            return <small className="numeric" key={file.path}>
+              {file.path} · {actual?.actualSize === undefined ? "文件缺失" : `${actual.actualSize.toLocaleString()} B`}
+            </small>;
           })}
         </div>
-      </details>
-      {verification && <VerifySummary result={verification} />}
-      {install.run && (
-        <InstallSummary
-          run={install.run}
-          progress={install.progress}
-          onCancel={() => void install.cancel()}
-        />
-      )}
-      <div className="actions">
-        {(action !== "none" || installing) && <Button
-          variant="primary"
-          disabled={blocked || installing}
-          aria-label={`${actionLabel} ${item.name}`}
-          onClick={() => {
-            if (action === "none") return;
-            setVerifyResult(null);
-            void install.start(installRoot);
-          }}
-        >
-          {actionLabel}
-        </Button>}
-        {status.state !== "missing" && <Button
-          disabled={blocked || installing}
-          aria-label={`校验 ${item.name}`}
-          onClick={() => void verify()}
-        >
-          {busy === "verify" ? "校验中…" : "校验"}
-        </Button>}
-        {documentationUrl && (
-          <Button
+        <div className="actions mt-3">
+          {status.state !== "missing" && <Button
+            size="sm"
+            disabled={blocked || installing}
+            aria-label={`检查文件 ${item.name}`}
+            onClick={() => void verify()}
+          >
+            {busy === "verify" ? "检查中…" : "检查文件"}
+          </Button>}
+          {documentationUrl && <Button
             size="sm"
             variant="ghost"
             aria-label={`查看 ${item.name} 文档`}
-            onClick={() =>
-              void openLink(documentationUrl).catch((reason) =>
-                session.handleError(reason),
-              )
-            }
-          >
-            文档
-          </Button>
-        )}
-      </div>
+            onClick={() => void openLink(documentationUrl).catch((reason) => session.handleError(reason))}
+          >文档</Button>}
+        </div>
+        {verification && <VerifySummary result={verification} />}
+      </details>
+      {install.run && install.run.state !== "succeeded" && <InstallSummary run={install.run} progress={install.progress} onCancel={() => void install.cancel()} />}
+      {(action !== "none" || installing) && <Button
+        variant="primary"
+        disabled={blocked || installing}
+        aria-label={`${actionLabel} ${item.name}`}
+        onClick={() => {
+          if (action === "none") return;
+          setVerifyResult(null);
+          void install.start(installRoot);
+        }}
+      >{actionLabel}</Button>}
     </article>
   );
 }
@@ -874,16 +766,13 @@ function InstallSummary({
   return (
     <div className="model-files" aria-live="polite">
       <div className="section-title">
-        <b>引擎作业 · {runStateLabel[run.state]}</b>
+        <b>组件准备 · {runStateLabel[run.state]}</b>
         {active && (
           <Button size="sm" type="button" onClick={onCancel}>
             取消
           </Button>
         )}
       </div>
-      <small className="numeric">
-        {run.id} · {new Date(run.updatedAt).toLocaleString()}
-      </small>
       {active && progress && (
         <small>
           {phaseLabel[progress.phase] || progress.phase}
@@ -900,9 +789,6 @@ function InstallSummary({
         <small className="error" role="alert">
           {run.error.message}
         </small>
-      )}
-      {!active && run.state === "succeeded" && (
-        <small>安装完成，目录状态已刷新。</small>
       )}
       {!active && run.state === "cancelled" && <small>作业已取消，可重新点击安装或校验。</small>}
     </div>

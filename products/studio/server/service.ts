@@ -156,39 +156,13 @@ export async function startStudioService(
   };
 
   route("get", "/api/runtime", () => ({
-    platform: process.platform,
-    mode: options.mode,
     dataDir: runtime.dataDir,
     configFile: runtime.configFile,
-    configBase: runtime.configBase,
     modelDir: runtime.modelDir,
     engineDir: runtime.engineDir,
     logDir: runtime.logDir,
-    resourcesDir: runtime.resourcesDir,
-    requirements: ["requirements.txt"]
-      .map((name) => ({ name, file: path.join(runtime.resourcesDir, "weaver", name) }))
-      .filter((item) => fs.existsSync(item.file)),
     cli: cliInvocation(runtime),
-    tools: {
-      node: fs.existsSync(runtime.tools.node),
-      ffmpeg: runtime.tools.ffmpeg ? fs.existsSync(runtime.tools.ffmpeg) : false,
-      ffprobe: runtime.tools.ffprobe ? fs.existsSync(runtime.tools.ffprobe) : false,
-      cardRenderer: fs.existsSync(runtime.tools.cardRenderer),
-      cardBrowser: runtime.tools.cardBrowser
-        ? fs.existsSync(runtime.tools.cardBrowser)
-        : false,
-      cardSite: runtime.tools.cardSite ? fs.existsSync(runtime.tools.cardSite) : false,
-      python: app.engines.summary().components.some((item) => item.id === "python-runtime" && item.configured),
-    },
   }));
-  server.get("/api/runtime/requirements/:name", (req, res, next) => {
-    try {
-      const name = z.enum(["requirements.txt"]).parse(req.params.name);
-      res.download(path.join(runtime.resourcesDir, "weaver", name), name, (error) => {
-        if (error && !res.headersSent) next(error);
-      });
-    } catch (error) { next(error); }
-  });
   route("get", "/api/client/state", () => clientState.read());
   route("put", "/api/client/state", (req) => clientState.write(req.body));
   route("get", "/api/capabilities", () => app.capabilities());

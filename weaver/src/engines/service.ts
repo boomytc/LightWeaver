@@ -102,19 +102,18 @@ function inspectPath(
 
 /** 本应用安装状态与当前配置绑定的唯一合成规则。 */
 function engineUsage(
-  state: string,
-  active: readonly { setting: string; resolvedPath: string; ready: boolean; state: string }[],
+  state: z.infer<typeof EngineStatus>["state"],
+  active: readonly z.infer<typeof EngineActiveBinding>[],
   bindings: Readonly<Record<string, string>>,
   bundled: boolean,
 ): z.infer<typeof EngineUsage> {
   const ready = active.length > 0 && active.every((binding) => binding.ready),
     unset =
-      active.length > 0 && active.every((binding) => binding.state === "unset");
-  if (state === "installed" && ready && active.every((binding) =>
-    path.resolve(binding.resolvedPath) === path.resolve(bindings[binding.setting] || ".")))
-    return bundled ? "bundled" : "managed";
+      active.length > 0 && active.every((binding) => binding.value.source === "unset");
+  const owned = active.length > 0 && active.every((binding) =>
+    path.resolve(binding.resolvedPath) === path.resolve(bindings[binding.setting] || "."));
+  if (owned) return state === "installed" && ready ? bundled ? "bundled" : "managed" : "partial";
   if (ready) return "external";
-  if (state === "installed" && unset) return "managed-unused";
   if (unset) return "unused";
   return "partial";
 }
@@ -311,31 +310,23 @@ export class Engines {
     const settings = this.models.settings(),
       base = this.rootDirectory(root || this.installRoot().value),
       catalog = engineCatalog(),
-      statuses = catalog.items.map((item) => this.status(item, base));
+      items = catalog.items.map((item) => {
+        const status = this.status(item, base), active = this.activeBindings(item);
+        return { id: item.id, status, active, usage: this.usage(item, status, active) };
+      });
     return EngineView.parse({
       catalog,
       settings,
       installRoot: this.installRoot(),
       setupComponents: [...SETUP_COMPONENTS],
-      updates: catalog.items
-        .filter((item, index) => {
-          const version = statuses[index].version;
-          return version !== "" && version !== item.version;
-        })
+      updates: items.filter((item, index) => item.usage !== "external" &&
+        item.status.version !== "" && item.status.version !== catalog.items[index].version)
         .map((item) => item.id),
       models: this.models
         .planForSetup(LOCAL_SETUP_MODEL_IDS)
         .map((plan) => ({ id: plan.id, name: plan.name, bytes: plan.bytes })),
       diskFreeBytes: this.diskFreeBytes(base),
-      items: catalog.items.map((item, index) => {
-        const active = this.activeBindings(item);
-        return {
-          id: item.id,
-          status: statuses[index],
-          active,
-          usage: this.usage(item, statuses[index], active),
-        };
-      }),
+      items,
       installs: this.jobs
         .list()
         .filter(
@@ -372,14 +363,14 @@ export class Engines {
     const count = (usage: z.infer<typeof EngineUsage>) =>
       components.filter((component) => component.usage === usage).length;
     return {
-      /** 本地转写、精确字幕、检索与翻译所需的全部组件都已安装并采用。 */
+      /** 本地转写、精确字幕、检索与翻译所需的全部组件都可用。 */
       ready: components.every(usable),
       /** 本地转写必需组件及共享 Python 就绪。 */
       coreReady: required.every(usable),
       /** 本应用安装 / 外部路径 / 未配置的组件数量，供诊断与 CLI 直接展示。 */
       counts: {
         total: components.length,
-        installed: count("bundled") + count("managed") + count("managed-unused"),
+        installed: count("bundled") + count("managed"),
         bundled: count("bundled"),
         managed: count("managed"),
         external: count("external"),
@@ -390,6 +381,7 @@ export class Engines {
       updates: components
         .filter(
           (component) =>
+            component.usage !== "external" &&
             component.version !== "" &&
             component.version !== component.releaseVersion,
         )

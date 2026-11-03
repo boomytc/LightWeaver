@@ -81,15 +81,6 @@ const ReadinessView = z.object({
     .object({
       ready: z.boolean().optional(),
       coreReady: z.boolean().optional(),
-      counts: z
-        .object({
-          total: z.number(),
-          installed: z.number(),
-          external: z.number(),
-          unused: z.number(),
-          partial: z.number(),
-        })
-        .optional(),
     })
     .optional(),
 });
@@ -106,11 +97,6 @@ function readinessWithPlan(
     return plan.source.kind === "download" ? "missing" : "downloaded";
   return listed;
 }
-
-const shortTime = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-};
 
 /** 列表 → 详情：返回、标题与状态固定在该滚动区顶部。 */
 function DetailHeader({
@@ -139,41 +125,28 @@ function DetailHeader({
 function ReadinessSummary({
   local,
   provider,
-  view,
   readiness,
   readinessFailed,
   onOpenDiagnostics,
-  onOpenJobs,
 }: {
   local: { enabled: boolean; readiness: keyof typeof readinessLabel }[];
   provider: z.infer<typeof ModelsView>["catalog"]["providers"][number];
-  view: z.infer<typeof ModelsView>;
   readiness: Readiness | null;
   readinessFailed: boolean;
   onOpenDiagnostics: () => void;
-  onOpenJobs: () => void;
 }) {
   const enabledCount = local.filter((item) => item.enabled).length;
   const attentionCount = local.filter((item) => item.readiness === "attention").length;
   const engines = readiness?.engines;
-  const counts = engines?.counts;
-  const engineParts = [
-    counts?.installed ? `应用提供 ${counts.installed}` : "",
-    counts?.external ? `外部路径 ${counts.external}` : "",
-    counts && counts.unused + counts.partial > 0 ? `未配置 ${counts.unused + counts.partial}` : "",
-  ].filter(Boolean);
-  const lastFailure = view.downloads.find((run) =>
-    ["failed", "partial", "interrupted"].includes(run.state));
   return (
     <section className="panel-card flex flex-col gap-3 p-4" aria-labelledby="model-readiness-title">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 id="model-readiness-title" className="m-0">就绪摘要</h2>
-          <p className="hint m-0 mt-1 text-xs">先看整体状态，再展开下方列表处理具体模型、密钥或运行组件。</p>
         </div>
         <Button size="sm" variant="ghost" onClick={onOpenDiagnostics}>运行组件与诊断</Button>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-1">
           <dt className="text-xs font-medium text-muted">本地模型</dt>
           <dd className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -189,7 +162,6 @@ function ReadinessSummary({
             <Badge tone={provider.apiKeyConfigured ? "ok" : "warn"} dot>
               {provider.apiKeyConfigured ? "已配置" : "未配置"}
             </Badge>
-            <small>来源 {view.settings.apiKeys.modelbest?.source || "unset"}</small>
           </dd>
         </div>
         <div className="flex min-w-0 flex-col gap-1">
@@ -205,27 +177,6 @@ function ReadinessSummary({
               <Badge tone={engines.ready ? "ok" : "warn"} dot>
                 {engines.ready ? "已就绪" : engines.coreReady ? "核心可用" : "未就绪"}
               </Badge>
-            )}
-            {engines && <small>{engineParts.join(" · ") || "状态未提供"}</small>}
-          </dd>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <dt className="text-xs font-medium text-muted">最近失败</dt>
-          <dd className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
-            {lastFailure ? (
-              <>
-                <Badge tone="danger" dot>{stateLabel[lastFailure.state] || "失败"}</Badge>
-                <Button size="sm" variant="ghost" onClick={onOpenJobs}>查看任务</Button>
-                <small className="line-clamp-2 w-full" title={lastFailure.error?.message || undefined}>
-                  {shortTime(lastFailure.updatedAt)}
-                  {lastFailure.error?.message ? ` · ${lastFailure.error.message}` : ""}
-                </small>
-              </>
-            ) : (
-              <>
-                <Badge tone="ok" dot>无</Badge>
-                <small>最近模型准备均已完成</small>
-              </>
             )}
           </dd>
         </div>
@@ -605,11 +556,9 @@ export function ModelSettings({
           <ReadinessSummary
             local={local}
             provider={provider}
-            view={view}
             readiness={readiness}
             readinessFailed={readinessFailed}
             onOpenDiagnostics={() => void session.navigate("settings", "", "diagnostics")}
-            onOpenJobs={onOpenJobs}
           />
           <section className="flex flex-col gap-3" aria-label="供应商">
             <div className="section-title"><h3 className="m-0">供应商</h3><small>云端模型与密钥</small></div>

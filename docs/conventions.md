@@ -185,7 +185,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 | 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL |
 | 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
-运行组件路径由安装清单统一解析，不写入模型配置文件。源码模式使用仓库 `data/engines/`，桌面包优先使用当前安装目录中的组件；未安装受管组件时使用随包资源。所有 Python 功能使用同一个 `python-runtime`，不再按模块选择虚拟环境。ASR 使用 TEN VAD、transcribe 运行库与 Python bindings；检索、重排和翻译共用 llama-server。强制对齐固定使用 Torch，默认 CPU。特殊构建可通过 `LIGHTWEAVER_ENGINE_ROOT` 或各组件环境变量覆盖；设备选择使用 `LIGHTWEAVER_ALIGNMENT_DEVICE`（`cpu`、`cuda[:index]`）和 `LIGHTWEAVER_DIARIZATION_BACKEND`。这些开发覆盖不进入模型配置或设置写入接口。
+运行组件路径由安装清单统一解析，不写入模型配置文件。源码模式使用仓库 `data/engines/`，桌面包优先使用当前安装目录中的组件；未安装受管组件时使用随包资源。所有 Python 功能使用同一个 `python-runtime`，不再按模块选择虚拟环境。ASR 使用 TEN VAD、transcribe 运行库与 Python bindings；检索、重排和翻译共用同一个 `llama_server` 绑定；开发覆盖只使用 `LIGHTWEAVER_LLAMA_SERVER`。强制对齐固定使用 Torch，默认 CPU。特殊构建可通过 `LIGHTWEAVER_ENGINE_ROOT` 或各组件环境变量覆盖；设备选择使用 `LIGHTWEAVER_ALIGNMENT_DEVICE`（`cpu`、`cuda[:index]`）和 `LIGHTWEAVER_DIARIZATION_BACKEND`。这些开发覆盖不进入模型配置或设置写入接口。
 
 每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。共享 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 
@@ -199,7 +199,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 普通模型操作使用 `weaver models install ID --expected-revision CONFIG_REV --wait` 或 `POST /api/models/:id/install`。`GET /api/models/:id/install-plan` 返回兼容情况、模型剩余下载量、依赖预计体积和文件来源。`source.kind` 优先为 `configured`（当前配置的完整模型，附冻结路径与文件快照），其次为 `downloaded`（下载目录内已有完整文件），缺文件时为 `download`。已有模型不创建下载节点；单个 `model-setup` 作业只准备缺失组件并完整校验已有文件，`model-activate` 最后一次写入配置。采用当前模型时保留全部模型绑定，路径或文件快照变化会拒绝启用；采用下载目录时写入对应模型绑定。依赖失败、取消或配置冲突不会启用模型；失败沿完整依赖链传播，成功的独立步骤可在重试时复用。仅下载文件仍使用 CLI `models download`。
 
-Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复 / 外观”。模型页按状态提供操作：未下载时“下载并启用”，已有完整文件时“启用”，已配置但缺组件时准备运行组件；已启用模型不再显示准备按钮。模型路径只读呈现当前配置，通过系统选择器选择文件或目录后自动校验并采用，不要求用户另行执行校验。提交时携带所见的 `source`，服务端在创建作业前重新核对；来源变化返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新选择操作，不把启用静默改为下载。组件维护和手工运行时路径位于“诊断与修复”。旧 `runtime` 路由映射到诊断页。
+Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复 / 外观”。模型页按状态提供操作：未下载时“下载并启用”，已有完整文件时“启用”，已配置但缺组件时准备运行组件；已启用模型不再显示准备按钮。模型路径只读呈现当前配置，通过系统选择器选择文件或目录后自动校验并采用，不要求用户另行执行校验。提交时携带所见的 `source`，服务端在创建作业前重新核对；来源变化返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新选择操作，不把启用静默改为下载。组件状态与修复入口位于“诊断与修复”，默认只展示就绪状态和必要操作；版本、来源与文件检查收在组件详情中。旧 `runtime` 路由映射到诊断页。
 
 Studio 的“诊断与修复 → 运行组件与修复”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及共享 Python 运行环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
 
@@ -214,11 +214,11 @@ npx weaver engines verify transcribe-native --json
 
 高级修复面板与 `engines setup` 提供组合操作：依次安装 transcribe 运行库、Python bindings、TEN VAD（必需），共享 Python（必需）及 llama-server（可选），最后一个作业节点确认组件就绪。用户不需要指定路径，也不需要先理解“下载、校验、采用”的逐步操作；已安装且校验通过的部分会复用。
 
-必需组件失败时作业失败且不写配置；可选组件失败只记录在完成节点的 `skipped` 里并继续处理其余组件，界面显示“部分组件未完成，可重试”。CLI 与自动化可用 `includeModels`（CLI `--with-models`）同时准备 ASR、EmbeddingGemma、ForcedAligner 权重。Studio 的通用修复只处理运行组件，模型权重由模型页选择。组件就绪且没有更新时，“刷新状态”只读取状态；已安装、已采用的组件不再显示重复安装或采用按钮。单个组件的校验与更新收在组件清单中。
+必需组件失败时作业失败且不写配置；可选组件失败只记录在完成节点的 `skipped` 里并继续处理其余组件，界面显示“部分运行组件仍不可用，可重试”。CLI 与自动化可用 `includeModels`（CLI `--with-models`）同时准备 ASR、EmbeddingGemma、ForcedAligner 权重。Studio 的通用修复只处理运行组件，模型权重由模型页选择。组件就绪且没有更新时，“刷新状态”只读取状态；可用组件不再显示安装按钮，单个组件的文件检查与更新收在详情中。
 
 开始前按未安装组件的 `estimatedBytes` 与模型剩余字节估算所需空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。已安装版本与当前发布不同时 `engines list` 的 `updates` 会列出该组件，`engines setup` 会下载新版本、替换本应用管理的目录并重新采用。组件位置由运行时决定，已有文件不会自动搬迁。可用空间与更新列表通过 `GET /api/engines` 返回。
 
-`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。每个组件的 `usage` 由服务端统一计算：`bundled`（应用自带并正在使用）、`managed`（本应用安装并已采用）、`managed-unused`（已安装未采用）、`external`（当前绑定来自环境覆盖或标准开发环境）、`unused`、`partial`；Studio 引擎面板、诊断页与 `doctor` 都使用这个分类，不再各自拼装“已安装/已配置”措辞。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 要求 transcribe 运行库、bindings、TEN VAD 与共享 Python。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
+`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。每个组件的 `usage` 由服务端统一计算：`bundled`（应用自带并正在使用）、`managed`（本应用安装并自动使用）、`external`（使用显式环境覆盖）、`unused`、`partial`；Studio 引擎面板与 `doctor` 使用同一分类；当前路径属于受管或随包目录时，缺文件或元数据异常归为 `partial`，不会冒充外部组件。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件可用，`coreReady` 要求 transcribe 运行库、bindings、TEN VAD 与共享 Python。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
 
 引擎安装根目录由运行时选择；源码入口使用仓库 `data/engines/`（Git 忽略），正式桌面包使用数据目录下的 `engines/`。开发时可用 `LIGHTWEAVER_ENGINE_ROOT` 覆盖。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
 
