@@ -698,4 +698,5 @@ if (!fs.existsSync(finalResources))
   throw new Error(`最终包 Resources 未找到：${finalResources}`);
 checkResources(finalResources, "最终包");
 verifyRuntime(finalResources, "最终包");
+fs.rmSync(staging, { recursive: true, force: true });
 process.stdout.write(`已生成 ${output}\n`);

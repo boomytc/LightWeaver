@@ -77,7 +77,7 @@ Linux 设置了 `XDG_CONFIG_HOME` 时，使用该目录下的 `LightWeaver/weave
 npm run package -w @lightweaver/desktop
 ```
 
-首次构建下载固定版本的 Node、FFmpeg、Chrome、完整 Python 运行环境、transcribe 运行库与 bindings、TEN VAD 和 llama-server，并安装独立 sidecar 依赖。引擎安装与校验复用共享核的 catalog 和 Jobs；随包绑定使用相对资源路径。构建安装同一份 Python 依赖并随包交付，不下载模型权重；选择本地模型时只需准备权重。资源缓存在 `products/desktop/staging/`，产物位于 `products/desktop/release/`。
+首次构建下载固定版本的 Node、FFmpeg、Chrome、完整 Python 运行环境、transcribe 运行库与 bindings、TEN VAD 和 llama-server，并安装独立 sidecar 依赖。引擎安装与校验复用共享核的 catalog 和 Jobs；随包绑定使用相对资源路径。构建安装同一份 Python 依赖并随包交付，不下载模型权重；选择本地模型时只需准备权重。缓存位于 `products/desktop/staging/cache/`，正式产物位于 `products/desktop/release/`。最终包核验通过后清除中间副本 `staging/lightweaver/`；显式使用 `--prepare` 时保留它。
 
 打包会重新生成对应目标的应用目录。打包前保存草稿，并退出运行在该目录中的应用。
 
