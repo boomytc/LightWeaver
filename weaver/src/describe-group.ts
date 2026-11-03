@@ -24,25 +24,17 @@ export type SequenceObservation = {
 
 export type DescriptionWindow = { from: number; to: number };
 
-export type DescriptionDoc = {
-  source_path: string;
-  duration: number;
-  summary: string;
-  sequences: SequenceObservation[];
-  window?: DescriptionWindow;
-};
-
 export type ShotSpan = { in: number; out: number };
 
-export function sequenceId(index: number): string {
+function sequenceId(index: number): string {
   return `seq-${String(index + 1).padStart(2, "0")}`;
 }
 
-export function round3(value: number): number {
+function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
-export function shotsFromScenes(
+function shotsFromScenes(
   index: SceneIndex,
   minShot = DESCRIBE_SETTINGS.minShot,
   range?: DescriptionWindow,
@@ -78,7 +70,7 @@ export function shotsFromScenes(
     : [{ in: round3(from), out: round3(duration) }];
 }
 
-export function foldShortShots(shots: ShotSpan[], minSequence = DESCRIBE_SETTINGS.minSequence): ShotSpan[] {
+function foldShortShots(shots: ShotSpan[], minSequence = DESCRIBE_SETTINGS.minSequence): ShotSpan[] {
   if (!shots.length) return [];
   const folded: ShotSpan[] = [];
   for (const shot of shots) {
@@ -96,7 +88,7 @@ export function foldShortShots(shots: ShotSpan[], minSequence = DESCRIBE_SETTING
   return folded.map((shot) => ({ in: round3(shot.in), out: round3(shot.out) }));
 }
 
-export function capSequences(groups: ShotSpan[][], maxSequence = DESCRIBE_SETTINGS.maxSequence): ShotSpan[][] {
+function capSequences(groups: ShotSpan[][], maxSequence = DESCRIBE_SETTINGS.maxSequence): ShotSpan[][] {
   const capped: ShotSpan[][] = [];
   for (const group of groups) {
     let current: ShotSpan[] = [];
@@ -114,7 +106,7 @@ export function capSequences(groups: ShotSpan[][], maxSequence = DESCRIBE_SETTIN
   return capped;
 }
 
-export function foldSkippedSequences(sequences: SequenceObservation[]): SequenceObservation[] {
+function foldSkippedSequences(sequences: SequenceObservation[]): SequenceObservation[] {
   const folded: SequenceObservation[] = [];
   const skipMax = DESCRIBE_SETTINGS.maxSequence / 2;
   for (const sequence of sequences) {
@@ -136,7 +128,7 @@ export function foldSkippedSequences(sequences: SequenceObservation[]): Sequence
   return folded.map((sequence, index) => ({ ...sequence, id: sequenceId(index) }));
 }
 
-export function mergeSequences(
+function mergeSequences(
   shots: ShotSpan[],
   hashes: FrameHash[],
   mergeMin = DESCRIBE_SETTINGS.sequenceMergeMin,
@@ -154,7 +146,7 @@ export function mergeSequences(
   return groups;
 }
 
-export function sequencesFromShots(
+function sequencesFromShots(
   groups: ShotSpan[][],
   hashes: FrameHash[],
 ): SequenceObservation[] {
@@ -175,14 +167,14 @@ export function sequencesFromShots(
   });
 }
 
-export function attachLines(sequences: SequenceObservation[], lines: SequenceLine[]): SequenceObservation[] {
+function attachLines(sequences: SequenceObservation[], lines: SequenceLine[]): SequenceObservation[] {
   return sequences.map((sequence) => ({
     ...sequence,
     lines: lines.filter((line) => overlap(sequence.in, sequence.out, line.start, line.end) > 0),
   }));
 }
 
-export function markSkips(
+function markSkips(
   sequences: SequenceObservation[],
   hashes: FrameHash[],
   options: { visual?: boolean; mergeMin?: number; denseAsrRatio?: number } = {},
@@ -243,12 +235,7 @@ export function buildSequences(
   return foldSkippedSequences(markSkips(attachLines(grouped, lines), hashes, options));
 }
 
-export function descriptionIsReady(doc: DescriptionDoc | null | undefined): boolean {
-  if (!doc || !Array.isArray(doc.sequences) || !doc.sequences.length) return false;
-  return doc.sequences.every((sequence) => sequence.out > sequence.in && sequence.shots.length > 0);
-}
-
-export function isSameAsPrevObservation(text: string | undefined): boolean {
+function isSameAsPrevObservation(text: string | undefined): boolean {
   const value = (text ?? "").trim();
   return !value || value === "同前" || value === "同前。" || /^上一场/.test(value);
 }
@@ -284,38 +271,6 @@ export function mergeByObservation(
     });
   }
   return folded.map((sequence, index) => ({ ...sequence, id: sequenceId(index) }));
-}
-
-export function summaryFromSequences(sequences: SequenceObservation[]): string {
-  const lines: string[] = [];
-  for (const sequence of sequences) {
-    const text = sequence.observation?.trim() ?? "";
-    if (!text || isSameAsPrevObservation(text)) continue;
-    if (lines.at(-1) === text) continue;
-    lines.push(text);
-  }
-  return lines.join("；");
-}
-
-export function resolveDescribeWindow(from: number | undefined, to: number | undefined, duration: number): DescriptionWindow | undefined {
-  const start = from ?? 0;
-  const end = to ?? duration;
-  if (!(end > start) || start < 0) throw new Error("时间窗无效");
-  const clipped = Math.min(end, duration);
-  if (start <= 1e-6 && clipped >= duration - 1e-6) return undefined;
-  return { from: start, to: clipped };
-}
-
-export function sequencesInWindow(sequences: SequenceObservation[], window?: DescriptionWindow): SequenceObservation[] {
-  if (!window) return sequences;
-  return sequences.filter((sequence) => sequence.out > window.from && sequence.in < window.to);
-}
-
-export function describeWindowMatches(doc: DescriptionDoc, window?: DescriptionWindow): boolean {
-  const saved = doc.window;
-  if (!window && !saved) return true;
-  if (!window || !saved) return false;
-  return Math.abs(saved.from - window.from) < 1e-3 && Math.abs(saved.to - window.to) < 1e-3;
 }
 
 function skipAll(sequence: SequenceObservation, skip: ShotObservation["skip"]): SequenceObservation {

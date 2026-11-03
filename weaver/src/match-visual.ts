@@ -22,11 +22,8 @@ export type Rgb = [number, number, number];
 export type QuadMean = [Rgb, Rgb, Rgb, Rgb];
 export type FrameHash = { t: number; hash: bigint; mean: Rgb; quad: QuadMean };
 
-export const HASH_CACHE_VERSION = 2;
-
 const WIDTH = 9;
 const HEIGHT = 8;
-const FRAME_BYTES = WIDTH * HEIGHT * 3;
 const HASH_BITS = (WIDTH - 1) * HEIGHT;
 
 export function dHashFromGray(pixels: Uint8Array, width = WIDTH, height = HEIGHT): bigint {
@@ -43,7 +40,7 @@ export function dHashFromGray(pixels: Uint8Array, width = WIDTH, height = HEIGHT
   return hash;
 }
 
-export function hashScore(a: bigint, b: bigint): number {
+function hashScore(a: bigint, b: bigint): number {
   let x = a ^ b;
   let dist = 0;
   while (x > 0n) {
@@ -86,13 +83,9 @@ export function lumaPlane(pixels: Uint8Array, width = WIDTH, height = HEIGHT): U
   return gray;
 }
 
-export function colorScore(a: Rgb, b: Rgb): number {
+function colorScore(a: Rgb, b: Rgb): number {
   const dist = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
   return 1 - dist / (255 * 3);
-}
-
-export function uniformQuad(mean: Rgb): QuadMean {
-  return [mean, mean, mean, mean];
 }
 
 export function quadFromRgb(pixels: Uint8Array, width = WIDTH, height = HEIGHT): QuadMean {
@@ -124,7 +117,7 @@ function blockMean(pixels: Uint8Array, width: number, x0: number, y0: number, x1
   return [r / count, g / count, b / count];
 }
 
-export function quadScore(a: QuadMean, b: QuadMean): number {
+function quadScore(a: QuadMean, b: QuadMean): number {
   return (colorScore(a[0], b[0]) + colorScore(a[1], b[1]) + colorScore(a[2], b[2]) + colorScore(a[3], b[3])) / 4;
 }
 
@@ -137,7 +130,7 @@ export function nearestHash(frames: FrameHash[], time: number): FrameHash | unde
   return frames.reduce((best, frame) => (Math.abs(frame.t - time) < Math.abs(best.t - time) ? frame : best));
 }
 
-export function scoreWindow(
+function scoreWindow(
   edited: FrameHash[],
   source: FrameHash[],
   editedStart: number,
@@ -163,7 +156,7 @@ export function scoreWindow(
   return count ? sum / count : 0;
 }
 
-export function overlapLength(start: number, end: number, used: [number, number][]): number {
+function overlapLength(start: number, end: number, used: [number, number][]): number {
   let sum = 0;
   for (const [from, to] of used) {
     sum += Math.max(0, Math.min(end, to) - Math.max(start, from));
@@ -171,7 +164,7 @@ export function overlapLength(start: number, end: number, used: [number, number]
   return sum;
 }
 
-export function findBestVisualWindow(
+function findBestVisualWindow(
   edited: FrameHash[],
   source: FrameHash[],
   editedStart: number,
@@ -205,7 +198,7 @@ export function findBestVisualWindow(
   return best;
 }
 
-export function combineScores(textScore: number, visualScore: number): number {
+function combineScores(textScore: number, visualScore: number): number {
   if (visualScore <= 0) return textScore;
   return textScore * MATCH_SETTINGS.textWeight + visualScore * MATCH_SETTINGS.visualWeight;
 }
@@ -232,7 +225,7 @@ export function rankCandidates(
     .sort((a, b) => b.combinedScore - a.combinedScore || b.visualScore - a.visualScore || b.score - a.score);
 }
 
-export function silentRanges(
+function silentRanges(
   cuts: { editedStart: number; editedEnd: number }[],
   editedDuration: number,
   minGap = MATCH_SETTINGS.silentMinGap,
@@ -341,7 +334,7 @@ export function cutsFromVisualScenes(
   return cuts;
 }
 
-export function pickContinuingWindow(
+function pickContinuingWindow(
   editedHashes: FrameHash[],
   sourceHashes: Map<string, FrameHash[]>,
   editedStart: number,

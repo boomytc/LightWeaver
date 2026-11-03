@@ -1,29 +1,4 @@
-import { ASR_SETTINGS } from "./asr-settings.ts";
 import type { AsrResult, AsrSentence, AsrWord } from "./adapters/providers.ts";
-
-export type TruncationHint = {
-  text: string;
-  truncated?: boolean;
-  log?: string;
-};
-
-export function isTruncated(
-  result: TruncationHint,
-  duration: number,
-  sparse = true,
-): boolean {
-  if (result.truncated) return true;
-  if (result.log && /OutputTruncated/i.test(result.log)) return true;
-  if (!sparse) return false;
-  const text = result.text.trim();
-  if (
-    duration >= ASR_SETTINGS.chunkSeconds / 2 &&
-    text.length < duration * ASR_SETTINGS.minCharsPerSecond
-  ) {
-    return true;
-  }
-  return false;
-}
 
 export function stitchAsrResults(input: {
   left: AsrResult;

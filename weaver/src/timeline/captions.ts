@@ -5,7 +5,6 @@ import {
   CaptionCue,
   type TimelineManifest,
   type OutputProfile,
-  Frames,
   MediaRef,
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";

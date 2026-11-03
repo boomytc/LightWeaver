@@ -3,7 +3,6 @@ import {
   LibraryId,
   LibraryPayload,
   LibraryVersion,
-  Id,
   MediaAssetVersion,
   speechOf,
 } from "../contracts/index.ts";

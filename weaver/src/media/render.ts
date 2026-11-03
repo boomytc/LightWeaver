@@ -4,7 +4,6 @@ import {
   z,
   TimelineManifest,
   RunSnapshot,
-  refKey,
   CardRenderInput,
   AudioSegment,
 } from "../contracts/index.ts";
@@ -12,7 +11,7 @@ import { WeaverError } from "../contracts/errors.ts";
 import { Store, canonical } from "../store/index.ts";
 import { nodeScriptInvocation, processRun } from "./process.ts";
 import { verifyVideo } from "./probe.ts";
-import { frameUs, frameSamples } from "../timeline/clock.ts";
+import { frameSamples } from "../timeline/clock.ts";
 import { toSrt, toAss } from "../timeline/captions.ts";
 import { currentRuntime } from "../runtime.ts";
 

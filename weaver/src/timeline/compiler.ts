@@ -6,13 +6,10 @@ import {
   Issue,
   OutputProfile,
   Frames,
-  Samples,
   Microseconds,
   CaptionStyle,
   refKey,
   speechOf,
-  type Scene,
-  type CaptionCue,
 } from "../contracts/index.ts";
 import {
   add,
@@ -21,7 +18,6 @@ import {
   frameSeconds,
   secondsFrames,
   frameSamples,
-  frameUs,
   type Rational,
 } from "./clock.ts";
 

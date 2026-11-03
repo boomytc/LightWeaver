@@ -64,17 +64,11 @@ export function PlayIcon(props: IconProps) {
 export function PauseIcon(props: IconProps) {
   return <Icon {...props}><path d="M8 5v14M16 5v14" /></Icon>;
 }
-export function ChevronLeftIcon(props: IconProps) {
-  return <Icon {...props}><path d="m15 18-6-6 6-6" /></Icon>;
-}
 export function ChevronRightIcon(props: IconProps) {
   return <Icon {...props}><path d="m9 18 6-6-6-6" /></Icon>;
 }
 export function ChevronDownIcon(props: IconProps) {
   return <Icon {...props}><path d="m6 9 6 6 6-6" /></Icon>;
-}
-export function ChevronUpIcon(props: IconProps) {
-  return <Icon {...props}><path d="m18 15-6-6-6 6" /></Icon>;
 }
 export function PanelLeftCloseIcon(props: IconProps) {
   return <Icon {...props}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M15 9l-3 3 3 3" /></Icon>;
@@ -106,17 +100,11 @@ export function ArrowDownIcon(props: IconProps) {
 export function UploadIcon(props: IconProps) {
   return <Icon {...props}><path d="M12 16V3M7 8l5-5 5 5M4 15v5h16v-5" /></Icon>;
 }
-export function ExportIcon(props: IconProps) {
-  return <Icon {...props}><path d="M12 3v13M7 11l5 5 5-5M4 15v5h16v-5" /></Icon>;
-}
 export function CheckIcon(props: IconProps) {
   return <Icon {...props}><path d="m5 12 4 4L19 6" /></Icon>;
 }
 export function AlertIcon(props: IconProps) {
   return <Icon {...props}><path d="M12 3 2.5 20h19z" /><path d="M12 9v5M12 17.5v.01" /></Icon>;
-}
-export function InfoIcon(props: IconProps) {
-  return <Icon {...props}><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.01" /></Icon>;
 }
 export function MoreIcon(props: IconProps) {
   return <Icon {...props}><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" /></Icon>;
@@ -150,9 +138,6 @@ export function CardIcon(props: IconProps) {
 }
 export function CopyIcon(props: IconProps) {
   return <Icon {...props}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4H4v12h4" /></Icon>;
-}
-export function ExternalLinkIcon(props: IconProps) {
-  return <Icon {...props}><path d="M14 4h6v6M20 4l-9 9M18 13v7H4V6h7" /></Icon>;
 }
 export function CloseIcon(props: IconProps) {
   return <Icon {...props}><path d="m6 6 12 12M18 6 6 18" /></Icon>;

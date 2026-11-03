@@ -12,5 +12,3 @@ export const DESCRIBE_SETTINGS = {
   maxSequence: 18,
   shortSequence: 2,
 };
-
-export const DEFAULT_VLM_MODEL = "MiniCPM-V-4.6";

@@ -307,7 +307,7 @@ export class Models {
       );
     const patch: Record<string, string> = {};
     for (const binding of item.catalog.bindings)
-      patch[binding.setting] = modelBindingValue(item, directory, binding);
+      patch[binding.setting] = modelBindingValue(directory, binding);
     return patch;
   }
 
@@ -540,7 +540,7 @@ export class Models {
             continue;
           }
           safeRelative(binding.target === "file" ? binding.file : "");
-          patch[binding.setting] = modelBindingValue(item, directory, binding);
+          patch[binding.setting] = modelBindingValue(directory, binding);
         }
         return this.writeSettings({
           root: this.root,

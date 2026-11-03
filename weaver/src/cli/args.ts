@@ -7,7 +7,6 @@ import {
   commandFlags,
   findCommand,
   matchNamespace,
-  scopeHelp,
   type CommandSpec,
   type RequirementCondition,
 } from "./commands.ts";
@@ -393,8 +392,4 @@ export function validateCommandInvocation(invocation: CommandInvocation): void {
         `查看帮助: weaver ${commandKey(spec)} --help`,
       ],
     );
-}
-
-export function resolveHelp(parsed: ParsedArgs, scope: readonly string[]) {
-  return scope.length ? scopeHelp(scope) : undefined;
 }

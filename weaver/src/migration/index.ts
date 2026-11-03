@@ -3,16 +3,13 @@ import path from "node:path";
 import {
   z,
   ProjectDocument,
-  ProjectRevision,
   Scene,
   LibraryVersion,
   MediaAssetVersion,
-  Digest,
-  PROFILES,
   type Speech,
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
-import { Store, digest, canonical, newId, now } from "../store/index.ts";
+import { Store, digest, canonical, now } from "../store/index.ts";
 import { backup } from "../store/maintenance.ts";
 import { Projects } from "../project/service.ts";
 import { Library } from "../library/service.ts";

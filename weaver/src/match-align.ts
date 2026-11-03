@@ -1,9 +1,9 @@
 import { coreText, isCoreChar, synthesizeWords, type TranscriptDoc, type TranscriptWord } from "./sentences.ts";
 import { MATCH_SETTINGS, type MatchSettings } from "./match-settings.ts";
 
-export type MatchBlock = { a: number; b: number; size: number };
+type MatchBlock = { a: number; b: number; size: number };
 
-export type CoreWord = { char: string; start: number; end: number; sourceRef: string };
+type CoreWord = { char: string; start: number; end: number; sourceRef: string };
 
 export type Candidate = {
   sourceRef: string;
@@ -18,7 +18,6 @@ function longestMatch(
   a: string,
   alo: number,
   ahi: number,
-  b: string,
   blo: number,
   bhi: number,
   b2j: Map<string, number[]>,
@@ -45,7 +44,7 @@ function longestMatch(
   return { a: bestA, b: bestB, size: bestSize };
 }
 
-export function matchingBlocks(a: string, b: string): MatchBlock[] {
+function matchingBlocks(a: string, b: string): MatchBlock[] {
   const b2j = new Map<string, number[]>();
   for (let i = 0; i < b.length; i++) {
     const ch = b[i]!;
@@ -57,7 +56,7 @@ export function matchingBlocks(a: string, b: string): MatchBlock[] {
   const stack: [number, number, number, number][] = [[0, a.length, 0, b.length]];
   while (stack.length) {
     const [alo, ahi, blo, bhi] = stack.pop()!;
-    const block = longestMatch(a, alo, ahi, b, blo, bhi, b2j);
+    const block = longestMatch(a, alo, ahi, blo, bhi, b2j);
     if (block.size <= 0) continue;
     found.push(block);
     if (alo < block.a && blo < block.b) stack.push([alo, block.a, blo, block.b]);
@@ -86,7 +85,7 @@ function sentenceWords(sentence: TranscriptDoc["sentences"][number]): Transcript
   return sentence.words.length ? sentence.words : synthesizeWords(sentence.text, sentence.start, sentence.end);
 }
 
-export function buildSourceCorpus(
+function buildSourceCorpus(
   sources: { ref: string; transcript: TranscriptDoc }[],
 ): { text: string; mapping: CoreWord[] } {
   const mapping: CoreWord[] = [];
@@ -110,7 +109,7 @@ export function buildSourceCorpus(
   return { text: chars.join(""), mapping };
 }
 
-export function alignSentence(
+function alignSentence(
   sentenceText: string,
   corpusText: string,
   mapping: CoreWord[],
@@ -180,9 +179,4 @@ export function alignEditedToSources(
     });
   }
   return rows;
-}
-
-export function pickCandidate(candidates: Candidate[]): Candidate | undefined {
-  if (!candidates.length) return undefined;
-  return [...candidates].sort((a, b) => b.score - a.score || a.tStart - b.tStart)[0];
 }

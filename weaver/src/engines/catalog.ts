@@ -6,7 +6,6 @@ import { currentPlatform, currentRuntime } from "../runtime.ts";
 
 type FileSpec = z.input<typeof ModelReleaseFile>;
 type BindingSpec = z.input<typeof EngineCatalogItem>["bindings"][number];
-type SourceSpec = z.input<typeof EngineCatalogItem>["source"];
 
 const SHA256 = z.string().regex(/^[a-f0-9]{64}$/);
 

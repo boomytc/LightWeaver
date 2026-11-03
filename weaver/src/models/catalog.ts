@@ -271,7 +271,6 @@ export function downloadUrl(model: DownloadableLocalModel, file: FileSpec): stri
 }
 
 export function modelBindingValue(
-  model: DownloadableLocalModel,
   directory: string,
   binding: BindingSpec,
 ): string {
