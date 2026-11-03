@@ -357,8 +357,6 @@ export class Models {
     if (request.modelbestApiKey?.trim())
       patch.modelbest_api_key = request.modelbestApiKey.trim();
     if (request.clearModelbestApiKey) patch.modelbest_api_key = "";
-    if (request.downloadRoot !== undefined)
-      patch.model_download_root = request.downloadRoot.trim();
     for (const [name, value] of Object.entries(request)) {
       if (
         name === "expectedRevision" ||

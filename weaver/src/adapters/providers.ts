@@ -412,13 +412,11 @@ export class Providers {
     fs.writeFileSync(
       jobFile,
       JSON.stringify({
-        kind: "transcribe",
         audio: input.audio,
         language: input.locale,
         model: cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),
         library: cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
         bindings: cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
-        backend: "auto",
         vadLibrary: cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
         ffmpeg: this.local.settings().ffmpeg,
       }),

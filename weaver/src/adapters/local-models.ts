@@ -67,7 +67,7 @@ export const RerankResult = z.object({
 type ModelInvocation =
   | { kind: "inspect"; backend: "torch" | "gguf" }
   | {
-      kind: "align" | "embed" | "rerank";
+      kind: "align" | "rerank";
       job: unknown;
       workDir: string;
       signal: AbortSignal;

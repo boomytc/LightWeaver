@@ -115,7 +115,7 @@ def main() -> None:
     language = None if language in ("", "auto") else language
     sentences = []
     if ranges:
-        with transcribe_cpp.Model(job["model"], backend=job.get("backend", "auto")) as native:
+        with transcribe_cpp.Model(job["model"]) as native:
             with native.session() as session:
                 for start, end in context_windows(len(pcm), ranges):
                     samples = array.array("f", (value / 32768.0 for value in pcm[start:end]))

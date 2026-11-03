@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Product-local Qwen3 alignment and GGUF retrieval. No downloads or fallback."""
+"""Product-local Qwen3 alignment and GGUF reranking. No downloads or fallback."""
 from contextlib import contextmanager, redirect_stdout
 import importlib.metadata
 import importlib.util
@@ -128,7 +128,7 @@ def align(job):
 
 
 @contextmanager
-def gguf_server(job, rerank=False):
+def gguf_server(job):
     model = Path(job["model"])
     with model.open("rb") as source:
         if source.read(4) != b"GGUF":
@@ -142,10 +142,8 @@ def gguf_server(job, rerank=False):
     env = {k: v for k, v in os.environ.items() if not k.startswith("LLAMA_")}
     env["LLAMA_API_KEY"] = token
     args = [job["server"], "-m", str(model), "--host", "127.0.0.1", "--port", str(port),
-            "--alias", alias, "--embedding", "--pooling", "rank" if rerank else "last",
-            "-c", "8192", "-b", "8192", "-ub", "8192", "-np", "1", "-ngl", "99", "--no-warmup"]
-    if rerank:
-        args.append("--reranking")
+            "--alias", alias, "--embedding", "--pooling", "rank",
+            "-c", "8192", "-b", "8192", "-ub", "8192", "-np", "1", "-ngl", "99", "--no-warmup", "--reranking"]
     with tempfile.TemporaryFile() as log:
         process = subprocess.Popen(args, stdout=log, stderr=log, env=env)
         opener = request.build_opener(request.ProxyHandler({}))
@@ -189,34 +187,8 @@ def gguf_server(job, rerank=False):
                     process.wait(timeout=5)
 
 
-def embed(job):
-    texts = [f'Instruct: {job["instruction"]}\nQuery: {item["text"]}'
-             if item["role"] == "query" else item["text"] for item in job["inputs"]]
-    vectors = []
-    if not texts:
-        return {"model": job["model"], "vectors": vectors}
-    with gguf_server(job) as call:
-        for text in texts:
-            tokens = call("/tokenize", {"content": text, "add_special": True})["tokens"]
-            if len(tokens) > 8192:
-                raise ModelError("INPUT_TOO_LONG", "检索文本超过 8192 tokens；请先拆分源证据")
-            result = call("/v1/embeddings", {"model": "lightweaver-local", "input": [text],
-                                            "encoding_format": "float", "truncate": False})
-            rows = result.get("data", [])
-            if len(rows) != 1 or rows[0].get("index") != 0:
-                raise ModelError("PROVIDER_FORMAT", "向量响应数量或索引无效")
-            vector = rows[0]["embedding"]
-            if not vector or any(not isinstance(x, (int, float)) or not math.isfinite(x) for x in vector):
-                raise ModelError("PROVIDER_FORMAT", "向量包含无效数值")
-            norm = math.sqrt(sum(x * x for x in vector))
-            if norm <= 1e-12:
-                raise ModelError("PROVIDER_FORMAT", "模型返回零向量")
-            vectors.append([x / norm for x in vector])
-    return {"model": job["model"], "vectors": vectors}
-
-
 def rerank(job):
-    with gguf_server(job, rerank=True) as call:
+    with gguf_server(job) as call:
         for document in job["documents"]:
             tokens = call("/tokenize", {"content": job["query"] + "\n" + document, "add_special": True})["tokens"]
             if len(tokens) > 7680:
@@ -245,7 +217,7 @@ if __name__ == "__main__":
                 result = inspect(sys.argv[2])
             else:
                 job = json.loads(Path(sys.argv[2]).read_text())
-                result = {"align": align, "embed": embed, "rerank": rerank}[kind](job)
+                result = {"align": align, "rerank": rerank}[kind](job)
     except ModelError as exc:
         result = {"error": {"code": exc.code, "message": str(exc)}}
     except (ImportError, FileNotFoundError) as exc:
