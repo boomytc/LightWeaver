@@ -8,7 +8,8 @@ import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
 import { probe } from "../media/probe.ts";
 import { digest } from "../store/index.ts";
-import { defaultModelPython, resolveExecutable } from "./executable.ts";
+import { resolveExecutable } from "./executable.ts";
+import { runtimeBinding } from "../engines/runtime.ts";
 import { fileDigest, localModelDigest } from "./toolchain.ts";
 
 export const SPEAKER_PROVIDER = "moss-speakers";
@@ -105,8 +106,8 @@ export function speakerLanguage(locale: string): "zh" | "en" {
 export class SpeakerModels {
   constructor(private readonly root: string) {}
 
-  private value(environment: string, key: string, fallback = ""): string {
-    return readConfig({ root: this.root }).field({ key, environment, fallback }).value;
+  private value(environment: string, key: string): string {
+    return readConfig({ root: this.root }).field({ key, environment }).value;
   }
 
   private localPath(value: string): string {
@@ -136,33 +137,14 @@ export class SpeakerModels {
           "diarization_model",
         ),
       ),
-      python: resolveExecutable(
-        this.value(
-          "LIGHTWEAVER_MODEL_PYTHON",
-          "model_python",
-          defaultModelPython(),
-        ),
-        this.root,
-      ),
-      library: this.localPath(
-        this.value("TRANSCRIBE_LIBRARY", "asr_library"),
-      ),
-      bindings: this.localPath(
-        this.value(
-          "LIGHTWEAVER_ASR_BINDINGS",
-          "asr_bindings",
-        ),
-      ),
-      vadLibrary: this.localPath(
-        this.value("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
-      ),
+      python: runtimeBinding("model_python").value,
+      library: runtimeBinding("asr_library").value,
+      bindings: runtimeBinding("asr_bindings").value,
+      vadLibrary: runtimeBinding("vad_library").value,
       ffmpeg: resolveExecutable("ffmpeg", this.root),
       script: resourcePath("weaver", "scripts", "speakers.py"),
       backend: SpeakerBackend.parse(
-        this.value(
-          "LIGHTWEAVER_DIARIZATION_BACKEND",
-          "diarization_backend",
-        ),
+        process.env.LIGHTWEAVER_DIARIZATION_BACKEND?.trim() || "auto",
       ),
     };
   }
@@ -203,7 +185,7 @@ export class SpeakerModels {
         idempotency: true,
         cancellation: "process-tree",
         hint:
-          "配置 diarization_model、model_python、asr_library、asr_bindings 与 vad_library；标签仅在同一窗口内有效",
+          "选择 diarization_model 并安装语音识别运行组件；标签仅在同一窗口内有效",
       },
     ]);
   }
@@ -219,7 +201,7 @@ export class SpeakerModels {
       { provider: SPEAKER_PROVIDER, model: this.settings().model },
       [
         descriptor?.hint ||
-          "配置 diarization_model、model_python、asr_library、asr_bindings 与 vad_library",
+          "选择 diarization_model 并安装语音识别运行组件",
       ],
     );
   }

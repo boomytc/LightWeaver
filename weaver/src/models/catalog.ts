@@ -108,7 +108,6 @@ const alignmentModel: DownloadableLocalModel = {
     ],
     bindings: [
       { setting: "alignment_model", target: "directory" },
-      { setting: "alignment_device", target: "literal", value: "cpu" },
     ],
     runtimeRequirements: [runtimePython],
   },

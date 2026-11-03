@@ -15,7 +15,6 @@ import {
   MediaAssetVersion,
   MediaProvenance,
   MediaRef,
-  EngineSettingsPatch,
   ModelSettingsPatch,
   ModelInstallInput,
   ModelInstallPlan,
@@ -353,15 +352,6 @@ async function main(): Promise<void> {
         if (!engineId)
           throw new WeaverError("INVALID_INPUT", "缺少 engine-id");
         result = await app.engines.verify(engineId, engineRoot());
-      } else if (action === "use") {
-        if (!engineId)
-          throw new WeaverError("INVALID_INPUT", "缺少 engine-id");
-        result = await app.engines.adopt({
-          id: engineId,
-          directory: option(parsed, "path"),
-          expectedRevision: required(parsed, "expected-revision"),
-          requestId,
-        });
       } else
         throw new WeaverError("INVALID_INPUT", "未知 engines 操作");
     } else if (command === "schema") {
@@ -382,7 +372,6 @@ async function main(): Promise<void> {
         "model-settings": ModelSettingsPatch,
         "model-install": ModelInstallInput,
         "model-install-plan": ModelInstallPlan,
-        "engine-settings": EngineSettingsPatch,
         error: ErrorProtocol,
       };
       const schema = Object.entries(schemas).find(

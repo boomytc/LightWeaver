@@ -5,7 +5,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { z, Id, ModelSettingsField } from "./contracts/index.ts";
 import { WeaverError } from "./contracts/errors.ts";
 import { currentRuntime, resourcePath, usesInstalledConfig } from "./runtime.ts";
-import { bundledBinding } from "./engines/bundled.ts";
 const defaultRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 export function localConfigPath(root = defaultRoot): string {
@@ -86,8 +85,7 @@ export function readConfig(
       const fromEnvironment = env[setting.environment]?.trim();
       if (fromEnvironment)
         return { value: fromEnvironment, source: "environment" };
-      const fromDefault = (usesInstalledConfig(root) ? bundledBinding(setting.key) : "") ||
-        configContentValue(defaults, setting.key).trim() ||
+      const fromDefault = configContentValue(defaults, setting.key).trim() ||
         setting.fallback?.trim();
       return fromDefault
         ? { value: fromDefault, source: "default" }

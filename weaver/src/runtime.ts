@@ -67,6 +67,7 @@ export function developmentRuntime(
         path.join(devRoot, "data", "models"),
     ),
     engineDir: path.resolve(
+      configBase,
       env.LIGHTWEAVER_ENGINE_ROOT?.trim() ||
         path.join(devRoot, "data", "engines"),
     ),

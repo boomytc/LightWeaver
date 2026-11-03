@@ -25,12 +25,9 @@ import {
   replayConfigRequest,
 } from "../config.ts";
 import { Jobs, type NodeContext } from "../jobs/index.ts";
-import {
-  defaultModelPython,
-  defaultSpeechPython,
-  resolveExecutable,
-} from "../adapters/executable.ts";
+import { resolveExecutable } from "../adapters/executable.ts";
 import { currentRuntime } from "../runtime.ts";
+import { runtimeBinding } from "../engines/runtime.ts";
 import { fileDigest } from "../adapters/toolchain.ts";
 import {
   catalog,
@@ -64,57 +61,17 @@ const SETTINGS: Record<string, Setting> = {
     key: "tts_model",
     environment: "LIGHTWEAVER_TTS_MODEL",
   },
-  modelPython: {
-    key: "model_python",
-    environment: "LIGHTWEAVER_MODEL_PYTHON",
-    fallback: defaultModelPython(),
-  },
-  speechPython: {
-    key: "speech_python",
-    environment: "LIGHTWEAVER_SPEECH_PYTHON",
-    fallback: defaultSpeechPython(),
-  },
-  engineInstallRoot: {
-    key: "engine_install_root",
-    environment: "LIGHTWEAVER_ENGINE_ROOT",
-  },
-  llamaServer: {
-    key: "llama_server",
-    environment: "LIGHTWEAVER_LLAMA_SERVER",
-  },
   asrModel: { key: "asr_model", environment: "LIGHTWEAVER_ASR_MODEL" },
-  asrLibrary: { key: "asr_library", environment: "TRANSCRIBE_LIBRARY" },
-  asrBindings: {
-    key: "asr_bindings",
-    environment: "LIGHTWEAVER_ASR_BINDINGS",
-  },
-  vadLibrary: { key: "vad_library", environment: "LIGHTWEAVER_VAD_LIBRARY" },
   visualModel: { key: "visual_model", environment: "LIGHTWEAVER_VISUAL_MODEL" },
   visualMmproj: {
     key: "visual_mmproj",
     environment: "LIGHTWEAVER_VISUAL_MMPROJ",
   },
-  visualServer: {
-    key: "visual_server",
-    environment: "LIGHTWEAVER_VISUAL_SERVER",
-  },
   alignmentModel: {
     key: "alignment_model",
     environment: "LIGHTWEAVER_ALIGNMENT_MODEL",
   },
-  alignmentDevice: {
-    key: "alignment_device",
-    environment: "LIGHTWEAVER_ALIGNMENT_DEVICE",
-  },
 };
-
-function field(
-  root: string,
-  setting: Setting,
-  env: NodeJS.ProcessEnv,
-): z.infer<typeof ModelSettingsView>["values"][string] {
-  return readConfig({ root, env }).field(setting);
-}
 
 function resolvePath(root: string, value: string): string {
   return value ? path.resolve(root, value) : "";
@@ -335,11 +292,9 @@ export class Models {
     });
   }
 
-  runtimeStatus(id: string, overrides: Readonly<Record<string, string>> = {}) {
+  runtimeStatus(id: string) {
     return this.model(id).catalog.runtimeRequirements.map((requirement) => {
-      const setting = SETTINGS[this.settingName(requirement.setting)];
-      const value = overrides[requirement.setting] ?? (setting
-        ? field(this.root, setting, process.env).value : "");
+      const value = runtimeBinding(requirement.setting).value;
       return {
         setting: requirement.setting,
         label: requirement.label,
@@ -558,6 +513,10 @@ export class Models {
     patch: Record<string, string | undefined>;
     identity?: unknown;
   }) {
+    const allowed = new Set([...Object.values(SETTINGS).map((setting) => setting.key), "modelbest_api_key"]);
+    for (const key of Object.keys(input.patch))
+      if (!allowed.has(key))
+        throw new WeaverError("INVALID_INPUT", "模型配置包含未知设置项", { key });
     return patchLocalConfig({
       ...input,
       resultSchema: ModelSettingsView,

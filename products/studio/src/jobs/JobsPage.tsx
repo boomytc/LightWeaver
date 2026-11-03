@@ -29,7 +29,7 @@ const engineRoleLabels: Record<string, string> = {
 function nodeLabel(key: string): string {
   if (key === "activate") return "校验并启用模型";
   if (key.startsWith("download-")) return "下载模型文件";
-  if (key === "adopt") return "写入运行时配置";
+  if (key === "adopt") return "检查组件与模型";
   const match = /^install-(.+)$/.exec(key);
   if (!match) return key;
   return `安装 ${engineRoleLabels[match[1]] || match[1]}`;

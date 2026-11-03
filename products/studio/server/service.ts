@@ -276,19 +276,6 @@ export async function startStudioService(
         .root,
     ),
   );
-  route("post", "/api/engines/:id/use", (req) =>
-    app.engines.adopt({
-      id: z.string().parse(req.params.id),
-      directory: z
-        .object({ path: z.string().min(1).optional() })
-        .parse(req.body)
-        .path,
-      expectedRevision: z.object({ expectedRevision: z.string() }).parse(req.body)
-        .expectedRevision,
-      requestId: z.object({ requestId: z.string().min(1) }).parse(req.body)
-        .requestId,
-    }),
-  );
   route("get", "/api/projects", () => app.projects.list());
   route("post", "/api/projects/import-bundle", async (req) => {
     const input = z.object({ file: z.string().min(1), requestId: z.string(), projectId: z.string().optional() }).strict().parse(req.body);

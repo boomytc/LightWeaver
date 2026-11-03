@@ -5,8 +5,9 @@ import { WeaverError } from "../contracts/errors.ts";
 import { readConfig } from "../config.ts";
 import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
-import { defaultSpeechPython, resolveExecutable } from "./executable.ts";
+import { resolveExecutable } from "./executable.ts";
 import { localModelDigest } from "./toolchain.ts";
+import { runtimeBinding } from "../engines/runtime.ts";
 
 export const LOCAL_TTS_PROVIDER = "local-voxcpm2";
 export const TRANSLATION_PROVIDER = "hy-mt2";
@@ -91,8 +92,8 @@ const ProcessError = z.object({
 export class SpeechModels {
   constructor(private readonly root: string) {}
 
-  private value(env: string, key: string, fallback = "") {
-    return readConfig({ root: this.root }).field({ key, environment: env, fallback }).value;
+  private value(env: string, key: string) {
+    return readConfig({ root: this.root }).field({ key, environment: env }).value;
   }
 
   private localPath(value: string) {
@@ -166,24 +167,11 @@ export class SpeechModels {
       localTtsModel: this.localPath(
         this.value("LIGHTWEAVER_LOCAL_TTS_MODEL", "local_tts_model"),
       ),
-      speechPython: resolveExecutable(
-        this.value(
-          "LIGHTWEAVER_SPEECH_PYTHON",
-          "speech_python",
-          defaultSpeechPython(),
-        ),
-        this.root,
-      ),
+      speechPython: runtimeBinding("speech_python").value,
       translationModel: this.localPath(
         this.value("LIGHTWEAVER_TRANSLATION_MODEL", "translation_model"),
       ),
-      translationServer: resolveExecutable(
-        this.value(
-          "LIGHTWEAVER_TRANSLATION_SERVER",
-          "translation_server",
-        ),
-        this.root,
-      ),
+      translationServer: runtimeBinding("translation_server").value,
       python3: resolveExecutable("python3", this.root),
     };
   }
@@ -209,7 +197,7 @@ export class SpeechModels {
         remote: false,
         idempotency: true,
         cancellation: "process-tree",
-        hint: "配置 local_tts_model、speech_python，并在独立环境安装 weaver/requirements.speech.txt",
+        hint: "选择 local_tts_model，并在诊断与修复中安装语音运行组件",
       },
       {
         id: TRANSLATION_PROVIDER,
@@ -222,7 +210,7 @@ export class SpeechModels {
         remote: false,
         idempotency: false,
         cancellation: "process-tree",
-        hint: "配置 translation_model 与 translation_server（默认 llama-server）",
+        hint: "选择 translation_model 并安装运行组件",
       },
     ]);
   }
@@ -365,13 +353,11 @@ export class SpeechModels {
       { provider, missing },
       provider === LOCAL_TTS_PROVIDER
         ? [
-            "创建独立环境：uv venv --python 3.12 weaver/.speech-venv",
-            `安装语音依赖：uv pip install --python ${defaultSpeechPython()} -r weaver/requirements.speech.txt`,
-            "配置 local_tts_model 与 speech_python",
+            "选择 local_tts_model，并在诊断与修复中安装语音运行组件",
           ]
         : [
             "配置 translation_model（Hy-MT2 GGUF）",
-            "配置 translation_server（默认从 PATH 查找 llama-server）",
+            "在诊断与修复中安装 llama-server 组件",
           ],
     );
   }

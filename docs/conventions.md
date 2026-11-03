@@ -177,15 +177,15 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 | --- | --- | --- |
 | TTS、音色设计 | ModelBest VoxCPM2 SSE 音频事件 | MODELBEST_API_KEY、LIGHTWEAVER_TTS_MODEL |
 | VLM | ModelBest MiniCPM-V 或 DeepSeek flash | MODELBEST_API_KEY、DEEPSEEK_API_KEY，analyze --provider |
-| VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | LIGHTWEAVER_MODEL_PYTHON、LIGHTWEAVER_VAD_LIBRARY、LIGHTWEAVER_ASR_MODEL、TRANSCRIBE_LIBRARY、LIGHTWEAVER_ASR_BINDINGS |
-| 精确对齐 | Qwen3 ForcedAligner，固定使用 Torch | LIGHTWEAVER_ALIGNMENT_MODEL、LIGHTWEAVER_ALIGNMENT_DEVICE |
-| 文本和视觉向量 | EmbeddingGemma 2 GGUF 与 mmproj，mean pooling | LIGHTWEAVER_VISUAL_MODEL、LIGHTWEAVER_VISUAL_MMPROJ、LIGHTWEAVER_VISUAL_SERVER |
+| VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | LIGHTWEAVER_ASR_MODEL |
+| 精确对齐 | Qwen3 ForcedAligner，固定使用 Torch | LIGHTWEAVER_ALIGNMENT_MODEL |
+| 文本和视觉向量 | EmbeddingGemma 2 GGUF 与 mmproj，mean pooling | LIGHTWEAVER_VISUAL_MODEL、LIGHTWEAVER_VISUAL_MMPROJ |
 | 重排 | Qwen3 Reranker GGUF，rank pooling | LIGHTWEAVER_RERANKER_MODEL，search --rerank |
-| 本地语音 | VoxCPM2 Torch | LIGHTWEAVER_LOCAL_TTS_MODEL、LIGHTWEAVER_SPEECH_PYTHON |
-| 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL、LIGHTWEAVER_TRANSLATION_SERVER |
+| 本地语音 | VoxCPM2 Torch | LIGHTWEAVER_LOCAL_TTS_MODEL |
+| 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL |
 | 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
 
-本地模型 Python 由 `LIGHTWEAVER_MODEL_PYTHON` / `model_python` 指定，并实际启动 ASR、对齐和视觉子进程。默认路径相对 `configBase`，Windows 为 `weaver/.venv/Scripts/python.exe`，其他平台为 `weaver/.venv/bin/python`。模型页的“下载并启用”自动准备环境和权重；高级配置可采用已有环境的绝对路径。`llama_server` 只服务于显式配置的 GGUF 能力；ASR 执行链使用 TEN VAD、`transcribe` native library 和 Python bindings，不使用 `llama-server`。相对配置路径按运行时配置基准解析，不读取相邻仓库配置或 Python 环境。`requirements.models.txt` 在所有平台安装 `qwen-asr`，强制对齐只使用 Torch；`alignment_device` 默认为 `cpu`，也可显式配置 `cuda[:index]`。
+运行组件路径由安装清单统一解析，不写入模型配置文件。源码模式使用仓库 `data/engines/`，桌面包优先使用当前安装目录中的组件；未安装受管组件时使用随包资源。源码开发也支持仓库内的标准 `.venv`、`.speech-venv`。ASR 使用 TEN VAD、transcribe 运行库与 Python bindings；检索、重排和翻译共用 llama-server。强制对齐固定使用 Torch，默认 CPU。特殊构建可通过 `LIGHTWEAVER_ENGINE_ROOT` 或各组件环境变量覆盖；设备选择使用 `LIGHTWEAVER_ALIGNMENT_DEVICE`（`cpu`、`cuda[:index]`）和 `LIGHTWEAVER_DIARIZATION_BACKEND`。这些开发覆盖不进入模型配置或设置写入接口。
 
 每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。模型 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
 
@@ -210,25 +210,23 @@ npx weaver engines list --json
 # 高级或自动化：单独处理某个组件
 npx weaver engines install transcribe-native --wait --json
 npx weaver engines verify transcribe-native --json
-npx weaver engines use transcribe-native --expected-revision CONFIG_REV --json
-npx weaver schema engine-settings --json
 ```
 
-高级修复面板与 `engines setup` 提供组合操作：依次安装 transcribe 运行库、Python bindings、TEN VAD（必需），llama-server 和模型 Python 环境（可选），最后一个作业节点一次写入配置。用户不需要指定路径，也不需要先理解“下载、校验、采用”的逐步操作；已安装且校验通过的部分会复用。
+高级修复面板与 `engines setup` 提供组合操作：依次安装 transcribe 运行库、Python bindings、TEN VAD（必需），llama-server 和模型 Python 环境（可选），最后一个作业节点确认组件就绪。用户不需要指定路径，也不需要先理解“下载、校验、采用”的逐步操作；已安装且校验通过的部分会复用。
 
-必需组件失败时作业失败且不写配置；可选组件失败只记录在采用节点的 `skipped` 里并继续写配置，界面显示“部分组件未完成，可重试”。CLI 与自动化可用 `includeSpeech`（约 4 GB）与 `includeModels`（ASR、EmbeddingGemma、ForcedAligner 权重，约 3.7 GB，CLI 为 `--with-speech`、`--with-models`）扩展组合操作。Studio 的通用修复只处理运行组件，模型权重由模型页选择，语音环境也可在高级组件中单独安装。组件就绪且没有更新时，“刷新状态”只读取状态；已安装、已采用的组件不再显示重复安装或采用按钮。单个组件的校验、更新和手动路径收在高级设置里。
+必需组件失败时作业失败且不写配置；可选组件失败只记录在完成节点的 `skipped` 里并继续处理其余组件，界面显示“部分组件未完成，可重试”。CLI 与自动化可用 `includeSpeech`（约 4 GB）与 `includeModels`（ASR、EmbeddingGemma、ForcedAligner 权重，约 3.7 GB，CLI 为 `--with-speech`、`--with-models`）扩展组合操作。Studio 的通用修复只处理运行组件，模型权重由模型页选择，语音环境也可在高级组件中单独安装。组件就绪且没有更新时，“刷新状态”只读取状态；已安装、已采用的组件不再显示重复安装或采用按钮。单个组件的校验与更新收在组件清单中。
 
-开始前按未安装组件的 `estimatedBytes` 与模型剩余字节估算所需空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。已安装版本与当前发布不同时 `engines list` 的 `updates` 会列出该组件，`engines setup` 会下载新版本、替换本应用管理的目录并重新采用。引擎安装根目录可在高级设置中修改（写 `engine_install_root`）；已安装目录不会自动搬迁，下一次一键配置会安装到新目录。可用空间与更新列表通过 `GET /api/engines` 返回。
+开始前按未安装组件的 `estimatedBytes` 与模型剩余字节估算所需空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。已安装版本与当前发布不同时 `engines list` 的 `updates` 会列出该组件，`engines setup` 会下载新版本、替换本应用管理的目录并重新采用。组件位置由运行时决定，已有文件不会自动搬迁。可用空间与更新列表通过 `GET /api/engines` 返回。
 
-`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。每个组件的 `usage` 由服务端统一计算：`bundled`（应用自带并正在使用）、`managed`（本应用安装并已采用）、`managed-unused`（已安装未采用）、`external`（当前绑定来自手工配置或系统路径）、`unused`、`partial`；Studio 引擎面板、诊断页与 `doctor` 都使用这个分类，不再各自拼装“已安装/已配置”措辞。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
+`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。每个组件的 `usage` 由服务端统一计算：`bundled`（应用自带并正在使用）、`managed`（本应用安装并已采用）、`managed-unused`（已安装未采用）、`external`（当前绑定来自环境覆盖或标准开发环境）、`unused`、`partial`；Studio 引擎面板、诊断页与 `doctor` 都使用这个分类，不再各自拼装“已安装/已配置”措辞。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件已安装并采用，`coreReady` 只要求 transcribe 运行库、bindings 与 TEN VAD。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
 
-引擎安装根目录取 `engine_install_root`（环境变量 `LIGHTWEAVER_ENGINE_ROOT`）。未显式配置时，源码入口使用仓库 `data/engines/`（Git 忽略），正式桌面包使用数据目录下的 `engines/`。显式相对路径按 `configBase` 解析。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
+引擎安装根目录由运行时选择；源码入口使用仓库 `data/engines/`（Git 忽略），正式桌面包使用数据目录下的 `engines/`。开发时可用 `LIGHTWEAVER_ENGINE_ROOT` 覆盖。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
 
-`engines setup` 是上述单组件流程的组合：五个安装节点按顺序执行，最后一个 `engine-adopt` 节点重新校验全部组件后一次写入配置，写入继续受 expectedRevision 保护。`engines use`（高级）先完整校验单个引擎，再把绑定写入私有配置：transcribe 运行库写 `asr_library`，bindings 写 `asr_bindings`，TEN VAD 写 `vad_library`，llama-server 同时写 `visual_server`、`llama_server` 与 `translation_server`，Python 环境写 `model_python` 或 `speech_python`。采用沿用 `models settings get` 的 revision 与稳定 requestId，先校验后写配置；下载或安装本身不会隐式改写配置。
+`engines setup` 按顺序安装并校验组件，安装完成后自动解析使用，不再需要“采用引擎”操作。仅在显式选择同时采用模型时，完成节点才按 expectedRevision 写入模型路径。模型配置只接受模型路径、模型选择及 API 凭据，设置接口与内部配置写入口均拒绝运行组件字段。
 
 Python 环境由 `python-model`、`python-speech` 两个引擎项创建：优先使用运行时 Python，否则从 PATH 找 Python 3.10 以上解释器，创建 venv 后按 `weaver/requirements.models.txt` 或 `weaver/requirements.speech.txt` 安装依赖，失败时删除本次新建的环境。作业使用六小时时限，取消会终止 pip。校验会读取已安装包版本与 requirements 的固定版本对比；语音环境的 torch/voxcpm 体积较大，安装时间取决于网络。
 
-TEN VAD 已从模型目录迁入引擎。旧配置中的 `vad_library` 路径继续有效；`models use ten-vad-*` 不再是模型命令，改用 `engines use ten-vad` 或设置页直接填写路径。引擎安装与采用的实际证据和平台范围见[引擎运行时安装验收](acceptance-engine-setup.md)。
+TEN VAD 由引擎安装管理。引擎安装的历史证据和平台范围见[引擎运行时安装验收](acceptance-engine-setup.md)。
 
 ## 库与交接
 
@@ -287,7 +285,7 @@ Studio 的“保存”一次写入文档与待审创作方案；“保存并制�
 
 打包支持 `darwin-arm64`、`darwin-x64`、`linux-x64`、`win32-x64`，需在对应宿主执行 `npm run package -w @lightweaver/desktop -- --target=目标`。普通 package 生成可运行目录，`--dist` 再生成安装分发包；不支持的目标或跨宿主构建在修改 staging 前失败。Node、FFmpeg、Chrome、交接 Python 和 sidecar 依赖随包固定，最终 Resources 按 SHA-256 与原生架构核验。签名和公证不在这些命令里。
 
-交接 Python 自带 OTIO 与剪映导出依赖。transcribe、bindings、TEN VAD 与 llama-server 随包预装，默认绑定在运行时按应用位置解析，不把随包绝对路径写入用户配置。模型 Python 环境由“下载并启用”按需创建，用户无需指定路径；高级设置仍支持已有环境。首次启动不下载模型依赖或权重。项目首页可导入 bundle ZIP 或目录；模型完整性检查与真实推理作业结果分别展示。
+交接 Python 自带 OTIO 与剪映导出依赖。transcribe、bindings、TEN VAD 与 llama-server 随包预装，默认绑定在运行时按应用位置解析，不把随包绝对路径写入用户配置。模型 Python 环境由“下载并启用”按需创建，路径由安装位置自动解析。首次启动不下载模型依赖或权重。项目首页可导入 bundle ZIP 或目录；模型完整性检查与真实推理作业结果分别展示。
 
 客户端状态先加载再重放待保存操作；冲突时按最新状态重放，备份清除需服务端确认。桌面每次编辑同时写入当前数据目录的独立恢复 journal，重启前等待写盘。草稿恢复保留原修订基线，转换操作期间的新编辑不会绕过修订冲突。“保留草稿并加载当前修订”在备份前绑定项目、会话、修订基线与草稿序号；等待期间有新编辑时，保留草稿和冲突状态，由用户再次确认加载。并发保存推进修订后，旧加载操作也会失效。桌面关窗先通过作业服务检查排队、运行和正在取消的任务，不受最近 100 条历史记录限制。没有活动任务时先处理草稿，再停止后台并退出；有活动任务或状态暂不可读时，提供后台运行、停止后台并退出、取消三项。后台运行先等待草稿写盘并建立托盘恢复入口，再隐藏窗口。菜单退出沿用同一活动任务检查，隐藏窗口会先恢复以显示确认。主进程串行协调关窗与退出，浏览器仍使用离站提示。验收证据与平台限制见 [桌面客户端验收](acceptance-desktop.md)。
 

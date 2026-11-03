@@ -6,7 +6,7 @@ import { WeaverError } from "../contracts/errors.ts";
 import { readConfig } from "../config.ts";
 import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
-import { defaultModelPython, resolveExecutable } from "./executable.ts";
+import { runtimeBinding } from "../engines/runtime.ts";
 import { fileDigest } from "./toolchain.ts";
 
 export const VISUAL_PROVIDER = "embeddinggemma-visual";
@@ -88,8 +88,8 @@ type Binding = z.infer<typeof VisualBinding>;
 export class VisualModels {
   constructor(private readonly root: string) {}
 
-  private value(environment: string, key: string, fallback = ""): string {
-    return readConfig({ root: this.root }).field({ key, environment, fallback }).value;
+  private value(environment: string, key: string): string {
+    return readConfig({ root: this.root }).field({ key, environment }).value;
   }
 
   private localPath(value: string): string {
@@ -104,18 +104,8 @@ export class VisualModels {
       mmproj: this.localPath(
         this.value("LIGHTWEAVER_VISUAL_MMPROJ", "visual_mmproj"),
       ),
-      server: resolveExecutable(
-        this.value("LIGHTWEAVER_VISUAL_SERVER", "visual_server"),
-        this.root,
-      ),
-      python: resolveExecutable(
-        this.value(
-          "LIGHTWEAVER_MODEL_PYTHON",
-          "model_python",
-          defaultModelPython(),
-        ),
-        this.root,
-      ),
+      server: runtimeBinding("visual_server").value,
+      python: runtimeBinding("model_python").value,
       script: resourcePath("weaver", "scripts", "visual_models.py"),
     };
   }
@@ -144,7 +134,7 @@ export class VisualModels {
       idempotency: true,
       cancellation: "process-tree",
       hint:
-        "配置 visual_model、visual_mmproj、visual_server；模型 Python 使用 model_python",
+        "选择 EmbeddingGemma 模型与 mmproj，运行组件由安装流程自动准备",
     };
     return z.array(ProviderDescriptor).parse([
       {
@@ -189,7 +179,7 @@ export class VisualModels {
         { provider },
         [
           descriptor?.hint ||
-            "配置 visual_model、visual_mmproj、visual_server 和 model_python",
+            "在模型页选择 EmbeddingGemma 模型并准备运行组件",
         ],
       );
   }

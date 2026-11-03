@@ -23,15 +23,11 @@ import {
   ModelInstallSource,
 } from "../contracts/index.ts";
 import { WeaverError } from "../contracts/errors.ts";
-import { readConfig } from "../config.ts";
+import { engineRoot, runtimeBinding } from "./runtime.ts";
 import { Jobs, type NodeContext, type NodeSpec } from "../jobs/index.ts";
 import { currentRuntime } from "../runtime.ts";
 import { fileDigest } from "../adapters/toolchain.ts";
-import {
-  defaultModelPython,
-  defaultSpeechPython,
-  resolveExecutable,
-} from "../adapters/executable.ts";
+import { resolveExecutable } from "../adapters/executable.ts";
 import { LOCAL_SETUP_MODEL_IDS } from "../models/catalog.ts";
 import type { Models } from "../models/service.ts";
 import { extractArchive } from "./archive.ts";
@@ -79,38 +75,6 @@ const EngineMarker = z.object({
   installedAt: z.string(),
 });
 type Marker = z.infer<typeof EngineMarker>;
-
-/** 引擎绑定写回的配置项。路径按配置基准解析，与模型采用一致。 */
-const SETTINGS: Record<
-  string,
-  { key: string; environment: string; fallback?: string }
-> = {
-  asr_library: { key: "asr_library", environment: "TRANSCRIBE_LIBRARY" },
-  asr_bindings: {
-    key: "asr_bindings",
-    environment: "LIGHTWEAVER_ASR_BINDINGS",
-  },
-  vad_library: { key: "vad_library", environment: "LIGHTWEAVER_VAD_LIBRARY" },
-  visual_server: {
-    key: "visual_server",
-    environment: "LIGHTWEAVER_VISUAL_SERVER",
-  },
-  llama_server: { key: "llama_server", environment: "LIGHTWEAVER_LLAMA_SERVER" },
-  translation_server: {
-    key: "translation_server",
-    environment: "LIGHTWEAVER_TRANSLATION_SERVER",
-  },
-  model_python: {
-    key: "model_python",
-    environment: "LIGHTWEAVER_MODEL_PYTHON",
-    fallback: defaultModelPython(),
-  },
-  speech_python: {
-    key: "speech_python",
-    environment: "LIGHTWEAVER_SPEECH_PYTHON",
-    fallback: defaultSpeechPython(),
-  },
-};
 
 function inspectPath(
   file: string,
@@ -281,13 +245,7 @@ export class Engines {
   }
 
   installRoot(env: NodeJS.ProcessEnv = process.env): z.infer<typeof ModelSettingsField> {
-    const field = readConfig({ root: this.root, env }).field({
-      key: "engine_install_root",
-      environment: "LIGHTWEAVER_ENGINE_ROOT",
-    });
-    return field.source === "unset" || field.source === "default"
-      ? { value: currentRuntime().engineDir, source: "default" }
-      : field;
+    return engineRoot(env);
   }
 
   private rootDirectory(root: string = this.installRoot().value): string {
@@ -308,10 +266,7 @@ export class Engines {
 
   private activeBindings(item: EngineItem): z.infer<typeof EngineActiveBinding>[] {
     return item.bindings.map((binding) => {
-      const setting = SETTINGS[binding.setting];
-      const value = setting
-        ? readConfig({ root: this.root, env: process.env }).field(setting)
-        : { value: "", source: "unset" as const };
+      const value = runtimeBinding(binding.setting);
       const target =
         binding.target === "directory"
           ? resolvePath(this.root, value.value)
@@ -896,33 +851,6 @@ export class Engines {
     });
   }
 
-  async adopt(input: {
-    id: string;
-    directory?: string;
-    expectedRevision: string;
-    requestId: string;
-  }) {
-    const item = this.item(input.id),
-      base = this.rootDirectory(),
-      directory = input.directory
-        ? path.resolve(this.root, input.directory)
-        : this.installedDirectory(item, base),
-      verification = await this.verifyDirectory(item, base, directory);
-    if (verification.state !== "verified")
-      throw new WeaverError(
-        "ENGINE_VERIFY_FAILED",
-        "引擎目录未通过完整性校验，未写入配置",
-        verification,
-      );
-    const identity = { operation: "engine-adopt", id: item.id, directory };
-    return this.models.writeSettingsPatch({
-      requestId: input.requestId,
-      expectedRevision: input.expectedRevision,
-      patch: this.bindingsPatch(item, directory),
-      identity,
-    });
-  }
-
   modelPlan(id: string, root = this.models.settings().downloadRoot.value) {
     const model = this.models.catalog().localModels.find((item) => item.id === id);
     if (!model) throw new WeaverError("INVALID_INPUT", "未知本地模型", { id });
@@ -1000,19 +928,17 @@ export class Engines {
       dependencies: nodes.length ? [nodes[nodes.length - 1].key] : [],
       input: { id: input.id, root, expectedRevision: input.expectedRevision,
         revision: model.revision, engineRoot, source: plan.source,
-        components: components.map(({ id, version }) => ({ id, version })),
-        settings: this.models.runtimeStatus(input.id).filter((item) => !item.ready).map((item) => item.setting) },
+        components: components.map(({ id, version }) => ({ id, version })) },
     });
     return this.jobs.submit({ kind: "model-setup", requestInput,
       snapshot: { ...requestInput, model, plan }, nodes, requestId: input.requestId });
   }
 
   private async activateModelNode(context: NodeContext) {
-    const input = z.strictObject({
+    const input = z.looseObject({
       id: z.string(), revision: z.string(), root: z.string(), engineRoot: z.string(),
       expectedRevision: Digest,
       components: z.array(z.strictObject({ id: z.string(), version: z.string() })),
-      settings: z.array(z.string()),
       source: ModelInstallSource.optional(),
     }).parse(context.input);
     const patch: Record<string, string> = {};
@@ -1024,8 +950,6 @@ export class Engines {
       context.signal.throwIfAborted();
       if (verification.state !== "verified")
         throw new WeaverError("ENGINE_VERIFY_FAILED", `${item.name} 未通过校验`, verification);
-      for (const [key, value] of Object.entries(this.bindingsPatch(item, verification.directory)))
-        if (input.settings.includes(key)) patch[key] = value;
     }
     const model = this.models.planForSetup([input.id])[0];
     if (model.revision !== input.revision)
@@ -1039,11 +963,11 @@ export class Engines {
         throw new WeaverError("MODEL_VERIFY_FAILED", "当前模型未通过完整性校验，未修改配置", verification);
     } else Object.assign(patch, await this.models.bindingsForSetup(input.id, input.root));
     context.signal.throwIfAborted();
-    const missing = this.models.runtimeStatus(input.id, patch).filter((item) => !item.ready);
+    const missing = this.models.runtimeStatus(input.id).filter((item) => !item.ready);
     if (missing.length)
       throw new WeaverError("CAPABILITY_UNAVAILABLE", "模型所需组件未准备完成，未启用模型", { missing });
     context.event("model-setup-progress", { phase: "activate", message: "正在启用模型" });
-    await this.models.writeSettingsPatch({
+    if (Object.keys(patch).length) await this.models.writeSettingsPatch({
       requestId: `model-setup-${context.runId}`,
       expectedRevision: input.expectedRevision,
       patch,
@@ -1054,7 +978,7 @@ export class Engines {
 
   /**
    * 一键配置：必需组件失败则作业失败；可选组件失败只记录并继续，
-   * 采用节点一次校验成功的组件并写入配置。
+   * 完成节点校验组件，仅在采用模型权重时写入模型配置。
    */
   setup(raw: unknown) {
     const input = EngineSetupInput.parse(raw),
@@ -1079,6 +1003,8 @@ export class Engines {
         modelRoot,
         expectedRevision: input.expectedRevision,
       };
+    if (root !== this.rootDirectory())
+      throw new WeaverError("INVALID_INPUT", "组件根目录必须与当前运行时一致，请通过 LIGHTWEAVER_ENGINE_ROOT 指定");
     const prior = this.jobs.prior("engine-setup", input.requestId, requestInput);
     if (prior) return prior;
     const active = this.jobs
@@ -1201,24 +1127,6 @@ export class Engines {
     return items;
   }
 
-  private bindingsPatch(
-    item: EngineItem,
-    directory: string,
-  ): Record<string, string> {
-    const patch: Record<string, string> = {};
-    if (bundledEngines().some((component) => component.id === item.id && component.directory === directory))
-      return patch;
-    for (const binding of item.bindings) {
-      if (!SETTINGS[binding.setting])
-        throw new WeaverError("INVALID_INPUT", "引擎绑定使用未知设置项", {
-          id: item.id,
-          setting: binding.setting,
-        });
-      patch[binding.setting] = engineBindingValue(directory, binding);
-    }
-    return patch;
-  }
-
   private async adoptNode(context: NodeContext) {
     const input = z
       .object({
@@ -1256,7 +1164,6 @@ export class Engines {
               directory,
             },
           );
-        Object.assign(patch, this.bindingsPatch(item, directory));
         adopted.push(id);
       } catch (error) {
         if (
@@ -1288,11 +1195,11 @@ export class Engines {
     }
     context.event("engine-setup-progress", {
       phase: "adopt",
-      message: "写入运行时配置",
+      message: "确认组件与模型就绪",
       components: adopted.length,
       skipped: skipped.length,
     });
-    await this.models.writeSettingsPatch({
+    if (Object.keys(patch).length) await this.models.writeSettingsPatch({
       requestId: `setup-${context.runId}`,
       expectedRevision: input.expectedRevision,
       patch,

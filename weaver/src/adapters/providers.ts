@@ -19,6 +19,7 @@ import {
   TEXT_EMBEDDING_PROVIDER,
 } from "./visual-models.ts";
 import { SpeakerModels, SPEAKER_PROVIDER } from "./speaker-models.ts";
+import { runtimeBinding } from "../engines/runtime.ts";
 import {
   LocalModels,
   ALIGNMENT_PROVIDER,
@@ -142,16 +143,16 @@ export class Providers {
         endpoint: "local-process",
         ready: [
           cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),
-          cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
-          cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
-          cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+          runtimeBinding("asr_library").value,
+          runtimeBinding("asr_bindings").value,
+          runtimeBinding("vad_library").value,
           this.local.settings().python,
           this.local.settings().ffmpeg,
         ].every((v) => v && fs.existsSync(v)),
         remote: false,
         idempotency: true,
         cancellation: "process-tree",
-        hint: "配置 model_python、asr_model、asr_library、asr_bindings 与 vad_library",
+        hint: "选择 ASR 模型，运行组件由安装流程自动准备",
       },
       ...this.local.descriptors(),
       ...this.speech.descriptors(),
@@ -209,9 +210,9 @@ export class Providers {
         id === "qwen3-asr"
           ? [
               cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),
-              cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
-              cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
-              cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+              runtimeBinding("asr_library").value,
+              runtimeBinding("asr_bindings").value,
+              runtimeBinding("vad_library").value,
               this.local.settings().python,
               this.local.settings().ffmpeg,
               path.join(scriptsDir(), "asr.py"),
@@ -415,9 +416,9 @@ export class Providers {
         audio: input.audio,
         language: input.locale,
         model: cfgPath("LIGHTWEAVER_ASR_MODEL", "asr_model"),
-        library: cfgPath("TRANSCRIBE_LIBRARY", "asr_library"),
-        bindings: cfgPath("LIGHTWEAVER_ASR_BINDINGS", "asr_bindings"),
-        vadLibrary: cfgPath("LIGHTWEAVER_VAD_LIBRARY", "vad_library"),
+        library: runtimeBinding("asr_library").value,
+        bindings: runtimeBinding("asr_bindings").value,
+        vadLibrary: runtimeBinding("vad_library").value,
         ffmpeg: this.local.settings().ffmpeg,
       }),
     );
@@ -508,7 +509,7 @@ export class Providers {
         "CONFIG_MISSING",
         "强制对齐依赖尚未安装",
         { missing: runtime.missing },
-        ["在 model_python 对应环境安装 weaver/requirements.models.txt"],
+        ["在设置的诊断与修复中准备模型运行组件"],
       );
   }
   async align(input: {

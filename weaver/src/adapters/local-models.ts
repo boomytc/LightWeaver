@@ -5,7 +5,8 @@ import { WeaverError } from "../contracts/errors.ts";
 import { readConfig } from "../config.ts";
 import { resourcePath, resolveConfiguredPath } from "../runtime.ts";
 import { processRun } from "../media/process.ts";
-import { defaultModelPython, resolveExecutable } from "./executable.ts";
+import { resolveExecutable } from "./executable.ts";
+import { runtimeBinding } from "../engines/runtime.ts";
 
 export const ALIGNMENT_PROVIDER = "qwen3-forced-aligner";
 export const RERANK_PROVIDER = "qwen3-reranker";
@@ -75,32 +76,22 @@ type ModelInvocation =
 
 export class LocalModels {
   constructor(private readonly root: string) {}
-  private value(env: string, key: string, fallback = "") {
-    return readConfig({ root: this.root }).field({ key, environment: env, fallback }).value;
+  private value(env: string, key: string) {
+    return readConfig({ root: this.root }).field({ key, environment: env }).value;
   }
   private localPath(value: string) {
     return value ? resolveConfiguredPath(value) : "";
   }
   settings() {
     return {
-      python: resolveExecutable(
-        this.value(
-          "LIGHTWEAVER_MODEL_PYTHON",
-          "model_python",
-          defaultModelPython(),
-        ),
-        this.root,
-      ),
-      server: resolveExecutable(
-        this.value("LIGHTWEAVER_LLAMA_SERVER", "llama_server"),
-        this.root,
-      ),
+      python: runtimeBinding("model_python").value,
+      server: runtimeBinding("llama_server").value,
       ffmpeg: resolveExecutable("ffmpeg", this.root),
       alignmentDevice: z
         .string()
         .regex(/^(cpu|cuda(?::\d+)?)$/)
         .parse(
-          this.value("LIGHTWEAVER_ALIGNMENT_DEVICE", "alignment_device"),
+          process.env.LIGHTWEAVER_ALIGNMENT_DEVICE?.trim() || "cpu",
         ),
       alignmentModel: this.localPath(
         this.value("LIGHTWEAVER_ALIGNMENT_MODEL", "alignment_model"),
@@ -136,7 +127,7 @@ export class LocalModels {
             ffmpeg: s.ffmpeg,
           }),
           ready: !!s.python && !!s.ffmpeg && exists(s.alignmentModel, true),
-          hint: "在模型页下载并启用 Qwen3 ForcedAligner，自动准备 Torch 环境；也可配置 model_python 与官方 alignment_model 权重目录",
+          hint: "在模型页下载并启用 Qwen3 ForcedAligner，自动准备 Torch 环境",
         },
         {
           id: RERANK_PROVIDER,
@@ -150,7 +141,7 @@ export class LocalModels {
             python: s.python,
           }),
           ready: !!s.python && !!s.server && exists(s.rerankerModel, false),
-          hint: "配置 reranker_model（Qwen3 Reranker GGUF）和 llama_server；检索时显式启用重排",
+          hint: "配置 reranker_model（Qwen3 Reranker GGUF），安装运行组件后可启用重排",
         },
       ].map((p) => ({
         ...p,
@@ -185,10 +176,10 @@ export class LocalModels {
     if (!python)
       throw new WeaverError(
         "CONFIG_MISSING",
-        "未配置 LightWeaver 模型 Python 环境",
+        "模型运行组件尚未安装",
         null,
         [
-          "uv venv --python 3.12 weaver/.venv，然后安装 weaver/requirements.models.txt",
+          "在设置的诊断与修复中准备模型运行组件",
         ],
       );
     const input =

@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { ModelSettingsView, ModelSettingsPatch, ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
-import { api, ApiError } from "../api";
+import { ProviderDescriptor, z } from "@lightweaver/weaver/contracts";
+import { api } from "../api";
 import { desktop } from "../desktop";
 import { useSession } from "../session/context";
 import { PageFrame } from "../ui/PageFrame";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { Badge } from "../ui/Badge";
-import { InputWithActions } from "../ui/InputWithActions";
 import { ModelSettings } from "./ModelSettings";
 import { EngineSettings } from "./EngineSettings";
 
@@ -171,116 +170,31 @@ function StoragePanel() {
 function RuntimeSection() {
   const session = useSession();
   const [runtime, setRuntime] = useState<z.infer<typeof RuntimeView> | null>(null);
-  const [settings, setSettings] = useState<z.infer<typeof ModelSettingsView> | null>(null);
-  const [fields, setFields] = useState<Partial<Record<RuntimeField, string>>>({});
-  const [environment, setEnvironment] = useState("");
-  const [saving, setSaving] = useState(false);
-  const dirtyFields = useRef(new Set<RuntimeField>());
-  const fieldsRef = useRef(fields);
-  fieldsRef.current = fields;
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      api("/runtime", RuntimeView, { signal: controller.signal }),
-      api("/models/settings", ModelSettingsView, { signal: controller.signal }),
-    ]).then(([nextRuntime, nextSettings]) => {
-      if (controller.signal.aborted) return;
-      setRuntime(nextRuntime);
-      setSettings(nextSettings);
-      setEnvironment(`${nextRuntime.modelDir.replace(/[/\\]+$/, "")}/python-env`);
-      setFields(runtimeFieldValues(nextSettings));
-    }).catch((reason) => { if (!controller.signal.aborted) session.setError(String(reason)); });
-    const onCapabilitiesChanged = () => {
-      api("/models/settings", ModelSettingsView, { signal: controller.signal })
-        .then((nextSettings) => {
-          if (controller.signal.aborted) return;
-          setSettings(nextSettings);
-          setFields((current) => {
-            const next = runtimeFieldValues(nextSettings);
-            for (const key of dirtyFields.current) next[key] = current[key] ?? "";
-            return next;
-          });
-        })
-        .catch((reason) => { if (!controller.signal.aborted) session.setError(String(reason)); });
-    };
-    window.addEventListener("lightweaver-capabilities-changed", onCapabilitiesChanged);
-    return () => {
-      controller.abort();
-      window.removeEventListener("lightweaver-capabilities-changed", onCapabilitiesChanged);
-    };
+    api("/runtime", RuntimeView, { signal: controller.signal })
+      .then((value) => { if (!controller.signal.aborted) setRuntime(value); })
+      .catch((reason) => { if (!controller.signal.aborted) session.handleError(reason); });
+    return () => controller.abort();
   }, []);
-  if (!runtime || !settings) return <p>加载运行时…</p>;
-  const changed = JSON.stringify(fields) !== JSON.stringify(runtimeFieldValues(settings));
-  const save = async () => {
-    if (!changed || saving) return;
-    setSaving(true);
-    try {
-      const submittedFields = fields;
-      const payload = ModelSettingsPatch.parse({ expectedRevision: settings.revision, ...submittedFields });
-      const key = JSON.stringify(["model-settings", payload]);
-      let attempt = session.stableRequest(key);
-      const submit = () =>
-        api("/models/settings", ModelSettingsView, {
-          method: "PUT",
-          body: { ...payload, requestId: attempt.requestId },
-        });
-      let next: z.infer<typeof ModelSettingsView>;
-      let retriedTransport = false;
-      let retriedReuse = false;
-      while (true) {
-        try {
-          next = await submit();
-          break;
-        } catch (reason) {
-          if (
-            reason instanceof ApiError &&
-            reason.protocol.code === "REQUEST_ID_REUSED" &&
-            !retriedReuse
-          ) {
-            retriedReuse = true;
-            attempt = session.rotateStableRequest(key, attempt);
-            continue;
-          }
-          if (!(reason instanceof ApiError) && !retriedTransport) {
-            retriedTransport = true;
-            continue;
-          }
-          throw reason;
-        }
-      }
-      session.completeStableRequest(key, attempt);
-      setSettings(next);
-      setFields((current) => current === submittedFields ? runtimeFieldValues(next) : current);
-      if (fieldsRef.current === submittedFields) dirtyFields.current.clear();
-      window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
-      session.setNotice("运行时路径已保存，本地配置文件优先于环境变量和内置默认值");
-    } catch (reason) {
-      session.handleError(reason);
-    }
-    finally { setSaving(false); }
-  };
+  if (!runtime) return <p>加载运行时…</p>;
   const rows = [
     ["数据目录", runtime.dataDir],
-    ["配置文件", runtime.configFile],
-    ["配置基准", runtime.configBase],
+    ["模型配置", runtime.configFile],
     ["模型目录", runtime.modelDir],
-    ["引擎目录", runtime.engineDir],
+    ["组件目录", runtime.engineDir],
     ["日志目录", runtime.logDir],
   ];
   return (
     <details className="p-5">
-      <summary className="font-medium">高级：自定义运行路径与配置</summary>
+      <summary className="font-medium">运行信息与命令行</summary>
       <div className="mt-3 flex flex-col gap-4">
-        <p className="hint m-0">
-          正式安装包自带基础运行组件；选择模型时会自动准备所需依赖。以下路径覆盖仅用于已有环境或特殊构建：配置值按当前私有配置文件、环境变量、内置默认值的顺序生效，相对路径按配置基准目录解析。
-        </p>
         <dl className="key-value-list">
           {rows.map(([label, value]) => (
             <div className="contents" key={label}><dt>{label}</dt><dd className="numeric">{value}</dd></div>
           ))}
         </dl>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
-          <small className="font-medium">运行组件</small>
+        <div className="flex flex-wrap gap-3">
           {Object.entries(runtime.tools).map(([name, ready]) => (
             <span className="inline-flex items-center gap-1.5 text-xs" key={name}>
               <span className="text-muted">{name}</span>
@@ -288,133 +202,12 @@ function RuntimeSection() {
             </span>
           ))}
         </div>
-        <div className="flex flex-col gap-4 border-t border-line pt-4">
-          <div>
-            <h3 className="m-0 text-sm">手动指定运行时路径</h3>
-            <p className="hint m-0 mt-1">需要沿用已有运行库、GPU 构建或单独指定已有配置时填写；保存后对下一次作业生效。</p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {runtimeFields.map(({ key, label, directory }) => (
-              <InputWithActions
-                key={key}
-                label={label}
-                aria-label={label}
-                value={fields[key] || ""}
-                disabled={saving}
-                hint={`当前来源：${settings.values[key]?.source || "unset"}`}
-                onChange={(event) => {
-                  dirtyFields.current.add(key);
-                  setFields((current) => ({ ...current, [key]: event.target.value }));
-                }}
-                actions={desktop() && <Button type="button" disabled={saving} onClick={() => void (async () => {
-                  try {
-                    const bridge = desktop();
-                    const picked = directory ? await bridge?.pickDirectory?.() : await bridge?.pickModelFile?.();
-                    if (picked) {
-                      dirtyFields.current.add(key);
-                      setFields((current) => ({ ...current, [key]: picked }));
-                    }
-                  } catch (reason) { session.setError(String(reason)); }
-                })()}>选择{directory ? "目录" : "文件"}</Button>}
-              />
-            ))}
-          </div>
-          <label className="field">
-            <span>对齐设备</span>
-            <input value={fields.alignmentDevice || "cpu"} placeholder="cpu 或 cuda:0" disabled={saving} onChange={(event) => {
-              dirtyFields.current.add("alignmentDevice");
-              setFields((current) => ({ ...current, alignmentDevice: event.target.value }));
-            }} />
-          </label>
-          <div className="actions">
-            <Button variant="primary" type="button" disabled={saving || !changed} onClick={() => void save()}>{saving ? "保存中…" : changed ? "保存运行时路径" : "路径已保存"}</Button>
-            {desktop()?.pickModelFile && desktop()?.setPreferences && desktop()?.restartRuntime && (
-              <Button
-                type="button"
-                onClick={() => {
-                  const bridge = desktop();
-                  void bridge?.pickModelFile?.().then(async (file) => {
-                    if (!file || !bridge?.setPreferences || !bridge.restartRuntime) return;
-                    await bridge.setPreferences({ configFile: file, configBase: parentDir(file) });
-                    await bridge.restartRuntime();
-                  }).catch((reason) => session.setError(reason instanceof Error ? reason.message : String(reason)));
-                }}
-              >
-                绑定已有配置并重启
-              </Button>
-            )}
-          </div>
-        </div>
-        <details className="border-t border-line pt-4">
-          <summary className="font-medium">手工创建模型 Python 环境（备用）</summary>
-          <div className="mt-3 flex flex-col gap-3">
-            <p className="hint m-0">一键配置失败或需要自定义环境时使用：在应用目录外创建独立环境，安装后把上方“模型 Python”指定为该环境的解释器。ASR 的 transcribe 运行库、bindings 与 TEN VAD 由“本地运行环境”安装。</p>
-            <label className="field"><span>模型环境目标目录</span><input value={environment} onChange={(event) => setEnvironment(event.target.value)} /></label>
-            <pre className="code-block">{modelEnvironmentCommands(runtime, environment).join("\n")}</pre>
-            <p className="hint m-0">交接使用的 Python：{runtime.interchangePython || "由启动环境指定"}。它与可选模型环境分开。</p>
-            <div className="flex flex-col">
-              {runtime.requirements.map((item) => (
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line py-2 last:border-0" key={item.name}>
-                  <small className="numeric break-all">{item.file}</small>
-                  <a className="ui-button no-underline" data-variant="secondary" data-size="sm" download href={`/api/runtime/requirements/${encodeURIComponent(item.name)}`}>下载 {item.name}</a>
-                </div>
-              ))}
-            </div>
-          </div>
-        </details>
         {runtime.cli && (
-          <details className="border-t border-line pt-4">
-            <summary className="font-medium">外部 agent 与命令行</summary>
-            <p className="hint mt-2 mb-3">在 {runtime.cli.shell} 中运行。命令已指定当前数据目录和配置；进入项目后也可从“更多”复制给 agent。</p>
-            <pre className="code-block">{`${runtime.cli.command} capabilities --json`}</pre>
-          </details>
+          <pre className="code-block">{`${runtime.cli.command} capabilities --json`}</pre>
         )}
       </div>
     </details>
   );
-}
-
-type RuntimeField = "modelPython" | "speechPython" | "asrLibrary" | "asrBindings" | "visualServer" | "alignmentDevice";
-const runtimeFields: { key: Exclude<RuntimeField, "alignmentDevice">; label: string; directory?: boolean }[] = [
-  { key: "modelPython", label: "模型 Python" },
-  { key: "speechPython", label: "语音 Python" },
-  { key: "asrLibrary", label: "ASR transcribe native library" },
-  { key: "asrBindings", label: "ASR transcribe Python bindings", directory: true },
-  { key: "visualServer", label: "EmbeddingGemma llama-server" },
-];
-
-type RuntimeFieldValues = Record<Exclude<RuntimeField, "alignmentDevice">, string> & {
-  alignmentDevice: string;
-};
-
-function runtimeFieldValues(settings: z.infer<typeof ModelSettingsView>): RuntimeFieldValues {
-  const fields = Object.fromEntries(
-    runtimeFields.map(({ key }) => [key, settings.values[key]?.value || ""]),
-  ) as Record<Exclude<RuntimeField, "alignmentDevice">, string>;
-  return {
-    ...fields,
-    alignmentDevice: settings.values.alignmentDevice?.value || "cpu",
-  };
-}
-
-function modelEnvironmentCommands(runtime: z.infer<typeof RuntimeView>, directory: string) {
-  if (!directory.trim()) return ["先选择模型环境目标目录"];
-  const windows = runtime.platform === "win32";
-  const quote = (value: string) => windows ? `'${value.replaceAll("'", "''")}'` : `'${value.replaceAll("'", "'\\''")}'`;
-  const prefix = windows ? "& " : "";
-  const python = `${directory.replace(/[/\\]+$/, "")}/${windows ? "Scripts/python.exe" : "bin/python"}`;
-  const requirements = runtime.requirements.find((item) => item.name === "requirements.models.txt");
-  if (!requirements) return ["安装资源缺少 requirements.models.txt，请重新安装应用"];
-  return [
-    `${prefix}${quote(runtime.interchangePython || (windows ? "python" : "python3"))} -B -m venv ${quote(directory)}`,
-    `${prefix}${quote(python)} -m pip install -r ${quote(requirements.file)}`,
-    `模型 Python 路径：${python}`,
-  ];
-}
-
-function parentDir(file: string) {
-  const index = Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\"));
-  return index > 0 ? file.slice(0, index) : file;
 }
 
 function DiagnosticsSection() {

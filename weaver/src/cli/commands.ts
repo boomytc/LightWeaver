@@ -665,7 +665,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     path: ["engines", "setup"],
     group: "模型与数据",
-    summary: "一键下载、校验并采用整套本地运行环境",
+    summary: "一键安装并校验本地运行组件",
     synopsis: "engines setup [--root /absolute/engine-root] --expected-revision CONFIG_REV [--with-speech] [--with-models] [--wait]",
     flags: ["root", "with-speech", "with-models", ...WAIT_FLAGS, ...MUTATION_FLAGS],
     requirements: [{ kind: "flag", name: "expected-revision" }],
@@ -700,18 +700,6 @@ export const COMMANDS: readonly CommandSpec[] = [
       { name: "engine-id", description: "catalog 引擎 ID", required: true },
     ],
     examples: ["weaver engines verify transcribe-native --json"],
-  },
-  {
-    path: ["engines", "use"],
-    group: "模型与数据",
-    summary: "采用已安装引擎并写入运行时配置",
-    synopsis: "engines use ENGINE_ID [--path /absolute/directory] --expected-revision CONFIG_REV",
-    flags: ["path", ...MUTATION_FLAGS],
-    positionals: [
-      { name: "engine-id", description: "catalog 引擎 ID", required: true },
-    ],
-    requirements: [{ kind: "flag", name: "expected-revision" }],
-    examples: ["weaver engines use transcribe-native --expected-revision CONFIG_REV --json"],
   },
   {
     path: ["schema"],

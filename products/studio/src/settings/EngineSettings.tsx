@@ -3,8 +3,6 @@ import {
   EngineSetupResult,
   EngineVerifyResult,
   EngineView,
-  ModelSettingsPatch,
-  ModelSettingsView,
   RunRecord,
   z,
 } from "@lightweaver/weaver/contracts";
@@ -20,7 +18,6 @@ import { useRunStream } from "../jobs/useRunStream";
 import { useSession } from "../session/context";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { InputWithActions } from "../ui/InputWithActions";
 import { ProgressBar } from "../ui/ProgressBar";
 
 type EngineViewValue = z.infer<typeof EngineView>;
@@ -28,7 +25,7 @@ type EngineItemStatusValue = z.infer<typeof EngineItemStatus>;
 type EngineItem = z.infer<typeof EngineCatalogItem>;
 type EngineVerifyValue = z.infer<typeof EngineVerifyResult>;
 type EngineRun = z.infer<typeof RunRecord>;
-type EngineAction = "install" | "update" | "repair" | "adopt" | "none";
+type EngineAction = "install" | "update" | "repair" | "none";
 
 function nextEngineAction({ item, current, verification }: {
   item: EngineItem;
@@ -41,7 +38,6 @@ function nextEngineAction({ item, current, verification }: {
   if (status.state === "missing") return usage === "external" || usage === "bundled" ? "none" : "install";
   if (status.state === "unchecked") return "none";
   if (status.state === "invalid" || verification && verification.state !== "verified") return status.version ? "repair" : "none";
-  if (status.state === "installed" && usage !== "managed" && usage !== "bundled") return "adopt";
   return "none";
 }
 
@@ -250,19 +246,14 @@ export function EngineSettings() {
       <details className="border-t border-line pt-4">
         <summary className="font-medium">组件清单与高级手动操作</summary>
         <div className="mt-3 flex flex-col gap-3">
-          <InstallRootEditor
-            value={view.installRoot.value}
-            source={view.installRoot.source}
-            revision={view.settings.revision}
-            onRefresh={refresh}
-          />
+          <small className="numeric">组件目录：{view.installRoot.value}</small>
           <small>
             本应用提供 {usageCounts.bundled + usageCounts.managed + usageCounts["managed-unused"]}/
             {setupStatuses.length} · 使用外部路径 {usageCounts.external} · 未配置{" "}
             {usageCounts.unused + usageCounts.partial}；语音环境{speechUsage}
           </small>
           <p className="hint m-0">
-            通常不需要展开：一键配置会自动安装并采用下列组件。仅当需要单独重装、校验或使用自己的运行时路径时再操作。
+            通常不需要展开：已安装组件自动使用，仅在需要更新、修复或校验时操作。
           </p>
           <div className="model-inventory-grid">
             {view.catalog.items.map((item) => {
@@ -272,7 +263,6 @@ export function EngineSettings() {
                   key={item.id}
                   item={item}
                   itemStatus={status}
-                  revision={view.settings.revision}
                   installRoot={view.installRoot.value}
                   onRefresh={refresh}
                 />
@@ -449,7 +439,7 @@ function SetupPanel({
                   </small>
                 ))}
                 {adoptNode && (
-                  <small>写入配置：{setupNodeStateLabel[adoptNode.state] || adoptNode.state}</small>
+                  <small>就绪检查：{setupNodeStateLabel[adoptNode.state] || adoptNode.state}</small>
                 )}
               </div>
             </details>
@@ -643,117 +633,14 @@ function useSetupRun(
   };
 }
 
-function InstallRootEditor({
-  value,
-  source,
-  revision,
-  onRefresh,
-}: {
-  value: string;
-  source: string;
-  revision: string;
-  onRefresh: () => Promise<void>;
-}) {
-  const session = useSession();
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => setDraft(value), [value]);
-
-  const save = async (input: string) => {
-    const next = input.trim();
-    if (/[\u0000-\u001f\u007f-\u009f]/.test(next)) {
-      session.setError("引擎根目录不能包含控制字符");
-      return;
-    }
-    setSaving(true);
-    try {
-      const payload = ModelSettingsPatch.parse({
-        expectedRevision: revision,
-        engineInstallRoot: next,
-      });
-      const key = JSON.stringify(["engine-install-root", payload]);
-      let attempt = session.stableRequest(key);
-      let saved: z.infer<typeof ModelSettingsView>;
-      let retriedTransport = false;
-      let retriedReuse = false;
-      while (true) {
-        try {
-          saved = await api("/models/settings", ModelSettingsView, {
-            method: "PUT",
-            body: { ...payload, requestId: attempt.requestId },
-          });
-          break;
-        } catch (reason) {
-          if (
-            reason instanceof ApiError &&
-            reason.protocol.code === "REQUEST_ID_REUSED" &&
-            !retriedReuse
-          ) {
-            retriedReuse = true;
-            attempt = session.rotateStableRequest(key, attempt);
-            continue;
-          }
-          if (!(reason instanceof ApiError) && !retriedTransport) {
-            retriedTransport = true;
-            continue;
-          }
-          if (reason instanceof ApiError) {
-            if (
-              reason.protocol.code === "CONFIG_CONFLICT" ||
-              reason.protocol.code === "REVISION_CONFLICT"
-            )
-              await onRefresh();
-          }
-          throw reason;
-        }
-      }
-      session.completeStableRequest(key, attempt);
-      setDraft(saved.values.engineInstallRoot?.value || "");
-      await onRefresh();
-      window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
-      session.setNotice(
-        "组件存储目录已更新，已有文件保留原位。",
-      );
-    } catch (reason) {
-      session.handleError(reason);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <InputWithActions
-      label="引擎根目录"
-      aria-label="引擎根目录"
-      value={draft}
-      disabled={saving}
-      placeholder="留空使用内置默认目录"
-      hint="已有文件不会随目录设置自动移动。"
-      onChange={(event) => setDraft(event.target.value)}
-      actions={
-        <>
-          <Button type="button" disabled={saving || draft.trim() === value.trim()} onClick={() => void save(draft)}>
-            {saving ? "保存中…" : "保存"}
-          </Button>
-          {source === "file" && <Button type="button" disabled={saving} onClick={() => void save("")}>
-            清除本地设置
-          </Button>}
-        </>
-      }
-    />
-  );
-}
-
 function EngineCard({
   item,
   itemStatus,
-  revision,
   installRoot,
   onRefresh,
 }: {
   item: EngineItem;
   itemStatus: EngineItemStatusValue;
-  revision: string;
   installRoot: string;
   onRefresh: () => Promise<void>;
 }) {
@@ -776,10 +663,8 @@ function EngineCard({
     install: pythonEnvironment ? "创建环境" : "安装",
     update: pythonEnvironment ? "更新环境" : "更新",
     repair: pythonEnvironment ? "修复环境" : "修复",
-    adopt: usage === "external" ? "改用此组件" : "采用",
   };
-  const actionLabel = busy === "adopt" ? "采用中…"
-    : installing ? pythonEnvironment ? "创建中…" : "安装中…"
+  const actionLabel = installing ? pythonEnvironment ? "创建中…" : "安装中…"
     : action === "none" ? "" : actionLabels[action];
   const showStateBadge = state === "missing" && (usage === "external" || usage === "bundled") ? false
     : state !== "installed" || !usageInfo || usage === "external" || usage === "partial";
@@ -807,62 +692,6 @@ function EngineCard({
       await onRefresh();
     });
 
-  const adopt = () =>
-    act("adopt", async () => {
-      const key = JSON.stringify(["engine-use", item.id]);
-      let attempt = session.stableRequest(key);
-      let saved: z.infer<typeof ModelSettingsView>;
-      let retriedTransport = false;
-      let retriedReuse = false;
-      while (true) {
-        try {
-          saved = await api(
-            `/engines/${encodeURIComponent(item.id)}/use`,
-            ModelSettingsView,
-            {
-              method: "POST",
-              body: { expectedRevision: revision, requestId: attempt.requestId },
-            },
-          );
-          break;
-        } catch (reason) {
-          if (
-            reason instanceof ApiError &&
-            reason.protocol.code === "REQUEST_ID_REUSED" &&
-            !retriedReuse
-          ) {
-            retriedReuse = true;
-            attempt = session.rotateStableRequest(key, attempt);
-            continue;
-          }
-          if (!(reason instanceof ApiError) && !retriedTransport) {
-            retriedTransport = true;
-            continue;
-          }
-          if (reason instanceof ApiError) {
-            if (reason.protocol.code === "ENGINE_VERIFY_FAILED") {
-              const details = EngineVerifyResult.safeParse(reason.protocol.details);
-              if (details.success) setVerifyResult(details.data);
-            }
-            if (reason.protocol.code === "REVISION_CONFLICT") await onRefresh();
-          }
-          throw reason;
-        }
-      }
-      session.completeStableRequest(key, attempt);
-      await onRefresh();
-      window.dispatchEvent(new Event("lightweaver-capabilities-changed"));
-      const setting = item.bindings[0].setting;
-      const value = saved.values[setting]?.value || "";
-      if (setting === "model_python" || setting === "speech_python")
-        session.setNotice(
-          `已写入${setting === "speech_python" ? "语音" : "模型"} Python${value ? `：${value}` : ""}`,
-        );
-      else
-        session.setNotice(
-          `已采用 ${item.name}${value ? `：${value}` : "，配置已更新"}`,
-        );
-    });
 
   return (
     <article className="panel-card model-inventory-card">
@@ -941,7 +770,6 @@ function EngineCard({
           aria-label={`${actionLabel} ${item.name}`}
           onClick={() => {
             if (action === "none") return;
-            if (action === "adopt") { void adopt(); return; }
             setVerifyResult(null);
             void install.start(installRoot);
           }}

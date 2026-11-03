@@ -994,19 +994,10 @@ export const ModelSettingsPatch = z
     vlmModel: z.string().optional(),
     ttsModel: z.string().optional(),
     downloadRoot: z.string().optional(),
-    modelPython: z.string().optional(),
-    llamaServer: z.string().optional(),
     asrModel: z.string().optional(),
-    asrLibrary: z.string().optional(),
-    asrBindings: z.string().optional(),
-    vadLibrary: z.string().optional(),
     visualModel: z.string().optional(),
     visualMmproj: z.string().optional(),
-    visualServer: z.string().optional(),
-    speechPython: z.string().optional(),
-    engineInstallRoot: z.string().optional(),
     alignmentModel: z.string().optional(),
-    alignmentDevice: z.string().optional(),
   })
   .refine(
     (value) =>
@@ -1016,7 +1007,7 @@ export const ModelSettingsPatch = z
 
 /**
  * 引擎（运行时）安装边界：原生运行库、llama-server 与 Python 环境。
- * 与模型权重分离：引擎产物固定版本和摘要，安装到引擎根目录，采用后写配置。
+ * 与模型权重分离：引擎产物固定版本和摘要，安装到引擎根目录后自动解析使用。
  */
 export const EngineBinding = z.discriminatedUnion("target", [
   z.strictObject({
@@ -1109,7 +1100,7 @@ export const EngineActiveBinding = z.strictObject({
 });
 /**
  * 引擎的“使用状态”是单一计算者：本应用管理的安装目录状态（EngineStatus）
- * 与当前配置绑定是否可用，合成一个用户可读的分类，避免页面各自拼装措辞。
+ * 与当前运行时绑定是否可用，合成一个用户可读的分类，避免页面各自拼装措辞。
  */
 export const EngineUsage = z.enum([
   "bundled",
@@ -1186,15 +1177,4 @@ export const EngineSetupResult = z.strictObject({
   skipped: z.array(
     z.strictObject({ id: z.string(), message: z.string() }),
   ),
-});
-export const EngineSettingsPatch = z.strictObject({
-  expectedRevision: Digest,
-  asrLibrary: z.string().optional(),
-  asrBindings: z.string().optional(),
-  vadLibrary: z.string().optional(),
-  visualServer: z.string().optional(),
-  llamaServer: z.string().optional(),
-  translationServer: z.string().optional(),
-  modelPython: z.string().optional(),
-  speechPython: z.string().optional(),
 });

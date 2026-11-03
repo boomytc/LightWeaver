@@ -101,6 +101,7 @@ const MODEL_ENV_KEYS = new Set([
   "LIGHTWEAVER_DEEPSEEK_MODEL",
   "LIGHTWEAVER_DIARIZATION_BACKEND",
   "LIGHTWEAVER_DIARIZATION_MODEL",
+  "LIGHTWEAVER_ENGINE_ROOT",
   "LIGHTWEAVER_FFMPEG",
   "LIGHTWEAVER_FFPROBE",
   "LIGHTWEAVER_LLAMA_SERVER",
@@ -277,9 +278,10 @@ function runtimePaths(prefs: DesktopPreferences) {
         (dev ? path.join(repoRoot, "data", "models") : path.join(dataDir, "models")),
     ),
     engineDir: path.resolve(
-      dev
+      configBase,
+      process.env.LIGHTWEAVER_ENGINE_ROOT?.trim() || (dev
         ? path.join(repoRoot, "data", "engines")
-        : path.join(dataDir, "engines"),
+        : path.join(dataDir, "engines")),
     ),
     tempDir: path.join(dataDir, "tmp"),
     logDir: path.join(dataDir, "logs"),
