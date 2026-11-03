@@ -7,7 +7,7 @@ description: Route LightWeaver film production, project editing, library managem
 
 按用户正在操作的环境选择 CLI，后续所有命令保持同一入口和配置。
 
-- 正式桌面包使用设置页“运行环境 → 存储与路径 → 外部 agent 与命令行”提供的完整命令，或随包 `bin/weaver`，Windows 为 `bin/weaver.cmd`。它读取桌面偏好和数据，不依赖当前目录。
+- 正式桌面包使用 **复制给 agent** 或设置页 **外部 agent 与命令行** 提供的完整命令。随包入口为 `bin/weaver`，Windows 为 `bin/weaver.cmd`。它读取桌面偏好和数据，不依赖当前目录。
 - 浏览器开发模式使用仓库根目录的 `npx weaver`，默认数据在 `data/.weaver`。
 - 从源码启动的桌面仍使用桌面工作区。使用仓库 CLI 时，传 `--data-dir`、`--config-file` 和 `--config-base` 对齐设置页中的实际路径，并沿用启动桌面时的工具环境。其它显式工作区同样核对这些路径。
 
