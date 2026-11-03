@@ -6,7 +6,7 @@ import { EvidencePanel } from "../assets/EvidencePanel";
 import { CaptionWorkspace } from "../captions/CaptionWorkspace";
 import { desktop, type LayoutPreference } from "../desktop";
 import { DeliveryPanel } from "../delivery/DeliveryPanel";
-import { labels, runKindLabel, runLabel } from "../domain/format";
+import { labels, localeName, runKindLabel, runLabel } from "../domain/format";
 import { isActiveRun, RESUMABLE_RUN_STATES } from "../domain/run";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { BgmEditor } from "../library/BgmEditor";
@@ -406,7 +406,7 @@ export function ProjectWorkspace() {
         <div className="workspace-actions">
           <FieldLocale />
           <Menu label={<><MoreIcon /><span className="workspace-menu-label">更多</span></>}>
-            <MenuItem disabled={session.dirty} onSelect={() => void session.act(() => session.showPlan(`/projects/${draft.id}/plan`, { requestId: requestId() }))}>检查制作计划</MenuItem>
+            <MenuItem disabled={session.dirty || session.planDirty || session.busy} onSelect={() => void session.act(() => session.showPlan(`/projects/${draft.id}/plan`, { requestId: requestId() }))}>检查制作计划</MenuItem>
             <MenuItem onSelect={() => void session.act(() => session.showPlan(`/projects/${draft.id}/impact`, { document: draft }))}>查看影响</MenuItem>
             {session.plan !== null && <MenuItem onSelect={() => setPlanOpen(true)}>查看计划与影响</MenuItem>}
             <MenuItem disabled={!session.activeRun} onSelect={() => showBottom("run")}>查看当前任务</MenuItem>
@@ -623,7 +623,7 @@ export function ProjectWorkspace() {
                         onChange={(next) => session.edit({ ...draft, scenes: draft.scenes.map((item, index) => index === sceneIndex ? next : item) })}
                       />
                     ) : asset ? (
-                      <div className="subtle-card p-3"><b>{asset.name}</b><small className="numeric mt-1 block">{asset.kind} · 版本 {asset.version.slice(0, 12)}</small></div>
+                      <div className="subtle-card p-3"><b>{asset.name}</b><small className="numeric mt-1 block">{labels[asset.kind] || asset.kind} · 版本 {asset.version.slice(0, 12)}</small></div>
                     ) : <p className="hint text-xs">选择一个场景以编辑视觉、声音、时长与遮罩。</p>}
                   </div>
                 </div>
@@ -682,12 +682,13 @@ export function ProjectWorkspace() {
               )
             ) : (
               <div className="storyboard-track">
-                {draft.scenes.map((item, index) => (
-                  <article key={item.id} className={`storyboard-card ${item.id === sceneId ? "is-on" : ""}`}>
+                {draft.scenes.map((item, index) => {
+                  const label = item.label || labels[item.kind], summary = sceneSummary(item, session.locale);
+                  return <article key={item.id} className={`storyboard-card ${item.id === sceneId ? "is-on" : ""}`}>
                     <button type="button" className="storyboard-select" onClick={() => selectScene(item.id, focus !== "edit")}>
                       <span className="storyboard-type" data-kind={item.kind} />
                       <span className="storyboard-index">{String(index + 1).padStart(2, "0")}</span>
-                      <span className="storyboard-copy"><b>{item.label || labels[item.kind]}</b><small>{sceneSummary(item, session.locale)}</small></span>
+                      <span className="storyboard-copy"><b>{label}</b>{summary !== label && <small>{summary}</small>}</span>
                     </button>
                     <div className="storyboard-actions">
                       <Button size="icon" compact variant="ghost" aria-label={`左移场景 ${index + 1}`} disabled={index === 0} onClick={() => moveScene(index, -1)}><ArrowUpIcon className="-rotate-90" /></Button>
@@ -701,8 +702,8 @@ export function ProjectWorkspace() {
                         <Button size="icon" compact variant="ghost" aria-label={`删除场景 ${index + 1}`}><TrashIcon /></Button>
                       </Popconfirm>
                     </div>
-                  </article>
-                ))}
+                  </article>;
+                })}
                 {!draft.scenes.length && (
                   <EmptyStoryboard onAdd={addSceneFromUi} onOpenAssets={() => showLeft("assets")} />
                 )}
@@ -958,7 +959,7 @@ function FieldLocale() {
     <label className="flex items-center gap-1">
       <span className="sr-only">编辑语言</span>
       <NativeSelect className="h-8 w-[58px] px-1 text-xs" aria-label="编辑语言" value={session.locale} onChange={(event) => session.setLocale(event.target.value)}>
-        {session.draft.locales.map((locale) => <option key={locale}>{locale}</option>)}
+        {session.draft.locales.map((locale) => <option key={locale} value={locale}>{localeName(locale)}</option>)}
       </NativeSelect>
     </label>
   );
@@ -969,7 +970,6 @@ function SceneKindIcon({ kind }: { kind: Scene["kind"] }) {
 }
 
 function sceneSummary(scene: Scene, locale: string) {
-  if (scene.label) return scene.label;
   if (scene.kind === "card") return scene.cardSpec.copy[locale]?.headline || "未填写卡片标题";
   const speech = speechOf(scene);
   return speech?.text[locale] || (scene.kind === "clip" ? `${(scene.sourceRange.durationUs / 1e6).toFixed(2)} 秒` : "静帧场景");

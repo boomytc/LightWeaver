@@ -2,6 +2,7 @@ import { z, refKey } from "@lightweaver/weaver/contracts";
 import { api, ApiError, mediaUrl, requestId } from "../api";
 import { desktop, pathForFile } from "../desktop";
 import { useSession } from "../session/context";
+import { labels } from "../domain/format";
 import { AssetImportResult } from "../session/useProjectSession";
 import { Field } from "../ui/Field";
 import { Dropzone } from "../ui/Dropzone";
@@ -199,7 +200,7 @@ export function AssetPanel({ selectedKey, onSelect }: { selectedKey: string; onS
             <li key={asset.version}>
               <button type="button" className={`row-item ${selectedKey === key ? "is-on" : ""}`} onClick={() => onSelect(key)}>
                 {asset.kind === "video" ? <VideoIcon /> : asset.kind === "image" ? <ImageIcon /> : asset.kind === "audio" ? <AudioIcon /> : <FileIcon />}
-                <span className="row-item-copy"><b>{asset.name}</b><small className="numeric">{asset.kind} · {asset.version.slice(0, 8)}</small></span>
+                <span className="row-item-copy"><b>{asset.name}</b><small>{labels[asset.kind] || asset.kind}</small></span>
               </button>
             </li>
           );

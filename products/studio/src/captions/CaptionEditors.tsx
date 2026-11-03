@@ -9,7 +9,7 @@ import {
   speechOf,
   z,
 } from "@lightweaver/weaver/contracts";
-import { localeName } from "../domain/format";
+import { labels, localeName } from "../domain/format";
 import { MICROS_PER_SECOND } from "../domain/time";
 import { SourceWindowPlayer } from "../scenes/SourceWindowPlayer";
 import { Field } from "../ui/Field";
@@ -275,7 +275,7 @@ export function CaptionCueEditor({
       </Field>
       <details open>
         <summary>
-          时间与预览 · {timingLabel} · {cue.timingQuality}
+          时间与预览 · {timingLabel} · {labels[cue.timingQuality]}
         </summary>
         {time.kind === "timeline" && (
           <div className="inline-fields">
@@ -609,7 +609,7 @@ export function CaptionTrackEditor({
                 <span className="storyboard-index">{pageStart + index + 1}</span>
                 <span className="row-item-copy">
                   <b className="text-xs">{cue.text}</b>
-                  <small>{cue.speakerId || (cue.time.kind === "source" ? "源片" : cue.time.kind === "speech" ? "场景语音" : "成片")} · {cue.timingQuality}</small>
+                  <small>{cue.speakerId || (cue.time.kind === "source" ? "源片" : cue.time.kind === "speech" ? "场景语音" : "成片")} · {labels[cue.timingQuality]}</small>
                 </span>
                 {overlapIds.has(cue.id) && <Badge tone="warn">重叠</Badge>}
               </button>
