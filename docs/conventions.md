@@ -171,7 +171,7 @@ npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 
 配置写入、供应商预设和已有模型采用均需读取 `models settings get` 的 revision，写入时沿用该 expectedRevision 和稳定 requestId。响应丢失后重放原请求，不重新计算 expectedRevision。
 
-`config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置与私有请求收据注释一起同步并原子替换，权限为 `0600`。逻辑 revision 排除这些内部收据注释。收据保存请求指纹和不含明文密钥的首次结果。相同请求重放首次结果，不同参数复用 requestId 被拒绝。密钥空输入保持现值，清除必须显式请求；私有本地文件优先于环境变量，清除本地密钥后回退到环境变量。SettingsView 只暴露是否配置和来源。
+`config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置文件以 `0600` 权限原子替换，只写模型设置与用户注释。请求收据存放在配置目录下的 `.lightweaver/<配置文件名>.sqlite3`，不混入 YAML；同一配置文件在不同数据目录间共用收据。保存先持久化请求指纹、配置前后摘要和不含明文密钥的首次结果，再替换配置并确认完成；进程中断后按配置摘要恢复完成状态。已有内嵌收据会先转存再清除，配置逻辑 revision 保持不变。相同请求重放首次结果，不同参数复用 requestId 被拒绝。密钥空输入保持现值，清除必须显式请求；私有本地文件优先于环境变量，清除本地密钥后回退到环境变量。SettingsView 只暴露是否配置和来源。
 
 | 能力 | 当前适配 | 配置 |
 | --- | --- | --- |

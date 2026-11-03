@@ -1,3 +1,4 @@
+import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,13 +13,13 @@ export function localConfigPath(root = defaultRoot): string {
   return path.join(path.resolve(root), "config.local.yaml");
 }
 
-const configRequestMarker = "# lightweaver-config-request-v1 ";
-const configRequestLine =
+const legacyRequestMarker = "# lightweaver-config-request-v1 ";
+const legacyRequestLine =
   /^# lightweaver-config-request-v1 [^\r\n]*(?:\r?\n|$)/gm;
 
 export function configRevision(content: string): string {
   return createHash("sha256")
-    .update(content.replace(configRequestLine, ""))
+    .update(content.replace(legacyRequestLine, ""))
     .digest("hex");
 }
 
@@ -181,6 +182,8 @@ function syncDirectory(directory: string): void {
 }
 
 function atomicWrite(file: string, content: string): void {
+  if (/^#\s*lightweaver-/m.test(content))
+    throw new WeaverError("INVALID_INPUT", "模型配置不能包含内部状态标记");
   const directory = path.dirname(file),
     temp = path.join(
       directory,
@@ -206,9 +209,9 @@ function atomicWrite(file: string, content: string): void {
 function configRequestReceipts(content: string): ConfigRequestReceipt[] {
   const receipts: ConfigRequestReceipt[] = [];
   for (const line of content.split(/\r?\n/)) {
-    if (!line.startsWith(configRequestMarker)) continue;
+    if (!line.startsWith(legacyRequestMarker)) continue;
     try {
-      const encoded = line.slice(configRequestMarker.length);
+      const encoded = line.slice(legacyRequestMarker.length);
       receipts.push(
         ConfigRequestReceipt.parse(
           JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")),
@@ -221,23 +224,26 @@ function configRequestReceipts(content: string): ConfigRequestReceipt[] {
   return receipts;
 }
 
+function configRequestsPath(file: string): string {
+  return path.join(path.dirname(file), ".lightweaver", `${path.basename(file)}.sqlite3`);
+}
+
 function matchingRequest<T>(
-  content: string,
+  database: Database.Database,
+  current: string,
   requestId: string,
   fingerprint: string,
   schema: z.ZodType<T>,
 ): T | undefined {
-  const prior = configRequestReceipts(content).find(
-    (request) => request.requestId === requestId,
-  );
-  if (!prior) return;
+  const raw = database.prepare("SELECT state,json FROM requests WHERE id=?").get(requestId);
+  if (!raw) return;
+  const row = z.object({ state: z.enum(["prepared", "committed"]), json: z.string() }).parse(raw);
+  const prior = ConfigRequestReceipt.parse(JSON.parse(row.json));
   if (prior.fingerprint !== fingerprint)
-    throw new WeaverError(
-      "REQUEST_ID_REUSED",
-      "同一 requestId 对应不同配置请求",
-      { requestId },
-    );
-  return schema.parse(prior.result);
+    throw new WeaverError("REQUEST_ID_REUSED", "同一 requestId 对应不同配置请求", { requestId });
+  if (row.state === "committed") return schema.parse(prior.result);
+  if (configRevision(current) !== prior.expectedRevision)
+    throw new WeaverError("CONFIG_CONFLICT", "配置在未完成的保存请求后已改变，请刷新后重试");
 }
 
 export function replayConfigRequest<T>(input: {
@@ -249,13 +255,12 @@ export function replayConfigRequest<T>(input: {
 }): T | undefined {
   Id.parse(input.requestId);
   const file = localConfigPath(input.root);
-  const content = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
-  return matchingRequest(
-    content,
-    input.requestId,
-    requestFingerprint(input.expectedRevision, {}, input.identity),
-    input.resultSchema,
-  );
+  if (!fs.existsSync(configRequestsPath(file)) &&
+      !(fs.existsSync(file) && fs.readFileSync(file, "utf8").includes(legacyRequestMarker))) return;
+  return withConfigRequests(file, (database, current) => matchingRequest(
+    database, current, input.requestId,
+    requestFingerprint(input.expectedRevision, {}, input.identity), input.resultSchema,
+  ));
 }
 
 export function patchLocalConfig<T>(input: {
@@ -268,98 +273,90 @@ export function patchLocalConfig<T>(input: {
   buildResult: (content: string, revision: string) => T;
 }): T {
   Id.parse(input.requestId);
-  const root = input.root || defaultRoot,
-    file = localConfigPath(root),
-    lock = `${file}.lock`,
-    patch = normalizedPatch(input.patch),
-    fingerprint = requestFingerprint(
-      input.expectedRevision,
-      patch,
-      input.identity,
-    );
+  const file = localConfigPath(input.root), patch = normalizedPatch(input.patch);
+  const fingerprint = requestFingerprint(input.expectedRevision, patch, input.identity);
+  return withConfigRequests(file, (database, current) => {
+    const prior = matchingRequest(database, current, input.requestId, fingerprint, input.resultSchema);
+    if (prior !== undefined) return prior;
+    if (configRevision(current) !== input.expectedRevision)
+      throw new WeaverError("CONFIG_CONFLICT", "config.local.yaml 已被其他操作修改，请刷新后重试");
+    const content = applyConfigPatch(current, patch), revision = configRevision(content);
+    const result = input.resultSchema.parse(input.buildResult(content, revision));
+    const receipt = ConfigRequestReceipt.parse({
+      schemaVersion: 1, requestId: input.requestId, fingerprint,
+      expectedRevision: input.expectedRevision, targetRevision: revision,
+      result, createdAt: new Date().toISOString(),
+    });
+    database.prepare("INSERT INTO requests VALUES(?, 'prepared', ?) ON CONFLICT(id) DO UPDATE SET state='prepared',json=excluded.json")
+      .run(input.requestId, JSON.stringify(receipt));
+    atomicWrite(file, content);
+    database.prepare("UPDATE requests SET state='committed' WHERE id=?").run(input.requestId);
+    return result;
+  });
+}
+
+function withConfigRequests<T>(
+  file: string,
+  action: (database: Database.Database, current: string) => T,
+): T {
+  const lock = `${file}.lock`;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   let lockFd: number;
   try {
     lockFd = fs.openSync(lock, "wx", 0o600);
   } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "EEXIST"
-    ) {
+    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") {
       recoverStaleLock(lock);
-      throw new WeaverError(
-        "CONFIG_LOCKED",
-        "模型配置正在被另一进程保存，请重试",
-        { lock },
-        [],
-        true,
-      );
+      throw new WeaverError("CONFIG_LOCKED", "模型配置正在被另一进程保存，请重试", { lock }, [], true);
     }
     throw error;
   }
   const lockIdentity = fs.fstatSync(lockFd);
   try {
-    fs.writeFileSync(
-      lockFd,
-      JSON.stringify({
-        pid: process.pid,
-        createdAt: Date.now(),
-      }),
-      { encoding: "utf8" },
-    );
-    for (const entry of fs.readdirSync(path.dirname(file), {
-      withFileTypes: true,
-    })) {
-      if (
-        entry.isFile() &&
-        entry.name.startsWith(`.${path.basename(file)}.`) &&
-        entry.name.endsWith(".tmp")
-      )
+    fs.writeFileSync(lockFd, JSON.stringify({ pid: process.pid, createdAt: Date.now() }), { encoding: "utf8" });
+    for (const entry of fs.readdirSync(path.dirname(file), { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.startsWith(`.${path.basename(file)}.`) && entry.name.endsWith(".tmp"))
         fs.rmSync(path.join(path.dirname(file), entry.name), { force: true });
     }
-    const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "",
-      prior = matchingRequest(
-        current,
-        input.requestId,
-        fingerprint,
-        input.resultSchema,
-      );
-    if (prior !== undefined) return prior;
-    if (configRevision(current) !== input.expectedRevision)
-      throw new WeaverError(
-        "CONFIG_CONFLICT",
-        "config.local.yaml 已被其他操作修改，请刷新后重试",
-      );
-    const content = applyConfigPatch(current, patch),
-      revision = configRevision(content),
-      result = input.resultSchema.parse(input.buildResult(content, revision));
-    const receipt: ConfigRequestReceipt = {
-      schemaVersion: 1,
-      requestId: input.requestId,
-      fingerprint,
-      expectedRevision: input.expectedRevision,
-      targetRevision: revision,
-      result,
-      createdAt: new Date().toISOString(),
-    };
-    const stored = `${content.replace(/\n+$/, "")}\n${configRequestMarker}${Buffer.from(
-      JSON.stringify(ConfigRequestReceipt.parse(receipt)),
-    ).toString("base64url")}\n`;
-    if (configRevision(stored) !== revision)
-      throw new WeaverError(
-        "EXECUTION_FAILED",
-        "模型配置请求收据改变了配置修订",
-      );
-    atomicWrite(file, stored);
-    return result;
+    const stateFile = configRequestsPath(file), stateDirectory = path.dirname(stateFile);
+    fs.mkdirSync(stateDirectory, { recursive: true, mode: 0o700 });
+    if (fs.lstatSync(stateDirectory).isSymbolicLink() ||
+        fs.lstatSync(stateFile, { throwIfNoEntry: false })?.isSymbolicLink())
+      throw new WeaverError("INVALID_INPUT", "配置内部存储不能是软链");
+    fs.chmodSync(stateDirectory, 0o700);
+    fs.closeSync(fs.openSync(stateFile, "a", 0o600));
+    fs.chmodSync(stateFile, 0o600);
+    const database = new Database(stateFile);
+    try {
+      database.pragma("journal_mode = WAL");
+      database.pragma("synchronous = FULL");
+      database.exec("CREATE TABLE IF NOT EXISTS requests(id TEXT PRIMARY KEY,state TEXT NOT NULL CHECK(state IN ('prepared','committed')),json TEXT NOT NULL)");
+      let current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+      const legacy = configRequestReceipts(current);
+      if (legacy.length) {
+        database.transaction(() => {
+          for (const receipt of legacy) {
+            const existing = database.prepare("SELECT json FROM requests WHERE id=?").get(receipt.requestId);
+            if (existing && ConfigRequestReceipt.parse(JSON.parse(z.object({ json: z.string() }).parse(existing).json)).fingerprint !== receipt.fingerprint)
+              throw new WeaverError("REQUEST_ID_REUSED", "旧配置包含冲突的请求收据", { requestId: receipt.requestId });
+            database.prepare("INSERT OR IGNORE INTO requests VALUES(?, 'committed', ?)").run(receipt.requestId, JSON.stringify(receipt));
+            database.prepare("UPDATE requests SET state='committed' WHERE id=?").run(receipt.requestId);
+          }
+        }).immediate();
+        current = current.replace(legacyRequestLine, "");
+        atomicWrite(file, current);
+      }
+      database.prepare("UPDATE requests SET state='committed' WHERE state='prepared' AND json_extract(json,'$.targetRevision')=?")
+        .run(configRevision(current));
+      return action(database, current);
+    } finally {
+      database.close();
+    }
   } finally {
     fs.closeSync(lockFd);
     try {
       const current = fs.statSync(lock);
-      if (current.dev === lockIdentity.dev && current.ino === lockIdentity.ino)
-        fs.rmSync(lock, { force: true });
+      if (current.dev === lockIdentity.dev && current.ino === lockIdentity.ino) fs.rmSync(lock, { force: true });
     } catch {
       // The owner never removes a lock that it cannot prove is its own.
     }

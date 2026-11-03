@@ -28,3 +28,5 @@ weaver/.speech-venv/
 data/
 products/study-films/public/projects/
 **/assets/outputs/
+
+.lightweaver/
