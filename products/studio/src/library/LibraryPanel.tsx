@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { LibraryVersion, ProviderDescriptor, RunRecord, z } from "@lightweaver/weaver/contracts";
-import { api, mediaUrl, requestId } from "../api";
+import { api, ApiError, mediaUrl, requestId } from "../api";
 import { useSession } from "../session/context";
-import { labels } from "../domain/format";
 import { isActiveRun, RunDetail } from "../domain/run";
 import { notifyRunsChanged } from "../jobs/useRunList";
 import { Field } from "../ui/Field";
@@ -10,16 +9,17 @@ import { PageFrame } from "../ui/PageFrame";
 import { AsyncRegion } from "../ui/AsyncRegion";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { RunStatus } from "../ui/RunStatus";
 import { Dropzone } from "../ui/Dropzone";
 import { Menu, MenuItem } from "../ui/Menu";
 import { useAction } from "../ui/useAction";
-import { useUndoable } from "../ui/useUndoable";
+import { useRunStream } from "../jobs/useRunStream";
 import { NativeSelect } from "../ui/NativeSelect";
 
 const kindMeta = {
   voice: {
     title: "音色",
-    description: "保存参考音频，或生成试听后收下音色。",
+    description: "保存参考音频，或生成试听后保存为新音色。",
     emptyTitle: "尚无音色",
     emptyHint: "上传参考音频并填写参考文本，或在右侧生成试听。",
   },
@@ -52,28 +52,12 @@ export function LibraryPanel({
 }) {
   const session = useSession();
   const formEpoch = useRef(0);
+  const referenceTextId = useId();
   const saveAction = useAction();
   const acceptAction = useAction();
+  const runAction = useAction();
+  const deleteAction = useAction();
   const [acceptedRunId, setAcceptedRunId] = useState("");
-  const [hiddenItems, setHiddenItems] = useState<string[]>([]);
-  const undo = useUndoable();
-  const removeItem = (value: z.infer<typeof LibraryVersion>) => {
-    setHiddenItems((prev) => [...prev, value.itemId]);
-    undo.schedule(value.itemId, () => {
-      api(`/library/${value.itemId}`, z.unknown(), {
-        method: "DELETE",
-        body: { expectedVersion: value.version, requestId: requestId() },
-      })
-        .then(refresh)
-        .catch((reason) => {
-          setHiddenItems((prev) => prev.filter((id) => id !== value.itemId));
-          fail(reason);
-        });
-    }, {
-      onUndo: () => setHiddenItems((prev) => prev.filter((id) => id !== value.itemId)),
-      notify: (options) => session.setNotice(`已删除库项「${value.payload.name}」`, options),
-    });
-  };
   const [selected, setSelected] = useState<z.infer<
       typeof LibraryVersion
     > | null>(null),
@@ -83,9 +67,7 @@ export function LibraryPanel({
     [file, setFile] = useState<File | null>(null),
     [style, setStyle] = useState(""),
     [sample, setSample] = useState(""),
-    [runId, setRunId] = useState(""),
-    [result, setResult] = useState<unknown>(null),
-    [status, setStatus] = useState(""),
+    [detail, setDetail] = useState<z.infer<typeof RunDetail> | null>(null),
     [purpose, setPurpose] = useState<"design" | "transcribe">("design"),
     [needs, setNeeds] = useState<string[]>([]),
     [clipAudio, setClipAudio] = useState(""),
@@ -101,84 +83,53 @@ export function LibraryPanel({
     window.addEventListener("lightweaver-import", onImport);
     return () => window.removeEventListener("lightweaver-import", onImport);
   }, []);
-  useEffect(() => {
+  useEffect(() => () => { formEpoch.current++; }, []);
+  const run = detail?.run;
+  const runId = run?.id || "";
+  const result = detail?.nodes[0]?.result;
+  const runStatus = runAction.pending ? <Badge tone="accent">提交中</Badge> : run ? <RunStatus state={run.state} dot /> : null;
+  const generating = !!runAction.pending || !!run && isActiveRun(run.state);
+  const stream = useRunStream({
+    runId,
+    onDetail: (next) => {
+      if (next.run.id !== runId) return;
+      setDetail(next);
+      if (next.run.state === "succeeded" && purpose === "transcribe")
+        setReferenceText(z.object({ text: z.string() }).parse(next.nodes[0]?.result).text);
+      if (!isActiveRun(next.run.state)) notifyRunsChanged();
+    },
+  });
+  const preview = z.object({ digest: z.string(), text: z.string() }).safeParse(result);
+  const clearRun = () => {
     formEpoch.current++;
-    setStatus("");
+    setDetail(null);
     setAcceptedRunId("");
-    setPurpose("design");
-    setNeeds([]);
-    setClipAudio("");
-    setObserved(false);
-    setSample("");
-    setSelected(null);
-    setName("");
-    setReferenceText("");
-    setDescription("");
-    setFile(null);
-    setResult(null);
-    setRunId("");
-    setStyle("");
-    setVoiceProvider("modelbest-voxcpm2");
-  }, [kind]);
-  useEffect(() => {
-    if (!runId) return;
-    const generation = formEpoch.current;
-    const ctrl = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = () =>
-      api(`/runs/${runId}`, RunDetail, { signal: ctrl.signal })
-        .then((r) => {
-          if (ctrl.signal.aborted || generation !== formEpoch.current) return;
-          setStatus(labels[r.run.state]);
-          setResult(r.nodes[0]?.result);
-          if (r.run.state === "succeeded" && purpose === "transcribe") {
-            const t = z.object({ text: z.string() }).parse(r.nodes[0]?.result);
-            setReferenceText(t.text);
-          }
-          if (isActiveRun(r.run.state))
-            timer = setTimeout(poll, 1000);
-          else {
-            notifyRunsChanged();
-            if (r.run.error) fail(new Error(r.run.error.message));
-          }
-        })
-        .catch((e) => {
-          if (!ctrl.signal.aborted) fail(e);
-        });
-    poll();
-    return () => {
-      ctrl.abort();
-      clearTimeout(timer);
-    };
-  }, [runId, purpose]);
-  const preview = z
-    .object({ digest: z.string(), text: z.string() })
-    .safeParse(result);
-  const startRun = (
-    url: string,
-    body: unknown,
-    purpose: "design" | "transcribe",
-  ) => {
-    if (["提交中", "排队", "运行中", "取消中"].includes(status) || saveAction.pending || acceptAction.pending) return;
-    const generation = ++formEpoch.current;
-    setRunId("");
-    setResult(null);
-    setStatus("提交中");
-    setPurpose(purpose);
-    api(url, RunRecord, { method: "POST", body })
-      .then((r) => {
-        if (generation !== formEpoch.current) return;
-        setPurpose(purpose);
-        setRunId(r.id);
-        notifyRunsChanged();
-      })
-      .catch((e) => {
-        if (generation === formEpoch.current) {
-          setStatus("");
-          fail(e);
-        }
-      });
   };
+  const startRun = (url: string, body: FormData | Record<string, string | undefined>, purpose: "design" | "transcribe") =>
+    void runAction.run(purpose, async () => {
+      if (generating || saveAction.pending || acceptAction.pending || deleteAction.pending) return;
+      const generation = formEpoch.current;
+      const fields = body instanceof FormData ? [...body.entries()] : Object.entries(body);
+      const key = JSON.stringify(["voice-run", url, generation, fields.filter(([name]) => name !== "requestId")
+        .map(([name, value]) => [name, value instanceof File ? [value.name, value.size, value.lastModified] : value])]);
+      const attempt = session.stableRequest(key);
+      if (body instanceof FormData) body.set("requestId", attempt.requestId);
+      else body = { ...body, requestId: attempt.requestId };
+      const send = () => api(url, RunRecord, { method: "POST", body });
+      setDetail(null);
+      setAcceptedRunId("");
+      setPurpose(purpose);
+      try {
+        let next: z.infer<typeof RunRecord>;
+        try { next = await send(); }
+        catch (error) { if (error instanceof ApiError) throw error; next = await send(); }
+        session.completeStableRequest(key, attempt);
+        notifyRunsChanged();
+        if (generation === formEpoch.current) setDetail({ run: next, nodes: [] });
+      } catch (error) {
+        if (generation === formEpoch.current) fail(error);
+      }
+    });
   const payload =
     kind === "method"
       ? {
@@ -202,8 +153,7 @@ export function LibraryPanel({
         : selected
           ? { ...selected.payload, name }
           : null;
-  const generating = ["提交中", "排队", "运行中", "取消中"].includes(status);
-  const formPending = !!saveAction.pending || !!acceptAction.pending;
+  const formPending = !!saveAction.pending || !!acceptAction.pending || !!deleteAction.pending;
   const hasChanges = !!file || !selected || JSON.stringify(payload) !== JSON.stringify(selected.payload);
   const canSave = !!name.trim() && (!!file || !!payload) && hasChanges && !generating &&
     (kind !== "voice" || !!referenceText.trim());
@@ -248,24 +198,43 @@ export function LibraryPanel({
     }
     await refresh();
   };
-  const cancelEdit = () => {
-    formEpoch.current++;
-    setStatus("");
-    setRunId("");
-    setResult(null);
-    setAcceptedRunId("");
-    setStyle("");
-    setSample("");
-    setNeeds([]);
-    setClipAudio("");
-    setObserved(false);
-    setSelected(null);
-    setName("");
-    setReferenceText("");
-    setDescription("");
+  const editItem = (value: z.infer<typeof LibraryVersion> | null) => {
+    clearRun();
+    const payload = value?.payload;
+    setSelected(value);
+    setName(payload?.name || "");
     setFile(null);
+    setReferenceText(payload?.kind === "voice" ? payload.referenceText : "");
+    setStyle(payload?.kind === "voice" ? payload.style : "");
+    setVoiceProvider(payload?.kind === "voice" ? payload.provider : "modelbest-voxcpm2");
+    setSample("");
+    setPurpose("design");
+    setDescription(payload?.kind === "method" ? payload.description : "");
+    setNeeds(payload?.kind === "method" ? payload.needs : []);
+    setClipAudio(payload?.kind === "method" ? payload.clipAudio || "" : "");
+    setObserved(payload?.kind === "method" && !!payload.clipAlignment);
   };
-  const items = library.filter((v) => v.payload.kind === kind && !hiddenItems.includes(v.itemId));
+  const removeItem = (value: z.infer<typeof LibraryVersion>) => void deleteAction.run(value.itemId, async () => {
+    const generation = formEpoch.current;
+    const key = JSON.stringify(["library-delete", value.itemId, value.version]);
+    const attempt = session.stableRequest(key);
+    const remove = () => api(`/library/${value.itemId}`, z.unknown(), {
+      method: "DELETE", body: { expectedVersion: value.version, requestId: attempt.requestId },
+    });
+    try {
+      try { await remove(); }
+      catch (error) { if (error instanceof ApiError) throw error; await remove(); }
+      session.completeStableRequest(key, attempt);
+      if (generation === formEpoch.current && selected?.itemId === value.itemId) editItem(null);
+      const restore = { itemId: value.itemId, expectedVersion: value.version, payload: value.payload, requestId: requestId() };
+      session.setNotice(`已删除「${value.payload.name}」`, {
+        actionLabel: "撤销",
+        onAction: () => void api("/library", LibraryVersion, { method: "POST", body: restore }).then(refresh).catch(fail),
+      });
+      await refresh();
+    } catch (error) { fail(error); }
+  });
+  const items = library.filter((value) => value.payload.kind === kind);
   const meta = kindMeta[kind];
   return (
     <PageFrame
@@ -296,46 +265,13 @@ export function LibraryPanel({
                 <div className="flex items-center gap-1">
                   <Button
                     size="sm"
-                    disabled={formPending || selected?.itemId === v.itemId}
-                    onClick={() => {
-                      formEpoch.current++;
-                      setRunId("");
-                      setResult(null);
-                      setStatus("");
-                      setSelected(v);
-                      setName(v.payload.name);
-                      setReferenceText(
-                        v.payload.kind === "voice"
-                          ? v.payload.referenceText
-                          : "",
-                      );
-                      setNeeds(
-                        v.payload.kind === "method" ? v.payload.needs : [],
-                      );
-                      setClipAudio(
-                        v.payload.kind === "method"
-                          ? v.payload.clipAudio || ""
-                          : "",
-                      );
-                      setObserved(
-                        v.payload.kind === "method" &&
-                          !!v.payload.clipAlignment,
-                      );
-                      setDescription(
-                        v.payload.kind === "method"
-                          ? v.payload.description
-                          : "",
-                      );
-                      if (v.payload.kind === "voice") {
-                        setVoiceProvider(v.payload.provider);
-                        setStyle(v.payload.style);
-                      }
-                    }}
+                    disabled={formPending || generating || selected?.itemId === v.itemId}
+                    onClick={() => editItem(v)}
                   >
                     {selected?.itemId === v.itemId ? "编辑中" : "编辑"}
                   </Button>
                   <Menu label="更多">
-                    <MenuItem disabled={formPending} onSelect={() => removeItem(v)}>删除…</MenuItem>
+                    <MenuItem disabled={formPending || generating} onSelect={() => removeItem(v)}>{deleteAction.isPending(v.itemId) ? "删除中…" : "删除"}</MenuItem>
                   </Menu>
                 </div>
               </div>
@@ -353,8 +289,8 @@ export function LibraryPanel({
           <div className="narrow-content flex flex-col gap-5">
             <div className="panel-card flex flex-col gap-4 p-5">
               <div className="section-title">
-                <h2 className="m-0">{selected ? hasChanges ? "编辑内容" : "已保存内容" : kind === "material" ? "新增素材" : `新建${meta.title}`}</h2>
-                {selected && <Badge tone="accent">正在编辑 {selected.payload.name}</Badge>}
+                <h2 className="m-0">{selected ? selected.payload.name : kind === "material" ? "新增素材" : `新建${meta.title}`}</h2>
+                {selected && <Badge tone={hasChanges ? "warn" : "ok"} dot>{hasChanges ? "未保存" : "已保存"}</Badge>}
               </div>
           <Field label="名称" required>
             <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -363,21 +299,12 @@ export function LibraryPanel({
             <Field label="语音提供方">
               <NativeSelect
                 value={voiceProvider}
-                onChange={(event) => setVoiceProvider(event.target.value)}
+                disabled={generating}
+                onChange={(event) => { clearRun(); setVoiceProvider(event.target.value); }}
               >
-                <option value="modelbest-voxcpm2">
-                  云端 ModelBest VoxCPM2（默认）
-                </option>
-                {providers
-                  .filter(
-                    (provider) =>
-                      provider.id === "local-voxcpm2" && provider.ready,
-                  )
-                  .map((provider) => (
-                    <option key={provider.id} value={provider.id}>
-                      {provider.name} · 已就绪
-                    </option>
-                  ))}
+                {providers.filter((provider) => provider.capabilities.includes("tts")).map((provider) => (
+                  <option key={provider.id} value={provider.id}>{provider.name}{provider.ready ? "" : " · 未配置"}</option>
+                ))}
               </NativeSelect>
             </Field>
           )}
@@ -434,20 +361,17 @@ export function LibraryPanel({
           ) : (
             <Dropzone
               inputAriaLabel="上传库文件"
-              disabled={formPending}
+              disabled={formPending || generating}
               title={file?.name || "拖入或选择库文件"}
               description={kind === "voice" ? "选择音色参考音频" : "选择可复用素材文件"}
               onFiles={(files) => {
-                formEpoch.current++;
-                setRunId("");
-                setResult(null);
-                setStatus("");
+                clearRun();
                 setFile(files[0] || null);
               }}
             />
           )}{" "}
           {kind === "voice" && (
-            <Field label="参考文本" required hint="填写参考音频中实际说出的内容，也可自动转写。">
+            <Field label="参考文本" htmlFor={referenceTextId} required hint="填写参考音频中实际说出的内容，也可自动转写。">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
@@ -459,11 +383,9 @@ export function LibraryPanel({
                       : {
                           voiceId: selected?.itemId,
                           voiceVersion: selected?.version,
-                          requestId: requestId(),
                         };
                     if (body instanceof FormData && file) {
                       body.append("file", file);
-                      body.append("requestId", requestId());
                     }
                     startRun(
                       file ? "/voice/transcribe-upload" : "/voice/transcribe",
@@ -474,15 +396,16 @@ export function LibraryPanel({
                 >
                   {purpose === "transcribe" && generating ? "转写中…" : referenceText.trim() ? "重新转写参考音频" : "转写参考音频"}
                 </Button>
-                {purpose === "transcribe" && status && <Badge tone="accent">{status}</Badge>}
+                {purpose === "transcribe" && runStatus}
               </div>
               <textarea
+                id={referenceTextId}
+                aria-label="参考文本"
                 value={referenceText}
+                disabled={generating}
                 onChange={(e) => {
                   if (purpose === "transcribe") {
-                    formEpoch.current++;
-                    setRunId("");
-                    setStatus("");
+                    clearRun();
                   }
                   setReferenceText(e.target.value);
                 }}
@@ -494,18 +417,20 @@ export function LibraryPanel({
             <div className="panel-card flex flex-col gap-4 p-5">
               <div className="section-title">
                 <h2 className="m-0">设计试听</h2>
-                {purpose === "design" && status && <Badge tone="accent">{status}</Badge>}
+                {purpose === "design" && runStatus}
               </div>
               <Field label="声音描述">
                 <textarea
                   value={style}
-                  onChange={(e) => setStyle(e.target.value)}
+                  disabled={generating}
+                  onChange={(e) => { clearRun(); setStyle(e.target.value); }}
                 />
               </Field>
               <Field label="试听文案">
                 <textarea
                   value={sample}
-                  onChange={(e) => setSample(e.target.value)}
+                  disabled={generating}
+                  onChange={(e) => { clearRun(); setSample(e.target.value); }}
                 />
               </Field>
               <div className="actions">
@@ -518,7 +443,6 @@ export function LibraryPanel({
                         style,
                         text: sample,
                         provider: voiceProvider,
-                        requestId: requestId(),
                       },
                       "design",
                     )
@@ -527,7 +451,7 @@ export function LibraryPanel({
                   {purpose === "design" && generating ? "生成中…" : preview.success ? "重新生成试听" : "生成试听"}
                 </Button>
               </div>
-              {purpose === "design" && preview.success && status === labels.succeeded && (
+              {purpose === "design" && preview.success && run?.state === "succeeded" && (
                 <div className="subtle-card flex flex-col gap-3 p-3">
                   <audio className="w-full" controls src={mediaUrl(preview.data.digest)} />
                   <div className="actions">
@@ -552,7 +476,7 @@ export function LibraryPanel({
                         } catch (error) { fail(error); }
                       })}
                     >
-                      {acceptAction.pending ? "保存中…" : "保存为音色"}
+                      {acceptAction.pending ? "保存中…" : "保存为新音色"}
                     </Button>}
                   </div>
                 </div>
@@ -561,23 +485,25 @@ export function LibraryPanel({
           )}
           </div>
           </div>
+          {stream.error && <div className="actions px-5 py-2"><small className="error">暂时无法读取任务进度。</small><Button size="sm" onClick={stream.retry}>重试连接</Button></div>}
+          {run?.error && <p className="error m-0 px-5 py-2">{run.error.message}</p>}
           <div className="shrink-0 border-t border-line bg-panel px-5 py-3">
             <div className="narrow-content flex flex-wrap items-center justify-end gap-2">
               {generating && (
-                <small className="hint mr-auto text-xs">试听或转写作业运行中，完成前不能保存。</small>
+                <small className="hint mr-auto text-xs">任务完成后可保存。</small>
               )}
               {selected && (
-                <Button variant="ghost" onClick={cancelEdit}>
+                <Button variant="ghost" disabled={generating} onClick={() => editItem(null)}>
                   {hasChanges ? "取消编辑" : kind === "material" ? "新增素材" : `新建${meta.title}`}
                 </Button>
               )}
-              <Button
+              {(!selected || hasChanges) && <Button
                 variant="primary"
                 disabled={formPending || !canSave}
                 onClick={() => void saveAction.run("save", async () => { await save().catch(fail); })}
               >
-                {saveAction.isPending("save") ? "保存中…" : selected ? hasChanges ? "保存修改" : "已保存" : "保存"}
-              </Button>
+                {saveAction.isPending("save") ? "保存中…" : selected ? "保存修改" : "保存"}
+              </Button>}
             </div>
           </div>
           </fieldset>

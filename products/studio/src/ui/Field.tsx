@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 export function Field({
   label,
+  htmlFor,
   required = false,
   hint,
   error,
@@ -9,6 +10,7 @@ export function Field({
   children,
 }: {
   label: string;
+  htmlFor?: string;
   required?: boolean;
   hint?: ReactNode;
   error?: ReactNode;
@@ -16,7 +18,7 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="field">
+    <label className="field" htmlFor={htmlFor}>
       <span>
         {label}
         {required && <b className="field-required">必填</b>}
