@@ -1,27 +1,32 @@
 # 运行合同与命令参考
 
+本文档是 LightWeaver 的工程接口与运行时合同参考，涵盖数据目录布局、CLI/HTTP 协议、编辑与制作约束、分析与检索规则、模型与运行组件边界，以及桌面客户端的并发与恢复机制。
+
 ## 数据位置
 
 | 位置 | 内容 |
 | --- | --- |
-| `data/.weaver/state.sqlite3` | 项目 head、不可变修订、资产与库版本、作业、事件、候选、交付 |
-| `data/.weaver/blobs/<prefix>/<digest>` | SHA-256 内容存储 |
-| `data/.weaver/work/<node>/<attempt>` | 独立 attempt 工作目录与完成收据 |
+| `data/.weaver/state.sqlite3` | 项目 `head`、不可变修订、素材与库版本、作业、事件、候选与交付记录 |
+| `data/.weaver/blobs/<prefix>/<digest>` | SHA-256 内容寻址存储（CAS）字节文件 |
+| `data/.weaver/work/<node>/<attempt>` | 作业节点的独立 attempt 工作目录与本地完成收据 |
 | `data/.weaver/materialized/` | 可重建的友好文件名副本 |
 | `data/.weaver/backups/` | 按需创建的一致性数据库与引用 blob 备份 |
-| `library/` | 可复用内置包和方法说明的显式导入来源 |
+| `library/` | 可复用内置包与预设的显式导入来源 |
 
-`LIGHTWEAVER_DATA_DIR` 或 CLI `--data-dir` 选择运行根。项目 ID 不依赖方法、工作流或目录。完整 DB 与 blobs 可一起搬迁，内部 locator 保持相对值。JSON 用于显式交换和不可变快照。
+- **运行根目录**：默认使用工作区 `data/.weaver/`，可通过环境变量 `LIGHTWEAVER_DATA_DIR` 或 CLI 参数 `--data-dir` 覆盖。
+- **可搬迁性**：项目 ID 独立于创作方法、工作流或文件系统目录；数据库内的路径引用只保存相对值，因此完整 `state.sqlite3` 与 `blobs/` 目录可以整体迁移到其他路径或机器。
+- **JSON 角色**：JSON 仅用于显式导入导出和不可变快照交换，不作为并发运行时的直接读写存储。
 
 ## 公开入口
 
-Node 产品使用 `@lightweaver/weaver/app`，浏览器使用 `@lightweaver/weaver/contracts`。`weaver capabilities` 返回工作流、输出规格、provider 描述符和内置包版本。capabilities 与 doctor 的 `runtime` 显示实际数据目录和配置文件，供 agent 核对目标工作区。capabilities 和 Studio 设置页还提供带绝对 Node、CLI、数据目录、配置文件和配置基准的完整命令；项目 brief 沿用同一命令，供其他工作目录中的 agent 访问当前项目。`schema` 由运行时 Zod 合同生成。下列 `npx weaver` 示例用于源码工作区；协作桌面项目时沿用复制给 agent 的完整命令。
+### 模块边界与工作区发现
 
-stdout 结果为 `{ok:true,result,requestId}`，错误为 `{ok:false,error:{code,message,retryable,details,hints}}`。日志进 stderr。`--json` 输出单行 JSON。CLI 默认仍返回 JSON；终端用户可显式使用 `--human`，它与 `--json` 互斥。帮助和参数检查共享命令描述，必填参数自动进入允许参数和帮助，不接受未知参数。`--help`、`-h` 在创建 Application 前解析。`--wait` 在终端中默认把阶段进度写到 stderr，非终端可显式加 `--progress`；stdout 保持结果契约。CLI `events` 输出 JSONL，`run events` 返回事件数组。HTTP 返回相同结果与错误形状；SSE 使用单调 seq，支持 Last-Event-ID。
+- **公开入口**：Node 产品层只使用 `@lightweaver/weaver/app`，浏览器前端只使用 `@lightweaver/weaver/contracts`。
+- **能力与运行时自省**：`weaver capabilities` 返回工作流、输出规格（profile）、provider 描述符与内置包版本。`capabilities` 与 `doctor` 返回的 `runtime` 字段标明了当前生效的数据目录（`dataDir`）和配置文件（`configFile`），供外部 agent 核对目标工作区。
+- **跨目录协作命令**：`capabilities`、Studio 设置页（"诊断与修复 → 运行信息与命令行"）以及 `project brief`（对应 Studio 中的 **复制给 agent**）均会给出绑定了绝对 Node 路径、CLI 入口、数据目录、配置文件与配置基准（`--config-file`、`--config-base`）的完整命令。在桌面项目或其他工作目录协作时，应直接使用该完整命令；下文 `npx weaver ...` 示例默认在源码工作区根目录执行。
+- **动态 Schema**：`weaver schema` 的输出由运行时 Zod 合同实时生成。
 
-项目写入携带 expectedRevision，库写入携带 expectedVersion。requestId 标识一次逻辑请求，相同请求可重试。修订冲突返回当前内容。删除库 head 使用墓碑，精确版本继续可读。
-
-帮助按命令作用域发现，完整参数以当前 CLI 返回为准：
+### CLI 协议、流式输出与帮助发现
 
 ```bash
 npx weaver --help --human
@@ -29,9 +34,24 @@ npx weaver scene add --help --human
 npx weaver project list --human
 ```
 
-素材导入按文件内容摘要和请求参数识别重试，不把上传临时路径作为请求身份。已完成的请求返回首次素材与修订，沿用首次 expectedRevision；同一 requestId 对应不同内容或参数时返回 REQUEST_ID_REUSED。素材名、类型与 MIME 包括从文件名推导的默认值，改变这些值也会被拒绝。重试仍需提供相同文件字节。
+- **stdout / stderr 契约**：
+  - 成功响应：`{ok:true,result,requestId}`。
+  - 错误响应：`{ok:false,error:{code,message,retryable,details,hints}}`。
+  - CLI 默认输出带缩进的 JSON；传入 `--json` 输出单行紧凑 JSON；终端用户可显式使用 `--human` 输出紧凑人类可读文本（`--human` 与 `--json` 互斥）。所有运行日志均写入 `stderr`。
+- **进度与事件流**：
+  - `--wait` 在交互式终端（TTY）中默认将阶段进度输出到 `stderr`；非终端管道如需进度需显式加 `--progress`。`stdout` 始终保持最终结果契约。
+  - CLI `events` 输出 JSONL，`run events` 返回事件数组；HTTP 接口返回与 CLI 相同的成功/错误结构，SSE 事件流（`/api/runs/:id/events`）使用单调递增 `seq` 并支持 `Last-Event-ID` 断点续传。
+- **帮助与参数校验**：`--help` 与 `-h` 在创建 `Application` 之前解析（不触发数据库初始化）。帮助生成与参数校验共用同一份命令描述，必填参数会自动列入帮助与允许参数列表，未知参数直接报错拒绝。
 
-`project create --sample` 和 Studio 的“打开示例”通过同一项目创建事务生成三张无旁白文字卡片，每张 90 帧，不导入素材或调用模型。默认规格为 1920×1080、30 fps，制作仍需 FFmpeg、ffprobe 和 Chrome。`scene add` 在共享项目写入入口按 requestId 查重、检查 expectedRevision，再解析源素材与时长；改变请求参数不能复用旧 requestId。card 的 body、label 可省略，locale 必须属于项目语言；still 和 clip 使用当前修订的精确素材引用。
+### 并发控制、幂等重试与基础写入
+
+- **乐观锁与墓碑**：项目写入必须携带 `expectedRevision`，库写入必须携带 `expectedVersion`；发生并发冲突时（`REVISION_CONFLICT`）返回当前最新内容。`requestId` 标识一次逻辑请求，相同请求可安全重试。删除库 `head` 仅写入墓碑标记，已发布的精确库版本仍可按版本摘要读取。
+- **素材导入重试（`asset add`）**：
+  - 正常机制：导入按文件内容 SHA-256 摘要和请求参数（含素材名、类型与 MIME，包括由文件名推导的默认值）识别重试，不以临时上传路径作为请求身份。已完成请求重放首次导入的素材与修订结果，并沿用首次的 `expectedRevision`。
+  - 边界处理：同一 `requestId` 对应不同文件字节或不同元数据参数时返回 `REQUEST_ID_REUSED`；重试时仍需提供相同的原始文件字节。
+- **示例项目与场景追加**：
+  - `project create --sample` 与 Studio 的 **打开示例** 调用同一项目创建事务，生成三张无旁白文字卡片（每张 90 帧），默认规格为 1920×1080、30 fps，不导入素材也不调用模型（正式渲染制作仍需 FFmpeg、ffprobe 与 Chrome）。
+  - `scene add` 在共享项目写入入口按 `requestId` 查重、校验 `expectedRevision`，再解析源素材与时长；修改请求参数不得复用旧 `requestId`。`card` 的 `body`、`label` 可省略，`locale` 必须属于项目语言列表；`still` 与 `clip` 需传入当前修订中的精确素材引用。
 
 ## 编辑与制作
 
@@ -48,23 +68,40 @@ npx weaver artifact show RECEIPT_DIGEST --json
 npx weaver export --project demo --format video --dest /absolute/movie.mp4 --json
 ```
 
-Draft 可为空。Scene 是 card、still 或 clip。静帧使用固定帧或真实语音时长，clip 使用整数微秒源窗，并显式选择源时长或语音时长。超窗默认拒绝，定格和变速由作者设置上限。原声场无需音色。
+### 场景时间与引用一致性
 
-场景集合变更通过共享规则移除已删除场景的 speech 字幕与遮罩。取消旁白或切换为原声、静音时，同步移除原来绑定该场景的 speech 字幕，保留独立 timeline、source 字幕及轨道设置。CLI 操作、整份项目保存和 Studio 草稿编辑使用同一规则；新提交的无旁白场景或失效场景引用在保存时被拒绝。
+- **正常机制**：
+  - 项目草稿（`ProjectDocument`）初始可为空。场景（`Scene`）支持 `card`（文字卡片）、`still`（静帧图片）与 `clip`（视频片段）。
+  - `card` 与 `still` 使用固定帧数或实际语音时长；`clip` 使用整数微秒源区间，显式选择按源窗时长（`source`）或语音时长（`speech`）播放。选择原声（`original`）或静音（`silent`）时无需配置音色。
+  - 当场景集合变更（删除场景、取消旁白或将语音切换为原声/静音）时，CLI `project apply`、整份项目保存和 Studio 草稿编辑共用同一清理规则（`reconcileSceneReferences`）：自动移除已删除场景绑定的 `speech` 字幕与遮罩，同步移除失去语音的场景关联的 `speech` 字幕，同时保留独立的 `timeline` 字幕、`source` 字幕以及字幕轨样式设置。
+- **边界与故障处理**：
+  - `clip` 选择按语音时长播放且旁白超出选定源窗时，默认策略 `reject` 会直接报错拒绝（`NARRATION_OVERFLOW`）；作者可显式改用有限定格（`freeze` 上限帧数）或显式变速区间（`speed`）。
+  - 新提交的无效引用（如 `speech` 字幕指向无旁白场景或已删除场景）会在保存时被拒绝。
 
-build 冻结作者、资产、库、provider 和工具，先准备真实事实，再编译 TimelineManifest。Remotion 只输出无声卡片，FFmpeg 统一画面、字幕、混音与最终封装。低清预览来自同一正式时间轴。
+### 制作流程、缓存与预览
 
-缓存按实际依赖与工具版本查找。改标题保留无关语音，按 locale 的文字与字幕独立失效。交付列表按文件完整性及当前工程与已存制作快照的依赖判断状态，不加载模型或探测当前制作工具。模型和工具配置变化不阻断项目读取或已有视频导出；重新制作时冻结并校验当前环境。历史结果可以显式导出。
+- **两阶段制作**：`build` 先冻结作者文档、素材版本、库版本、模型 provider 与本地工具版本，随后运行准备节点（probe、语音合成、对齐等）获取真实事实，再由纯编译器输出 `TimelineManifest`。Remotion 只渲染无声文字卡片，FFmpeg 统一负责画面拼接、字幕烧录、混音与封装；低清预览（proxy）由同一份正式时间轴生成。
+- **计划审核与提交约束**：只读预演 `build --plan` 可省略 `--expected-revision`，用于获取当前待审核计划与修订号；**实际提交制作**必须显式携带计划返回的 `expectedRevision`，CLI、HTTP 与共享应用入口均拒绝省略该值，期间若修订发生变化则返回 `REVISION_CONFLICT`。
+- **缓存与交付状态判断**：
+  - 缓存按实际依赖与工具版本精确查找：例如修改项目标题不会使无关语音缓存失效，不同语言（`locale`）的文案与字幕各自独立失效。
+  - 交付列表仅依据交付文件完整性以及当前工程与已保存制作快照之间的依赖指纹计算状态（`current` / `stale` / `historical` / `missing`），不加载模型也不探测当前本地工具。模型或工具配置变更不会阻断读取项目或导出已有视频；只有在重新执行 `build` 时，才会重新冻结并校验当前环境。历史有效交付仍可显式导出。
+- **Studio 成片预览与导出会话绑定**：
+  - Studio 展开成片预览时读取该交付自身保存的不可变时间轴，场景定位严格按成片本身的场景与帧率计算，不引用当前编辑草稿。
+  - 导出操作在打开系统选择器之前即绑定当前项目会话代次与所选交付 ID；选择期间重复点击不会重复弹出选择器，离开并重新进入项目后，旧选择器的返回结果不再触发导出。
 
-Studio 展开成片预览时读取该交付的不可变时间轴，场景定位按成片本身的场景和帧率计算，不引用当前草稿。导出在打开选择器前绑定项目会话和所选交付，选择期间重复点击不会重复打开选择器；离开并重新进入项目后，旧选择结果不再触发导出。
+### 交付导出与幂等发布
 
-实际提交制作必须携带已审核计划返回的 `expectedRevision`。CLI、HTTP 和共享入口均拒绝省略该值，修订变化返回冲突。只读 `build --plan` 可省略它，以取得待审核的当前计划。
+- **正常流程**：
+  - 视频导出默认选择当前交付（`current`），也可通过 `--delivery ID` 显式指定旧交付。桌面客户端按钮与 CLI 共用同一导出核心路径。
+  - 导出前先校验交付文件摘要，再写入目标目录旁的私有暂存目录（`.lightweaver-export-<nonce>`）中的临时文件，校验副本无误后原子发布到目标路径。
+- **边界与故障处理**：
+  - 缺失或损坏的交付（`missing`）拒绝导出；导出目标已存在时拒绝覆盖（不覆盖已有文件或目录）。若目标文件系统不支持排他链接/重命名发布（`renamex_np` / `renameat2`），会返回明确错误，可先导出到支持的本地文件系统目录。
+  - 视频、项目包（`bundle`）、OTIO 与剪映导出均按 `requestId` 保存首次请求及冻结目标（交付 ID 或项目修订）。若导出过程中或响应丢失后中断，必须使用**相同的 `requestId`、目标路径与完整参数**重试：系统会校验目标的文件身份（device/inode）与内容摘要，绝不把目标路径上的任意已有文件当作成功。已准备就绪但尚未确认发布的输出保留在目标目录旁的私有暂存目录中，进程退出后仍可由原请求恢复完成。
+  - 改变导出参数或目标路径必须更换新的 `requestId`（否则返回 `REQUEST_ID_REUSED`）；如果已导出的目标文件被移动或修改，重放原请求会返回完整性错误（`INTEGRITY_FAILED`）。
 
-视频导出默认选择当前交付，也可用 `--delivery ID` 显式选择旧交付。导出校验视频摘要，复制到目标目录中的临时文件，核对副本后原子发布，不覆盖已有目标。缺失或损坏的交付拒绝导出。桌面按钮与 CLI 使用同一核心路径。目标文件系统不支持排他链接发布时返回明确错误，可先导出到支持的本地目录。
+### 素材来源记录（provenance）
 
-视频、bundle、OTIO 和剪映导出以 requestId 保存请求与首次结果。首次请求固定交付或项目修订，响应丢失后用相同 requestId、目标路径与参数重试。重试验证目标的文件身份和内容，不把任意已有目标认作成功。已准备但尚未确认发布的输出保留在目标目录旁的私有暂存目录，进程退出后可由原请求恢复。参数变化必须使用新 requestId。目标被移动或修改后，原请求返回完整性错误。
-
-预处理素材可在 `asset add` 时传 `--provenance /absolute/provenance.json`。用 `schema media-provenance` 或 `schema media-asset` 读取合同。下面展示字段结构，`version` 的示意值需换成 `project context` 返回的实际 64 位素材版本摘要：
+预处理素材可在 `asset add` 时通过 `--provenance /absolute/provenance.json` 附加来源记录。使用 `weaver schema media-provenance` 或 `weaver schema media-asset` 查看完整合同。下面展示字段结构（`version` 示意值需替换为 `project context` 返回的实际 64 位素材版本摘要）：
 
 ```json
 {
@@ -77,7 +114,9 @@ Studio 展开成片预览时读取该交付的不可变时间轴，场景定位�
 }
 ```
 
-来源须为当前项目可读取的精确素材版本，音视频源窗不能越界。记录进入不可变素材版本；项目、构建快照、bundle 和交接包保留来源依赖闭包。`captions` 为 `embedded`、`none` 或 `unknown`；它描述素材画面，独立字幕仍保存在项目 captions。旧素材无记录时保持未知，不推断或改写旧版本。
+- 来源必须指向当前项目内可读取的精确素材版本（`assetId` + `version`）；仅音视频来源可附带 `range` 时间窗，且不得超出实际媒体时长。
+- 来源记录写入不可变素材版本；项目、构建快照、`bundle` 与交接包均保留完整来源依赖闭包。
+- `captions` 取值为 `embedded`、`none` 或 `unknown`，用于标记素材画面是否内嵌烧录字幕（独立字幕轨仍保存在项目 `captions` 字段）；旧素材无来源记录时保持未知，不会自动推断或改写旧版本。
 
 ## 分析与候选
 
@@ -93,15 +132,31 @@ npx weaver match --project demo --edited edited-asset-id --sources source-asset-
 npx weaver proposal apply --project demo --proposal PROPOSAL --select CANDIDATE --expected-revision REV --json
 ```
 
-ASR、描述按源版本与窗口保存。describe 的观察和镜头树供作者判断，核心不代写旁白。文本模式按已存证据检索，semantic 模式用 EmbeddingGemma 2 召回同一份字幕与观察文本，可显式使用旧 Qwen3 Reranker 适配重排前 50 个候选，默认返回前 20 个。文本和语义模式都遵守素材和完整证据时间窗过滤。视觉模式使用同一 EmbeddingGemma 2 主干和 mmproj，按五秒窗口的中点帧召回视频；不会读取 ASR 文本，也不会把单帧分数当作整窗内容判断。素材、时间过滤在抽帧前生效。语义分数是归一化向量的余弦相似度，重排分数单列保存；它们不是内容正确率。未配置请求的能力时明确失败，不回退到其它模型。
+### 观察与证据记录
 
-文本语义检索和画面检索共用 EmbeddingGemma 2 GGUF、mmproj、llama-server 和共享 Python。文本查询使用 `task: search result | query:` 前缀，证据文本使用 `title: none | text:` 前缀；两者执行 mean pooling 和 L2 归一化。文本适配器、前缀、主干与 mmproj 字节、服务二进制和 Python 都进入缓存绑定，文本缓存使用 `embedding-text-v3`，不会复用旧 Qwen3 向量。重排另按查询与候选文本缓存。检索不改写源证据；候选绑定提交时修订，作业成功后才在事务中发布。单条向量输入最多 8192 tokens；重排的查询与单条候选合计最多 7680 tokens，为模型模板预留空间。超限拒绝，不静默截断。
+- ASR 转写与画面观察（`describe`）均按源素材精确版本与时间窗保存。
+- `describe` 生成的画面观察与镜头树仅作为客观创作证据供作者判断，核心层不代写旁白。
 
-人工证据文件是 `[{sourceId,startUs,durationUs,text}]`，通过 `analyze --import /absolute/evidence.json --expected-revision REV --wait` 导入。外部候选使用 `schema proposal`，经 `proposal import --file /absolute/proposal.json --expected-revision REV --wait` 校验后保存。应用选择生成新修订，并保留选择记录。`proposal apply --ranges /absolute/ranges.json` 可传 `{候选ID:{startUs,durationUs}}`，裁剪必须完全包含在所选候选窗内。Studio 提供同样的预览和裁剪。
+### 文本、语义与视觉检索
+
+- **三种检索模式**：
+  - `text`（文本检索）：按已存储的字幕与画面观察文本检索。
+  - `semantic`（语义检索）：使用 EmbeddingGemma 2 对同一份字幕与观察文本进行向量召回（最多召回前 50 个候选），默认返回前 20 个；传入 `--rerank` 可显式调用 Qwen3 Reranker 对前 50 个候选重排后再截取返回。
+  - `visual`（视觉检索）：共用 EmbeddingGemma 2 主干权重与 `mmproj`，按 5 秒时间窗截取中点帧进行画面召回（仅支持视频源）。该模式不读取 ASR 文本，也不将单帧相似度等同于整段窗口内容判断。
+- **过滤、计算与缓存绑定**：
+  - 文本与语义模式均遵守 `--sources` 素材过滤与完整证据时间窗过滤；视觉模式在抽帧前即生效素材与时间过滤。
+  - 语义与视觉检索共用 EmbeddingGemma 2 GGUF、`mmproj`、`llama-server` 与共享 Python。文本查询拼接 `task: search result | query: ` 前缀，证据文本拼接 `title: none | text: ` 前缀，均执行 `mean` pooling 与 L2 归一化。文本缓存键为 `embedding-text-v3`（不复用旧 Qwen3 向量），同时绑定适配版本、前缀、模型与 `mmproj` 字节、`llama-server` 二进制及 Python 环境；重排另按查询与候选列表缓存。
+  - 语义分数为归一化向量的余弦相似度，重排分数单独列示，均仅表示相似度而非内容正确率。
+- **输入上限与失败边界**：
+  - EmbeddingGemma 2 上下文窗口为 `8192` tokens，关闭静默截断（`truncate: false`）；重排请求的单条"查询 + 候选"合计最多 `7680` tokens（为模型模板预留空间），超限直接拒绝（`INPUT_TOO_LONG`），不静默截断。
+  - 缺少所请求的检索或重排能力时直接失败（`CONFIG_MISSING`），不会静默回退到其他模型。检索不修改源证据，生成的候选绑定提交时的项目修订，作业成功后才在事务中发布。
+
+### 人工证据导入与候选裁剪
+
+- **人工证据导入**：文件格式为 `[{sourceId,startUs,durationUs,text}]`，通过 `analyze --import /absolute/evidence.json --expected-revision REV --wait` 校验源区间并导入。
+- **外部候选导入与应用**：外部候选需符合 `schema proposal`，通过 `proposal import --file /absolute/proposal.json --expected-revision REV --wait` 校验并保存。应用选中候选会生成新修订并保留选择记录；`proposal apply --ranges /absolute/ranges.json` 可传入 `{候选ID:{startUs,durationUs}}` 进行裁剪，裁剪范围必须完全包含在所选候选窗之内。Studio 提供同等的预览与裁剪能力。
 
 ## 创作方案
-
-外部 agent 使用 `project context` 读取修订、证据、素材和候选，通过 `schema creative-plan` 取得合同。方案包含标题、概述、场景、理由和源证据引用。
 
 ```bash
 npx weaver creative-plan import --project demo --file /absolute/plan.json --expected-revision REV --json
@@ -109,7 +164,11 @@ npx weaver creative-plan show --project demo --json
 npx weaver creative-plan apply --project demo --expected-revision REV --json
 ```
 
-保存方案生成新修订，现有场景继续用于制作。采用默认替换场景，`--append` 追加。引用证据必须属于此项目，素材版本和区间必须匹配。无分析证据的人工选段也可保存。Studio 审核同一方案，并要求先保存本地草稿。方案与依赖随 bundle 保存。
+- **读取与合同**：外部 agent 通过 `project context` 获取当前项目修订、分析证据、素材与候选，通过 `schema creative-plan` 获取创作方案结构（包含标题、概述、分场 `beats`、`scene`、理由 `rationale` 与源证据引用 `evidence`）。
+- **保存与采用**：
+  - 导入保存创作方案会生成新项目修订，此时现有场景保持不变，仍可用于制作；Studio 审核同一个方案，且在采用前会要求先保存本地草稿。
+  - `creative-plan apply` 默认替换当前场景列表，传入 `--append` 时改为追加。
+- **边界校验**：方案引用的所有证据必须属于当前项目，且素材版本与时间区间必须精确匹配；不含分析证据的人工选段也可按合同保存。方案及其引用依赖随项目包（`bundle`）一起保存。
 
 ## 字幕与声音
 
@@ -118,15 +177,30 @@ npx weaver captions import --project demo --file /absolute/subtitles.srt --local
 # 源片字幕额外带 --source-id ASSET --source-version DIGEST
 ```
 
-字幕支持人工 SRT、VTT，时间可映射到成片、源片或场景语音。manual、native、aligned、estimated 分别记录。precise 模式缺对齐能力时报错；estimated 需要显式选择。SRT、ASS、烧录和交接使用同一 cue。
+### 字幕时间坐标与导入
 
-precise 使用 Qwen3-ForcedAligner-0.6B。zh、yue、en、de、es、fr、it、pt、ru、ko、ja 可用，区域标签取主语种，拒绝 auto。单场景语音最多 180 秒，音频转为 16kHz 单声道；字幕用作者原文分句，通过实际词/字时间得到句界。空结果、原文覆盖不完整和无效时码会失败，不伪造 aligned 字幕。
+- 支持导入人工 SRT、VTT 文件，每条字幕 `cue` 的时间可映射到成片时间轴（`timeline` 帧）、源媒体（`source` 微秒）或场景语音（`speech` 微秒）。
+- 每条 cue 的 `timingQuality` 分别标记为 `manual`、`native`、`aligned` 或 `estimated`。`precise` 字幕模式在缺少对齐能力时报错；使用估算时码（`estimated`）必须显式选择。SRT、ASS、画面烧录与交接包共用同一套 cue 数据。
 
-源片与独立 ASR 先对完整选择做 VAD，再规划最长 40 秒的上下文，优先在停顿中切分，无停顿时有界均分。声学活动不逐段当作句子转写，外层不再固定重叠切窗。ASR 上下文仍为 estimated；`analyze --with asr --align` 按各上下文的实际文字和音频逐窗对齐，保留原文和词时间，再按当前修订采用为源片字幕。模型仍可能返回无效句界，此时明确失败。
+### 精确强制对齐（ForcedAligner）
 
-跨窗采用只去重同一来源、相同说话人且文字一致的重叠证据；不同文字保留供作者核对，不按时间重叠丢弃整句。字幕 cue 可在 Studio 编辑文字、时间、来源和临时说话人标签；人工修改清除已失效词时间。Studio 字幕支持正文、原始转写和说话人检索，每页显示 25 条。重叠筛选只比较同一时间钟，修改与移除按 cue 标识作用于完整字幕轨。未提交草稿备份到当前数据目录的客户端状态，桌面另写独立恢复 journal，重新打开后显式恢复；恢复保留原修订基线，过期修订仍进入冲突处理。备份可手动清除。
+- `precise` 对齐固定使用 Torch 后端的 `Qwen3-ForcedAligner-0.6B`。
+- 支持语种：`zh`、`yue`、`en`、`de`、`es`、`fr`、`it`、`pt`、`ru`、`ko`、`ja`。带区域后缀的标签（如 `zh-CN`）取主语种，拒绝 `auto` 及未支持语种（`ALIGNMENT_LANGUAGE_UNSUPPORTED`）。
+- 边界与校验：单场景语音最长 **180 秒**，音频统一重采样为 16kHz 单声道。对齐严格按作者原文分句，通过实际词/字时间戳推导句界；若出现空结果、原文覆盖不完整（`ALIGNMENT_TEXT_MISMATCH`）或无效/倒序时码，直接报错失败，绝不伪造 `aligned` 字幕。
 
-视频和静帧遮罩按所选输出规格预览，位置保存在项目修订中；卡片遮罩使用坐标示意，并通过制作预览核对实际画面。制作时 card、still、clip 共用视觉分段遮罩处理，遮罩应用在画幅适配之后。
+### 源片 ASR 切窗与跨窗去重
+
+- **正常流程**：源媒体与独立音频 ASR 先用 TEN VAD 对完整选段执行语音活动检测，再规划最长 **40 秒**的上下文窗口——优先在停顿中点切分，无停顿时有界均分，避免外层固定重叠切窗，也不直接把声学活动边界当作句子边界转写。
+- **对齐升级**：纯 ASR 产出的上下文标记为 `estimated`；执行 `analyze --with asr --align` 时，系统按各上下文窗的实际文本与音频逐窗对齐，保留原文和词时间，再通过 `captions from-analysis` 按当前修订采用为源片字幕。若对齐模型返回无效句界，仍明确报错失败。
+- **跨窗采用去重规则**：采用分析结果为源片字幕时，**仅去重**同一素材来源、相同说话人（`speakerId`）且文本一致的重叠证据（按 `aligned > native > manual > estimated` 优先级选择）；对于时间重叠但文本不同的证据，全部保留供作者核对，不按时间重叠丢弃整句。
+
+### Studio 字幕编辑、检索与重叠筛选
+
+- Studio 中支持修改单条 cue 的文本、时间、来源与临时说话人标签；人工修改文本或时间后，会自动清除已失效的词级时间戳（`words`）并将该条标记为 `manual`。
+- 字幕列表支持按**正文、原始转写（`sourceText`）与说话人**检索，每页固定显示 **25 条**。
+- "仅看重叠"筛选仅在同一时间钟内部比较时间区间（`timeline` 内部、同一 `source` 内或同一 `speech` 场景内）；编辑与移除均按 cue 唯一标识作用于完整字幕轨。
+
+### 字幕翻译与说话人分段
 
 ```bash
 npx weaver captions translate --project demo --locale zh --target-locale en --expected-revision REV --wait --json
@@ -136,17 +210,25 @@ npx weaver speakers apply --project demo --run RUN --expected-revision REV --jso
 npx weaver voice-design --provider local-voxcpm2 --text "试听内容" --style "温和自然" --wait --json
 ```
 
-翻译保留 cue 标识、句界、源引用和 sourceText，清除译文无对应关系的词时间。采用后 `translationLocale` 记录字幕语言，制作 locale 与原声不变。MOSS 仅支持中文与英文；每窗最多 40 秒，标签带窗口作用域，不跨窗推断人物身份。模型完成不会自动覆盖项目字幕。按 run 采用局部结果只替换重叠的源字幕，窗口外 cue 保留。原文结果不能混入仍保留译文 cue 的轨道；完整恢复原文会清除译文标记。再次翻译已有译文轨时从保留的原文开始。
+- **字幕翻译（Hy-MT2）**：保留 cue 标识、原句界、源引用及原文（`sourceText` / `translationSourceText`），清除与译文不再对应的词时间戳。采用后轨道记录 `translationLocale`，制作语音语言与原声保持不变。对已有译文轨再次发起翻译时，自动以保留的原文为基础重新翻译。
+- **说话人分段（MOSS）**：MOSS Transcribe Diarize GGUF 仅支持中文（`zh`）与英文（`en`）；每窗最长 **40 秒**，说话人标签仅带有窗口局部作用域，系统不跨窗推断或合并同一人物身份。
+- **采用与轨道保护**：翻译与说话人分段作业完成后均不会自动覆盖项目字幕，必须按 `run` 显式采用。按 run 采用局部说话人结果时，只替换与作业时间窗重叠的 `source` 字幕，窗口外 cue 保持不变。禁止将原文分析结果混入仍保留译文 cue 的轨道；完整恢复原文后才会清除 `translationLocale` 标记。
+- **Studio 共享作业订阅**：Studio 字幕翻译、音色试听与参考音频转写共用作业订阅机制，按项目、语言或音色表单隔离结果；提交响应丢失时自动重放同一 `requestId`，不重复创建任务；取消或恢复请求失败也不停止进度订阅。任务页与工作区均按当前作业实际完成节点数计算进度，重试时重新反映未完成步骤。
 
-Studio 字幕翻译、音色试听和参考音频转写使用共享作业订阅，按项目、语言或音色表单隔离结果；提交响应丢失时重放同一请求，不重复创建任务。取消或恢复请求失败不停止进度订阅。任务页和工作区均按当前任务实际完成节点计算进度，重试时重新反映未完成步骤。
+### 视觉遮罩
 
-本地 VoxCPM2 音色可通过 Studio 上传或试听收下。音色的 provider 随版本保存，场景的 `Speech.style[locale]` 可覆盖默认风格；真实文字、风格、参考音频和模型绑定共同决定语音缓存。本地合成有风格时使用可控克隆，只向模型传参考音频；无风格且有参考文本时使用续写克隆。两种模式不混用。语音绑定还摘要实际 site-packages 内容，环境字节变化会失效。
+- 视频与静帧遮罩按当前选定的输出规格（profile）实时预览，归一化位置保存在项目修订中；卡片（`card`）遮罩在编辑器中使用坐标示意，通过制作预览核对实际画面。
+- 正式制作时，`card`、`still`、`clip` 共用同一视觉分段遮罩管线，且遮罩应用在画幅适配（`contain` / `cover`）**之后**。
 
-声音计划包含原声、语音、BGM、增益、裁剪、循环、淡变、旁白驱动 ducking 和最终 LUFS、true peak 目标。默认 -16 LUFS、-1 dBTP。静音节目不填写虚构测量值。正式视频验证帧数、规格和解码音频采样数，AAC 允许最多 2048 个额外样本。
+### 语音合成与声音计划
+
+- **本地 VoxCPM2 克隆模式**：本地音色可通过 Studio 上传参考音频或音色设计试听后收下入库；音色的 `provider` 随库版本保存，场景级别的 `Speech.style[locale]` 可覆盖音色默认风格。本地合成时，有 `style`（或无参考文本）时走**可控克隆**（仅向模型传参考音频与风格），无 `style` 且有参考文本时走**续写克隆**，两种模式不混用。
+- **语音缓存绑定**：真实文本、风格、参考音频和模型绑定共同决定 TTS 语音缓存；本地 VoxCPM2 绑定还会摘要实际 Python `site-packages` 目录内容，环境包字节变化会使旧缓存失效。
+- **声音计划与成品校验**：声音计划统一管理原声、旁白语音、BGM、增益、裁剪、循环、淡入淡出、旁白驱动闪避（ducking）以及最终响度目标（默认 `-16 LUFS`、`-1 dBTP` 真峰值）。纯静音节目不填写虚构响度测量值。正式视频封装后验证总帧数、规格与解码音频采样数（48kHz 双声道，AAC 编码允许最多 **2048 个**额外 padding 样本）。
 
 ## 模型边界
 
-Studio 的“模型”页和 `weaver models` 共用公开 `app`、`contracts` 入口。ModelBest 是第一个供应商预设，固定提供 `MiniCPM-V-4.7-35B-A3B` 与 `VoxCPM2`；获取 Key 的入口是 `https://platform.modelbest.cn/`，接口文档是 `https://platform.modelbest.cn/console/docs`。
+Studio 的"设置 → 模型与供应商"页与 `weaver models` 共用公开 `app`、`contracts` 入口。ModelBest 是首个云端供应商预设，固定提供 `MiniCPM-V-4.7-35B-A3B` 与 `VoxCPM2`；获取 Key 入口为 `https://platform.modelbest.cn/`，接口文档见 `https://platform.modelbest.cn/console/docs`。
 
 ```bash
 npx weaver models list --json
@@ -161,51 +243,56 @@ npx weaver models use qwen3-asr --path /absolute/qwen3-asr --expected-revision C
 npx weaver models use-provider modelbest --expected-revision CONFIG_REV --json
 ```
 
-本地目录由 TypeScript 声明式 catalog 提供。每条发布固定 repository、revision、文件路径、大小和 SHA-256；不接受任意下载 URL。下载输入只接受 catalog 模型 ID 和根目录，路径拒绝绝对文件项、`..` 与控制字符。下载作业沿用现有 Jobs 取消、恢复、重试和事件，模型下载单独使用六小时时限。
+### 目录清单与下载暂存（`models download`）
 
-下载只把缺失或校验失败的文件写入本次 attempt 的独立暂存区。每个文件按固定大小与 SHA-256 校验后，才以不覆盖方式发布到用户根目录下的版本目录；内容冲突时保留原件并报告错误。取消或失败不会标为下载成功，已校验发布的完整文件可供重试复用，未读响应流会主动取消。状态页分别检查当前生效路径和下载目录的元数据；Studio 只读显示当前模型路径，通过系统选择器选择模型文件或目录；打开模型详情及选择已有路径时自动校验，路径校验通过后保存，失败保留原配置。完整作业记录集中在任务页，CLI `verify` 校验下载目录。校验与采用按目录清单对比，其他模型版本可能不同；列表扫描只读取元数据；模型详情、显式校验、下载和采用已有路径会校验完整文件哈希。Qwen ASR GGUF 可把任意文件名的既有文件直接传给 `models use`；ForcedAligner 与 EmbeddingGemma 可选择完整目录，或选择清单内的一个文件来定位完整目录，所有文件校验通过后才采用。TEN VAD 与其它原生运行库由引擎安装管理。下载不会复制到 CAS，也不会隐式写入配置。
+- **声明式清单**：本地模型目录由 TypeScript 声明式 catalog 提供，每条发布固定 Hugging Face `repository`、`revision`、相对文件路径、精确字节大小和 SHA-256，不接受任意下载 URL。下载输入仅接受 catalog 模型 ID 与目标根目录，文件路径校验拒绝绝对路径、`..` 与控制字符。
+- **暂存、校验与不覆盖发布**：
+  - 下载作业复用 Jobs 的取消、恢复、重试与事件机制，模型下载单独使用 **6 小时**节点时限。
+  - 下载仅把缺失或校验失败的文件写入本次 attempt 的独立暂存区（`<root>/.lightweaver-staging/<token>`）。每个文件均先校验固定大小与 SHA-256，再以不覆盖方式（hardlink）发布到用户根目录下的 `<model-id>/<revision>/` 目录；目标已有不同内容的文件时保留原件并报错（`MODEL_TARGET_CONFLICT`）。
+  - 取消或失败不会标为成功，已校验发布的完整文件在重试时可直接复用；中止时主动取消未读完的响应流。下载文件既不复制到 CAS，也不隐式写入模型配置文件。
 
-模型下载根目录、模型采用路径及配置中的相对路径按运行时的 `configBase` 解析。CLI、浏览器 Studio 和桌面默认以工作区为配置基准，显式选择的配置文件按其所在目录解析。普通 CLI 文件参数的相对路径按当前工作目录解析；视频导出的 `--dest` 要求绝对路径。保存 ModelBest Key 不会改变运行时预设；`models use-provider modelbest` 或 Studio 的“采用 ModelBest 预设”会一次写入 `vlm_provider`、`vlm_model`、`tts_model`。SettingsView 返回三项的有效值与来源，配置来源保持可见。
+### 路径校验、采用与预设
 
-Studio 的下载位置只读显示，使用系统选择器更换后立即保存，不移动已有文件。模型下载位置由运行时统一决定：默认使用工作区 `data/models/`。私有配置的 `model_download_root` 或环境变量可显式覆盖，相对路径按 `configBase` 解析；`data/` 不进入 Git。
+- **列表元数据 vs 完整校验**：状态列表扫描仅检查文件路径与大小等元数据；打开模型详情、显式执行 `models verify`、下载以及采用已有路径时，会对清单全部文件执行完整 SHA-256 哈希校验。
+- **采用已有模型路径（`models use`）**：
+  - 单文件模型（如 Qwen3-ASR GGUF）可把任意文件名的既有文件直接传给 `models use`。
+  - 多文件模型（如 Qwen3 ForcedAligner、EmbeddingGemma 2）可选择完整目录，或选择清单内的任意一个文件以定位所属完整目录；必须所有文件校验通过后才写入配置，失败时保留原配置。
+- **Studio 模型路径与下载目录**：Studio 详情页只读显示当前生效模型路径与下载位置，通过系统选择器选择文件或目录后自动校验并保存；使用选择器更换下载位置后会立即保存，不搬迁已有文件。TEN VAD 与其他原生运行库不由模型管理，而是由[引擎运行时](#引擎运行时)管理。
+- **供应商预设**：仅保存 ModelBest API Key 不会改变模型预设；执行 `models use-provider modelbest` 或在 Studio 点击 **采用 ModelBest 预设**，会一次原子写入 `vlm_provider`（`modelbest-vlm`）、`vlm_model`（`MiniCPM-V-4.7-35B-A3B`）与 `tts_model`（`VoxCPM2`）。配置读取接口返回三者的有效值及配置来源。
 
-配置值按运行时 `configFile`（私有本地配置）、环境变量、内置 `config.yaml` 默认值的顺序解析。三者中的空字符串和纯空白值都视为未设置。`source=file` 表示私有本地配置，`source=environment` 表示环境变量，`source=default` 表示 `config.yaml` 或代码缺省值，`source=unset` 表示没有有效值。内置默认文件位于工作区根目录 `config.yaml`。私有覆盖继续写入 `runtime.configFile`，相对路径仍按 `runtime.configBase` 解析。
+### 配置文件、优先级与并发安全
 
-`config.yaml` 的 API Key 字段必须保持空字符串，不得提交真实凭据。用户应通过设置页或私有本地配置文件提供凭据；在源码环境，该文件是忽略的 `config.local.yaml`。桌面设置保存密钥后立即采用新值，无需重启；清除私有本地配置中的密钥后，如果环境变量有非空值则立即回退到环境变量，否则回到未配置状态。
+- **相对路径基准**：模型下载根目录、模型采用路径及配置中的相对路径按运行时 `configBase` 解析——CLI、浏览器 Studio 与桌面默认以工作区为基准，显式指定 `--config-file` 时默认按配置文件所在目录解析（除非另行传入 `--config-base`）。普通 CLI 文件参数的相对路径按当前工作目录解析；`export` 的 `--dest` 要求绝对路径。模型默认下载到工作区 `data/models/`（Git 忽略），可通过私有配置的 `model_download_root` 或 `LIGHTWEAVER_MODEL_DOWNLOAD_ROOT` 覆盖。
+- **配置解析优先级**：按 **私有本地配置（`runtime.configFile`，源码环境默认忽略的 `config.local.yaml`） > 环境变量 > 内置默认配置（工作区根目录 `config.yaml`）** 的顺序解析。三者中的空字符串和纯空白值均视为未设置。接口返回的 `source` 值含义：`file`（私有本地配置）、`environment`（环境变量）、`default`（`config.yaml` 或代码缺省值）、`unset`（无有效值）。
+- **密钥管理边界**：工作区 `config.yaml` 的 API Key 字段必须保持空字符串，不得提交真实凭据。桌面/Studio 设置保存密钥后立即生效无需重启；显式清除私有本地配置中的密钥后，如果环境变量存在非空值则立即回退到环境变量，否则回到未配置状态。配置读取视图仅暴露是否已配置和来源，绝不回显明文密钥；表单提交空输入保持现值，清除必须显式发起清除请求。
+- **乐观锁、文件锁与请求收据**：
+  - 任何配置写入、预设采用与已有模型采用均需先读取 `models settings get` 的 `revision`，提交时沿用该 `expectedRevision` 与稳定 `requestId`；网络响应丢失后重放原请求，不重新计算 `expectedRevision`。
+  - `config.local.yaml` 更新只接受平面白名单字段，保留无关行、已有密钥和用户注释，拒绝控制字符。保存流程先冻结 `expectedRevision`，再在 `config.local.yaml.lock` 短临界区内重读最新文件（遗留死锁按空锁/错格式宽限期、owner PID 存活探测与文件 `dev/ino` 身份回收），最后以 `0600` 权限原子替换。
+  - 请求收据存放在配置目录下的 `.lightweaver/<配置文件名>.sqlite3`（不混入 YAML），同一配置文件在不同数据目录间共用同一套收据。保存时先持久化请求指纹、配置前后摘要及不含明文密钥的首次结果，再原子替换 YAML 文件并确认完成；若写入后进程意外中断，重启时按配置摘要恢复完成状态（旧版内嵌 YAML 注释收据会自动转存并清除，且保持配置逻辑 `revision` 不变）。相同请求重放首次结果，不同参数复用 `requestId` 返回 `REQUEST_ID_REUSED`。
 
-配置写入、供应商预设和已有模型采用均需读取 `models settings get` 的 revision，写入时沿用该 expectedRevision 和稳定 requestId。响应丢失后重放原请求，不重新计算 expectedRevision。
+### 能力与配置映射
 
-`config.local.yaml` 更新只接受平面白名单，保留无关行与密钥，拒绝控制字符。保存先冻结 expected revision，再在 `config.local.yaml.lock` 短临界区内重读；锁遗留按空锁宽限、owner PID 存活和文件 dev/ino 身份回收。配置文件以 `0600` 权限原子替换，只写模型设置与用户注释。请求收据存放在配置目录下的 `.lightweaver/<配置文件名>.sqlite3`，不混入 YAML；同一配置文件在不同数据目录间共用收据。保存先持久化请求指纹、配置前后摘要和不含明文密钥的首次结果，再替换配置并确认完成；进程中断后按配置摘要恢复完成状态。已有内嵌收据会先转存再清除，配置逻辑 revision 保持不变。相同请求重放首次结果，不同参数复用 requestId 被拒绝。密钥空输入保持现值，清除必须显式请求；私有本地文件优先于环境变量，清除本地密钥后回退到环境变量。SettingsView 只暴露是否配置和来源。
-
-| 能力 | 当前适配 | 配置 |
+| 能力 | 当前适配 | 配置键（`config.local.yaml`）与环境变量 |
 | --- | --- | --- |
-| TTS、音色设计 | ModelBest VoxCPM2 SSE 音频事件 | MODELBEST_API_KEY、LIGHTWEAVER_TTS_MODEL |
-| VLM | ModelBest MiniCPM-V 或 DeepSeek flash | MODELBEST_API_KEY、DEEPSEEK_API_KEY，analyze --provider |
-| VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | LIGHTWEAVER_ASR_MODEL |
-| 精确对齐 | Qwen3 ForcedAligner，固定使用 Torch | LIGHTWEAVER_ALIGNMENT_MODEL |
-| 文本和视觉向量 | EmbeddingGemma 2 GGUF 与 mmproj，mean pooling | LIGHTWEAVER_VISUAL_MODEL、LIGHTWEAVER_VISUAL_MMPROJ |
-| 重排 | Qwen3 Reranker GGUF，rank pooling | LIGHTWEAVER_RERANKER_MODEL，search --rerank |
-| 本地语音 | VoxCPM2 Torch | LIGHTWEAVER_LOCAL_TTS_MODEL |
-| 字幕翻译 | Hy-MT2 GGUF | LIGHTWEAVER_TRANSLATION_MODEL |
-| 说话人分段 | MOSS Transcribe Diarize GGUF | LIGHTWEAVER_DIARIZATION_MODEL，加 ASR 原生运行时 |
+| TTS、音色设计 | ModelBest VoxCPM2 SSE 音频事件 | `modelbest_api_key` / `MODELBEST_API_KEY`、`tts_model` / `LIGHTWEAVER_TTS_MODEL` |
+| VLM | ModelBest MiniCPM-V 或 DeepSeek flash | `modelbest_api_key` / `MODELBEST_API_KEY`、`deepseek_api_key` / `DEEPSEEK_API_KEY`、`vlm_provider` / `LIGHTWEAVER_VLM_PROVIDER`、`vlm_model` / `LIGHTWEAVER_VLM_MODEL`、`deepseek_model` / `LIGHTWEAVER_DEEPSEEK_MODEL`、`analyze --provider` |
+| VAD 与 ASR | TEN VAD native ABI、Qwen3 GGUF transcribe ABI | `asr_model` / `LIGHTWEAVER_ASR_MODEL` |
+| 精确对齐 | Qwen3 ForcedAligner，固定使用 Torch | `alignment_model` / `LIGHTWEAVER_ALIGNMENT_MODEL` |
+| 文本和视觉向量 | EmbeddingGemma 2 GGUF 与 `mmproj`，mean pooling | `visual_model` / `LIGHTWEAVER_VISUAL_MODEL`、`visual_mmproj` / `LIGHTWEAVER_VISUAL_MMPROJ` |
+| 重排 | Qwen3 Reranker GGUF，rank pooling | `reranker_model` / `LIGHTWEAVER_RERANKER_MODEL`、`search --rerank` |
+| 本地语音 | VoxCPM2 Torch | `local_tts_model` / `LIGHTWEAVER_LOCAL_TTS_MODEL` |
+| 字幕翻译 | Hy-MT2 GGUF | `translation_model` / `LIGHTWEAVER_TRANSLATION_MODEL` |
+| 说话人分段 | MOSS Transcribe Diarize GGUF（加 ASR 原生运行时） | `diarization_model` / `LIGHTWEAVER_DIARIZATION_MODEL` |
 
-运行组件路径由安装清单统一解析，不写入模型配置文件。默认使用工作区 `data/engines/` 中安装的组件。所有 Python 功能使用同一个 `python-runtime`，不再按模块选择虚拟环境。ASR 使用 TEN VAD、transcribe 运行库与 Python bindings；检索、重排和翻译共用同一个 `llama_server` 绑定；开发覆盖只使用 `LIGHTWEAVER_LLAMA_SERVER`。强制对齐固定使用 Torch，默认 CPU。特殊构建可通过 `LIGHTWEAVER_ENGINE_ROOT` 或各组件环境变量覆盖；设备选择使用 `LIGHTWEAVER_ALIGNMENT_DEVICE`（`cpu`、`cuda[:index]`）和 `LIGHTWEAVER_DIARIZATION_BACKEND`。这些开发覆盖不进入模型配置或设置写入接口。
+### 运行隔离与诊断语义
 
-每次 GGUF 执行绑定临时 loopback 端口及独立凭据，关闭代理，完成或失败后回收服务。共享 Python 与子服务同属作业进程组，取消一并终止。doctor 检查文件、可执行文件和对齐依赖，不加载权重或发送推理请求；ready 只表示配置与依赖条件满足。
+- **受管组件与开发覆盖**：运行组件路径由引擎安装清单统一解析，不写入模型配置文件（`config.local.yaml` 与设置写入接口均拒绝运行组件字段）。默认使用工作区 `data/engines/` 中安装的组件，所有 Python 能力共用同一个 `python-runtime` 虚拟环境；ASR 使用 TEN VAD、transcribe 运行库与 Python bindings；检索、重排与翻译共用同一个 `llama_server` 绑定。特殊构建或开发调试可通过环境变量覆盖（不进入模型配置）：`LIGHTWEAVER_ENGINE_ROOT`、各组件变量（如 `LIGHTWEAVER_LLAMA_SERVER`、`LIGHTWEAVER_PYTHON`、`LIGHTWEAVER_ASR_BINDINGS`、`LIGHTWEAVER_VAD_LIBRARY`），以及设备与后端选择 `LIGHTWEAVER_ALIGNMENT_DEVICE`（`cpu`、`cuda[:index]`）和 `LIGHTWEAVER_DIARIZATION_BACKEND`。
+- **本地 GGUF 进程隔离**：每次 GGUF 推理绑定临时 loopback 端口（`127.0.0.1`）与随机凭据，屏蔽代理环境变量，完成或失败后立即回收子服务；共享 Python 与子服务同属作业进程组，作业取消时一并终止。
+- **就绪语义与缓存策略**：`weaver doctor` 仅检查工具、依赖、配置与目标剪映版本，不加载权重也不发送推理请求，因此 `ready` 只代表配置与依赖条件满足。本地模型文件摘要进入缓存绑定；远端模型输出具有不确定性，缓存默认复用已验证的实际输出字节，`--regenerate` 使用新 `generation` 重新生成。远端接口不支持幂等，取消只中止本地等待，远端执行结果可能未知。
 
-本地文件内容摘要进入绑定。远端模型输出可能不确定，缓存复用已验证的实际字节。`--regenerate` 使用新 generation。远端不支持幂等，取消只中止本地等待，远端结果可能未知。本轮模型预设与安装的验收证据和限制见[模型预设与本地安装验收](acceptance-model-setup.md)。
-
-`weaver doctor` 显示工具、依赖、配置和目标剪映版本。它不发送模型请求。模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)、[能力落地验收](acceptance-coverage.md)、[连续影视素材验收](acceptance-long-form.md)与[全片精确对齐根因与验收](acceptance-alignment-root-cause.md)。
+模型预设与安装验收证据见[模型预设与本地安装验收](acceptance-model-setup.md)；各类模型功能确认见[架构升级验收](acceptance-v2.md)、[强制对齐和检索验收](acceptance-alignment-search.md)、[能力落地验收](acceptance-coverage.md)、[连续影视素材验收](acceptance-long-form.md)与[全片精确对齐根因与验收](acceptance-alignment-root-cause.md)。
 
 ## 引擎运行时
-
-WorkBuddy 可使用 CLI 为接收方准备 transcribe 运行库、Python bindings、TEN VAD、llama-server 和共享 Python。安装与模型下载沿用现有作业和完整性校验，源码压缩包只交付代码与内置资源。
-
-普通模型操作使用 `weaver models install ID --expected-revision CONFIG_REV --wait` 或 `POST /api/models/:id/install`。`GET /api/models/:id/install-plan` 返回兼容情况、模型剩余下载量、依赖预计体积和文件来源。`source.kind` 优先为 `configured`（当前配置的完整模型，附冻结路径与文件快照），其次为 `downloaded`（下载目录内已有完整文件），缺文件时为 `download`。已有模型不创建下载节点；单个 `model-setup` 作业只准备缺失组件并完整校验已有文件，`model-activate` 最后一次写入配置。采用当前模型时保留全部模型绑定，路径或文件快照变化会拒绝启用；采用下载目录时写入对应模型绑定。依赖失败、取消或配置冲突不会启用模型；失败沿完整依赖链传播，成功的独立步骤可在重试时复用。仅下载文件仍使用 CLI `models download`。
-
-Studio 日常设置为“模型与供应商 / 存储 / 诊断与修复”。模型页按状态提供操作：未下载时“下载并启用”，已有完整文件时“启用”，已配置但缺组件时准备运行组件；已启用模型不再显示准备按钮。模型路径只读呈现当前配置，通过系统选择器选择文件或目录后自动校验并采用，不要求用户另行执行校验。提交时携带所见的 `source`，服务端在创建作业前重新核对；来源变化返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新选择操作，不把启用静默改为下载。组件状态与修复入口位于“诊断与修复”，默认只展示就绪状态和必要操作；版本、来源与文件检查收在组件详情中。主题在侧栏底部切换。
-
-Studio 的“诊断与修复 → 运行组件与修复”和 `weaver engines` 管理本地引擎：transcribe 运行库与 Python bindings、TEN VAD、llama-server，以及共享 Python 运行环境。引擎与模型权重分开。引擎是固定版本、固定平台的官方预编译产物或由本应用创建的独立环境；权重仍由“模型”页下载。
 
 ```bash
 npx weaver engines setup --expected-revision CONFIG_REV --wait --json
@@ -216,21 +303,48 @@ npx weaver engines install transcribe-native --wait --json
 npx weaver engines verify transcribe-native --json
 ```
 
-高级修复面板与 `engines setup` 提供组合操作：依次安装 transcribe 运行库、Python bindings、TEN VAD（必需），共享 Python（必需）及 llama-server（可选），最后一个作业节点确认组件就绪。用户不需要指定路径，也不需要先理解“下载、校验、采用”的逐步操作；已安装且校验通过的部分会复用。
+### 模型一站式准备与启用（`models install`）
 
-必需组件失败时作业失败且不写配置；可选组件失败只记录在完成节点的 `skipped` 里并继续处理其余组件，界面显示“部分运行组件仍不可用，可重试”。CLI 与自动化可用 `includeModels`（CLI `--with-models`）同时准备 ASR、EmbeddingGemma、ForcedAligner 权重。Studio 的通用修复只处理运行组件，模型权重由模型页选择。组件就绪且没有更新时，“刷新状态”只读取状态；可用组件不再显示安装按钮，单个组件的文件检查与更新收在详情中。
+- **安装计划与来源判定**：调用 `weaver models install ID --expected-revision CONFIG_REV --wait`（或 `POST /api/models/:id/install`）前，可通过 `GET /api/models/:id/install-plan` 获取平台兼容性、模型剩余下载字节、依赖预计体积与文件来源 `source.kind`：
+  - `configured`：当前已配置的完整模型（附冻结路径与文件快照）。
+  - `downloaded`：下载目录内已有完整校验文件。
+  - `download`：需要下载模型文件。
+- **执行流程**：已有完整模型文件时不创建下载节点；单个 `model-setup` 作业只安装缺失运行组件并完整校验已有文件，最后一个 `model-activate` 节点原子写入配置。仅需下载模型文件可使用 CLI `models download`。
+- **Studio 交互与故障边界**：
+  - Studio 设置分为 **模型与供应商 / 存储 / 诊断与修复** 三栏；模型详情页按状态给出对应按钮：未下载时显示 **下载并启用**，已有完整文件时显示 **启用**，已配置但缺组件时提示准备运行组件，已启用且就绪的模型不再显示准备按钮。
+  - 提交准备作业时会携带当前所见的 `source`，服务端在入队前重新核对；若文件或路径在此期间发生变化，返回 `MODEL_FILES_CHANGED`，页面刷新后由用户重新确认，绝不把"启用"静默改为重新"下载"。
+  - 采用当前已配置模型时保留全部已有模型绑定（路径或快照变化则拒绝启用）；依赖失败、取消或配置冲突时均不修改模型配置，且失败沿完整依赖链传播，成功完成的独立步骤在重试时可复用。
 
-开始前按未安装组件的 `estimatedBytes` 与模型剩余字节估算所需空间，引擎根目录可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。已安装版本与当前发布不同时 `engines list` 的 `updates` 会列出该组件，`engines setup` 会下载新版本、替换本应用管理的目录并重新采用。组件位置由运行时决定，已有文件不会自动搬迁。可用空间与更新列表通过 `GET /api/engines` 返回。
+### 本地引擎一键配置与修复（`engines setup`）
 
-`engines list` 返回解析后平台的 catalog、`updates`（已安装版本与当前发布不同的组件）、可选权重计划（`models`）与引擎根目录可用空间（`diskFreeBytes`）。每个组件的 `usage` 由服务端统一计算：`managed`（本应用安装并自动使用）、`external`（使用显式环境覆盖）、`unused`、`partial`；Studio 引擎面板与 `doctor` 使用同一分类；当前路径属于受管目录时，缺文件或元数据异常归为 `partial`，不会冒充外部组件。`weaver doctor` 与 `capabilities` 同时返回引擎摘要：`ready` 表示全部本地能力组件可用，`coreReady` 要求 transcribe 运行库、bindings、TEN VAD 与共享 Python。transcribe 运行库与 TEN VAD 固定到当前平台的发布摘要，transcribe bindings 固定 PyPI wheel 摘要，llama-server 固定 llama.cpp 发布 build；不接受任意下载 URL，也不在用户机器上编译 C++。目录只声明发布地址、归档大小与 SHA-256、归档内顶层目录、解压后每个必需文件的路径、大小和 SHA-256。下载只写入本次作业暂存区；归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐个文件校验，最后以目录重命名原子发布。已安装目录带 `.lightweaver-engine.json` 标记；目标目录存在但无标记时不覆盖，保留用户自己的文件。
+Studio 的 **诊断与修复 → 运行组件检查与修复** 与 `weaver engines` 负责管理本地运行组件（`transcribe-native`、`transcribe-bindings`、`ten-vad`、`llama-server` 以及 `python-runtime`）。引擎是固定版本和平台的官方预编译产物或独立受管环境，与模型权重分开维护。WorkBuddy 也可通过 CLI 为接收方预先准备这些组件（源码压缩包本身只交付代码与内置资源）。
 
-引擎安装根目录由运行时选择；默认使用工作区 `data/engines/`（Git 忽略）。开发时可用 `LIGHTWEAVER_ENGINE_ROOT` 覆盖。安装目录固定为 `<根>/<引擎 ID>`，重新安装同版本会复用已校验内容，升级版本替换本应用安装的目录。
+- **正常流程**：
+  - `engines setup` 与高级修复面板按顺序安装：**`transcribe-native`**（必需）、**`transcribe-bindings`**（必需）、**`ten-vad`**（必需）、**`python-runtime`**（必需）以及 **`llama-server`**（可选），并在最后一个 `adopt` 节点确认全部就绪。
+  - 用户无需理解"下载、校验、采用"的分步细节；已安装且校验通过的组件自动复用，安装完成后立即解析生效，不再需要额外"采用引擎"操作。
+  - 传入 `--with-models`（API `includeModels`）可在同一次作业中准备 `qwen3-asr`、`embeddinggemma-2` 与 `qwen3-forced-aligner` 权重，并仅在此时于完成节点按 `expectedRevision` 写入模型路径。Studio 日常修复面板仅处理运行组件，模型权重由模型页选择。
+  - 全部组件就绪且无更新时，面板按钮切换为 **刷新状态**（只读查询）；可用组件不再显示安装按钮，单组件文件校验与更新入口收在"组件详情"中。
+- **必需 vs 可选失败策略**：
+  - 必需组件失败时作业直接失败，且不写入任何配置。
+  - 可选组件（如 `llama-server`）失败时仅将其记录在完成节点的 `skipped` 列表中并继续安装其余组件，界面提示 **部分运行组件仍不可用，可重试**（可通过 **继续修复** 重试）。
 
-`engines setup` 按顺序安装并校验组件，安装完成后自动解析使用，不再需要“采用引擎”操作。仅在显式选择同时采用模型时，完成节点才按 expectedRevision 写入模型路径。模型配置只接受模型路径、模型选择及 API 凭据，设置接口与内部配置写入口均拒绝运行组件字段。
+### 空间预检、状态分类与原子发布
 
-Python 依赖统一在 `weaver/requirements.txt`。模型推理、VoxCPM2 语音合成、字幕翻译与项目交接共用 `python-runtime`；对齐所需的 Transformers 4.57.6 同时满足 VoxCPM2 的依赖声明。安装时使用 Python 3.12 创建受管 venv。`LIGHTWEAVER_PYTHON` 是唯一的 Python 开发覆盖。作业使用六小时时限，取消会终止 pip；新建失败时清除未完成环境。安装校验核对固定依赖版本。
+- **磁盘空间预检**：安装或修复启动前按未安装组件的 `estimatedBytes` 加上待下载模型字节，并预留 **256 MiB** 安全余量估算所需空间；目标分区可用空间不足时直接返回 `DISK_SPACE_INSUFFICIENT`，不启动下载。
+- **目录、更新与统一状态分类**：
+  - 安装根目录由运行时选择，默认使用工作区 `data/engines/`（Git 忽略），开发时可用 `LIGHTWEAVER_ENGINE_ROOT` 覆盖。组件固定位于 `<根>/<引擎 ID>`，更改目录配置不会自动搬迁已有文件。
+  - 已安装版本与 catalog 发布版本不一致时，`engines list` 与 `GET /api/engines` 会返回解析后的平台 catalog、更新列表 `updates`、可选模型下载计划 `models` 以及引擎根目录可用空间 `diskFreeBytes`；执行 `engines setup` 会下载新版并原子替换本应用管理的目录。
+  - `engines list`、`doctor` 与 `capabilities` 共用服务端统一的 `usage` 分类：`managed`（本应用安装且自动生效）、`external`（显式环境变量覆盖且可用）、`unused`（未安装且未配置）、`partial`（路径属于受管目录但缺文件或元数据异常，不冒充外部组件）。其中 `engines.ready` 表示全部本地组件可用，`engines.coreReady` 要求 `transcribe-native`、`transcribe-bindings`、`ten-vad` 与 `python-runtime` 就绪。
+- **来源锁定与安全发布**：
+  - `transcribe-native` 与 `ten-vad` 锁定当前平台的官方发布摘要，`transcribe-bindings` 锁定 PyPI wheel 摘要，`llama-server` 锁定 `llama.cpp` 发布构建；不接受任意下载 URL，也不在用户机器上编译 C++。catalog 声明发布地址、归档大小与 SHA-256、归档内顶层目录以及解压后每个必需文件的路径、大小和 SHA-256。
+  - 下载仅写入本次作业暂存区（`<root>/.lightweaver-staging/<token>`）：归档先按 SHA-256 校验，解压时拒绝绝对路径、`..` 与越界软链，解压后再逐一校验每个必需文件，最后通过目录重命名原子发布并写入 `.lightweaver-engine.json` 标记。若目标目录已存在但无该标记，拒绝覆盖（`ENGINE_TARGET_CONFLICT`），保留用户原有文件。
 
-TEN VAD 由引擎安装管理。引擎安装的历史证据和平台范围见[引擎运行时安装验收](acceptance-engine-setup.md)。
+### 共享 Python 运行环境（`python-runtime`）
+
+- 所有 Python 依赖统一声明在 `weaver/requirements.txt` 中（模型推理、VoxCPM2 合成、字幕翻译与项目交接共用同一个 `python-runtime`；强制对齐要求的 `transformers==4.57.6` 同时满足 VoxCPM2 的依赖声明）。
+- 安装时查找并要求 **Python 3.12** 创建受管 venv（`LIGHTWEAVER_PYTHON` 是唯一的 Python 开发覆盖变量），作业采用 **6 小时**时限。取消操作会终止 `pip` 进程，首次新建失败时清除未完成环境，安装完成后校验各固定依赖版本。
+
+引擎运行时安装的历史证据与平台范围见[引擎运行时安装验收](acceptance-engine-setup.md)。
 
 ## 库与交接
 
@@ -243,7 +357,8 @@ npx weaver asset adopt --project demo --item ITEM --version DIGEST --expected-re
 npx weaver library import-builtin --package-version DIGEST --json
 ```
 
-内置包 DIGEST 由 capabilities 返回。方法条件来自 MethodVersion。项目升级使用 `project apply` 的 rebind 操作。音色参考音频转写、设计试听和收下也可在 Studio 完成。
+- 内置库包 `package-version` 摘要由 `weaver capabilities` 返回；方法条件来自 `MethodVersion`。
+- 项目升级引用的库版本使用 `project apply` 的 `rebind` 操作。音色参考音频转写、音色设计与试听入库也可直接在 Studio 中完成。
 
 ```bash
 npx weaver export --project demo --format otio --dest /absolute/empty-otio-dir --json
@@ -254,9 +369,12 @@ npx weaver export --project demo --format bundle --dest /absolute/package.zip --
 npx weaver import --file /absolute/package.zip --id imported-project --json
 ```
 
-OTIO 使用官方库生成与重载。字幕附 SRT、ASS 与 metadata，编辑器的字幕与特效兼容性各异。剪映锁定 macOS 11.7.0、schema 360000、adapter v1。重叠字幕分配独立文本轨，保留原始文字与时间，作者可在编辑器继续核对。安装创建新草稿并备份索引。
-
-画面适配、速度和定格可烘焙。节目母带保留最终混音，独立备选音轨默认静音，并烘焙裁剪、循环、变速、增益与淡变。原始媒体、映射与报告随包保存。bundle 保存精确版本和必要物化依赖，排除活动 DB 与密钥。
+- **OTIO 与剪映导出**：
+  - OTIO 使用官方 `opentimelineio` 库（0.18.1）生成与重载校验，随附 SRT、ASS 字幕与完整 metadata（各剪辑软件对字幕和特效的兼容性存在差异）。
+  - 剪映导出锁定 macOS `11.7.0`、schema `360000`、`adapter v1`（`pyJianYingDraft` 0.3.1）。重叠字幕会自动分配到独立文本轨并保留原始文字与时间，方便作者在编辑器中核对；`export install` 会创建新草稿并先备份草稿索引。
+- **媒体烘焙与项目包（`bundle`）**：
+  - 交接包的画面适配、变速与定格支持烘焙。节目母带保留最终混音；独立备选音轨默认静音，并按同一计划烘焙裁剪、循环、变速、增益与淡变。原始媒体、映射关系与校验报告随包保存。
+  - `bundle` 保存精确项目修订、素材/库版本及匹配的已验证物化依赖，排除活动数据库与 API 密钥，可直接导入其他工作区复现。
 
 ## 取消、恢复与维护
 
@@ -271,7 +389,20 @@ npx weaver gc --json
 npx weaver gc --apply --json
 ```
 
-失败与取消保留已完成独立目标及上一份有效交付。作业总时限返回 `DEADLINE_EXCEEDED`，用户取消与 worker 停止分别登记 cancelled 与 interrupted。工具探测接收节点取消信号。媒体监督进程通过父进程管道与 IPC 断连感知 worker 退出。POSIX 终止目标进程组；Windows 用 PowerShell 宿主中的 Job Object 拥有进程树，目标先挂起、加入 Job 后才运行，停止或宿主退出会回收后代。三秒宽限后仍未退出的监督宿主会被强制停止。界面上的“取消”只表示请求已提交，进程回收以监督结果为准。lease、attempt token 和目标代次约束发布。完成收据进入 DB 与 CAS 引用，备份后也能复用；本地旧 attempt 工作收据支持崩溃恢复。
+### 作业取消、进程树监督与恢复
+
+- **状态隔离与时限**：单节点失败或作业取消会保留已完成的独立目标以及项目的上一份有效交付。普通作业节点受 **30 分钟**总时限约束，模型下载与引擎安装相关节点时限为 **6 小时**，超时返回 `DEADLINE_EXCEEDED`。用户取消记为 `cancelled`，worker 停止或租约过期断连记为 `interrupted`。
+- **进程树监督**：工具探针直接接收节点取消信号；媒体监督进程通过父进程管道与 IPC 断连感知 worker 退出：
+  - POSIX：直接终止目标进程组（`-targetGroup`）。
+  - Windows：通过 PowerShell 宿主创建 Job Object 托管进程树（目标进程先挂起、加入 Job 后再恢复运行，确保宿主退出或停止时回收全部子孙进程）。
+  - 终止信号发出后经过 **3 秒**宽限仍未退出的监督宿主将被强制结束（`SIGKILL`）。界面上的"取消"仅表示请求已提交，实际进程回收以监督结果为准。
+- **租约、Fencing 与收据复用**：节点运行受租约（15 秒 `lease_until`，每秒心跳续期）、`attempt token` 与目标代次约束，确保失去所有权的晚返回无法写入结果或发布交付。完成收据同时写入 SQLite（`node_receipts`）并引用 CAS，整库备份恢复后仍可继续复用；节点工作目录中保存的本地 `receipt.json` 也支持崩溃后的恢复复用。
+
+### 备份、恢复与垃圾回收
+
+- **备份（`backup`）**：通过 SQLite 在线 backup API 创建数据库一致性快照，并复制快照引用的所有不可变 blob。
+- **恢复（`restore`）**：校验备份数据库可读性与 `integrity_check`，核对数据库实际引用与 `backup.json` 清单集合及元数据是否一致，并逐个校验每个 blob 文件的大小与 SHA-256；全部通过后才原子发布到空目录，失败则自动清理暂存目录，绝不覆盖活动数据库。
+- **垃圾回收（`gc`）**：默认执行 dry-run 检查，加 `--apply` 才会删除未引用对象。受保护范围覆盖所有项目修订、库版本、作业 `run`、完成收据、`pin` 与保留交付。
 
 ## 桌面客户端
 
@@ -280,16 +411,37 @@ make desktop          # Electron + Vite HMR + 动态端口服务
 make source-zip       # 打包已提交源码
 ```
 
-Studio 的“保存”一次写入文档与待审创作方案；“保存并制作”先完成该写入，再以返回的精确 expectedRevision 提交制作。保存方案不会自动采用场景。等待保存期间产生新文档或方案编辑时，保留草稿并暂停制作；保存或提交制作的响应丢失时，相同内容重试复用 requestId。离开项目时选择保存也使用同一写入。创建项目和导入项目包的失败重试保留请求身份，确认成功后才结束该操作。
+### 进程架构与安全边界
 
-冲突界面保留本地草稿并展示内容差异。加载服务器内容前先备份、重新读取 head；服务器又更新时要求重新查看差异。备份、读取及恢复的回调绑定项目、会话代次和草稿序号，不能清除期间的新编辑，也不能向新项目展示旧项目的恢复 journal 错误。
+- `npm start` 与 `make desktop` 启动同一套源码桌面客户端：前端由 Vite 提供（桌面模式下动态分配端口；独立浏览器 Studio 默认端口为 `5175`，API 服务默认端口为 `5176`），API 与后台 worker 运行在独立的 Node 服务进程中。
+- **回环与会话校验**：API 服务仅接受回环地址（`127.0.0.1`、`localhost`、`::1`）和已登记的来源（Origin），请求还需匹配当前会话令牌（`Bearer` token）。
+- **配置与数据隔离**：CLI、浏览器 Studio 与桌面客户端共用仓库根目录的私有配置文件（`config.local.yaml`）；桌面自身的窗口偏好、主题设置与服务日志保留在系统用户目录，可通过 `LIGHTWEAVER_USER_DATA` 环境变量隔离桌面用户目录。协作桌面项目时，应使用界面中的 **复制给 agent** 获取绑定实际数据目录的完整命令。
 
-`npm start` 和 `make desktop` 启动同一源码桌面。界面由 Vite 提供，API 和 worker 在独立 Node 服务中运行。API 仅接受回环地址和登记的来源，桌面请求还需匹配当前会话凭据。CLI、浏览器和桌面共用仓库根的私有配置；桌面数据与偏好保留在系统用户目录。协作桌面项目时，从“复制给 agent”取得绑定实际数据目录的完整命令。`LIGHTWEAVER_USER_DATA` 可隔离桌面用户目录。
+### 草稿保存、多级恢复与冲突处理
 
-共享时用 `make source-zip` 打包已提交源码。压缩包包含配套技能和 lockfile，排除私有配置、数据、模型、环境及构建产物。接收方按运行指南安装依赖，不再构建独立应用安装包。
+- **保存与制作联动**：
+  - Studio 的 **保存** 一次写入项目文档与待审创作方案；**保存并制作** 先完成该写入，再以服务端返回的精确 `expectedRevision` 提交制作（保存创作方案不会自动采用其场景）。
+  - 等待保存响应期间若产生了新的文档或方案编辑，界面会保留新草稿并暂停后续制作；如果保存或提交制作的响应丢失，相同内容重试会自动复用原 `requestId`。
+  - 离开项目弹窗中选择保存时使用同一写入通道；创建项目与导入项目包的失败重试同样保留请求身份，直到服务端确认成功后才结束操作。
+- **客户端状态与桌面恢复 journal**：
+  - 客户端状态（`client-state.json`）优先加载并与服务端同步，待保存操作按序重放（冲突时按最新状态重放，备份清除需等待服务端确认）。
+  - 桌面端在每次编辑时会同步把草稿写入当前数据目录下的独立恢复 journal（`<dataDir>/.desktop-recovery/journal.json`），重启或退出前会等待写盘完成；未提交草稿会自动（或在离开弹窗选择 **保留草稿** 时）备份到当前数据目录的客户端状态（`client-state.json`），并在重新打开项目后显式恢复（备份可手动清除；选择 **放弃修改** 会删除本地草稿与草稿备份）。
+  - 所有草稿恢复均严格保留原始修订基线（`base`），转换或加载期间的新编辑不会绕过并发校验，过期基线仍会进入正常的修订冲突处理。
+- **冲突界面与加载保护**：
+  - 发生修订冲突时，冲突界面完整保留本地草稿并提供 **查看差异** 对比。
+  - 点击 **保留我的草稿并加载服务器内容**（确认弹窗点击 **备份草稿并加载**）时，系统会先备份本地草稿、清除对应恢复 journal，再重新读取服务器最新 `head`。如果等待备份或读取期间产生了新编辑，或者服务器又推进了新修订，系统会保留当前草稿并提示用户重新确认后再加载；并发保存推进修订后，旧加载操作也会自动失效。
+  - 所有备份、读取与恢复回调均绑定项目 ID、会话代次与草稿序号，确保切换项目后旧回调不会清除新编辑，也不会向新项目展示旧项目的恢复 journal 错误。
 
-共享 Python 由 `engines setup` 准备，模型按需安装。项目首页仍可导入成片项目的 bundle ZIP 或目录；模型完整性检查与真实推理作业结果分别展示。
+### 窗口关闭与退出协调
 
-客户端状态先加载再重放待保存操作；冲突时按最新状态重放，备份清除需服务端确认。桌面每次编辑同时写入当前数据目录的独立恢复 journal，重启前等待写盘。草稿恢复保留原修订基线，转换操作期间的新编辑不会绕过修订冲突。“保留草稿并加载当前修订”在备份前绑定项目、会话、修订基线与草稿序号；等待期间有新编辑时，保留草稿和冲突状态，由用户再次确认加载。并发保存推进修订后，旧加载操作也会失效。桌面关窗先通过作业服务检查排队、运行和正在取消的任务，不受最近 100 条历史记录限制。没有活动任务时先处理草稿，再停止后台并退出；有活动任务或状态暂不可读时，提供后台运行、停止后台并退出、取消三项。后台运行先等待草稿写盘并建立托盘恢复入口，再隐藏窗口。菜单退出沿用同一活动任务检查，隐藏窗口会先恢复以显示确认。主进程串行协调关窗与退出，浏览器仍使用离站提示。验收证据与平台限制见 [桌面客户端验收](acceptance-desktop.md)。
+- 桌面客户端在关闭窗口或通过菜单退出时，先向服务查询 `/api/runs/has-active` 检查是否存在排队、运行或正在取消中的任务（直接查库，不受作业列表最近 100 条历史记录限制）。
+- **无活动任务**：先完成未保存草稿的提示与落盘，再安全停止后台 Vite 与 Node 服务并退出。
+- **存在活动任务或服务状态暂不可读**：弹出确认提供 **后台运行**、**停止后台并退出**、**取消** 三项。选择 **后台运行** 时，主进程会先等待草稿写入恢复 journal、创建系统托盘恢复入口，再隐藏窗口（全屏窗口会先退出全屏）。
+- 菜单退出沿用同一活动任务检查，隐藏在后台的窗口会先恢复显示再弹出确认；主进程通过串行队列协调所有关窗与退出流程。浏览器版 Studio 继续使用标准页面离站提示。
 
-备份使用 SQLite backup API，并复制快照引用的不可变 blob。restore 核对备份数据库实际引用、清单集合与元数据，以及每个文件的大小和 SHA-256；全部通过后才发布到空目录，失败会清理暂存。GC 默认 dry-run，保护修订、库版本、run、收据、pin 和保留交付。
+桌面客户端验收证据与平台限制见[桌面客户端验收](acceptance-desktop.md)。
+
+### 源码打包与接收方准备
+
+- 分享项目代码时使用 `make source-zip` 打包已提交源码（输出至 `out/LightWeaver-source.zip`）。压缩包包含配套 `.agents/skills/` 与 `package-lock.json`，排除私有配置、运行数据、模型权重、运行环境与构建产物。
+- 接收方按开发指南安装依赖后，使用 `engines setup` 准备共享 Python 与原生运行组件，并按需下载安装模型即可使用，无需构建独立桌面安装包。项目首页支持直接导入成片项目的 `bundle` ZIP 或目录；界面会将模型文件完整性检查结果与真实推理作业结果分开展示。
